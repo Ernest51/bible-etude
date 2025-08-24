@@ -1,215 +1,379 @@
-<!doctype html>
-<html lang="fr">
+<!DOCTYPE html>
+<html lang="fr" class="h-full theme-indigo">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>Étude biblique — Lecture</title>
-  <link rel="icon" href="data:;base64,iVBORw0KGgo=" />
+
+  <!-- Tailwind (CDN) -->
+  <script>
+    window.tailwind = window.tailwind || {};
+    window.tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary:{50:'#eef2ff',100:'#e0e7ff',200:'#c7d2fe',300:'#a5b4fc',400:'#818cf8',500:'#6366f1',600:'#4f46e5',700:'#4338ca',800:'#3730a3',900:'#312e81'}
+          },
+          fontFamily:{sans:['"Plus Jakarta Sans"','Inter','system-ui','Arial','sans-serif']}
+        }
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+
   <style>
     :root{color-scheme:light dark}
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;margin:0;background:#f6f7fb}
-    .wrap{max-width:980px;margin:24px auto;padding:0 16px}
-    .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 8px 22px -10px rgba(2,6,23,.18)}
-    .hdr{padding:18px 20px;border-bottom:1px solid #eef2f7}
-    .hdr h1{margin:0;font-size:26px}
-    .content{padding:20px}
-    .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:10px 0}
-    .row-sm{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-    label{font-size:12px;font-weight:600;color:#334155;display:block;margin:4px 0}
-    input,select,button,textarea{font:inherit}
-    input,select{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#fff}
-    button{border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#fff;padding:10px 14px;font-weight:700;cursor:pointer}
-    button.secondary{background:#f1f5f9;color:#0f172a}
-    button.ghost{background:transparent;color:#0f172a}
-    .muted{color:#64748b;font-size:12px}
-    .error{background:#fee2e2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:10px 12px;margin-top:10px}
-    .ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:10px;padding:10px 12px;margin-top:10px}
-    pre{white-space:pre-wrap;word-break:break-word}
-    .result{background:#fafafa;border:1px solid #e5e7eb;border-radius:10px;padding:14px}
-    .row-buttons{display:flex;gap:8px;flex-wrap:wrap}
-    .hidden{display:none}
+    body{font-family:"Plus Jakarta Sans",Inter,system-ui,Arial,sans-serif;background:#f6f7fb}
+    .dark body{background:#0b1220}
+    .container-xl{max-width:1200px;margin-inline:auto}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px}
+    .dark .card{background:#0f172a;border-color:#1f2937}
+    .content-section{display:none;opacity:0;transition:opacity .2s}
+    .content-section.active{display:block;opacity:1}
+    .sidebar-item{border:1px solid transparent;border-radius:12px;padding:.6rem .7rem}
+    .sidebar-item:hover{background:#eef2ff;border-color:#c7d2fe}
+    .sidebar-item.active{background:#e0e7ff;border-color:#c7d2fe;box-shadow:inset 4px 0 0 0 #6366f1}
   </style>
 </head>
-<body>
-  <div class="wrap">
-    <div class="card">
-      <div class="hdr">
-        <h1>Étude biblique — Lecture</h1>
-        <div class="muted">Affichage lisible de 8 ou 28 points (aucun JSON brut par défaut).</div>
-      </div>
 
-      <div class="content">
-        <div class="row">
-          <div>
-            <label for="livre">Livre</label>
-            <input id="livre" placeholder="Jean" value="Jean" />
-          </div>
-          <div>
-            <label for="chapitre">Chapitre</label>
-            <input id="chapitre" type="number" min="1" step="1" value="3" />
-          </div>
-          <div>
-            <label for="points">Format</label>
-            <select id="points">
-              <option value="8">8 points (rapide)</option>
-              <option value="28">28 points (complet)</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="row-sm">
-          <button id="go">Générer</button>
-          <div class="row-buttons">
-            <button class="secondary" id="copyBtn">Copier</button>
-            <button class="secondary" id="exportBtn">Exporter JSON</button>
-            <button class="secondary" id="printBtn">Imprimer / PDF</button>
-            <button class="ghost" id="toggleRawBtn">Voir le JSON brut (pour debug uniquement)</button>
-          </div>
-        </div>
-
-        <div id="msg" class="hidden"></div>
-
-        <div id="pretty" class="result" style="margin-top:12px;"></div>
-        <pre id="raw" class="result hidden" style="margin-top:12px;"></pre>
-
-        <div class="muted" style="margin-top:10px">
-          API : <code id="apiLink"></code>
+<body class="min-h-screen">
+  <div class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="sticky top-0 z-30 bg-white/95 dark:bg-neutral-900/95 border-b border-neutral-200 dark:border-neutral-800">
+      <div class="container-xl px-4">
+        <div class="py-3 flex items-center justify-between">
+          <h1 class="text-xl sm:text-2xl font-extrabold">Étude biblique — Lecture</h1>
+          <button id="printBtn" class="px-3 py-1.5 rounded-lg border text-sm">Imprimer / PDF</button>
         </div>
       </div>
-    </div>
+    </header>
+
+    <!-- Main -->
+    <main class="flex-1 py-6">
+      <div class="container-xl px-4">
+        <!-- Sélection -->
+        <section class="card p-4 sm:p-6 mb-6">
+          <div class="grid grid-cols-12 gap-4">
+            <div class="col-span-12 md:col-span-4">
+              <label class="text-sm font-semibold block mb-1">Livre</label>
+              <input id="livreInput" class="w-full border rounded-lg px-3 py-2" placeholder="ex: Jean" value="Jean">
+            </div>
+            <div class="col-span-6 md:col-span-3">
+              <label class="text-sm font-semibold block mb-1">Chapitre</label>
+              <input id="chapInput" class="w-full border rounded-lg px-3 py-2" type="number" min="1" value="3">
+            </div>
+            <div class="col-span-6 md:col-span-3">
+              <label class="text-sm font-semibold block mb-1">Format</label>
+              <select id="formatSelect" class="w-full border rounded-lg px-3 py-2">
+                <option value="8">8 points (rapide)</option>
+                <option value="12">12 points</option>
+                <option value="28" selected>28 points (complet)</option>
+              </select>
+            </div>
+            <div class="col-span-12 md:col-span-2 flex items-end">
+              <button id="generateBtn" class="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold px-4 py-2 rounded-lg">
+                Générer
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Corps -->
+        <div class="grid grid-cols-12 gap-6">
+          <!-- Navigation points -->
+          <aside class="col-span-12 lg:col-span-4">
+            <div class="card p-3 sticky top-20 max-h-[calc(100vh-140px)] overflow-y-auto">
+              <h2 class="text-lg font-extrabold mb-2">Points d’étude</h2>
+              <nav id="pointsNav" class="space-y-1"></nav>
+            </div>
+          </aside>
+
+          <!-- Contenu -->
+          <section class="col-span-12 lg:col-span-8">
+            <div class="card relative">
+              <div id="aiBusy" class="hidden absolute inset-0 bg-white/70 dark:bg-black/40 z-10 grid place-items-center">
+                <div class="rounded-xl border bg-white dark:bg-neutral-900 px-4 py-3 shadow-md text-sm flex items-center gap-2">
+                  <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                  <span id="aiBusyText">Génération…</span>
+                </div>
+              </div>
+              <div id="content-area" class="p-5 sm:p-6">
+                <div class="text-center py-10" id="welcomeBlock">
+                  <h3 class="text-lg font-bold mb-2">Bienvenue 👋</h3>
+                  <p class="text-neutral-600">Choisis un livre et un chapitre puis clique sur “Générer”.</p>
+                </div>
+                <div id="sectionsHost"></div>
+              </div>
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button id="exportMdBtn" class="px-3 py-1.5 rounded-lg border text-sm">Exporter (Markdown)</button>
+              <button id="copyLinkBtn" class="px-3 py-1.5 rounded-lg border text-sm">Copier le lien</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
   </div>
 
-<script>
-(function(){
-  const $ = (s)=>document.querySelector(s);
+  <script>
+    /* ---------------------- Données de base ---------------------- */
+    const POINTS = [
+      "Prière d’ouverture","Canon et testament","Contexte historique","Auteur et destinataires","Structure du passage","Mots-clés et thèmes",
+      "Observation du texte","Interprétation","Parallèles bibliques","Contexte théologique","Application personnelle","Application communautaire",
+      "Promesses et avertissements","Christ au centre","Prière d’illumination","Questions de discussion","Étude des personnages","Analyse littéraire",
+      "Cadre culturel","Original grec/hébreu","Difficultés du texte","Implications pratiques","Mission et témoignage","Louange / Adoration",
+      "Méditation","Engagement","Plan d’action","Prière de fin"
+    ];
 
-  const livreEl    = $('#livre');
-  const chapEl     = $('#chapitre');
-  const pointsEl   = $('#points');
-  const goBtn      = $('#go');
-  const msgBox     = $('#msg');
-  const prettyBox  = $('#pretty');
-  const rawBox     = $('#raw');
-  const apiLink    = $('#apiLink');
+    const LIVRES_CHAP = {"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
 
-  const copyBtn    = $('#copyBtn');
-  const exportBtn  = $('#exportBtn');
-  const printBtn   = $('#printBtn');
-  const toggleRaw  = $('#toggleRawBtn');
-
-  // Toujours relatif → marche en local et sur Vercel
-  const API_URL = new URL('./api/chat', window.location.href).toString();
-  apiLink.textContent = API_URL;
-
-  toggleRaw.addEventListener('click', () => {
-    rawBox.classList.toggle('hidden');
-  });
-
-  copyBtn.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(prettyBox.textContent || '');
-      showMsg('Texte copié dans le presse-papiers.', 'ok');
-    } catch {
-      showMsg('Impossible de copier.', 'error');
-    }
-  });
-  exportBtn.addEventListener('click', () => {
-    const blob = new Blob([rawBox.textContent || '{}'], {type:'application/json;charset=utf-8'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    const l = (livreEl.value || 'Livre').replace(/\s+/g,'_');
-    a.download = `etude_${l}_${chapEl.value || '1'}.json`;
-    a.click();
-  });
-  printBtn.addEventListener('click', () => window.print());
-
-  goBtn.addEventListener('click', run);
-
-  function showMsg(text, kind) {
-    msgBox.className = kind === 'ok' ? 'ok' : 'error';
-    msgBox.textContent = text;
-    msgBox.classList.remove('hidden');
-  }
-  function clearMsg(){
-    msgBox.classList.add('hidden');
-    msgBox.textContent = '';
-  }
-
-  function renderPretty(data){
-    // 1) content (string) → on affiche tel quel
-    if (typeof data?.content === 'string' && data.content.trim()) {
-      prettyBox.textContent = data.content.trim();
-      return;
-    }
-    // 2) points: [...] (tableau de chaînes)
-    if (Array.isArray(data?.points) && data.points.length) {
-      prettyBox.innerHTML = data.points
-        .map((p,i)=>`<p><strong>${i+1}.</strong> ${escapeHtml(String(p||''))}</p>`)
-        .join('');
-      return;
-    }
-    // 3) p1…p28
-    const keys = Object.keys(data||{}).filter(k=>/^p\d{1,2}$/.test(k)).sort((a,b)=>parseInt(a.slice(1))-parseInt(b.slice(1)));
-    if (keys.length) {
-      prettyBox.innerHTML = keys
-        .map((k,i)=>`<p><strong>${i+1}.</strong> ${escapeHtml(String(data[k]||''))}</p>`)
-        .join('');
-      return;
-    }
-    // Sinon on affiche brut
-    prettyBox.textContent = JSON.stringify(data,null,2);
-  }
-
-  function escapeHtml(s){
-    return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  }
-
-  async function run(){
-    clearMsg();
-    prettyBox.textContent = '… Génération en cours …';
-    rawBox.textContent = '';
-
-    const livre    = (livreEl.value || '').trim();
-    const chapitre = parseInt(chapEl.value, 10) || 1;
-    const points   = parseInt(pointsEl.value, 10) || 8;
-
-    if (!livre) {
-      showMsg('Renseigne le livre (ex. « Jean »).', 'error');
-      prettyBox.textContent = '';
-      return;
+    /* ---------------------- Helpers UI --------------------------- */
+    const $ = (s)=>document.querySelector(s);
+    function notify(msg, kind='info', ms=3800) {
+      const d=document.createElement('div');
+      d.textContent=msg;
+      d.className='fixed right-3 bottom-3 z-50 rounded-lg px-3 py-2 text-white text-sm';
+      d.style.background = kind==='err' ? '#ef4444' : (kind==='ok' ? '#10b981' : '#111827');
+      document.body.appendChild(d);
+      setTimeout(()=>{d.style.opacity='0';d.style.transform='translateY(4px)';}, ms-300);
+      setTimeout(()=>d.remove(), ms);
     }
 
-    try{
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ livre, chapitre, points })
-      });
+    function renderPoints() {
+      const nav = $('#pointsNav');
+      const host = $('#sectionsHost');
+      nav.innerHTML = '';
+      host.innerHTML = '';
+      for (let i=1;i<=POINTS.length;i++) {
+        // bouton nav
+        const btn = document.createElement('button');
+        btn.className = 'sidebar-item w-full text-left';
+        btn.dataset.section = 'p'+i;
+        btn.innerHTML = `<span class="inline-block w-7 h-7 mr-2 rounded bg-primary-100 text-primary-800 text-xs font-extrabold grid place-items-center">${i}</span>
+                         <span class="font-semibold">${i}. ${POINTS[i-1]}</span>`;
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('#pointsNav .sidebar-item').forEach(b=>b.classList.remove('active'));
+          document.querySelectorAll('.content-section').forEach(s=>s.classList.remove('active'));
+          btn.classList.add('active');
+          $('#'+btn.dataset.section)?.classList.add('active');
+          $('#welcomeBlock')?.classList.add('hidden');
+        });
+        nav.appendChild(btn);
 
-      const text = await res.text();
-      let json  = null;
-      try { json = JSON.parse(text); } catch { /* parfois du texte brut */ }
-
-      if (!res.ok) {
-        // 405 = méthode, 404 = route, 500 = serveur/clé, etc.
-        const msg = json?.error || json?.message || `Erreur HTTP ${res.status}`;
-        prettyBox.textContent = '';
-        rawBox.textContent = text || msg;
-        showMsg(`Erreur : ${msg}`, 'error');
-        return;
+        // section contenu
+        const sec = document.createElement('div');
+        sec.id = 'p'+i;
+        sec.className = 'content-section';
+        sec.innerHTML = `
+          <h3 class="text-xl font-extrabold mb-2">${i}. ${POINTS[i-1]}</h3>
+          <div class="rounded-xl border p-3">
+            <div class="text-xs text-neutral-500 mb-1 flex justify-between">
+              <span id="noteStatus-p${i}">Auto-enregistré</span>
+              <span><span id="wordCount-p${i}">0</span> mots</span>
+            </div>
+            <textarea id="note-p${i}" class="w-full border rounded-lg p-3" rows="6" placeholder="Vos notes…"></textarea>
+          </div>`;
+        host.appendChild(sec);
       }
 
-      // Réussite
-      rawBox.textContent = json ? JSON.stringify(json,null,2) : text;
-      renderPretty(json || {content:text});
-      showMsg('OK', 'ok');
-
-    }catch(err){
-      prettyBox.textContent = '';
-      showMsg('Erreur réseau : ' + String(err && err.message || err), 'error');
+      // Auto-save
+      for (let i=1;i<=28;i++){
+        const ta = $('#note-p'+i);
+        const wc = $('#wordCount-p'+i);
+        const st = $('#noteStatus-p'+i);
+        ta.addEventListener('input', () => {
+          const txt = ta.value.trim();
+          wc.textContent = txt ? txt.split(/\s+/).length : 0;
+          st.textContent = 'Enregistrement…';
+          clearTimeout(ta._t);
+          ta._t = setTimeout(()=>{
+            const liv = $('#livreInput').value.trim();
+            const ch  = $('#chapInput').value.trim();
+            if (liv && ch) {
+              localStorage.setItem(`notes::${liv}::${ch}::${i}`, ta.value);
+              st.textContent = 'Enregistré ✓';
+            }
+          }, 300);
+        });
+      }
     }
-  }
-})();
-</script>
+
+    function loadSavedNotes(livre, chapitre) {
+      for (let i=1;i<=28;i++){
+        const key = `notes::${livre}::${chapitre}::${i}`;
+        const txt = localStorage.getItem(key) || '';
+        const ta = $('#note-p'+i);
+        const wc = $('#wordCount-p'+i);
+        ta.value = txt;
+        wc.textContent = txt.trim() ? txt.trim().split(/\s+/).length : 0;
+      }
+    }
+
+    /* ---------------------- Normalisation réponses ---------------------- */
+    function trySplitToPoints(str) {
+      if (!str) return [];
+      const lines = String(str).replace(/\r/g,'').split(/\n+/).map(s=>s.trim()).filter(Boolean);
+      const isPoint = s => /^(\d{1,2}[\.\)]\s+|-|\•)\s*/.test(s);
+      const pts = []; let buf=[];
+      const flush = ()=>{ if(buf.length){ pts.push(buf.join(' ')); buf=[]; } };
+      for(const ln of lines){
+        if (isPoint(ln)) { flush(); buf.push(ln.replace(/^(\d{1,2}[\.\)]\s+|-|\•)\s*/,'').trim()); }
+        else buf.push(ln);
+      }
+      flush();
+      if (pts.length<=1) {
+        const byNum = String(str).split(/\n?\s*\d{1,2}[\.\)]\s+/).map(s=>s.trim()).filter(Boolean);
+        if (byNum.length>1) return byNum;
+      }
+      return pts.length ? pts : [str];
+    }
+
+    function normalizeToP28(data){
+      const out = {};
+      if (!data) return out;
+
+      const keys = Object.keys(data).filter(k=>/^p\d{1,2}$/.test(k));
+      if (keys.length) {
+        for (let i=1;i<=28;i++){
+          const v = data['p'+i];
+          if (typeof v === 'string' && v.trim()) out['p'+i] = v.trim();
+        }
+        return out;
+      }
+
+      if (Array.isArray(data.points) && data.points.length){
+        for (let i=1;i<=28 && i<=data.points.length;i++){
+          const v = data.points[i-1];
+          if (typeof v === 'string' && v.trim()) out['p'+i] = v.trim();
+        }
+        return out;
+      }
+
+      if (typeof data.content === 'string' && data.content.trim()){
+        const parts = trySplitToPoints(data.content);
+        for (let i=1;i<=28 && i<=parts.length;i++) out['p'+i] = parts[i-1];
+        return out;
+      }
+
+      out.p1 = JSON.stringify(data);
+      return out;
+    }
+
+    function fill28FromAnyResponse(data, livre, chapitre){
+      const obj = normalizeToP28(data);
+      for (let i=1;i<=28;i++){
+        const ta = $('#note-p'+i);
+        const wc = $('#wordCount-p'+i);
+        const st = $('#noteStatus-p'+i);
+        const v  = obj['p'+i];
+        if (ta && typeof v === 'string' && v.trim()){
+          ta.value = v.trim();
+          wc.textContent = v.trim().split(/\s+/).filter(Boolean).length;
+          st.textContent = 'Généré par IA ✓';
+          localStorage.setItem(`notes::${livre}::${chapitre}::${i}`, v.trim());
+        }
+      }
+      const first = document.querySelector('#pointsNav .sidebar-item');
+      first?.click();
+    }
+
+    /* ---------------------- Appel serveur ---------------------- */
+    const API_URL_CHAT = new URL('./api/chat', location.href).toString();
+
+    async function callServerAI(payload){
+      const res = await fetch(API_URL_CHAT, {
+        method: 'POST',
+        headers: { 'content-type':'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const txt = await res.text();
+      let data;
+      try { data = JSON.parse(txt); } catch { data = { content: txt }; }
+      if (!res.ok){
+        const msg = data?.error || data?.message || `HTTP ${res.status}`;
+        notify('API : ' + msg, 'err', 6000);
+        return null;
+      }
+      return data;
+    }
+
+    async function generate(){
+      const livre = $('#livreInput').value.trim();
+      const chapitre = Math.max(1, parseInt($('#chapInput').value,10) || 1);
+      const points = parseInt($('#formatSelect').value,10) || 28;
+
+      if (!livre) { notify('Indique un livre.', 'warn'); return; }
+      if (!LIVRES_CHAP[livre] && livre.toLowerCase()!=='jean') {
+        // on laisse passer même si non listé ; sinon avertir
+        notify('Livre non répertorié : génération quand même.', 'info');
+      }
+
+      $('#welcomeBlock')?.classList.add('hidden');
+      loadSavedNotes(livre, chapitre);
+
+      const busy = $('#aiBusy'); const busyText = $('#aiBusyText');
+      if (busyText) busyText.textContent = `Génération (${livre} ${chapitre})…`;
+      busy?.classList.remove('hidden');
+
+      try{
+        const payload = { livre, chapitre, points }; // simple et clair
+        const data = await callServerAI(payload);
+        if (data) {
+          fill28FromAnyResponse(data, livre, chapitre);
+          notify('Étude générée.', 'ok');
+        }
+      } finally {
+        busy?.classList.add('hidden');
+      }
+    }
+
+    /* ---------------------- Boutons & init ---------------------- */
+    document.addEventListener('DOMContentLoaded', () => {
+      renderPoints();
+
+      $('#generateBtn').addEventListener('click', generate);
+      $('#printBtn').addEventListener('click', ()=>window.print());
+
+      $('#exportMdBtn').addEventListener('click', ()=>{
+        const livre = $('#livreInput').value.trim();
+        const chapitre = $('#chapInput').value.trim();
+        if (!livre || !chapitre) { notify('Sélectionne un passage.', 'warn'); return; }
+        let out = `# ${livre} ${chapitre}\n\n_Généré : ${new Date().toLocaleString()}_\n\n`;
+        for (let i=1;i<=28;i++){
+          const title = `${i}. ${POINTS[i-1]}`;
+          const note = ($('#note-p'+i).value || '').trim();
+          out += `## ${title}\n\n${note || '_(vide)_'}\n\n`;
+        }
+        const a=document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([out], {type:'text/markdown;charset=utf-8'}));
+        a.download = `Etude_${livre.replace(/\s+/g,'_')}_${chapitre}.md`;
+        document.body.appendChild(a); a.click(); a.remove();
+      });
+
+      $('#copyLinkBtn').addEventListener('click', async ()=>{
+        const url = new URL(location.href);
+        url.hash = `#/${encodeURIComponent($('#livreInput').value.trim())}/${$('#chapInput').value.trim()}?point=1`;
+        try { await navigator.clipboard.writeText(url.toString()); notify('Lien copié.', 'ok'); }
+        catch { notify('Copie impossible.', 'warn'); }
+      });
+
+      // si l’URL contient un hash #/Livre/3
+      if (location.hash) {
+        const m = location.hash.match(/^#\/([^\/]+)\/(\d+)/);
+        if (m) {
+          $('#livreInput').value = decodeURIComponent(m[1]);
+          $('#chapInput').value  = m[2];
+          loadSavedNotes($('#livreInput').value, $('#chapInput').value);
+        }
+      }
+
+      // afficher la première section par défaut
+      document.querySelector('#pointsNav .sidebar-item')?.click();
+    });
+  </script>
 </body>
 </html>
