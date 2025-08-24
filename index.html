@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <title>Étude biblique — Lecture</title>
+  <title>Étude Biblique</title>
 
-  <!-- Tailwind (CDN) -->
+  <!-- Palette & Tailwind -->
   <script>
     window.tailwind = window.tailwind || {};
     window.tailwind.config = {
@@ -36,54 +36,104 @@
     .sidebar-item{border:1px solid transparent;border-radius:12px;padding:.6rem .7rem}
     .sidebar-item:hover{background:#eef2ff;border-color:#c7d2fe}
     .sidebar-item.active{background:#e0e7ff;border-color:#c7d2fe;box-shadow:inset 4px 0 0 0 #6366f1}
+    /* Dropdown scrollables */
+    .dropdown{position:relative}
+    .menu{position:absolute;left:0;right:0;z-index:30;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 10px 25px -12px rgba(2,6,23,.18);max-height:280px;overflow:auto;display:none}
+    .menu.open{display:block}
+    .menu button{display:block;width:100%;text-align:left;padding:.5rem .75rem}
+    .menu button:hover{background:#eef2ff}
   </style>
 </head>
 
 <body class="min-h-screen">
   <div class="min-h-screen flex flex-col">
-    <!-- Header -->
+    <!-- HEADER -->
     <header class="sticky top-0 z-30 bg-white/95 dark:bg-neutral-900/95 border-b border-neutral-200 dark:border-neutral-800">
       <div class="container-xl px-4">
         <div class="py-3 flex items-center justify-between">
-          <h1 class="text-xl sm:text-2xl font-extrabold">Étude biblique — Lecture</h1>
+          <div>
+            <h1 class="text-2xl font-extrabold">Étude Biblique</h1>
+            <p class="text-xs text-neutral-500 -mt-1">Explorer les Écritures en profondeur</p>
+          </div>
           <button id="printBtn" class="px-3 py-1.5 rounded-lg border text-sm">Imprimer / PDF</button>
         </div>
       </div>
     </header>
 
-    <!-- Main -->
+    <!-- MAIN -->
     <main class="flex-1 py-6">
       <div class="container-xl px-4">
-        <!-- Sélection -->
+        <!-- Bandeau recherche + sélection -->
         <section class="card p-4 sm:p-6 mb-6">
-          <div class="grid grid-cols-12 gap-4">
-            <div class="col-span-12 md:col-span-4">
-              <label class="text-sm font-semibold block mb-1">Livre</label>
-              <input id="livreInput" class="w-full border rounded-lg px-3 py-2" placeholder="ex: Jean" value="Jean">
+          <!-- dernière étude + recherche -->
+          <div class="grid grid-cols-12 gap-3 items-end">
+            <div class="col-span-12">
+              <label class="text-sm font-semibold block mb-1">Recherche</label>
+              <div class="relative">
+                <svg class="w-4 h-4 text-neutral-400 absolute left-3 top-3" viewBox="0 0 24 24" fill="currentColor"><path d="M10 18a8 8 0 1 1 5.293-14.293A8 8 0 0 1 10 18zm11 3-6-6"/></svg>
+                <input id="searchInput" class="w-full border rounded-lg pl-9 pr-3 py-2.5" placeholder="Tape ‘mar 5’, ‘jean 3:16’, ‘1co 13.4-7’…">
+              </div>
+              <p class="text-xs text-neutral-500 mt-1">Abréviations OK : mar, jn, 1co, rm… accents facultatifs.</p>
             </div>
+
+            <!-- Livre -->
+            <div class="col-span-12 md:col-span-5">
+              <label class="text-sm font-semibold block mb-1">Livre</label>
+              <div class="dropdown">
+                <button id="livreBtn" type="button" class="w-full bg-white border rounded-lg py-2.5 px-4 flex items-center justify-between">
+                  <span id="livreLabel">Sélectionner un livre</span>
+                  <svg class="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 20 20" fill="currentColor"><path d="M5 7l5 5 5-5"/></svg>
+                </button>
+                <div id="livreMenu" class="menu"></div>
+              </div>
+            </div>
+
+            <!-- Chapitre -->
             <div class="col-span-6 md:col-span-3">
               <label class="text-sm font-semibold block mb-1">Chapitre</label>
-              <input id="chapInput" class="w-full border rounded-lg px-3 py-2" type="number" min="1" value="3">
+              <div class="dropdown">
+                <button id="chapBtn" type="button" class="w-full bg-white border rounded-lg py-2.5 px-4 flex items-center justify-between" disabled>
+                  <span id="chapLabel">Chapitre</span>
+                  <svg class="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 20 20" fill="currentColor"><path d="M5 7l5 5 5-5"/></svg>
+                </button>
+                <div id="chapMenu" class="menu"></div>
+              </div>
             </div>
-            <div class="col-span-6 md:col-span-3">
-              <label class="text-sm font-semibold block mb-1">Format</label>
-              <select id="formatSelect" class="w-full border rounded-lg px-3 py-2">
-                <option value="8">8 points (rapide)</option>
-                <option value="12">12 points</option>
-                <option value="28" selected>28 points (complet)</option>
+
+            <!-- Version -->
+            <div class="col-span-6 md:col-span-2">
+              <label class="text-sm font-semibold block mb-1">Version</label>
+              <select id="versionSelect" class="w-full bg-white border rounded-lg py-2.5 px-4">
+                <option value="LSG" selected>LSG — Louis Segond</option>
+                <option value="SG21">SG21 — Segond 21</option>
+                <option value="NEG1979">NEG79 — Nouvelle Édition de Genève</option>
+                <option value="BDS">BDS — La Bible du Semeur</option>
+                <option value="PDV">PDV — Parole de Vie</option>
               </select>
             </div>
-            <div class="col-span-12 md:col-span-2 flex items-end">
-              <button id="generateBtn" class="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold px-4 py-2 rounded-lg">
-                Générer
-              </button>
+
+            <!-- Actions -->
+            <div class="col-span-12 flex flex-wrap gap-2 mt-2">
+              <button id="validerBtn" class="bg-primary-600 hover:bg-primary-700 text-white font-bold px-4 py-2 rounded-lg"><span>Valider</span></button>
+              <button id="reinitBtn" class="px-4 py-2 rounded-lg border">Réinitialiser</button>
+              <button id="lireBtn" class="px-4 py-2 rounded-lg border" disabled>Lire (BibleGateway)</button>
+              <div class="ml-auto flex gap-2">
+                <select id="pointsSelect" class="border rounded-lg px-3 py-2">
+                  <option value="8">8 points (rapide)</option>
+                  <option value="12">12 points</option>
+                  <option value="28" selected>28 points</option>
+                </select>
+                <button id="generateBtn" class="bg-primary-600 hover:bg-primary-700 text-white font-bold px-4 py-2 rounded-lg">
+                  Générer IA (28 pts)
+                </button>
+              </div>
             </div>
           </div>
         </section>
 
         <!-- Corps -->
         <div class="grid grid-cols-12 gap-6">
-          <!-- Navigation points -->
+          <!-- NAV points -->
           <aside class="col-span-12 lg:col-span-4">
             <div class="card p-3 sticky top-20 max-h-[calc(100vh-140px)] overflow-y-auto">
               <h2 class="text-lg font-extrabold mb-2">Points d’étude</h2>
@@ -91,19 +141,19 @@
             </div>
           </aside>
 
-          <!-- Contenu -->
+          <!-- CONTENU -->
           <section class="col-span-12 lg:col-span-8">
             <div class="card relative">
-              <div id="aiBusy" class="hidden absolute inset-0 bg-white/70 dark:bg-black/40 z-10 grid place-items-center">
+              <div id="busy" class="hidden absolute inset-0 bg-white/70 dark:bg-black/40 z-10 grid place-items-center">
                 <div class="rounded-xl border bg-white dark:bg-neutral-900 px-4 py-3 shadow-md text-sm flex items-center gap-2">
                   <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                  <span id="aiBusyText">Génération…</span>
+                  <span id="busyText">Génération…</span>
                 </div>
               </div>
-              <div id="content-area" class="p-5 sm:p-6">
-                <div class="text-center py-10" id="welcomeBlock">
+              <div id="contentArea" class="p-5 sm:p-6">
+                <div id="welcome" class="text-center py-10">
                   <h3 class="text-lg font-bold mb-2">Bienvenue 👋</h3>
-                  <p class="text-neutral-600">Choisis un livre et un chapitre puis clique sur “Générer”.</p>
+                  <p class="text-neutral-600">Choisis un livre et un chapitre, ou tape une référence dans la recherche.</p>
                 </div>
                 <div id="sectionsHost"></div>
               </div>
@@ -120,7 +170,11 @@
   </div>
 
   <script>
-    /* ---------------------- Données de base ---------------------- */
+    /* ---------- Données de base ---------- */
+    const LIVRES_CHAP = {"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
+
+    const ALIAS = {gen:'Genèse',gn:'Genèse',ex:'Exode',exo:'Exode',lev:'Lévitique',lv:'Lévitique',nb:'Nombres',nbr:'Nombres',deut:'Deutéronome',dt:'Deutéronome',jos:'Josué',jg:'Juges',ru:'Ruth','1sa':'1 Samuel','2sa':'2 Samuel','1r':'1 Rois','2r':'2 Rois','1ch':'1 Chroniques','2ch':'2 Chroniques',esd:'Esdras',neh:'Néhémie',est:'Esther',ps:'Psaumes',prov:'Proverbes',eccl:'Ecclésiaste',cant:'Cantique',es:'Ésaïe',jr:'Jérémie',lam:'Lamentations',ez:'Ézéchiel',dn:'Daniel',os:'Osée',jl:'Joël',am:'Amos',abd:'Abdias',jon:'Jonas',mic:'Michée',nah:'Nahum',hb:'Habacuc',so:'Sophonie',ag:'Aggée',za:'Zacharie',ml:'Malachie',mt:'Matthieu',mc:'Marc',lc:'Luc',jn:'Jean',ac:'Actes',rm:'Romains','1co':'1 Corinthiens','2co':'2 Corinthiens',ga:'Galates',eph:'Éphésiens',php:'Philippiens',cl:'Colossiens','1th':'1 Thessaloniciens','2th':'2 Thessaloniciens','1ti':'1 Timothée','2ti':'2 Timothée',tt:'Tite',phm:'Philémon',he:'Hébreux',ja:'Jacques','1p':'1 Pierre','2p':'2 Pierre','1j':'1 Jean','2j':'2 Jean','3j':'3 Jean',jud:'Jude',ap:'Apocalypse'};
+
     const POINTS = [
       "Prière d’ouverture","Canon et testament","Contexte historique","Auteur et destinataires","Structure du passage","Mots-clés et thèmes",
       "Observation du texte","Interprétation","Parallèles bibliques","Contexte théologique","Application personnelle","Application communautaire",
@@ -129,10 +183,9 @@
       "Méditation","Engagement","Plan d’action","Prière de fin"
     ];
 
-    const LIVRES_CHAP = {"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
-
-    /* ---------------------- Helpers UI --------------------------- */
     const $ = (s)=>document.querySelector(s);
+    const API_URL_CHAT = new URL('./api/chat', location.href).toString();
+
     function notify(msg, kind='info', ms=3800) {
       const d=document.createElement('div');
       d.textContent=msg;
@@ -143,33 +196,95 @@
       setTimeout(()=>d.remove(), ms);
     }
 
-    function renderPoints() {
-      const nav = $('#pointsNav');
-      const host = $('#sectionsHost');
-      nav.innerHTML = '';
-      host.innerHTML = '';
-      for (let i=1;i<=POINTS.length;i++) {
-        // bouton nav
-        const btn = document.createElement('button');
-        btn.className = 'sidebar-item w-full text-left';
-        btn.dataset.section = 'p'+i;
-        btn.innerHTML = `<span class="inline-block w-7 h-7 mr-2 rounded bg-primary-100 text-primary-800 text-xs font-extrabold grid place-items-center">${i}</span>
-                         <span class="font-semibold">${i}. ${POINTS[i-1]}</span>`;
-        btn.addEventListener('click', () => {
+    /* ---------- Dropdowns (livre / chapitre) ---------- */
+    function openMenu(el, open){ el.classList.toggle('open', open ?? !el.classList.contains('open')); }
+    function fillBooks(){
+      const m = $('#livreMenu');
+      m.innerHTML = '';
+      Object.keys(LIVRES_CHAP).forEach((name, idx)=>{
+        const b = document.createElement('button');
+        b.type='button'; b.textContent = `${idx+1}. ${name}`;
+        b.addEventListener('click', ()=> selectBook(name, true));
+        m.appendChild(b);
+      });
+    }
+    function fillChapters(livre){
+      const m = $('#chapMenu');
+      m.innerHTML = '';
+      const max = LIVRES_CHAP[livre] || 1;
+      for (let i=1;i<=max;i++){
+        const b = document.createElement('button');
+        b.type='button'; b.textContent = i;
+        b.addEventListener('click', ()=> selectChapter(i, true));
+        m.appendChild(b);
+      }
+    }
+
+    let currentLivre=null, currentChap=null;
+
+    function selectBook(livre, closeMenus){
+      currentLivre = livre;
+      $('#livreLabel').textContent = livre;
+      $('#chapBtn').disabled = false;
+      $('#chapLabel').textContent = 'Chapitre';
+      currentChap = null;
+      fillChapters(livre);
+      if (closeMenus) { openMenu($('#livreMenu'), false); }
+      updateMirror(); updateButtons();
+    }
+    function selectChapter(chap, closeMenus){
+      currentChap = String(chap);
+      $('#chapLabel').textContent = currentChap;
+      if (closeMenus) { openMenu($('#chapMenu'), false); }
+      updateMirror(); updateButtons();
+    }
+
+    function updateButtons(){
+      $('#lireBtn').disabled = !(currentLivre && currentChap);
+    }
+    function updateMirror(){
+      // hash lisible
+      if (currentLivre && currentChap){
+        history.replaceState(null,'',`#/${encodeURIComponent(currentLivre)}/${currentChap}?point=1`);
+      }
+    }
+
+    /* ---------- Recherche ---------- */
+    function strip(s){return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'');}
+    function norm(s){return strip(s).toLowerCase().replace(/[^a-z0-9]/g,'');}
+    function resolveBook(term){
+      const k = norm(term);
+      if (ALIAS[k]) return ALIAS[k];
+      const first = Object.keys(ALIAS).find(a=>a.startsWith(k));
+      if (first) return ALIAS[first];
+      return Object.keys(LIVRES_CHAP).find(b=>norm(b).startsWith(k)) || null;
+    }
+    function parseRef(raw){
+      const s=(raw||'').trim().replace(/\s+/g,' ');
+      if(!s) return {book:null, chap:null};
+      const m=s.match(/^(.+?)[\s,;]+(\d{1,3})/i);
+      if(m) return {book:resolveBook(m[1]),chap:parseInt(m[2],10)};
+      return {book:resolveBook(s)||null, chap:null};
+    }
+
+    /* ---------- Points & autosave ---------- */
+    function renderPoints(){
+      const nav = $('#pointsNav'); const host = $('#sectionsHost');
+      nav.innerHTML=''; host.innerHTML='';
+      for(let i=1;i<=POINTS.length;i++){
+        const btn=document.createElement('button');
+        btn.className='sidebar-item w-full text-left'; btn.dataset.section='p'+i;
+        btn.innerHTML=`<span class="inline-block w-7 h-7 mr-2 rounded bg-primary-100 text-primary-800 text-xs font-extrabold grid place-items-center">${i}</span><span class="font-semibold">${i}. ${POINTS[i-1]}</span>`;
+        btn.addEventListener('click',()=>{
           document.querySelectorAll('#pointsNav .sidebar-item').forEach(b=>b.classList.remove('active'));
           document.querySelectorAll('.content-section').forEach(s=>s.classList.remove('active'));
-          btn.classList.add('active');
-          $('#'+btn.dataset.section)?.classList.add('active');
-          $('#welcomeBlock')?.classList.add('hidden');
+          btn.classList.add('active'); $('#'+btn.dataset.section)?.classList.add('active');
+          $('#welcome')?.classList.add('hidden');
         });
         nav.appendChild(btn);
 
-        // section contenu
-        const sec = document.createElement('div');
-        sec.id = 'p'+i;
-        sec.className = 'content-section';
-        sec.innerHTML = `
-          <h3 class="text-xl font-extrabold mb-2">${i}. ${POINTS[i-1]}</h3>
+        const sec=document.createElement('div'); sec.id='p'+i; sec.className='content-section';
+        sec.innerHTML=`<h3 class="text-xl font-extrabold mb-2">${i}. ${POINTS[i-1]}</h3>
           <div class="rounded-xl border p-3">
             <div class="text-xs text-neutral-500 mb-1 flex justify-between">
               <span id="noteStatus-p${i}">Auto-enregistré</span>
@@ -179,200 +294,144 @@
           </div>`;
         host.appendChild(sec);
       }
-
-      // Auto-save
-      for (let i=1;i<=28;i++){
-        const ta = $('#note-p'+i);
-        const wc = $('#wordCount-p'+i);
-        const st = $('#noteStatus-p'+i);
-        ta.addEventListener('input', () => {
-          const txt = ta.value.trim();
-          wc.textContent = txt ? txt.split(/\s+/).length : 0;
-          st.textContent = 'Enregistrement…';
-          clearTimeout(ta._t);
-          ta._t = setTimeout(()=>{
-            const liv = $('#livreInput').value.trim();
-            const ch  = $('#chapInput').value.trim();
-            if (liv && ch) {
-              localStorage.setItem(`notes::${liv}::${ch}::${i}`, ta.value);
-              st.textContent = 'Enregistré ✓';
+      // autosave
+      for(let i=1;i<=28;i++){
+        const ta=$('#note-p'+i), wc=$('#wordCount-p'+i), st=$('#noteStatus-p'+i);
+        ta.addEventListener('input',()=>{
+          const txt=ta.value.trim(); wc.textContent=txt?txt.split(/\s+/).length:0;
+          st.textContent='Enregistrement…'; clearTimeout(ta._t);
+          ta._t=setTimeout(()=>{
+            if(currentLivre&&currentChap){
+              localStorage.setItem(`notes::${currentLivre}::${currentChap}::${i}`,ta.value);
+              st.textContent='Enregistré ✓';
             }
-          }, 300);
+          },300);
         });
       }
     }
-
-    function loadSavedNotes(livre, chapitre) {
-      for (let i=1;i<=28;i++){
-        const key = `notes::${livre}::${chapitre}::${i}`;
-        const txt = localStorage.getItem(key) || '';
-        const ta = $('#note-p'+i);
-        const wc = $('#wordCount-p'+i);
-        ta.value = txt;
-        wc.textContent = txt.trim() ? txt.trim().split(/\s+/).length : 0;
+    function loadSavedNotes(){
+      if(!(currentLivre&&currentChap)) return;
+      for(let i=1;i<=28;i++){
+        const key=`notes::${currentLivre}::${currentChap}::${i}`, txt=localStorage.getItem(key)||'';
+        const ta=$('#note-p'+i), wc=$('#wordCount-p'+i);
+        ta.value=txt; wc.textContent=txt.trim()?txt.trim().split(/\s+/).length:0;
       }
     }
 
-    /* ---------------------- Normalisation réponses ---------------------- */
-    function trySplitToPoints(str) {
-      if (!str) return [];
-      const lines = String(str).replace(/\r/g,'').split(/\n+/).map(s=>s.trim()).filter(Boolean);
-      const isPoint = s => /^(\d{1,2}[\.\)]\s+|-|\•)\s*/.test(s);
-      const pts = []; let buf=[];
-      const flush = ()=>{ if(buf.length){ pts.push(buf.join(' ')); buf=[]; } };
-      for(const ln of lines){
-        if (isPoint(ln)) { flush(); buf.push(ln.replace(/^(\d{1,2}[\.\)]\s+|-|\•)\s*/,'').trim()); }
-        else buf.push(ln);
-      }
+    /* ---------- Normalisation réponse serveur ---------- */
+    function trySplitToPoints(str){
+      if(!str) return [];
+      const lines=String(str).replace(/\r/g,'').split(/\n+/).map(s=>s.trim()).filter(Boolean);
+      const isPoint=s=>/^(\d{1,2}[\.\)]\s+|-|\•)\s*/.test(s);
+      const pts=[]; let buf=[];
+      const flush=()=>{ if(buf.length){ pts.push(buf.join(' ')); buf=[]; } };
+      for(const ln of lines){ if(isPoint(ln)){ flush(); buf.push(ln.replace(/^(\d{1,2}[\.\)]\s+|-|\•)\s*/,'').trim()); } else buf.push(ln); }
       flush();
-      if (pts.length<=1) {
-        const byNum = String(str).split(/\n?\s*\d{1,2}[\.\)]\s+/).map(s=>s.trim()).filter(Boolean);
-        if (byNum.length>1) return byNum;
-      }
-      return pts.length ? pts : [str];
+      if(!pts.length){ const byNum=String(str).split(/\n?\s*\d{1,2}[\.\)]\s+/).map(s=>s.trim()).filter(Boolean); if(byNum.length>1) return byNum; }
+      return pts.length?pts:[str];
     }
-
     function normalizeToP28(data){
-      const out = {};
-      if (!data) return out;
-
-      const keys = Object.keys(data).filter(k=>/^p\d{1,2}$/.test(k));
-      if (keys.length) {
-        for (let i=1;i<=28;i++){
-          const v = data['p'+i];
-          if (typeof v === 'string' && v.trim()) out['p'+i] = v.trim();
-        }
-        return out;
+      const out={};
+      if(!data) return out;
+      const keys=Object.keys(data).filter(k=>/^p\d{1,2}$/.test(k));
+      if(keys.length){ for(let i=1;i<=28;i++){ const v=data['p'+i]; if(typeof v==='string'&&v.trim()) out['p'+i]=v.trim(); } return out; }
+      if(Array.isArray(data.points)&&data.points.length){ for(let i=1;i<=28&&i<=data.points.length;i++){ const v=data.points[i-1]; if(typeof v==='string'&&v.trim()) out['p'+i]=v.trim(); } return out; }
+      if(typeof data.content==='string'&&data.content.trim()){ const parts=trySplitToPoints(data.content); for(let i=1;i<=28&&i<=parts.length;i++) out['p'+i]=parts[i-1]; return out; }
+      out.p1=JSON.stringify(data); return out;
+    }
+    function fillFromServer(data){
+      const obj=normalizeToP28(data);
+      for(let i=1;i<=28;i++){
+        const v=obj['p'+i]; if(typeof v!=='string'||!v.trim()) continue;
+        const ta=$('#note-p'+i), wc=$('#wordCount-p'+i), st=$('#noteStatus-p'+i);
+        ta.value=v.trim(); wc.textContent=v.trim().split(/\s+/).filter(Boolean).length; st.textContent='Généré par IA ✓';
+        if(currentLivre&&currentChap){ localStorage.setItem(`notes::${currentLivre}::${currentChap}::${i}`,v.trim()); }
       }
-
-      if (Array.isArray(data.points) && data.points.length){
-        for (let i=1;i<=28 && i<=data.points.length;i++){
-          const v = data.points[i-1];
-          if (typeof v === 'string' && v.trim()) out['p'+i] = v.trim();
-        }
-        return out;
-      }
-
-      if (typeof data.content === 'string' && data.content.trim()){
-        const parts = trySplitToPoints(data.content);
-        for (let i=1;i<=28 && i<=parts.length;i++) out['p'+i] = parts[i-1];
-        return out;
-      }
-
-      out.p1 = JSON.stringify(data);
-      return out;
+      document.querySelector('#pointsNav .sidebar-item')?.click();
     }
 
-    function fill28FromAnyResponse(data, livre, chapitre){
-      const obj = normalizeToP28(data);
-      for (let i=1;i<=28;i++){
-        const ta = $('#note-p'+i);
-        const wc = $('#wordCount-p'+i);
-        const st = $('#noteStatus-p'+i);
-        const v  = obj['p'+i];
-        if (ta && typeof v === 'string' && v.trim()){
-          ta.value = v.trim();
-          wc.textContent = v.trim().split(/\s+/).filter(Boolean).length;
-          st.textContent = 'Généré par IA ✓';
-          localStorage.setItem(`notes::${livre}::${chapitre}::${i}`, v.trim());
-        }
-      }
-      const first = document.querySelector('#pointsNav .sidebar-item');
-      first?.click();
-    }
-
-    /* ---------------------- Appel serveur ---------------------- */
-    const API_URL_CHAT = new URL('./api/chat', location.href).toString();
-
+    /* ---------- Appels / actions ---------- */
     async function callServerAI(payload){
-      const res = await fetch(API_URL_CHAT, {
-        method: 'POST',
-        headers: { 'content-type':'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const txt = await res.text();
-      let data;
-      try { data = JSON.parse(txt); } catch { data = { content: txt }; }
-      if (!res.ok){
-        const msg = data?.error || data?.message || `HTTP ${res.status}`;
-        notify('API : ' + msg, 'err', 6000);
-        return null;
-      }
+      const res = await fetch(API_URL_CHAT,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+      const txt = await res.text(); let data; try{ data=JSON.parse(txt); }catch{ data={content:txt}; }
+      if(!res.ok){ notify('API : '+(data?.error||data?.message||('HTTP '+res.status)),'err',6000); return null; }
       return data;
     }
-
     async function generate(){
-      const livre = $('#livreInput').value.trim();
-      const chapitre = Math.max(1, parseInt($('#chapInput').value,10) || 1);
-      const points = parseInt($('#formatSelect').value,10) || 28;
-
-      if (!livre) { notify('Indique un livre.', 'warn'); return; }
-      if (!LIVRES_CHAP[livre] && livre.toLowerCase()!=='jean') {
-        // on laisse passer même si non listé ; sinon avertir
-        notify('Livre non répertorié : génération quand même.', 'info');
-      }
-
-      $('#welcomeBlock')?.classList.add('hidden');
-      loadSavedNotes(livre, chapitre);
-
-      const busy = $('#aiBusy'); const busyText = $('#aiBusyText');
-      if (busyText) busyText.textContent = `Génération (${livre} ${chapitre})…`;
-      busy?.classList.remove('hidden');
-
+      if(!(currentLivre&&currentChap)){ notify('Sélectionne un livre et un chapitre.','warn'); return; }
+      const points=parseInt($('#pointsSelect').value,10)||28;
+      $('#busyText').textContent=`Génération (${currentLivre} ${currentChap})…`; $('#busy').classList.remove('hidden');
       try{
-        const payload = { livre, chapitre, points }; // simple et clair
-        const data = await callServerAI(payload);
-        if (data) {
-          fill28FromAnyResponse(data, livre, chapitre);
-          notify('Étude générée.', 'ok');
-        }
-      } finally {
-        busy?.classList.add('hidden');
-      }
+        const data = await callServerAI({livre:currentLivre,chapitre:parseInt(currentChap,10),points});
+        if(data){ fillFromServer(data); notify('Étude générée.','ok'); }
+      }finally{ $('#busy').classList.add('hidden'); }
     }
 
-    /* ---------------------- Boutons & init ---------------------- */
-    document.addEventListener('DOMContentLoaded', () => {
-      renderPoints();
+    /* ---------- Init ---------- */
+    document.addEventListener('DOMContentLoaded', ()=>{
+      // Menus
+      fillBooks();
+      $('#livreBtn').addEventListener('click',()=>openMenu($('#livreMenu')));
+      $('#chapBtn').addEventListener('click',()=>openMenu($('#chapMenu')));
 
+      // Recherche
+      let si=null;
+      $('#searchInput').addEventListener('input',()=>{
+        clearTimeout(si);
+        si=setTimeout(()=>{
+          const r=parseRef($('#searchInput').value);
+          if(!r.book) return;
+          selectBook(r.book,false);
+          if(r.chap) selectChapter(r.chap,false);
+        },120);
+      });
+      $('#searchInput').addEventListener('keydown',(e)=>{
+        if(e.key==='Enter'){
+          const r=parseRef($('#searchInput').value);
+          if(!r.book){ notify('Ex : « mar 5 », « jean 3:16 ».','warn'); return; }
+          selectBook(r.book,false);
+          selectChapter(r.chap||1,false);
+        }
+      });
+
+      // Boutons
+      $('#validerBtn').addEventListener('click',()=>{
+        if(!(currentLivre&&currentChap)){ notify('Sélectionne un livre et un chapitre.','warn'); return; }
+        loadSavedNotes(); notify('Passage validé.','ok');
+      });
+      $('#reinitBtn').addEventListener('click',()=>{
+        currentLivre=null; currentChap=null; $('#livreLabel').textContent='Sélectionner un livre'; $('#chapLabel').textContent='Chapitre'; $('#chapBtn').disabled=true; $('#lireBtn').disabled=true; $('#searchInput').value=''; history.replaceState(null,'','#'); notify('Réinitialisé.','info');
+      });
+      $('#lireBtn').addEventListener('click',()=>{
+        if(!(currentLivre&&currentChap)) return;
+        const vMap={LSG:'LSG',BDS:'BDS',NEG1979:'NEG1979',SG21:'S21',PDV:'PDV-FR'};
+        const code=vMap[$('#versionSelect').value]||'LSG';
+        const ref=currentLivre+' '+currentChap;
+        window.open('https://www.biblegateway.com/passage/?search='+encodeURIComponent(ref)+'&version='+code,'_blank','noopener');
+      });
       $('#generateBtn').addEventListener('click', generate);
-      $('#printBtn').addEventListener('click', ()=>window.print());
+      $('#printBtn').addEventListener('click',()=>window.print());
 
-      $('#exportMdBtn').addEventListener('click', ()=>{
-        const livre = $('#livreInput').value.trim();
-        const chapitre = $('#chapInput').value.trim();
-        if (!livre || !chapitre) { notify('Sélectionne un passage.', 'warn'); return; }
-        let out = `# ${livre} ${chapitre}\n\n_Généré : ${new Date().toLocaleString()}_\n\n`;
-        for (let i=1;i<=28;i++){
-          const title = `${i}. ${POINTS[i-1]}`;
-          const note = ($('#note-p'+i).value || '').trim();
-          out += `## ${title}\n\n${note || '_(vide)_'}\n\n`;
-        }
-        const a=document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([out], {type:'text/markdown;charset=utf-8'}));
-        a.download = `Etude_${livre.replace(/\s+/g,'_')}_${chapitre}.md`;
-        document.body.appendChild(a); a.click(); a.remove();
+      $('#exportMdBtn').addEventListener('click',()=>{
+        if(!(currentLivre&&currentChap)){ notify('Sélectionne un passage.','warn'); return; }
+        let out=`# ${currentLivre} ${currentChap}\n\n_Généré : ${new Date().toLocaleString()}_\n\n`;
+        for(let i=1;i<=28;i++){ const title=`${i}. ${POINTS[i-1]}`; const note=($('#note-p'+i).value||'').trim(); out+=`## ${title}\n\n${note||'_(vide)_'}\n\n`; }
+        const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([out],{type:'text/markdown;charset=utf-8'})); a.download=`Etude_${currentLivre.replace(/\s+/g,'_')}_${currentChap}.md`; document.body.appendChild(a); a.click(); a.remove();
+      });
+      $('#copyLinkBtn').addEventListener('click',async()=>{
+        const url=new URL(location.href); url.hash=(currentLivre&&currentChap)?`#/${encodeURIComponent(currentLivre)}/${currentChap}?point=1`:'#';
+        try{ await navigator.clipboard.writeText(url.toString()); notify('Lien copié.','ok'); }catch{ notify('Copie impossible.','warn'); }
       });
 
-      $('#copyLinkBtn').addEventListener('click', async ()=>{
-        const url = new URL(location.href);
-        url.hash = `#/${encodeURIComponent($('#livreInput').value.trim())}/${$('#chapInput').value.trim()}?point=1`;
-        try { await navigator.clipboard.writeText(url.toString()); notify('Lien copié.', 'ok'); }
-        catch { notify('Copie impossible.', 'warn'); }
-      });
-
-      // si l’URL contient un hash #/Livre/3
-      if (location.hash) {
-        const m = location.hash.match(/^#\/([^\/]+)\/(\d+)/);
-        if (m) {
-          $('#livreInput').value = decodeURIComponent(m[1]);
-          $('#chapInput').value  = m[2];
-          loadSavedNotes($('#livreInput').value, $('#chapInput').value);
-        }
-      }
-
-      // afficher la première section par défaut
+      // Points
+      renderPoints();
       document.querySelector('#pointsNav .sidebar-item')?.click();
+
+      // Hash initial
+      if(location.hash){
+        const m=location.hash.match(/^#\/([^\/]+)\/(\d+)/);
+        if(m){ selectBook(decodeURIComponent(m[1]),false); selectChapter(parseInt(m[2],10),false); }
+      }
     });
   </script>
 </body>
