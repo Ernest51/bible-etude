@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>Étude Biblique</title>
 
-  <!-- Tailwind config (CDN pour rapidité ; possible de compiler ensuite) -->
+  <!-- Tailwind (CDN pour simplicité; compile côté build si tu veux éviter l’avertissement prod) -->
   <script>
     window.tailwind = window.tailwind || {};
     window.tailwind.config = {
@@ -38,18 +38,17 @@
     .dark body{background:#0b1220}
     .container-xl{max-width:1200px;margin-inline:auto}
 
-    /* Thèmes */
-    .theme-indigo{--c50:#eef2ff;--c100:#e0e7ff;--c200:#c7d2fe;--c500:#6366f1;--c600:#4f46e5;--c700:#4338ca;--c800:#3730a3}
-    .theme-vin{--c50:#fff1f2;--c100:#ffe4e6;--c200:#fecdd3;--c500:#f43f5e;--c600:#e11d48;--c700:#be123c;--c800:#9f1239}
-    .theme-bleunuit{--c50:#eff6ff;--c100:#dbeafe;--c200:#bfdbfe;--c500:#3b82f6;--c600:#2563eb;--c700:#1d4ed8;--c800:#1e40af}
-    .theme-emerald{--c50:#ecfdf5;--c100:#d1fae5;--c200:#a7f3d0;--c500:#10b981;--c600:#059669;--c700:#047857;--c800:#065f46}
-    .theme-amber{--c50:#fffbeb;--c100:#fef3c7;--c200:#fde68a;--c500:#f59e0b;--c600:#d97706;--c700:#b45309;--c800:#92400e}
-    .theme-rose{--c50:#fff1f2;--c100:#ffe4e6;--c200:#fecdd3;--c500:#f43f5e;--c600:#e11d48;--c700:#be123c;--c800:#9f1239}
-    .theme-sky{--c50:#f0f9ff;--c100:#e0f2fe;--c200:#bae6fd;--c500:#0ea5e9;--c600:#0284c7;--c700:#0369a1;--c800:#075985}
-    .theme-violet{--c50:#f5f3ff;--c100:#ede9fe;--c200:#ddd6fe;--c500:#8b5cf6;--c600:#7c3aed;--c700:#6d28d9;--c800:#5b21b6}
+    /* Thèmes (8) */
+    .theme-indigo{--c50:#eef2ff;--c100:#e0e7ff;--c200:#c7d2fe;--c600:#4f46e5;--c700:#4338ca;--c800:#3730a3}
+    .theme-vin{--c50:#fff1f2;--c100:#ffe4e6;--c200:#fecdd3;--c600:#e11d48;--c700:#be123c;--c800:#9f1239}
+    .theme-bleunuit{--c50:#eff6ff;--c100:#dbeafe;--c200:#bfdbfe;--c600:#2563eb;--c700:#1d4ed8;--c800:#1e40af}
+    .theme-emerald{--c50:#ecfdf5;--c100:#d1fae5;--c200:#a7f3d0;--c600:#059669;--c700:#047857;--c800:#065f46}
+    .theme-amber{--c50:#fffbeb;--c100:#fef3c7;--c200:#fde68a;--c600:#d97706;--c700:#b45309;--c800:#92400e}
+    .theme-rose{--c50:#fff1f2;--c100:#ffe4e6;--c200:#fecdd3;--c600:#e11d48;--c700:#be123c;--c800:#9f1239}
+    .theme-sky{--c50:#f0f9ff;--c100:#e0f2fe;--c200:#bae6fd;--c600:#0284c7;--c700:#0369a1;--c800:#075985}
+    .theme-violet{--c50:#f5f3ff;--c100:#ede9fe;--c200:#ddd6fe;--c600:#7c3aed;--c700:#6d28d9;--c800:#5b21b6}
 
     .card{background:linear-gradient(145deg,var(--c50),#fff);border:1px solid var(--c100);border-radius:18px;box-shadow:var(--tw-ring-shadow,0 0 #0000),0 16px 32px -16px rgba(2,6,23,.18),0 8px 16px -8px rgba(2,6,23,.12)}
-    .dark .card{background:#0f172a;border-color:#1f2937}
     .toolbar{background:#fff;border:1px solid var(--c100);border-radius:14px;padding:.6rem .8rem}
     .btn{display:inline-flex;align-items:center;gap:.55rem;border-radius:12px;font-weight:800;padding:.7rem 1rem}
     .btn-solid{background:var(--c600);color:#fff}.btn-solid:hover{background:var(--c700)}
@@ -67,8 +66,11 @@
     .menu button{display:block;width:100%;text-align:left;padding:.55rem .8rem}
     .menu button:hover{background:var(--c50)}
     .toast{position:fixed;right:14px;bottom:14px;background:#111827;color:#fff;padding:.65rem .95rem;border-radius:12px;box-shadow:0 10px 20px rgba(0,0,0,.15);z-index:200;transition:opacity .25s, transform .25s}
-    /* Mobile helpers */
-    @media (max-width: 640px){ .toolbar{padding:.5rem .7rem} .btn{padding:.65rem .9rem} .badge{width:1.75rem;height:1.75rem} }
+    .prose img{border-radius:12px;box-shadow:0 10px 24px rgba(2,6,23,.15);max-width:100%;height:auto}
+    .timeline{display:grid;gap:.6rem}
+    .timeline-item{display:grid;grid-template-columns:72px 1fr;gap:.6rem;align-items:start}
+    .timeline-year{font-weight:800;background:var(--c100);color:var(--c800);border-radius:10px;padding:.3rem .55rem;text-align:center}
+    @media (max-width: 640px){ .toolbar{padding:.5rem .7rem} .btn{padding:.65rem .9rem} .badge{width:1.75rem;height:1.75rem} .timeline-item{grid-template-columns:64px 1fr} }
   </style>
 </head>
 
@@ -111,7 +113,8 @@
     <!-- MAIN -->
     <main class="flex-1 py-5 sm:py-6">
       <div class="container-xl px-3 sm:px-4">
-        <!-- Bandeau recherche + sélection -->
+
+        <!-- Sélecteurs -->
         <section class="card p-4 sm:p-6 mb-6">
           <div class="grid grid-cols-12 gap-3 sm:gap-4 items-end">
             <!-- Recherche -->
@@ -211,7 +214,7 @@
                     <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M5 4h9a4 4 0 0 1 4 4v10H7a2 2 0 0 1-2-2V4z"/><path d="M7 18h11v2H7z"/></svg>
                   </div>
                   <h3 class="text-lg font-bold mb-2">Bienvenue 👋</h3>
-                  <p class="text-neutral-600">Je choisis un livre et un chapitre, puis je clique <b>Valide</b> pour obtenir 28 points.</p>
+                  <p class="text-neutral-600">Je choisis un livre et un chapitre, puis je clique <b>Valide</b> pour obtenir 28 points riches.</p>
                 </div>
                 <div id="sectionsHost"></div>
               </div>
@@ -228,8 +231,20 @@
   </div>
 
   <script>
-    /* ---------- Thème ---------- */
+    /* ==================== CONFIG QUALITÉ ==================== */
+    const MIN_CHARS_PER_POINT = 2500;   // objectif par rubrique
+    const BATCH_SIZE = 4;               // lots pour forcer de longues réponses
     const THEME_KEY='ui_theme8';
+
+    /* ==================== UTIL & THEME ==================== */
+    const $ = (s)=>document.querySelector(s);
+    function toast(msg, kind='info', ms=3800){
+      const z=$("#toasts"); const d=document.createElement('div');
+      d.className='toast'; d.textContent=msg;
+      d.style.background = kind==='err' ? '#ef4444' : (kind==='ok' ? '#10b981' : '#111827');
+      z.appendChild(d); setTimeout(()=>{d.style.opacity='0';d.style.transform='translateY(4px)';}, ms-300);
+      setTimeout(()=>d.remove(), ms);
+    }
     function applyTheme(val){
       const r=document.documentElement;
       r.classList.remove('theme-indigo','theme-vin','theme-bleunuit','theme-emerald','theme-amber','theme-rose','theme-sky','theme-violet');
@@ -237,32 +252,18 @@
       localStorage.setItem(THEME_KEY,val||'indigo');
     }
 
-    /* ---------- Données ---------- */
-    const LIVRES_CHAP = {"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
+    /* ==================== DONNÉES ==================== */
+    const LIVRES_CHAP={"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
 
-    const ALIAS = {gen:'Genèse',gn:'Genèse',ex:'Exode',exo:'Exode',lev:'Lévitique',lv:'Lévitique',nb:'Nombres',nbr:'Nombres',deut:'Deutéronome',dt:'Deutéronome',jos:'Josué',jg:'Juges',ru:'Ruth','1sa':'1 Samuel','2sa':'2 Samuel','1r':'1 Rois','2r':'2 Rois','1ch':'1 Chroniques','2ch':'2 Chroniques',esd:'Esdras',neh:'Néhémie',est:'Esther',ps:'Psaumes',prov:'Proverbes',eccl:'Ecclésiaste',cant:'Cantique',es:'Ésaïe',jr:'Jérémie',lam:'Lamentations',ez:'Ézéchiel',dn:'Daniel',os:'Osée',jl:'Joël',am:'Amos',abd:'Abdias',jon:'Jonas',mic:'Michée',nah:'Nahum',hb:'Habacuc',so:'Sophonie',ag:'Aggée',za:'Zacharie',ml:'Malachie',mt:'Matthieu',mc:'Marc',lc:'Luc',jn:'Jean',ac:'Actes',rm:'Romains','1co':'1 Corinthiens','2co':'2 Corinthiens',ga:'Galates',eph:'Éphésiens',php:'Philippiens',cl:'Colossiens','1th':'1 Thessaloniciens','2th':'2 Thessaloniciens','1ti':'1 Timothée','2ti':'2 Timothée',tt:'Tite',phm:'Philémon',he:'Hébreux',ja:'Jacques','1p':'1 Pierre','2p':'2 Pierre','1j':'1 Jean','2j':'2 Jean','3j':'3 Jean',jud:'Jude',ap:'Apocalypse'};
+    const ALIAS={gen:'Genèse',gn:'Genèse',ex:'Exode',exo:'Exode',lev:'Lévitique',lv:'Lévitique',nb:'Nombres',nbr:'Nombres',deut:'Deutéronome',dt:'Deutéronome',jos:'Josué',jg:'Juges',ru:'Ruth','1sa':'1 Samuel','2sa':'2 Samuel','1r':'1 Rois','2r':'2 Rois','1ch':'1 Chroniques','2ch':'2 Chroniques',esd:'Esdras',neh:'Néhémie',est:'Esther',ps:'Psaumes',prov:'Proverbes',eccl:'Ecclésiaste',cant:'Cantique',es:'Ésaïe',jr:'Jérémie',lam:'Lamentations',ez:'Ézéchiel',dn:'Daniel',os:'Osée',jl:'Joël',am:'Amos',abd:'Abdias',jon:'Jonas',mic:'Michée',nah:'Nahum',hb:'Habacuc',so:'Sophonie',ag:'Aggée',za:'Zacharie',ml:'Malachie',mt:'Matthieu',mc:'Marc',lc:'Luc',jn:'Jean',ac:'Actes',rm:'Romains','1co':'1 Corinthiens','2co':'2 Corinthiens',ga:'Galates',eph:'Éphésiens',php:'Philippiens',cl:'Colossiens','1th':'1 Thessaloniciens','2th':'2 Thessaloniciens','1ti':'1 Timothée','2ti':'2 Timothée',tt:'Tite',phm:'Philémon',he:'Hébreux',ja:'Jacques','1p':'1 Pierre','2p':'2 Pierre','1j':'1 Jean','2j':'2 Jean','3j':'3 Jean',jud:'Jude',ap:'Apocalypse'};
 
-    const POINTS = [
-      "Prière d’ouverture","Canon et testament","Contexte historique","Auteur et destinataires","Structure du passage","Mots-clés et thèmes",
-      "Observation du texte","Interprétation","Parallèles bibliques","Contexte théologique","Application personnelle","Application communautaire",
-      "Promesses et avertissements","Christ au centre","Prière d’illumination","Questions de discussion","Étude des personnages","Analyse littéraire",
-      "Cadre culturel","Original grec/hébreu","Difficultés du texte","Implications pratiques","Mission et témoignage","Louange / Adoration",
-      "Méditation","Engagement","Plan d’action","Prière de fin"
-    ];
+    const POINTS=["Prière d’ouverture","Canon et testament","Contexte historique","Auteur et destinataires","Structure du passage","Mots-clés et thèmes","Observation du texte","Interprétation","Parallèles bibliques","Contexte théologique","Application personnelle","Application communautaire","Promesses et avertissements","Christ au centre","Prière d’illumination","Questions de discussion","Étude des personnages","Analyse littéraire","Cadre culturel","Original grec/hébreu","Difficultés du texte","Implications pratiques","Mission et témoignage","Louange / Adoration","Méditation","Engagement","Plan d’action","Prière de fin"];
 
-    const $ = (s)=>document.querySelector(s);
     const API_URL_CHAT = new URL('./api/chat', location.href).toString();
 
-    function toast(msg, kind='info', ms=3800){
-      const z=$("#toasts"); const d=document.createElement('div');
-      d.className='toast'; d.textContent=msg;
-      d.style.background = kind==='err' ? '#ef4444' : (kind==='ok' ? '#10b981' : '#111827');
-      z.appendChild(d);
-      setTimeout(()=>{d.style.opacity='0';d.style.transform='translateY(4px)';}, ms-300);
-      setTimeout(()=>d.remove(), ms);
-    }
+    /* ==================== SÉLECTEURS & RECHERCHE ==================== */
+    let currentLivre=null, currentChap=null;
 
-    /* ---------- Dropdowns ---------- */
     function openMenu(el, open){ el.classList.toggle('open', open ?? !el.classList.contains('open')); }
     function fillBooks(){
       const m = $('#livreMenu'); m.innerHTML = '';
@@ -283,29 +284,20 @@
         m.appendChild(b);
       }
     }
-
-    let currentLivre=null, currentChap=null;
-
     function selectBook(livre, closeMenus){
-      currentLivre = livre;
-      $('#livreLabel').textContent = livre;
-      $('#chapBtn').disabled = false;
-      $('#chapLabel').textContent = 'Chapitre';
-      currentChap = null;
-      fillChapters(livre);
-      if (closeMenus) openMenu($('#livreMenu'), false);
+      currentLivre = livre; $('#livreLabel').textContent = livre;
+      $('#chapBtn').disabled = false; $('#chapLabel').textContent = 'Chapitre'; currentChap=null;
+      fillChapters(livre); if (closeMenus) openMenu($('#livreMenu'), false);
       updateButtons(); updateHash(); refreshLastStudyUI(false);
     }
     function selectChapter(chap, closeMenus){
-      currentChap = String(chap);
-      $('#chapLabel').textContent = currentChap;
+      currentChap = String(chap); $('#chapLabel').textContent = currentChap;
       if (closeMenus) openMenu($('#chapMenu'), false);
       updateButtons(); updateHash(); refreshLastStudyUI(false);
     }
     function updateButtons(){ $('#lireBtn').disabled = !(currentLivre && currentChap); }
     function updateHash(){ if (currentLivre && currentChap){ history.replaceState(null,'',`#/${encodeURIComponent(currentLivre)}/${currentChap}?point=1`); } }
 
-    /* ---------- Recherche ---------- */
     function strip(s){return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'');}
     function norm(s){return strip(s).toLowerCase().replace(/[^a-z0-9]/g,'');}
     function resolveBook(term){
@@ -323,7 +315,7 @@
       return {book:resolveBook(s)||null, chap:null};
     }
 
-    /* ---------- NAV + sections ---------- */
+    /* ==================== NAV + SECTIONS ==================== */
     function renderPoints(){
       const nav = $('#pointsNav'); const host = $('#sectionsHost');
       nav.innerHTML=''; host.innerHTML='';
@@ -347,7 +339,7 @@
               <span><span id="wordCount-p${i}">0</span> mots</span>
             </div>
             <div class="prose prose-sm max-w-none" id="view-p${i}" hidden></div>
-            <textarea id="note-p${i}" class="w-full border rounded-lg p-3 mt-2" rows="6" placeholder="Mes notes… (tu peux écrire en Markdown : **gras**, listes -, tableaux |a|b|)"></textarea>
+            <textarea id="note-p${i}" class="w-full border rounded-lg p-3 mt-2" rows="8" placeholder="Écris / édite en Markdown : **gras**, listes -, tableaux |a|b|, images ![légende](https://...), dates 'YYYY — ...' pour une frise."></textarea>
           </div>`;
         host.appendChild(sec);
       }
@@ -363,7 +355,6 @@
             if(currentLivre&&currentChap){
               localStorage.setItem(`notes::${currentLivre}::${currentChap}::${i}`,ta.value);
               st.textContent='Enregistré ✓';
-              // aperçu enrichi
               renderRich(i, ta.value);
             }
           },260);
@@ -380,39 +371,33 @@
       }
     }
 
-    /* ---------- Rendu enrichi (Markdown light + liens BibleGateway) ---------- */
+    /* ==================== RENDU ENRICHI ==================== */
     function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-    function mdToHtml(md){
-      if(!md) return '';
-      let t = md.replace(/\r/g,'').trim();
-
-      // gras **…**
-      t = t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
-
-      // tableaux pipe | a | b |
-      if(/^\s*\|.+\|\s*$/m.test(t)){
-        t = t.replace(/^(?:\s*\|.+\|\s*)+$/gms, block=>{
-          const rows = block.trim().split('\n').map(r=>r.trim().replace(/^\||\|$/g,''));
-          const trs = rows.map(r=>{
-            const tds = r.split('|').map(c=>`<td class="border px-2 py-1">${escapeHtml(c.trim())}</td>`).join('');
-            return `<tr>${tds}</tr>`;
-          }).join('');
-          return `<div class="overflow-x-auto"><table class="w-full text-sm border">${trs}</table></div>`;
-        });
-      }
-
-      // listes -
-      t = t.replace(/^(?:\s*-\s.+\n?)+/gms, block=>{
-        const items = block.trim().split('\n').map(l=>l.replace(/^\s*-\s?/,'').trim()).filter(Boolean);
+    function mdTables(block){
+      return block.replace(/^(?:\s*\|.+\|\s*)+$/gms, tbl=>{
+        const rows = tbl.trim().split('\n').map(r=>r.trim().replace(/^\||\|$/g,''));
+        const trs = rows.map((r,idx)=>{
+          const tds = r.split('|').map(c=>`<td class="border px-2 py-1 align-top">${escapeHtml(c.trim())}</td>`).join('');
+          return `<tr class="${idx? '' : 'font-semibold bg-[var(--c50)]'}">${tds}</tr>`;
+        }).join('');
+        return `<div class="overflow-x-auto my-2"><table class="w-full text-sm border">${trs}</table></div>`;
+      });
+    }
+    function mdLists(t){
+      return t.replace(/^(?:\s*-\s.+\n?)+/gms, blk=>{
+        const items = blk.trim().split('\n').map(l=>l.replace(/^\s*-\s?/,'').trim()).filter(Boolean);
         return `<ul class="list-disc pl-5">${items.map(i=>`<li>${i}</li>`).join('')}</ul>`;
       });
-
-      // paragraphes
-      t = t.split(/\n{2,}/).map(p=>`<p>${p}</p>`).join('');
-      return t;
     }
-
-    // liens BibleGateway (détection de "Jean 3:16", "1 Co 13.4-7", etc.)
+    function mdImages(t){
+      return t.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g,(_m,alt,src)=>{
+        return `<figure class="my-3"><img src="${src}" alt="${escapeHtml(alt)}" loading="lazy"><figcaption class="text-xs text-slate-500 mt-1">${escapeHtml(alt)}</figcaption></figure>`;
+      });
+    }
+    function mdBold(t){ return t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>'); }
+    function paragraphs(t){
+      return t.split(/\n{2,}/).map(p=>`<p>${p}</p>`).join('');
+    }
     function gatewayLink(book, chap, verses){
       const vMap={LSG:'LSG',BDS:'BDS',NEG1979:'NEG1979',SG21:'S21',PDV:'PDV-FR'};
       const code=vMap[$('#versionSelect').value]||'LSG';
@@ -420,35 +405,46 @@
       return `https://www.biblegateway.com/passage/?search=${encodeURIComponent(ref)}&version=${code}`;
     }
     function linkifyVerses(html){
-      const bookRegex = "(?:[1-3]\\s*)?(?:Genèse|Exode|Lévitique|Nombres|Deutéronome|Josué|Juges|Ruth|1\\s*Samuel|2\\s*Samuel|1\\s*Rois|2\\s*Rois|1\\s*Chroniques|2\\s*Chroniques|Esdras|Néhémie|Esther|Job|Psaumes|Proverbes|Ecclésiaste|Cantique|Ésaïe|Esaïe|Jérémie|Lamentations|Ézéchiel|Ezechiel|Daniel|Osée|Joël|Amos|Abdias|Jonas|Michée|Nahum|Habacuc|Sophonie|Aggée|Zacharie|Malachie|Matthieu|Marc|Luc|Jean|Actes|Romains|1\\s*Corinthiens|2\\s*Corinthiens|Galates|Éphésiens|Philippiens|Colossiens|1\\s*Thessaloniciens|2\\s*Thessaloniciens|1\\s*Timothée|2\\s*Timothée|Tite|Philémon|Hébreux|Jacques|1\\s*Pierre|2\\s*Pierre|1\\s*Jean|2\\s*Jean|3\\s*Jean|Jude|Apocalypse)";
-      const rx = new RegExp(`\\b(${bookRegex})\\s+(\\d{1,3})(?:[.:](\\d{1,3}(?:[-–]\\d{1,3})?))?\\b`,'gi');
+      const bookRegex="(?:[1-3]\\s*)?(?:Genèse|Exode|Lévitique|Nombres|Deutéronome|Josué|Juges|Ruth|1\\s*Samuel|2\\s*Samuel|1\\s*Rois|2\\s*Rois|1\\s*Chroniques|2\\s*Chroniques|Esdras|Néhémie|Esther|Job|Psaumes|Proverbes|Ecclésiaste|Cantique|Ésaïe|Esaïe|Jérémie|Lamentations|Ézéchiel|Ezechiel|Daniel|Osée|Joël|Amos|Abdias|Jonas|Michée|Nahum|Habacuc|Sophonie|Aggée|Zacharie|Malachie|Matthieu|Marc|Luc|Jean|Actes|Romains|1\\s*Corinthiens|2\\s*Corinthiens|Galates|Éphésiens|Philippiens|Colossiens|1\\s*Thessaloniciens|2\\s*Thessaloniciens|1\\s*Timothée|2\\s*Timothée|Tite|Philémon|Hébreux|Jacques|1\\s*Pierre|2\\s*Pierre|1\\s*Jean|2\\s*Jean|3\\s*Jean|Jude|Apocalypse)";
+      const rx=new RegExp(`\\b(${bookRegex})\\s+(\\d{1,3})(?:[.:](\\d{1,3}(?:[-–]\\d{1,3})?))?\\b`,'gi');
       return html.replace(rx,(m,bk,ch,vv)=>{
-        // normalise livre détecté
         const resolved = resolveBook(bk) || bk;
-        const url = gatewayLink(resolved, ch, vv||'');
-        return `<a class="underline decoration-[var(--c600)] hover:text-[var(--c700)]" target="_blank" rel="noopener" href="${url}">${m}</a>`;
+        return `<a class="underline decoration-[var(--c600)] hover:text-[var(--c700)]" target="_blank" rel="noopener" href="${gatewayLink(resolved,ch,vv||'')}">${m}</a>`;
       });
+    }
+    function timelines(t){
+      // blocs de lignes "YYYY — Texte"
+      return t.replace(/^(?:\s*\d{3,4}\s*[–-]\s+.+\n?){2,}$/gms, blk=>{
+        const items = blk.trim().split('\n').map(l=>{
+          const m=l.match(/^\s*(\d{3,4})\s*[–-]\s+(.+)$/); if(!m) return null;
+          return `<div class="timeline-item"><div class="timeline-year">${m[1]}</div><div>${m[2]}</div></div>`;
+        }).filter(Boolean).join('');
+        return `<div class="timeline my-3">${items}</div>`;
+      });
+    }
+    function mdToHtml(md){
+      if(!md) return '';
+      let t = md.replace(/\r/g,'').trim();
+      t = mdImages(t);
+      t = mdTables(t);
+      t = mdLists(t);
+      t = mdBold(t);
+      t = paragraphs(t);
+      t = timelines(t);
+      t = linkifyVerses(t);
+      return t;
     }
     function renderRich(i, raw){
       const view = $('#view-p'+i);
       if(!view) return;
-      const html = linkifyVerses(mdToHtml(raw||''));
+      const html = mdToHtml(raw||'');
       if(html){ view.hidden=false; view.innerHTML = html; }
       else{ view.hidden=true; view.innerHTML=''; }
     }
 
-    /* ---------- Nettoyage p1/p28 et boilerplates ---------- */
-    const BOILERPLATE_RX = /(voici\s+28\s+points.*|présentés\s+de\s+manière.*|introduction\s*:?)$/i;
-    function cleanPoint(text){
-      if(!text) return '';
-      let t = String(text).trim();
-      t = t.replace(BOILERPLATE_RX,'').trim();
-      t = t.replace(/^p(rière)?\s*d[’'e]ouverture\s*:?\s*/i,'').trim();
-      t = t.replace(/^prière\s*de\s*fin\s*:?\s*/i,'').trim();
-      return t;
-    }
-
-    /* ---------- Normalisation réponse ---------- */
+    /* ==================== NETTOYAGE & NORMALISATION ==================== */
+    const BOILERPLATE_RX=/(voici\s+\d+\s+points.*|présentés\s+de\s+manière.*)$/i;
+    function cleanPoint(text){ if(!text) return ''; let t=String(text).trim(); t=t.replace(BOILERPLATE_RX,'').trim(); return t; }
     function trySplitToPoints(str){
       if(!str) return [];
       const lines=String(str).replace(/\r/g,'').split(/\n+/).map(s=>s.trim()).filter(Boolean);
@@ -469,91 +465,94 @@
       if(typeof data.content==='string'&&data.content.trim()){ const parts=trySplitToPoints(data.content); for(let i=1;i<=28&&i<=parts.length;i++) out['p'+i]=cleanPoint(parts[i-1]); return out; }
       out.p1=JSON.stringify(data); return out;
     }
-
-    /* ---------- Prières fallback (1ère personne) ---------- */
-    function buildOpeningPrayer(book, chap){
-      return `Père céleste, alors que je lis ${book} ${chap}, illumine mon intelligence, façonne mon cœur à l’obéissance et fais briller la gloire du Christ dans ce passage. Amen.`;
-    }
-    function buildClosingPrayer(book, chap){
-      return `Seigneur, scelle en moi les vérités de ${book} ${chap}. Donne-moi de vivre ce que tu m’as montré et de le partager avec fidélité. Au nom de Jésus. Amen.`;
-    }
-
-    function fillFromServer(data){
-      const obj=normalizeToP28(data);
+    function dedupeAndPad(obj){
+      // retire doublons exacts et force un minimum
+      const seen=new Set();
       for(let i=1;i<=28;i++){
-        const v=obj['p'+i]; if(typeof v!=='string'||!v.trim()) continue;
-        const ta=$('#note-p'+i), wc=$('#wordCount-p'+i), st=$('#noteStatus-p'+i);
-        ta.value=v.trim(); wc.textContent=v.trim().split(/\s+/).filter(Boolean).length; st.textContent='Généré par IA ✓';
-        if(currentLivre&&currentChap){ localStorage.setItem(`notes::${currentLivre}::${currentChap}::${i}`,v.trim()); }
-        renderRich(i, ta.value);
+        let v=obj['p'+i]||'';
+        const norm=v.replace(/\s+/g,' ').toLowerCase();
+        if(seen.has(norm)) v='(Complément demandé : éviter les redites. Développer un angle distinct pour ce point.)';
+        seen.add(norm);
+        // garde la valeur
+        obj['p'+i]=v;
       }
-      const p1=$('#note-p1'), w1=$('#wordCount-p1'), s1=$('#noteStatus-p1');
-      if(p1.value.trim().length < 80){
-        p1.value = buildOpeningPrayer(currentLivre, currentChap);
-        w1.textContent = p1.value.split(/\s+/).length; s1.textContent='Prière d’ouverture (adaptée) ✓';
-        localStorage.setItem(`notes::${currentLivre}::${currentChap}::1`, p1.value);
-        renderRich(1, p1.value);
-      }
-      const p28=$('#note-p28'), w28=$('#wordCount-p28'), s28=$('#noteStatus-p28');
-      if(p28.value.trim().length < 80){
-        p28.value = buildClosingPrayer(currentLivre, currentChap);
-        w28.textContent = p28.value.split(/\s+/).length; s28.textContent='Prière de fin (adaptée) ✓';
-        localStorage.setItem(`notes::${currentLivre}::${currentChap}::28`, p28.value);
-        renderRich(28, p28.value);
-      }
-      document.querySelector('#pointsNav .sidebar-item')?.click();
+      return obj;
     }
 
-    /* ---------- Appel backend ---------- */
+    /* ==================== PRIÈRES (1ʳᵉ personne) ==================== */
+    function openingPrayer(book,chap){ return `Père céleste, alors que je lis ${book} ${chap}, illumine mon intelligence, affermis ma foi et fais briller la gloire de ton Fils dans ce passage. Amen.`; }
+    function closingPrayer(book,chap){ return `Seigneur, scelle en moi les vérités de ${book} ${chap}. Donne-moi de les vivre avec humilité et courage. Au nom de Jésus. Amen.`; }
+
+    /* ==================== APPELS API (lots) ==================== */
     async function callServerAI(payload){
       const strongHint =
-        "Réponds en JSON {p1..p28} uniquement. Style théologique solide et pastoral. " +
-        "p1 et p28 = prières en première personne (je/moi), contextuelles au passage. " +
-        "Points 2–27 riches, avec références bibliques intégrées, pas d'intro 'Voici 28 points…', " +
-        "autorise la mise en forme Markdown (**gras**, listes, tableaux).";
+        "Réponds STRICTEMENT en JSON avec les clés demandées (p1..p28 ou sous-ensemble). Chaque point doit viser au moins "
+        + MIN_CHARS_PER_POINT + " caractères, style théologique solide, pastoral, fidèle à la doctrine biblique. "
+        + "Interdis toute phrase générique type 'Voici X points...'. Prière d’ouverture (p1) et de fin (p28) à la première personne (je/moi). "
+        + "Intègre **gras**, listes, tableaux `|a|b|`, images `![alt](url)` si pertinent, frises 'YYYY — ...', et références bibliques cliquables dans le texte.";
       const res = await fetch(API_URL_CHAT,{
         method:'POST',
         headers:{'content-type':'application/json'},
-        body:JSON.stringify({...payload, hint: strongHint})
+        body:JSON.stringify({...payload, hint: strongHint, min_chars_per_point: MIN_CHARS_PER_POINT})
       });
       const txt = await res.text(); let data; try{ data=JSON.parse(txt); }catch{ data={content:txt}; }
-      if(!res.ok){ toast('API : '+(data?.error||data?.message||('HTTP '+res.status)),'err',6000); return null; }
+      if(!res.ok){ toast('API : '+(data?.error||data?.message||('HTTP '+res.status)),'err',7000); return null; }
       return data;
+    }
+
+    function chunks(arr,size){ const out=[]; for(let i=0;i<arr.length;i+=size) out.push(arr.slice(i,i+size)); return out; }
+
+    async function generateBatches(indices){
+      const busy=$('#busy'), busyText=$('#busyText');
+      busyText.textContent='Génération par lots…'; busy.classList.remove('hidden');
+      try{
+        for(const grp of chunks(indices,BATCH_SIZE)){
+          const payload = {
+            livre: currentLivre,
+            chapitre: parseInt(currentChap,10),
+            points: grp.length,                 // info
+            subset: grp,                        // indices exacts
+            schema: grp.map(n=>'p'+n)           // pour obliger le sous-ensemble
+          };
+          const data = await callServerAI(payload);
+          if(!data) continue;
+          const obj = normalizeToP28(data);
+          const norm = dedupeAndPad(obj);
+          for(const n of grp){
+            const v = norm['p'+n] || '';
+            const ta=$('#note-p'+n), wc=$('#wordCount-p'+n), st=$('#noteStatus-p'+n);
+            ta.value=v; wc.textContent=v.trim()?v.trim().split(/\s+/).length:0; st.textContent='Généré ✓';
+            localStorage.setItem(`notes::${currentLivre}::${currentChap}::${n}`,v);
+            renderRich(n,v);
+          }
+        }
+        // Prières fallback si besoin
+        const p1=$('#note-p1').value.trim(); if(p1.length<120) { const v=openingPrayer(currentLivre,currentChap); $('#note-p1').value=v; renderRich(1,v); }
+        const p28=$('#note-p28').value.trim(); if(p28.length<120){ const v=closingPrayer(currentLivre,currentChap); $('#note-p28').value=v; renderRich(28,v); }
+        document.querySelector('#pointsNav .sidebar-item')?.click();
+        toast('Étude générée.','ok');
+      } finally { busy.classList.add('hidden'); }
     }
 
     async function generate(force28=false){
       if(!(currentLivre&&currentChap)){ toast('Sélectionne un livre et un chapitre.','err'); return; }
       if(force28){ $('#pointsSelect').value='28'; }
-      const points=parseInt($('#pointsSelect').value,10)||28;
-
-      $('#busyText').textContent=`Génération (${currentLivre} ${currentChap})…`;
-      $('#busy').classList.remove('hidden');
-      try{
-        const data = await callServerAI({
-          livre: currentLivre,
-          chapitre: parseInt(currentChap,10),
-          points
-        });
-        if(data){ fillFromServer(data); toast('Étude générée.','ok'); }
-      }finally{ $('#busy').classList.add('hidden'); }
+      const total=parseInt($('#pointsSelect').value,10)||28;
+      const all=[...Array(28)].map((_,i)=>i+1);
+      const indices = (total===28) ? all : all.slice(0,total);
+      await generateBatches(indices);
     }
 
-    /* ---------- Dernière étude ---------- */
-    function setLastStudy(livre, chap){
-      localStorage.setItem('derniere_etude', JSON.stringify({livre, chapitre:String(chap)}));
-      refreshLastStudyUI(true);
-    }
+    /* ==================== DERNIÈRE ÉTUDE ==================== */
+    function setLastStudy(livre, chap){ localStorage.setItem('derniere_etude', JSON.stringify({livre, chapitre:String(chap)})); refreshLastStudyUI(true); }
     function getLastStudy(){ try{ return JSON.parse(localStorage.getItem('derniere_etude')||'null'); }catch{ return null; } }
     function refreshLastStudyUI(){
-      const last = getLastStudy();
-      const label = last ? `${last.livre} ${last.chapitre}` : '—';
-      $('#lastStudyPill').textContent = `Dernière étude : ${label}`;
-      $('#lastStudyInline').textContent = label;
+      const last = getLastStudy(); const label = last ? `${last.livre} ${last.chapitre}` : '—';
+      $('#lastStudyPill').textContent = `Dernière étude : ${label}`; $('#lastStudyInline').textContent = label;
     }
 
-    /* ---------- Init ---------- */
+    /* ==================== INIT ==================== */
     document.addEventListener('DOMContentLoaded', ()=>{
-      // thème
       applyTheme(localStorage.getItem(THEME_KEY)||'indigo');
       $('#themeSelect').value = localStorage.getItem(THEME_KEY)||'indigo';
       $('#themeSelect').addEventListener('change',e=>applyTheme(e.target.value));
@@ -564,78 +563,30 @@
 
       // Recherche
       let si=null;
-      $('#searchInput').addEventListener('input',()=>{
-        clearTimeout(si);
-        si=setTimeout(()=>{
-          const r=parseRef($('#searchInput').value);
-          if(!r.book) return;
-          selectBook(r.book,false);
-          if(r.chap) selectChapter(r.chap,false);
-        },140);
-      });
-      $('#searchInput').addEventListener('keydown',(e)=>{
-        if(e.key==='Enter'){
-          const r=parseRef($('#searchInput').value);
-          if(!r.book){ toast('Ex : « mar 5 », « jean 3:16 ».','err'); return; }
-          selectBook(r.book,false);
-          selectChapter(r.chap||1,false);
-        }
-      });
+      $('#searchInput').addEventListener('input',()=>{ clearTimeout(si); si=setTimeout(()=>{ const r=parseRef($('#searchInput').value); if(!r.book) return; selectBook(r.book,false); if(r.chap) selectChapter(r.chap,false); },140); });
+      $('#searchInput').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const r=parseRef($('#searchInput').value); if(!r.book){ toast('Ex : « mar 5 », « jean 3:16 ».','err'); return; } selectBook(r.book,false); selectChapter(r.chap||1,false); } });
 
       // Valide → sauvegarde + 28 points
       $('#validerBtn').addEventListener('click', async ()=>{
         if(!(currentLivre&&currentChap)){ toast('Sélectionne un livre et un chapitre.','err'); return; }
-        setLastStudy(currentLivre, currentChap);
-        loadSavedNotes();
-        await generate(true);
+        setLastStudy(currentLivre, currentChap); loadSavedNotes(); await generate(true);
       });
 
       // Reprendre
       $('#resumeBtn').addEventListener('click', ()=>{
         const last = getLastStudy(); if(!last){ toast('Aucune étude enregistrée.','err'); return; }
-        selectBook(last.livre,false);
-        selectChapter(parseInt(last.chapitre,10),false);
-        toast(`Repris : ${last.livre} ${last.chapitre}`,'ok');
+        selectBook(last.livre,false); selectChapter(parseInt(last.chapitre,10),false); toast(`Repris : ${last.livre} ${last.chapitre}`,'ok');
       });
 
-      // Réinit
-      $('#reinitBtn').addEventListener('click',()=>{
-        currentLivre=null; currentChap=null;
-        $('#livreLabel').textContent='Sélectionner un livre';
-        $('#chapLabel').textContent='Chapitre';
-        $('#chapBtn').disabled=true; $('#lireBtn').disabled=true;
-        $('#searchInput').value=''; history.replaceState(null,'','#');
-        toast('Réinitialisé.','info');
-        refreshLastStudyUI();
-      });
-
-      // Lire
-      $('#lireBtn').addEventListener('click',()=>{
-        if(!(currentLivre&&currentChap)) return;
-        const vMap={LSG:'LSG',BDS:'BDS',NEG1979:'NEG1979',SG21:'S21',PDV:'PDV-FR'};
-        const code=vMap[$('#versionSelect').value]||'LSG';
-        const ref=currentLivre+' '+currentChap;
-        window.open('https://www.biblegateway.com/passage/?search='+encodeURIComponent(ref)+'&version='+code,'_blank','noopener');
-      });
-
+      // Réinit / Lire / Générer
+      $('#reinitBtn').addEventListener('click',()=>{ currentLivre=null; currentChap=null; $('#livreLabel').textContent='Sélectionner un livre'; $('#chapLabel').textContent='Chapitre'; $('#chapBtn').disabled=true; $('#lireBtn').disabled=true; $('#searchInput').value=''; history.replaceState(null,'','#'); toast('Réinitialisé.','info'); refreshLastStudyUI(); });
+      $('#lireBtn').addEventListener('click',()=>{ if(!(currentLivre&&currentChap)) return; const vMap={LSG:'LSG',BDS:'BDS',NEG1979:'NEG1979',SG21:'S21',PDV:'PDV-FR'}; const code=vMap[$('#versionSelect').value]||'LSG'; const ref=currentLivre+' '+currentChap; window.open('https://www.biblegateway.com/passage/?search='+encodeURIComponent(ref)+'&version='+code,'_blank','noopener'); });
       $('#generateBtn').addEventListener('click', ()=>generate(false));
       $('#printBtn').addEventListener('click',()=>window.print());
 
       // Export & lien
-      $('#exportMdBtn').addEventListener('click',()=>{
-        if(!(currentLivre&&currentChap)){ toast('Sélectionne un passage.','err'); return; }
-        let out=`# ${currentLivre} ${currentChap}\n\n_Généré : ${new Date().toLocaleString()}_\n\n`;
-        for(let i=1;i<=28;i++){
-          const title=POINTS[i-1];
-          const note=($('#note-p'+i).value||'').trim();
-          out+=`## ${i}. ${title}\n\n${note||'_(vide)_'}\n\n`;
-        }
-        const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([out],{type:'text/markdown;charset=utf-8'})); a.download=`Etude_${currentLivre.replace(/\s+/g,'_')}_${currentChap}.md`; document.body.appendChild(a); a.click(); a.remove();
-      });
-      $('#copyLinkBtn').addEventListener('click',async()=>{
-        const url=new URL(location.href); url.hash=(currentLivre&&currentChap)?`#/${encodeURIComponent(currentLivre)}/${currentChap}?point=1`:'#';
-        try{ await navigator.clipboard.writeText(url.toString()); toast('Lien copié.','ok'); }catch{ toast('Copie impossible.','err'); }
-      });
+      $('#exportMdBtn').addEventListener('click',()=>{ if(!(currentLivre&&currentChap)){ toast('Sélectionne un passage.','err'); return; } let out=`# ${currentLivre} ${currentChap}\n\n_Généré : ${new Date().toLocaleString()}_\n\n`; for(let i=1;i<=28;i++){ const title=POINTS[i-1]; const note=($('#note-p'+i).value||'').trim(); out+=`## ${i}. ${title}\n\n${note||'_(vide)_'}\n\n`; } const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([out],{type:'text/markdown;charset=utf-8'})); a.download=`Etude_${currentLivre.replace(/\s+/g,'_')}_${currentChap}.md`; document.body.appendChild(a); a.click(); a.remove();});
+      $('#copyLinkBtn').addEventListener('click',async()=>{ const url=new URL(location.href); url.hash=(currentLivre&&currentChap)?`#/${encodeURIComponent(currentLivre)}/${currentChap}?point=1`:'#'; try{ await navigator.clipboard.writeText(url.toString()); toast('Lien copié.','ok'); }catch{ toast('Copie impossible.','err'); } });
 
       renderPoints();
       document.querySelector('#pointsNav .sidebar-item')?.click();
@@ -645,7 +596,6 @@
         const m=location.hash.match(/^#\/([^\/]+)\/(\d+)/);
         if(m){ selectBook(decodeURIComponent(m[1]),false); selectChapter(parseInt(m[2],10),false); }
       }
-
       refreshLastStudyUI();
     });
   </script>
