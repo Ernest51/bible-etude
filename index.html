@@ -3,20 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <title>Étude Biblique</title>
+  <title>Étude Biblique — 28 points stricts</title>
 
-  <!-- AUCUN CDN. Tailwind compilé: /dist/output.css -->
-  <link href="/dist/output.css" rel="stylesheet">
+  <!-- PAS DE CDN: le CSS est compilé vers /dist/output.css -->
+  <link rel="stylesheet" href="/dist/output.css" />
+
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 
   <style>
     :root{color-scheme:light dark}
     body{font-family:"Plus Jakarta Sans",Inter,system-ui,Arial,sans-serif;background:#f6f7fb}
-    .dark body{background:#0b1220}
     .container-xl{max-width:1200px;margin-inline:auto}
-
-    /* Thèmes (8) — variables couleur */
+    /* 8 thèmes (couleurs pilotées via variables CSS) */
     .theme-indigo{--c50:#eef2ff;--c100:#e0e7ff;--c200:#c7d2fe;--c600:#4f46e5;--c700:#4338ca;--c800:#3730a3}
     .theme-vin{--c50:#fff1f2;--c100:#ffe4e6;--c200:#fecdd3;--c600:#e11d48;--c700:#be123c;--c800:#9f1239}
     .theme-bleunuit{--c50:#eff6ff;--c100:#dbeafe;--c200:#bfdbfe;--c600:#2563eb;--c700:#1d4ed8;--c800:#1e40af}
@@ -32,7 +31,7 @@
     .btn-solid{background:var(--c600);color:#fff}.btn-solid:hover{background:var(--c700)}
     .btn-outline{border:1px solid var(--c200);background:#fff}
     .btn-ghost{border:1px dashed var(--c200);background:#fff}
-    .badge{display:inline-grid;place-items:center;min-width:1.9rem;height:1.9rem;border-radius:.55rem;background:var(--c100);color:var(--c800);font-weight:800;font-size:.75rem}
+    .badge{display:inline-grid;place-items:center;width:1.9rem;height:1.9rem;border-radius:.55rem;background:var(--c100);color:var(--c800);font-weight:800;font-size:.75rem}
     .sidebar-item{border:1px solid transparent;border-radius:12px;padding:.6rem .7rem;display:flex;align-items:flex-start;gap:.6rem}
     .sidebar-item:hover{background:var(--c50);border-color:var(--c200)}
     .sidebar-item.active{background:var(--c100);border-color:var(--c200);box-shadow:inset 4px 0 0 0 var(--c600)}
@@ -44,18 +43,11 @@
     .menu button{display:block;width:100%;text-align:left;padding:.55rem .8rem}
     .menu button:hover{background:var(--c50)}
     .toast{position:fixed;right:14px;bottom:14px;background:#111827;color:#fff;padding:.65rem .95rem;border-radius:12px;box-shadow:0 10px 20px rgba(0,0,0,.15);z-index:200;transition:opacity .25s, transform .25s}
-
     .prose img{border-radius:12px;box-shadow:0 10px 24px rgba(2,6,23,.15);max-width:100%;height:auto}
     .timeline{display:grid;gap:.6rem}
     .timeline-item{display:grid;grid-template-columns:72px 1fr;gap:.6rem;align-items:start}
     .timeline-year{font-weight:800;background:var(--c100);color:var(--c800);border-radius:10px;padding:.3rem .55rem;text-align:center}
-
-    @media (max-width: 640px){
-      .toolbar{padding:.5rem .7rem}
-      .btn{padding:.65rem .9rem}
-      .badge{min-width:1.6rem;height:1.6rem}
-      .timeline-item{grid-template-columns:64px 1fr}
-    }
+    @media (max-width: 640px){ .toolbar{padding:.5rem .7rem} .btn{padding:.65rem .9rem} .badge{width:1.75rem;height:1.75rem} .timeline-item{grid-template-columns:64px 1fr} }
   </style>
 </head>
 
@@ -73,7 +65,7 @@
             </div>
             <div>
               <h1 class="text-xl sm:text-2xl font-extrabold tracking-wide">Étude Biblique</h1>
-              <p class="text-[11px] sm:text-xs text-slate-600 -mt-0.5">Explorer les Écritures en profondeur</p>
+              <p class="text-[11px] sm:text-xs text-slate-600 -mt-0.5">28 points strictement conformes</p>
             </div>
           </div>
           <div class="flex items-center gap-2">
@@ -156,9 +148,9 @@
 
               <div class="ml-auto flex gap-2 w-full sm:w-auto">
                 <select id="pointsSelect" class="border rounded-lg px-3 py-2 w-full sm:w-auto">
-                  <option value="8">8 points (rapide)</option>
-                  <option value="12">12 points</option>
                   <option value="28" selected>28 points</option>
+                  <option value="12">12 points</option>
+                  <option value="8">8 points (rapide)</option>
                 </select>
                 <button id="generateBtn" class="btn btn-solid shadow w-full sm:w-auto">Générer IA</button>
               </div>
@@ -199,7 +191,7 @@
                     <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M5 4h9a4 4 0 0 1 4 4v10H7a2 2 0 0 1-2-2V4z"/><path d="M7 18h11v2H7z"/></svg>
                   </div>
                   <h3 class="text-lg font-bold mb-2">Bienvenue 👋</h3>
-                  <p class="text-neutral-600">Je choisis un livre et un chapitre, puis je clique <b>Valide</b> pour obtenir 28 points riches.</p>
+                  <p class="text-neutral-600">Je choisis un livre et un chapitre, puis je clique <b>Valide</b> pour obtenir 28 points riches, structurés et cohérents.</p>
                 </div>
                 <div id="sectionsHost"></div>
               </div>
@@ -216,36 +208,19 @@
   </div>
 
   <script>
-    /* ==================== CONFIG QUALITÉ ==================== */
-    const MIN_CHARS_PER_POINT = 2500;      // cible min par point
-    const BATCH_SIZE = 4;                  // lots pour forcer du long
-    const THEME_KEY='ui_theme8';
+    /* ==================== CONFIG ==================== */
     const API_URL_CHAT = new URL('./api/chat', location.href).toString();
+    const TARGET_MIN = 2500;     // ~ caractères minimum par point
+    const BATCH = 4;             // taille des lots
+    const THEME_KEY='ui_theme8';
 
-    /* ==================== UTIL & THEME ==================== */
-    const $ = (s)=>document.querySelector(s);
-    function toast(msg, kind='info', ms=4200){
-      const z=$("#toasts"); const d=document.createElement('div');
-      d.className='toast'; d.textContent=msg;
-      d.style.background = kind==='err' ? '#ef4444' : (kind==='ok' ? '#10b981' : '#111827');
-      z.appendChild(d); setTimeout(()=>{d.style.opacity='0';d.style.transform='translateY(4px)';}, ms-300);
-      setTimeout(()=>d.remove(), ms);
-    }
-    function applyTheme(val){
-      const r=document.documentElement;
-      r.classList.remove('theme-indigo','theme-vin','theme-bleunuit','theme-emerald','theme-amber','theme-rose','theme-sky','theme-violet');
-      r.classList.add('theme-'+(val||'indigo'));
-      localStorage.setItem(THEME_KEY,val||'indigo');
-    }
-
-    /* ==================== DONNÉES ==================== */
+    /* ==================== TOUTES LES DONNÉES ==================== */
     const LIVRES_CHAP={"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
 
-    // Aliases recherche
     const ALIAS={gen:'Genèse',gn:'Genèse',ex:'Exode',exo:'Exode',lev:'Lévitique',lv:'Lévitique',nb:'Nombres',nbr:'Nombres',deut:'Deutéronome',dt:'Deutéronome',jos:'Josué',jg:'Juges',ru:'Ruth','1sa':'1 Samuel','2sa':'2 Samuel','1r':'1 Rois','2r':'2 Rois','1ch':'1 Chroniques','2ch':'2 Chroniques',esd:'Esdras',neh:'Néhémie',est:'Esther',ps:'Psaumes',prov:'Proverbes',eccl:'Ecclésiaste',cant:'Cantique',es:'Ésaïe',jr:'Jérémie',lam:'Lamentations',ez:'Ézéchiel',dn:'Daniel',os:'Osée',jl:'Joël',am:'Amos',abd:'Abdias',jon:'Jonas',mic:'Michée',nah:'Nahum',hb:'Habacuc',so:'Sophonie',ag:'Aggée',za:'Zacharie',ml:'Malachie',mt:'Matthieu',mc:'Marc',lc:'Luc',jn:'Jean',ac:'Actes',rm:'Romains','1co':'1 Corinthiens','2co':'2 Corinthiens',ga:'Galates',eph:'Éphésiens',php:'Philippiens',cl:'Colossiens','1th':'1 Thessaloniciens','2th':'2 Thessaloniciens','1ti':'1 Timothée','2ti':'2 Timothée',tt:'Tite',phm:'Philémon',he:'Hébreux',ja:'Jacques','1p':'1 Pierre','2p':'2 Pierre','1j':'1 Jean','2j':'2 Jean','3j':'3 Jean',jud:'Jude',ap:'Apocalypse'};
 
-    // Liste stricte des 28 points (TITRES EXACTS)
-    const POINTS=[
+    // Liste EXACTE demandée (sidebar + titres sections)
+    const POINTS = [
       "Prière d’ouverture — Invocation du Saint-Esprit pour éclairer mon étude.",
       "Canon et testament — Identifier le livre dans le canon (Ancien/Nouveau Testament).",
       "Questions du chapitre précédent — Minimum 5 questions, avec réponses intégrales pour vérifier la compréhension.",
@@ -276,9 +251,56 @@
       "Prière de fin — Clôture spirituelle de l’étude avec reconnaissance."
     ];
 
-    /* ==================== SÉLECTEURS ==================== */
-    let currentLivre=null, currentChap=null;
+    // Instructions STRICTES par point
+    const INSTR = {
+      1:  (b,c)=>`Écris une prière d’ouverture (1ʳᵉ personne : je/moi) liée à **${b} ${c}**. Ton pastoral, révérencieux, doctrinal, évoquant l’œuvre du Saint-Esprit. ≥ ${TARGET_MIN} caractères.`,
+      2:  (b,c)=>`Identifie précisément la place de **${b}** dans le canon (AT/NT), période, rôle, public. Ajoute un petit tableau de méta-données. ≥ ${TARGET_MIN}.`,
+      3:  (b,c)=>`Donne **exactement 5 questions** sur le **chapitre précédent** de ${b} ${c-1 || 1} avec **réponses intégrales et justifiées**. Liste numérotée. ≥ ${TARGET_MIN}.`,
+      4:  (b,c)=>`Propose un **titre doctrinal** synthétique pour ${b} ${c} puis un résumé structuré (puces + paragraphe). ≥ ${TARGET_MIN}.`,
+      5:  (b,c)=>`Contexte historique de ${b} ${c} : époque, géopolitique, culture. Ajoute **une carte** (image Markdown !) et frise chronologique ('YYYY — ...'). ≥ ${TARGET_MIN}.`,
+      6:  (b,c)=>`Structure littéraire interne de ${b} ${c} : plan en sections, transitions, inclusions. Donne un **schéma** (tableau). ≥ ${TARGET_MIN}.`,
+      7:  (b,c)=>`Genre littéraire de ${b} ${c} (narratif, poétique, etc.) + implications herméneutiques. ≥ ${TARGET_MIN}.`,
+      8:  (b,c)=>`Auteur, date, destinataires. Ajoute **arbre généalogique** (ASCII simple ou puces hiérarchiques) et liens patriarcaux. ≥ ${TARGET_MIN}.`,
+      9:  (b,c)=>`Choisis le **verset-clé** de ${b} ${c}. Affiche-le **en gras** + lien **BibleGateway**. Explique pourquoi il est doctrinalement central. ≥ ${TARGET_MIN}.`,
+      10: (b,c)=>`Analyse exégétique de ${b} ${c} : progression par péricope, remarques grec/hébreu (translittération ok), notes syntaxiques. ≥ ${TARGET_MIN}.`,
+      11: (b,c)=>`Analyse lexicale : 5–8 **mots-clés** de ${b} ${c} (forme, sens, usages parallèles). Tableau comparatif inclus. ≥ ${TARGET_MIN}.`,
+      12: (b,c)=>`Références croisées : parallèles OT/NT pertinents. Liste structurée avec versets **cliquables**. ≥ ${TARGET_MIN}.`,
+      13: (b,c)=>`Fondements théologiques qui émergent de ${b} ${c} (Dieu, Christ, Esprit, salut, Église...). Arguments + versets cliquables. ≥ ${TARGET_MIN}.`,
+      14: (b,c)=>`Thème doctrinal : rattache ${b} ${c} aux **22 grands thèmes** (créer une mini-table). Justifie. ≥ ${TARGET_MIN}.`,
+      15: (b,c)=>`Fruits spirituels attendus (vertus). Décris **comment** les cultiver (plan pratique). ≥ ${TARGET_MIN}.`,
+      16: (b,c)=>`Types bibliques/figures : symboles christologiques, typologie, accomplissements. ≥ ${TARGET_MIN}.`,
+      17: (b,c)=>`Appui doctrinal : autres passages qui confirment ${b} ${c}. Montre la cohérence canonique. ≥ ${TARGET_MIN}.`,
+      18: (b,c)=>`Comparaison **entre versets** de ${b} ${c} : rapprochements, contrastes, structure. Tableau comparatif. ≥ ${TARGET_MIN}.`,
+      19: (b,c)=>`Comparaison avec **Actes 2** (Esprit, Église, mission). Parallèles précis et applications. ≥ ${TARGET_MIN}.`,
+      20: (b,c)=>`Verset à mémoriser : affiche-le (gras, lien) + méthode de mémorisation (révision, prière, chant). ≥ ${TARGET_MIN}.`,
+      21: (b,c)=>`Enseignement pour l’Église : gouvernance, liturgie, mission d’après ${b} ${c}. Plan d’actions. ≥ ${TARGET_MIN}.`,
+      22: (b,c)=>`Enseignement pour la **famille** : valeurs, rituels de Parole/prière, transmission. ≥ ${TARGET_MIN}.`,
+      23: (b,c)=>`Enseignement pour **enfants** : raconter, images, jeu, activité créative. Inclure 1–2 images Markdown. ≥ ${TARGET_MIN}.`,
+      24: (b,c)=>`Application missionnaire : évangélisation, apologétique, témoignage inspirés par ${b} ${c}. ≥ ${TARGET_MIN}.`,
+      25: (b,c)=>`Application **pastorale** : conseils clairs pour pasteurs/enseignants (prédication, accompagnement). ≥ ${TARGET_MIN}.`,
+      26: (b,c)=>`Application **personnelle** : examen de conscience, engagements concrets (checklist). ≥ ${TARGET_MIN}.`,
+      27: (b,c)=>`Versets à retenir pour la **prédication** : anthologie commentée, tous cliquables. ≥ ${TARGET_MIN}.`,
+      28: (b,c)=>`Écris une **prière de fin** (1ʳᵉ personne) liée à **${b} ${c}**, louange + consécration. ≥ ${TARGET_MIN}.`
+    };
 
+    /* ==================== UI helpers ==================== */
+    const $ = (s)=>document.querySelector(s);
+    function toast(msg, kind='info', ms=3800){
+      const z=document.getElementById("toasts"); const d=document.createElement('div');
+      d.className='toast'; d.textContent=msg;
+      d.style.background = kind==='err' ? '#ef4444' : (kind==='ok' ? '#10b981' : '#111827');
+      z.appendChild(d); setTimeout(()=>{d.style.opacity='0';d.style.transform='translateY(4px)';}, ms-300);
+      setTimeout(()=>d.remove(), ms);
+    }
+    function applyTheme(val){
+      const r=document.documentElement;
+      r.classList.remove('theme-indigo','theme-vin','theme-bleunuit','theme-emerald','theme-amber','theme-rose','theme-sky','theme-violet');
+      r.classList.add('theme-'+(val||'indigo'));
+      localStorage.setItem(THEME_KEY,val||'indigo');
+    }
+
+    /* ==================== Sélecteurs ==================== */
+    let currentLivre=null, currentChap=null;
     function openMenu(el, open){ el.classList.toggle('open', open ?? !el.classList.contains('open')); }
     function fillBooks(){
       const m = $('#livreMenu'); m.innerHTML = '';
@@ -313,7 +335,6 @@
     function updateButtons(){ $('#lireBtn').disabled = !(currentLivre && currentChap); }
     function updateHash(){ if (currentLivre && currentChap){ history.replaceState(null,'',`#/${encodeURIComponent(currentLivre)}/${currentChap}?point=1`); } }
 
-    /* ==================== Recherche ==================== */
     function strip(s){return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'');}
     function norm(s){return strip(s).toLowerCase().replace(/[^a-z0-9]/g,'');}
     function resolveBook(term){
@@ -331,7 +352,7 @@
       return {book:resolveBook(s)||null, chap:null};
     }
 
-    /* ==================== NAV + SECTIONS ==================== */
+    /* ==================== NAV & Sections (vue unique) ==================== */
     function renderPoints(){
       const nav = $('#pointsNav'); const host = $('#sectionsHost');
       nav.innerHTML=''; host.innerHTML='';
@@ -350,40 +371,13 @@
         const sec=document.createElement('div'); sec.id='p'+i; sec.className='content-section';
         sec.innerHTML=`<h3 class="text-xl font-extrabold mb-2">${POINTS[i-1]}</h3>
           <div class="rounded-xl border p-3">
-            <div class="text-xs text-neutral-500 mb-1 flex justify-between">
-              <span id="noteStatus-p${i}">Auto-enregistré</span>
+            <div class="text-xs text-neutral-500 mb-2 flex justify-between">
+              <span id="noteStatus-p${i}">En attente…</span>
               <span><span id="wordCount-p${i}">0</span> mots</span>
             </div>
-            <div class="prose prose-sm max-w-none" id="view-p${i}" hidden></div>
-            <textarea id="note-p${i}" class="w-full border rounded-lg p-3 mt-2" rows="10" placeholder="Écris / édite en Markdown : **gras**, listes -, tableaux |a|b|, images ![légende](https://...), frise 'YYYY — ...'."></textarea>
+            <div class="prose prose-sm max-w-none" id="view-p${i}"></div>
           </div>`;
         host.appendChild(sec);
-      }
-      attachAutosave();
-    }
-    function attachAutosave(){
-      for(let i=1;i<=28;i++){
-        const ta=$('#note-p'+i), wc=$('#wordCount-p'+i), st=$('#noteStatus-p'+i);
-        ta.addEventListener('input',()=>{
-          const txt=ta.value.trim(); wc.textContent=txt?txt.split(/\s+/).length:0;
-          st.textContent='Enregistrement…'; clearTimeout(ta._t);
-          ta._t=setTimeout(()=>{
-            if(currentLivre&&currentChap){
-              localStorage.setItem(`notes::${currentLivre}::${currentChap}::${i}`,ta.value);
-              st.textContent='Enregistré ✓';
-              renderRich(i, ta.value);
-            }
-          },260);
-        });
-      }
-    }
-    function loadSavedNotes(){
-      if(!(currentLivre&&currentChap)) return;
-      for(let i=1;i<=28;i++){
-        const key=`notes::${currentLivre}::${currentChap}::${i}`, txt=localStorage.getItem(key)||'';
-        const ta=$('#note-p'+i), wc=$('#wordCount-p'+i);
-        ta.value=txt; wc.textContent=txt.trim()?txt.trim().split(/\s+/).length:0;
-        renderRich(i, txt);
       }
     }
 
@@ -410,8 +404,9 @@
         return `<figure class="my-3"><img src="${src}" alt="${escapeHtml(alt)}" loading="lazy"><figcaption class="text-xs text-slate-500 mt-1">${escapeHtml(alt)}</figcaption></figure>`;
       });
     }
-    function mdBold(t){ return t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>'); }
-    function paragraphs(t){ return t.split(/\n{2,}/).map(p=>`<p>${p}</p>`).join(''); }
+    function paragraphs(t){
+      return t.split(/\n{2,}/).map(p=>`<p>${p}</p>`).join('');
+    }
     function gatewayLink(book, chap, verses){
       const vMap={LSG:'LSG',BDS:'BDS',NEG1979:'NEG1979',SG21:'S21',PDV:'PDV-FR'};
       const code=vMap[$('#versionSelect').value]||'LSG';
@@ -426,15 +421,7 @@
         return `<a class="underline decoration-[var(--c600)] hover:text-[var(--c700)]" target="_blank" rel="noopener" href="${gatewayLink(resolved,ch,vv||'')}">${m}</a>`;
       });
     }
-    function timelines(t){
-      return t.replace(/^(?:\s*\d{3,4}\s*[–-]\s+.+\n?){2,}$/gms, blk=>{
-        const items = blk.trim().split('\n').map(l=>{
-          const m=l.match(/^\s*(\d{3,4})\s*[–-]\s+(.+)$/); if(!m) return null;
-          return `<div class="timeline-item"><div class="timeline-year">${m[1]}</div><div>${m[2]}</div></div>`;
-        }).filter(Boolean).join('');
-        return `<div class="timeline my-3">${items}</div>`;
-      });
-    }
+    function mdBold(t){ return t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>'); }
     function mdToHtml(md){
       if(!md) return '';
       let t = md.replace(/\r/g,'').trim();
@@ -443,7 +430,6 @@
       t = mdLists(t);
       t = mdBold(t);
       t = paragraphs(t);
-      t = timelines(t);
       t = linkifyVerses(t);
       return t;
     }
@@ -451,117 +437,74 @@
       const view = $('#view-p'+i);
       if(!view) return;
       const html = mdToHtml(raw||'');
-      if(html){ view.hidden=false; view.innerHTML = html; }
-      else{ view.hidden=true; view.innerHTML=''; }
+      const wc   = (raw||'').trim().split(/\s+/).filter(Boolean).length;
+      $('#wordCount-p'+i).textContent = wc;
+      $('#noteStatus-p'+i).textContent = raw && raw.length ? 'Généré ✓' : '—';
+      view.innerHTML = html;
     }
 
-    /* ==================== Nettoyage / cohérence ==================== */
-    // supprime blocs génériques et "Voici X points..."
-    const BOILERPLATE_RX=/(?:^|\n)\s*(voici\s+\d+\s+points.*|présentés\s+de\s+manière.*)$/i;
-    function cleanPoint(text){ if(!text) return ''; let t=String(text).trim(); t=t.replace(BOILERPLATE_RX,'').trim(); return t; }
-
-    // sépare texte en items si l’API renvoie tout d’un bloc
-    function trySplitToPoints(str){
-      if(!str) return [];
-      const lines=String(str).replace(/\r/g,'').split(/\n+/).map(s=>s.trim()).filter(Boolean);
-      const isPoint=s=>/^(\d{1,2}[\.\)]\s+|-|\•)\s*/.test(s);
-      const pts=[]; let buf=[];
-      const flush=()=>{ if(buf.length){ pts.push(buf.join(' ')); buf=[]; } };
-      for(const ln of lines){ if(isPoint(ln)){ flush(); buf.push(ln.replace(/^(\d{1,2}[\.\)]\s+|-|\•)\s*/,'').trim()); } else buf.push(ln); }
-      flush();
-      if(!pts.length){ const byNum=String(str).split(/\n?\s*\d{1,2}[\.\)]\s+/).map(s=>s.trim()).filter(Boolean); if(byNum.length>1) return byNum; }
-      return pts.length?pts:[str];
+    /* ==================== Normalisation & anti-doublon ==================== */
+    const BANAL_RX=/(^|\n)\s*voici\s+\d+\s+points.*$/i;
+    function cleanPoint(text){ if(!text) return ''; return String(text).replace(BANAL_RX,'').trim(); }
+    function normalizeToP(obj){
+      const out={}; for(let i=1;i<=28;i++){ const k='p'+i; const v=(obj&&obj[k])?cleanPoint(obj[k]):''; if(v) out[k]=v; }
+      return out;
     }
-
-    // normalise structure JSON en p1..p28
-    function normalizeToP28(data){
-      const out={};
-      if(!data) return out;
-      const keys=Object.keys(data).filter(k=>/^p\d{1,2}$/.test(k));
-      if(keys.length){ for(let i=1;i<=28;i++){ const v=data['p'+i]; if(typeof v==='string'&&v.trim()) out['p'+i]=cleanPoint(v); } return out; }
-      if(Array.isArray(data.points)&&data.points.length){ for(let i=1;i<=28&&i<=data.points.length;i++){ const v=data.points[i-1]; if(typeof v==='string'&&v.trim()) out['p'+i]=cleanPoint(v); } return out; }
-      if(typeof data.content==='string'&&data.content.trim()){ const parts=trySplitToPoints(data.content); for(let i=1;i<=28&&i<=parts.length;i++) out['p'+i]=cleanPoint(parts[i-1]); return out; }
-      out.p1=JSON.stringify(data); return out;
-    }
-
-    // anti-doublons stricts
-    function dedupeAndPad(obj){
+    function dedupe(obj){
       const seen=new Set();
       for(let i=1;i<=28;i++){
-        let v=obj['p'+i]||'';
-        const norm=v.replace(/\s+/g,' ').toLowerCase();
-        if(seen.has(norm)) v='(Complément nécessaire : développer un angle distinct, pas de redites.)';
-        seen.add(norm);
-        obj['p'+i]=v;
+        const k='p'+i; const v=obj[k]||'';
+        const n=v.replace(/\s+/g,' ').toLowerCase();
+        if(seen.has(n)) obj[k]='(À développer : éviter la redite. Traiter un angle distinct pour ce point.)';
+        else seen.add(n);
       }
       return obj;
     }
 
-    /* ==================== Prières (je/moi + contexte) ==================== */
-    function openingPrayer(book,chap){
-      return `Père céleste, alors que je lis ${book} ${chap}, illumine mon intelligence, affermis ma foi et fais briller la gloire de ton Fils dans ce passage. Amen.`;
-    }
-    function closingPrayer(book,chap){
-      return `Seigneur, scelle en moi les vérités de ${book} ${chap}. Donne-moi de les vivre avec humilité et courage. Au nom de Jésus. Amen.`;
-    }
-
     /* ==================== API ==================== */
-    async function callServerAI(payload){
-      // Instructions fortes pour correspondance stricte et longueur
-      const perPointRubrics = POINTS.map((title, idx)=>({key:`p${idx+1}`, title}));
+    async function callAPI(payload){
       const strongHint =
-        "RENVOIE UNIQUEMENT un JSON. Chaque clé du sous-ensemble demandé (p1..p28) doit correspondre EXACTEMENT au titre associé. " +
-        "Longueur visée: au moins " + MIN_CHARS_PER_POINT + " caractères par point. " +
-        "Style: théologique solide, pastoral, fidèle à la doctrine biblique. " +
-        "Interdire toute phrase générique ('Voici X points...'). " +
-        "Prières (p1 et p28) en première personne (je/moi), et DOIVENT mentionner explicitement le livre et le chapitre. " +
-        "Pour tout point: autoriser **gras**, listes '-', tableaux Markdown, frises 'YYYY — ...', images Markdown, et versets écrits (les URLs seront ajoutées côté client). " +
-        "Ne pas mélanger les rubriques: rester strictement dans le thème de la clé.";
+        "Réponds STRICTEMENT en JSON avec uniquement les clés demandées (p1..p28 ou un sous-ensemble). "
+        + "Chaque point doit respecter exactement l’intitulé fourni et viser au moins " + TARGET_MIN + " caractères. "
+        + "Interdis toute phrase générique (« Voici X points… »). "
+        + "Autorise Markdown : **gras**, listes, tableaux |a|b|, images ![alt](url), frises 'YYYY — ...'. "
+        + "Rends les références bibliques en clair (ex: Jean 3:16) — la mise en lien sera faite côté client.";
       const res = await fetch(API_URL_CHAT,{
         method:'POST',
         headers:{'content-type':'application/json'},
-        body:JSON.stringify({
-          ...payload,
-          outline: perPointRubrics,                 // donne l’intitulé exact à l’API
-          hint: strongHint,
-          min_chars_per_point: MIN_CHARS_PER_POINT,
-          require_book_chapter_in_prayers: true     // information explicite
-        })
+        body:JSON.stringify({...payload, hint: strongHint})
       });
-      const txt = await res.text(); let data; try{ data=JSON.parse(txt); }catch{ data={content:txt}; }
+      const txt=await res.text(); let data; try{ data=JSON.parse(txt); }catch{ data={content:txt}; }
       if(!res.ok){ toast('API : '+(data?.error||data?.message||('HTTP '+res.status)),'err',7000); return null; }
       return data;
     }
 
-    function chunks(arr,size){ const out=[]; for(let i=0;i<arr.length;i+=size) out.push(arr.slice(i,i+size)); return out; }
+    function chunks(arr,size){const out=[];for(let i=0;i<arr.length;i+=size) out.push(arr.slice(i,i+size));return out;}
 
     async function generateBatches(indices){
       const busy=$('#busy'), busyText=$('#busyText');
       busyText.textContent='Génération par lots…'; busy.classList.remove('hidden');
       try{
-        for(const grp of chunks(indices,BATCH_SIZE)){
+        for(const grp of chunks(indices,BATCH)){
+          // instructions spécifiques au sous-ensemble
+          const schema = grp.map(n=>'p'+n);
+          const perPoint = {};
+          grp.forEach(n=> perPoint['p'+n] = INSTR[n](currentLivre, parseInt(currentChap,10)));
           const payload = {
             livre: currentLivre,
             chapitre: parseInt(currentChap,10),
-            subset: grp,                        // indices exacts
-            schema: grp.map(n=>'p'+n)           // force la forme du JSON
+            schema,               // force la forme des clés attendues
+            per_point: perPoint   // pour contraindre chaque rubrique
           };
-          const data = await callServerAI(payload);
+          const data = await callAPI(payload);
           if(!data) continue;
-          const obj = normalizeToP28(data);
-          const norm = dedupeAndPad(obj);
+          const obj = dedupe(normalizeToP(data));
           for(const n of grp){
-            let v = norm['p'+n] || '';
-            // garde cohérence: si p1/p28 trop courts → fallback prières adaptées
-            if(n===1 && v.trim().length < 120) v = openingPrayer(currentLivre,currentChap);
-            if(n===28 && v.trim().length < 120) v = closingPrayer(currentLivre,currentChap);
-
-            const ta=$('#note-p'+n), wc=$('#wordCount-p'+n), st=$('#noteStatus-p'+n);
-            ta.value=v; wc.textContent=v.trim()?v.trim().split(/\s+/).length:0; st.textContent='Généré ✓';
-            localStorage.setItem(`notes::${currentLivre}::${currentChap}::${n}`,v);
-            renderRich(n,v);
+            const v = obj['p'+n] || '';
+            renderRich(n, v);
           }
         }
+        // Focus automatique sur le premier
         document.querySelector('#pointsNav .sidebar-item')?.click();
         toast('Étude générée.','ok');
       } finally { busy.classList.add('hidden'); }
@@ -584,7 +527,7 @@
       $('#lastStudyPill').textContent = `Dernière étude : ${label}`; $('#lastStudyInline').textContent = label;
     }
 
-    /* ==================== Init ==================== */
+    /* ==================== INIT ==================== */
     document.addEventListener('DOMContentLoaded', ()=>{
       applyTheme(localStorage.getItem(THEME_KEY)||'indigo');
       $('#themeSelect').value = localStorage.getItem(THEME_KEY)||'indigo';
@@ -602,7 +545,7 @@
       // Valide → sauvegarde + 28 points
       $('#validerBtn').addEventListener('click', async ()=>{
         if(!(currentLivre&&currentChap)){ toast('Sélectionne un livre et un chapitre.','err'); return; }
-        setLastStudy(currentLivre, currentChap); loadSavedNotes(); await generate(true);
+        setLastStudy(currentLivre, currentChap); await generate(true);
       });
 
       // Reprendre
@@ -618,8 +561,19 @@
       $('#printBtn').addEventListener('click',()=>window.print());
 
       // Export & lien
-      $('#exportMdBtn').addEventListener('click',()=>{ if(!(currentLivre&&currentChap)){ toast('Sélectionne un passage.','err'); return; } let out=`# ${currentLivre} ${currentChap}\n\n_Généré : ${new Date().toLocaleString()}_\n\n`; for(let i=1;i<=28;i++){ const title=POINTS[i-1]; const note=($('#note-p'+i).value||'').trim(); out+=`## ${i}. ${title}\n\n${note||'_(vide)_'}\n\n`; } const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([out],{type:'text/markdown;charset=utf-8'})); a.download=`Etude_${currentLivre.replace(/\s+/g,'_')}_${currentChap}.md`; document.body.appendChild(a); a.click(); a.remove();});
-      $('#copyLinkBtn').addEventListener('click',async()=>{ const url=new URL(location.href); url.hash=(currentLivre&&currentChap)?`#/${encodeURIComponent(currentLivre)}/${currentChap}?point=1`:'#'; try{ await navigator.clipboard.writeText(url.toString()); toast('Lien copié.','ok'); }catch{ toast('Copie impossible.','err'); } });
+      $('#exportMdBtn').addEventListener('click',()=>{
+        if(!(currentLivre&&currentChap)){ toast('Sélectionne un passage.','err'); return; }
+        let out=`# ${currentLivre} ${currentChap}\n\n_Généré : ${new Date().toLocaleString()}_\n\n`;
+        for(let i=1;i<=28;i++){
+          const raw = document.getElementById('view-p'+i)?.innerText || '';
+          out+=`## ${i}. ${POINTS[i-1]}\n\n${raw||'_(vide)_'}\n\n`;
+        }
+        const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([out],{type:'text/markdown;charset=utf-8'})); a.download=`Etude_${currentLivre.replace(/\s+/g,'_')}_${currentChap}.md`; document.body.appendChild(a); a.click(); a.remove();
+      });
+      $('#copyLinkBtn').addEventListener('click',async()=>{
+        const url=new URL(location.href); url.hash=(currentLivre&&currentChap)?`#/${encodeURIComponent(currentLivre)}/${currentChap}?point=1`:'#';
+        try{ await navigator.clipboard.writeText(url.toString()); toast('Lien copié.','ok'); }catch{ toast('Copie impossible.','err'); }
+      });
 
       renderPoints();
       document.querySelector('#pointsNav .sidebar-item')?.click();
