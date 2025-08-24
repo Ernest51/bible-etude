@@ -199,7 +199,7 @@
             </div>
           </aside>
 
-          <!-- CONTENU -->
+        <!-- CONTENU -->
           <section class="col-span-12 lg:col-span-8">
             <div class="card relative">
               <div id="busy" class="hidden absolute inset-0 bg-white/70 dark:bg-black/40 z-10 grid place-items-center">
@@ -257,7 +257,40 @@
 
     const ALIAS={gen:'Genèse',gn:'Genèse',ex:'Exode',exo:'Exode',lev:'Lévitique',lv:'Lévitique',nb:'Nombres',nbr:'Nombres',deut:'Deutéronome',dt:'Deutéronome',jos:'Josué',jg:'Juges',ru:'Ruth','1sa':'1 Samuel','2sa':'2 Samuel','1r':'1 Rois','2r':'2 Rois','1ch':'1 Chroniques','2ch':'2 Chroniques',esd:'Esdras',neh:'Néhémie',est:'Esther',ps:'Psaumes',prov:'Proverbes',eccl:'Ecclésiaste',cant:'Cantique',es:'Ésaïe',jr:'Jérémie',lam:'Lamentations',ez:'Ézéchiel',dn:'Daniel',os:'Osée',jl:'Joël',am:'Amos',abd:'Abdias',jon:'Jonas',mic:'Michée',nah:'Nahum',hb:'Habacuc',so:'Sophonie',ag:'Aggée',za:'Zacharie',ml:'Malachie',mt:'Matthieu',mc:'Marc',lc:'Luc',jn:'Jean',ac:'Actes',rm:'Romains','1co':'1 Corinthiens','2co':'2 Corinthiens',ga:'Galates',eph:'Éphésiens',php:'Philippiens',cl:'Colossiens','1th':'1 Thessaloniciens','2th':'2 Thessaloniciens','1ti':'1 Timothée','2ti':'2 Timothée',tt:'Tite',phm:'Philémon',he:'Hébreux',ja:'Jacques','1p':'1 Pierre','2p':'2 Pierre','1j':'1 Jean','2j':'2 Jean','3j':'3 Jean',jud:'Jude',ap:'Apocalypse'};
 
-    const POINTS=["Prière d’ouverture","Canon et testament","Contexte historique","Auteur et destinataires","Structure du passage","Mots-clés et thèmes","Observation du texte","Interprétation","Parallèles bibliques","Contexte théologique","Application personnelle","Application communautaire","Promesses et avertissements","Christ au centre","Prière d’illumination","Questions de discussion","Étude des personnages","Analyse littéraire","Cadre culturel","Original grec/hébreu","Difficultés du texte","Implications pratiques","Mission et témoignage","Louange / Adoration","Méditation","Engagement","Plan d’action","Prière de fin"];
+    /* === PLAN OFFICIEL – 28 points (titres exacts) === */
+    const POINTS = [
+      "Prière d’ouverture",
+      "Canon et testament",
+      "Questions du chapitre précédent",
+      "Titre du chapitre",
+      "Contexte historique",
+      "Structure littéraire",
+      "Genre littéraire",
+      "Auteur et généalogie",
+      "Verset-clé doctrinal",
+      "Analyse exégétique",
+      "Analyse lexicale",
+      "Références croisées",
+      "Fondements théologiques",
+      "Thème doctrinal",
+      "Fruits spirituels",
+      "Types bibliques",
+      "Appui doctrinal",
+      "Comparaison entre versets",
+      "Comparaison avec Actes 2",
+      "Verset à mémoriser",
+      "Enseignement pour l’Église",
+      "Enseignement pour la famille",
+      "Enseignement pour enfants",
+      "Application missionnaire",
+      "Application pastorale",
+      "Application personnelle",
+      "Versets à retenir",
+      "Prière de fin"
+    ];
+
+    /* Map p1..p28 -> titres, envoyé au backend pour forcer l’alignement */
+    const PLAN_SCHEMA = Object.fromEntries(POINTS.map((t,i)=>['p'+(i+1), t]));
 
     const API_URL_CHAT = new URL('./api/chat', location.href).toString();
 
@@ -466,14 +499,12 @@
       out.p1=JSON.stringify(data); return out;
     }
     function dedupeAndPad(obj){
-      // retire doublons exacts et force un minimum
       const seen=new Set();
       for(let i=1;i<=28;i++){
         let v=obj['p'+i]||'';
         const norm=v.replace(/\s+/g,' ').toLowerCase();
         if(seen.has(norm)) v='(Complément demandé : éviter les redites. Développer un angle distinct pour ce point.)';
         seen.add(norm);
-        // garde la valeur
         obj['p'+i]=v;
       }
       return obj;
@@ -486,14 +517,21 @@
     /* ==================== APPELS API (lots) ==================== */
     async function callServerAI(payload){
       const strongHint =
-        "Réponds STRICTEMENT en JSON avec les clés demandées (p1..p28 ou sous-ensemble). Chaque point doit viser au moins "
-        + MIN_CHARS_PER_POINT + " caractères, style théologique solide, pastoral, fidèle à la doctrine biblique. "
-        + "Interdis toute phrase générique type 'Voici X points...'. Prière d’ouverture (p1) et de fin (p28) à la première personne (je/moi). "
-        + "Intègre **gras**, listes, tableaux `|a|b|`, images `![alt](url)` si pertinent, frises 'YYYY — ...', et références bibliques cliquables dans le texte.";
+        "Réponds STRICTEMENT en JSON avec les clés demandées (p1..p28 ou sous-ensemble). "
+        + "Chaque point doit correspondre à son libellé exact dans 'plan_schema' (thème imposé), sans texte générique. "
+        + "Chaque point vise au moins " + MIN_CHARS_PER_POINT + " caractères, style théologique solide, pastoral, fidèle à la doctrine biblique. "
+        + "Prière d’ouverture (p1) et de fin (p28) à la première personne (je/moi). "
+        + "Intègre **gras**, listes, tableaux `|a|b|`, images `![alt](url)` si pertinent, frises 'YYYY — ...', et références bibliques cliquables.";
       const res = await fetch(API_URL_CHAT,{
         method:'POST',
         headers:{'content-type':'application/json'},
-        body:JSON.stringify({...payload, hint: strongHint, min_chars_per_point: MIN_CHARS_PER_POINT})
+        body:JSON.stringify({
+          ...payload,
+          hint: strongHint,
+          min_chars_per_point: MIN_CHARS_PER_POINT,
+          plan_schema: PLAN_SCHEMA,
+          plan_titles: POINTS
+        })
       });
       const txt = await res.text(); let data; try{ data=JSON.parse(txt); }catch{ data={content:txt}; }
       if(!res.ok){ toast('API : '+(data?.error||data?.message||('HTTP '+res.status)),'err',7000); return null; }
@@ -510,9 +548,9 @@
           const payload = {
             livre: currentLivre,
             chapitre: parseInt(currentChap,10),
-            points: grp.length,                 // info
-            subset: grp,                        // indices exacts
-            schema: grp.map(n=>'p'+n)           // pour obliger le sous-ensemble
+            points: grp.length,
+            subset: grp,                 // indices exacts
+            schema: grp.map(n=>'p'+n),   // pour obliger le sous-ensemble
           };
           const data = await callServerAI(payload);
           if(!data) continue;
@@ -578,7 +616,7 @@
         selectBook(last.livre,false); selectChapter(parseInt(last.chapitre,10),false); toast(`Repris : ${last.livre} ${last.chapitre}`,'ok');
       });
 
-      // Réinit / Lire / Générer
+      // Réinit / Lire / Générer / Imprimer
       $('#reinitBtn').addEventListener('click',()=>{ currentLivre=null; currentChap=null; $('#livreLabel').textContent='Sélectionner un livre'; $('#chapLabel').textContent='Chapitre'; $('#chapBtn').disabled=true; $('#lireBtn').disabled=true; $('#searchInput').value=''; history.replaceState(null,'','#'); toast('Réinitialisé.','info'); refreshLastStudyUI(); });
       $('#lireBtn').addEventListener('click',()=>{ if(!(currentLivre&&currentChap)) return; const vMap={LSG:'LSG',BDS:'BDS',NEG1979:'NEG1979',SG21:'S21',PDV:'PDV-FR'}; const code=vMap[$('#versionSelect').value]||'LSG'; const ref=currentLivre+' '+currentChap; window.open('https://www.biblegateway.com/passage/?search='+encodeURIComponent(ref)+'&version='+code,'_blank','noopener'); });
       $('#generateBtn').addEventListener('click', ()=>generate(false));
