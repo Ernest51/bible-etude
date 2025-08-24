@@ -4,295 +4,212 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Étude biblique — Lecture</title>
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=" />
   <style>
-    :root {
-      --bg: #f6f7fb;
-      --card: #ffffff;
-      --text: #111827;
-      --muted: #6b7280;
-      --primary: #0f172a;
-      --primary-2: #111827;
-      --ring: rgba(2, 6, 23, 0.08);
-      --accent: #1f2937;
-    }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; }
-    body {
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
-      background: radial-gradient(1200px 600px at 100% -10%, #e5e7eb 0%, transparent 60%),
-                  radial-gradient(1200px 600px at -10% 110%, #e5e7eb 0%, transparent 60%),
-                  var(--bg);
-      color: var(--text);
-      line-height: 1.45;
-    }
-    .wrap {
-      max-width: 980px;
-      padding: 28px 20px 56px;
-      margin: 0 auto;
-    }
-    .card {
-      background: var(--card);
-      border: 1px solid #eef0f4;
-      box-shadow: 0 8px 30px var(--ring);
-      border-radius: 14px;
-      padding: 28px;
-    }
-    h1 {
-      margin: 0 0 16px 0;
-      font-size: clamp(22px, 2.6vw, 30px);
-      letter-spacing: .2px;
-    }
-    .sub {
-      color: var(--muted);
-      margin-bottom: 22px;
-      font-size: 14px;
-    }
-    label {
-      display: block;
-      font-size: 13px;
-      color: var(--muted);
-      margin: 16px 0 8px;
-    }
-    input, select {
-      width: 100%;
-      padding: 12px 14px;
-      border-radius: 10px;
-      border: 1px solid #e5e7eb;
-      background: #fff;
-      font-size: 15px;
-      outline: none;
-      transition: box-shadow .15s, border-color .15s, background .15s;
-    }
-    input:focus, select:focus {
-      border-color: #cbd5e1;
-      box-shadow: 0 0 0 4px rgba(30, 58, 138, .08);
-    }
-    .row {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 14px;
-    }
-    @media (min-width: 720px) {
-      .row { grid-template-columns: 2fr 1fr 1fr; }
-    }
-    .btn {
-      appearance: none;
-      border: none;
-      border-radius: 10px;
-      padding: 12px 16px;
-      font-weight: 600;
-      cursor: pointer;
-      background: var(--primary);
-      color: #fff;
-      transition: transform .03s ease, background .15s ease, opacity .15s ease;
-    }
-    .btn:active { transform: translateY(1px); }
-    .btn[disabled] { opacity: .7; cursor: wait; }
-    .btn.secondary {
-      background: #0b1220;
-    }
-    .toolbar {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 10px;
-    }
-    .result {
-      margin-top: 18px;
-      padding: 16px;
-      background: #f8fafc;
-      border: 1px dashed #e5e7eb;
-      border-radius: 10px;
-      white-space: pre-wrap; /* pour garder les sauts de ligne */
-    }
-    .muted {
-      color: var(--muted);
-      font-size: 13px;
-      margin-top: 8px;
-      word-break: break-all;
-    }
-    .error {
-      margin-top: 14px;
-      padding: 12px 14px;
-      border-radius: 10px;
-      border: 1px solid #fecaca;
-      background: #fff1f2;
-      color: #991b1b;
-      font-size: 14px;
-    }
-    details { margin-top: 10px; }
-    summary { cursor: pointer; color: var(--accent); }
-    code {
-      background: #111827;
-      color: #f8fafc;
-      padding: 2px 6px;
-      border-radius: 6px;
-      font-size: 12px;
-    }
+    :root{color-scheme:light dark}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;margin:0;background:#f6f7fb}
+    .wrap{max-width:980px;margin:24px auto;padding:0 16px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 8px 22px -10px rgba(2,6,23,.18)}
+    .hdr{padding:18px 20px;border-bottom:1px solid #eef2f7}
+    .hdr h1{margin:0;font-size:26px}
+    .content{padding:20px}
+    .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:10px 0}
+    .row-sm{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+    label{font-size:12px;font-weight:600;color:#334155;display:block;margin:4px 0}
+    input,select,button,textarea{font:inherit}
+    input,select{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#fff}
+    button{border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#fff;padding:10px 14px;font-weight:700;cursor:pointer}
+    button.secondary{background:#f1f5f9;color:#0f172a}
+    button.ghost{background:transparent;color:#0f172a}
+    .muted{color:#64748b;font-size:12px}
+    .error{background:#fee2e2;border:1px solid #fecaca;color:#991b1b;border-radius:10px;padding:10px 12px;margin-top:10px}
+    .ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:10px;padding:10px 12px;margin-top:10px}
+    pre{white-space:pre-wrap;word-break:break-word}
+    .result{background:#fafafa;border:1px solid #e5e7eb;border-radius:10px;padding:14px}
+    .row-buttons{display:flex;gap:8px;flex-wrap:wrap}
+    .hidden{display:none}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
-      <h1>Étude biblique — Lecture</h1>
-      <p class="sub">Affichage lisible (vue rapide) des points d’étude générés par l’IA (le JSON brut reste disponible pour le débogage).</p>
-
-      <div class="row">
-        <div>
-          <label for="livre">Livre</label>
-          <input id="livre" type="text" value="Jean" placeholder="Ex. Jean, Marc, Psaumes…" />
-        </div>
-        <div>
-          <label for="chapitre">Chapitre</label>
-          <input id="chapitre" type="number" inputmode="numeric" min="1" value="3" />
-        </div>
-        <div>
-          <label for="format">Format</label>
-          <select id="format">
-            <option>8 points (rapide)</option>
-            <option>12 points (détaillé)</option>
-            <option>28 points (complet)</option>
-          </select>
-        </div>
+      <div class="hdr">
+        <h1>Étude biblique — Lecture</h1>
+        <div class="muted">Affichage lisible de 8 ou 28 points (aucun JSON brut par défaut).</div>
       </div>
 
-      <div style="margin-top:16px">
-        <button id="btnGen" class="btn">Générer</button>
-        <div class="toolbar">
-          <button id="btnCopy" class="btn secondary" title="Copier le résultat">Copier</button>
-          <button id="btnJSON" class="btn secondary" title="Télécharger le JSON">Exporter JSON</button>
-          <button id="btnPrint" class="btn secondary" title="Imprimer / PDF">Imprimer / PDF</button>
+      <div class="content">
+        <div class="row">
+          <div>
+            <label for="livre">Livre</label>
+            <input id="livre" placeholder="Jean" value="Jean" />
+          </div>
+          <div>
+            <label for="chapitre">Chapitre</label>
+            <input id="chapitre" type="number" min="1" step="1" value="3" />
+          </div>
+          <div>
+            <label for="points">Format</label>
+            <select id="points">
+              <option value="8">8 points (rapide)</option>
+              <option value="28">28 points (complet)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row-sm">
+          <button id="go">Générer</button>
+          <div class="row-buttons">
+            <button class="secondary" id="copyBtn">Copier</button>
+            <button class="secondary" id="exportBtn">Exporter JSON</button>
+            <button class="secondary" id="printBtn">Imprimer / PDF</button>
+            <button class="ghost" id="toggleRawBtn">Voir le JSON brut (pour debug uniquement)</button>
+          </div>
+        </div>
+
+        <div id="msg" class="hidden"></div>
+
+        <div id="pretty" class="result" style="margin-top:12px;"></div>
+        <pre id="raw" class="result hidden" style="margin-top:12px;"></pre>
+
+        <div class="muted" style="margin-top:10px">
+          API : <code id="apiLink"></code>
         </div>
       </div>
-
-      <div id="result" class="result" aria-live="polite"></div>
-      <div id="err" class="error" style="display:none"></div>
-
-      <details>
-        <summary>Voir le JSON brut (débogage)</summary>
-        <pre id="json" style="overflow:auto; background:#0b1220; color:#E5E7EB; padding:12px; border-radius:10px;"></pre>
-      </details>
-
-      <p id="apiInfo" class="muted"></p>
     </div>
   </div>
 
-  <script>
-    // --------- petites utilitaires ----------
-    const $ = (sel) => document.querySelector(sel);
-    const btnGen = $('#btnGen');
-    const btnCopy = $('#btnCopy');
-    const btnJSON = $('#btnJSON');
-    const btnPrint = $('#btnPrint');
-    const resBox = $('#result');
-    const errBox = $('#err');
-    const jsonBox = $('#json');
-    const apiInfo = $('#apiInfo');
+<script>
+(function(){
+  const $ = (s)=>document.querySelector(s);
 
-    // Lecture/écriture des valeurs récentes
-    const last = JSON.parse(localStorage.getItem('etude:last') || '{}');
-    if (last.livre)   $('#livre').value = last.livre;
-    if (last.chapitre)$('#chapitre').value = last.chapitre;
-    if (last.format)  $('#format').value = last.format;
+  const livreEl    = $('#livre');
+  const chapEl     = $('#chapitre');
+  const pointsEl   = $('#points');
+  const goBtn      = $('#go');
+  const msgBox     = $('#msg');
+  const prettyBox  = $('#pretty');
+  const rawBox     = $('#raw');
+  const apiLink    = $('#apiLink');
 
-    function pointsFromFormat(fmt) {
-      // "8 points (rapide)" -> 8
-      const n = parseInt(String(fmt).trim(), 10);
-      return Number.isFinite(n) ? n : 8;
+  const copyBtn    = $('#copyBtn');
+  const exportBtn  = $('#exportBtn');
+  const printBtn   = $('#printBtn');
+  const toggleRaw  = $('#toggleRawBtn');
+
+  // Toujours relatif → marche en local et sur Vercel
+  const API_URL = new URL('./api/chat', window.location.href).toString();
+  apiLink.textContent = API_URL;
+
+  toggleRaw.addEventListener('click', () => {
+    rawBox.classList.toggle('hidden');
+  });
+
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(prettyBox.textContent || '');
+      showMsg('Texte copié dans le presse-papiers.', 'ok');
+    } catch {
+      showMsg('Impossible de copier.', 'error');
+    }
+  });
+  exportBtn.addEventListener('click', () => {
+    const blob = new Blob([rawBox.textContent || '{}'], {type:'application/json;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const l = (livreEl.value || 'Livre').replace(/\s+/g,'_');
+    a.download = `etude_${l}_${chapEl.value || '1'}.json`;
+    a.click();
+  });
+  printBtn.addEventListener('click', () => window.print());
+
+  goBtn.addEventListener('click', run);
+
+  function showMsg(text, kind) {
+    msgBox.className = kind === 'ok' ? 'ok' : 'error';
+    msgBox.textContent = text;
+    msgBox.classList.remove('hidden');
+  }
+  function clearMsg(){
+    msgBox.classList.add('hidden');
+    msgBox.textContent = '';
+  }
+
+  function renderPretty(data){
+    // 1) content (string) → on affiche tel quel
+    if (typeof data?.content === 'string' && data.content.trim()) {
+      prettyBox.textContent = data.content.trim();
+      return;
+    }
+    // 2) points: [...] (tableau de chaînes)
+    if (Array.isArray(data?.points) && data.points.length) {
+      prettyBox.innerHTML = data.points
+        .map((p,i)=>`<p><strong>${i+1}.</strong> ${escapeHtml(String(p||''))}</p>`)
+        .join('');
+      return;
+    }
+    // 3) p1…p28
+    const keys = Object.keys(data||{}).filter(k=>/^p\d{1,2}$/.test(k)).sort((a,b)=>parseInt(a.slice(1))-parseInt(b.slice(1)));
+    if (keys.length) {
+      prettyBox.innerHTML = keys
+        .map((k,i)=>`<p><strong>${i+1}.</strong> ${escapeHtml(String(data[k]||''))}</p>`)
+        .join('');
+      return;
+    }
+    // Sinon on affiche brut
+    prettyBox.textContent = JSON.stringify(data,null,2);
+  }
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  async function run(){
+    clearMsg();
+    prettyBox.textContent = '… Génération en cours …';
+    rawBox.textContent = '';
+
+    const livre    = (livreEl.value || '').trim();
+    const chapitre = parseInt(chapEl.value, 10) || 1;
+    const points   = parseInt(pointsEl.value, 10) || 8;
+
+    if (!livre) {
+      showMsg('Renseigne le livre (ex. « Jean »).', 'error');
+      prettyBox.textContent = '';
+      return;
     }
 
-    function setLoading(state) {
-      btnGen.disabled = state;
-      btnGen.textContent = state ? 'Génération…' : 'Générer';
-    }
+    try{
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ livre, chapitre, points })
+      });
 
-    function showError(msg) {
-      errBox.style.display = 'block';
-      errBox.textContent = msg;
-    }
-    function clearError() {
-      errBox.style.display = 'none';
-      errBox.textContent = '';
-    }
+      const text = await res.text();
+      let json  = null;
+      try { json = JSON.parse(text); } catch { /* parfois du texte brut */ }
 
-    async function generer() {
-      clearError();
-      resBox.textContent = '';
-      jsonBox.textContent = '';
-
-      const livre    = $('#livre').value.trim();
-      const chapitre = $('#chapitre').value.trim();
-      const format   = $('#format').value;
-      const points   = pointsFromFormat(format);
-
-      if (!livre || !chapitre) {
-        showError('Merci de renseigner un livre et un chapitre.');
+      if (!res.ok) {
+        // 405 = méthode, 404 = route, 500 = serveur/clé, etc.
+        const msg = json?.error || json?.message || `Erreur HTTP ${res.status}`;
+        prettyBox.textContent = '';
+        rawBox.textContent = text || msg;
+        showMsg(`Erreur : ${msg}`, 'error');
         return;
       }
 
-      // Persistance locale
-      localStorage.setItem('etude:last', JSON.stringify({ livre, chapitre, format }));
+      // Réussite
+      rawBox.textContent = json ? JSON.stringify(json,null,2) : text;
+      renderPretty(json || {content:text});
+      showMsg('OK', 'ok');
 
-      // Construit l’URL GET sur la route serverless
-      const url = `/api/chat?livre=${encodeURIComponent(livre)}&chapitre=${encodeURIComponent(chapitre)}&points=${encodeURIComponent(points)}`;
-      apiInfo.innerHTML = `API : <code>${url}</code>`;
-
-      setLoading(true);
-      try {
-        const r = await fetch(url, { method: 'GET' });
-        const data = await r.json().catch(() => ({}));
-
-        jsonBox.textContent = JSON.stringify(data, null, 2);
-
-        if (!r.ok) {
-          // Essaye de lire un message d’erreur côté API
-          const msg = data && data.error ? data.error : `${r.status} ${r.statusText}`;
-          throw new Error(msg);
-        }
-
-        if (!data || !data.ok || !data.content) {
-          throw new Error('Réponse inattendue de l’API.');
-        }
-
-        // Affiche UNIQUEMENT le texte formaté
-        resBox.textContent = data.content;
-
-      } catch (e) {
-        console.error(e);
-        showError('Erreur : ' + e.message);
-      } finally {
-        setLoading(false);
-      }
+    }catch(err){
+      prettyBox.textContent = '';
+      showMsg('Erreur réseau : ' + String(err && err.message || err), 'error');
     }
-
-    // Boutons utilitaires
-    btnGen.addEventListener('click', generer);
-    btnCopy.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(resBox.textContent || '');
-        btnCopy.textContent = 'Copié !';
-        setTimeout(() => (btnCopy.textContent = 'Copier'), 1100);
-      } catch { /* noop */ }
-    });
-    btnJSON.addEventListener('click', () => {
-      const blob = new Blob([jsonBox.textContent || '{}'], { type: 'application/json;charset=utf-8' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'etude.json';
-      a.click();
-      URL.revokeObjectURL(a.href);
-    });
-    btnPrint.addEventListener('click', () => window.print());
-
-    // Enter pour générer
-    ['#livre', '#chapitre'].forEach(sel => {
-      $(sel).addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') generer();
-      });
-    });
-
-    // Optionnel : auto-génération la première fois (peut être commenté)
-    // generer();
-  </script>
+  }
+})();
+</script>
 </body>
 </html>
