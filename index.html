@@ -5,37 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>Étude Biblique</title>
 
-  <!-- Tailwind (CDN pour simplicité; compile côté build si tu veux éviter l’avertissement prod) -->
+  <!-- Tailwind (CDN pour simplicité; en prod, préfère CLI/PostCSS) -->
   <script>
-    window.tailwind = window.tailwind || {};
-    window.tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            indigo:{50:'#eef2ff',100:'#e0e7ff',200:'#c7d2fe',300:'#a5b4fc',400:'#818cf8',500:'#6366f1',600:'#4f46e5',700:'#4338ca',800:'#3730a3',900:'#312e81'},
-            vin:{50:'#fff1f2',100:'#ffe4e6',200:'#fecdd3',300:'#fda4af',400:'#fb7185',500:'#f43f5e',600:'#e11d48',700:'#be123c',800:'#9f1239',900:'#881337'},
-            navy:{50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a'},
-            emerald:{50:'#ecfdf5',100:'#d1fae5',200:'#a7f3d0',300:'#6ee7b7',400:'#34d399',500:'#10b981',600:'#059669',700:'#047857',800:'#065f46',900:'#064e3b'},
-            amber:{50:'#fffbeb',100:'#fef3c7',200:'#fde68a',300:'#fcd34d',400:'#fbbf24',500:'#f59e0b',600:'#d97706',700:'#b45309',800:'#92400e',900:'#78350f'},
-            rose:{50:'#fff1f2',100:'#ffe4e6',200:'#fecdd3',300:'#fda4af',400:'#fb7185',500:'#f43f5e',600:'#e11d48',700:'#be123c',800:'#9f1239',900:'#881337'},
-            sky:{50:'#f0f9ff',100:'#e0f2fe',200:'#bae6fd',300:'#7dd3fc',400:'#38bdf8',500:'#0ea5e9',600:'#0284c7',700:'#0369a1',800:'#075985',900:'#0c4a6e'},
-            violet:{50:'#f5f3ff',100:'#ede9fe',200:'#ddd6fe',300:'#c4b5fd',400:'#a78bfa',500:'#8b5cf6',600:'#7c3aed',700:'#6d28d9',800:'#5b21b6',900:'#4c1d95'}
-          },
-          fontFamily:{sans:['"Plus Jakarta Sans"','Inter','system-ui','Arial','sans-serif']},
-          boxShadow:{card:'0 16px 32px -16px rgba(2,6,23,.18),0 8px 16px -8px rgba(2,6,23,.12)'}
-        }
-      }
+    window.tailwind=window.tailwind||{};
+    window.tailwind.config={
+      darkMode:'class',
+      theme:{extend:{
+        colors:{
+          indigo:{50:'#eef2ff',100:'#e0e7ff',200:'#c7d2fe',600:'#4f46e5',700:'#4338ca',800:'#3730a3'},
+          vin:{50:'#fff1f2',100:'#ffe4e6',200:'#fecdd3',600:'#e11d48',700:'#be123c',800:'#9f1239'},
+          navy:{50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',600:'#2563eb',700:'#1d4ed8',800:'#1e40af'},
+          emerald:{50:'#ecfdf5',100:'#d1fae5',200:'#a7f3d0',600:'#059669',700:'#047857',800:'#065f46'},
+          amber:{50:'#fffbeb',100:'#fef3c7',200:'#fde68a',600:'#d97706',700:'#b45309',800:'#92400e'},
+          rose:{50:'#fff1f2',100:'#ffe4e6',200:'#fecdd3',600:'#e11d48',700:'#be123c',800:'#9f1239'},
+          sky:{50:'#f0f9ff',100:'#e0f2fe',200:'#bae6fd',600:'#0284c7',700:'#0369a1',800:'#075985'},
+          violet:{50:'#f5f3ff',100:'#ede9fe',200:'#ddd6fe',600:'#7c3aed',700:'#6d28d9',800:'#5b21b6'}
+        },
+        fontFamily:{sans:['"Plus Jakarta Sans"','Inter','system-ui','Arial','sans-serif']},
+        boxShadow:{card:'0 16px 32px -16px rgba(2,6,23,.18),0 8px 16px -8px rgba(2,6,23,.12)'}
+      }}
     };
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+  <linkhref="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 
   <style>
     :root{color-scheme:light dark}
     body{font-family:"Plus Jakarta Sans",Inter,system-ui,Arial,sans-serif;background:#f6f7fb}
-    .dark body{background:#0b1220}
     .container-xl{max-width:1200px;margin-inline:auto}
 
     /* Thèmes (8) */
@@ -70,7 +67,7 @@
     .timeline{display:grid;gap:.6rem}
     .timeline-item{display:grid;grid-template-columns:72px 1fr;gap:.6rem;align-items:start}
     .timeline-year{font-weight:800;background:var(--c100);color:var(--c800);border-radius:10px;padding:.3rem .55rem;text-align:center}
-    @media (max-width: 640px){ .toolbar{padding:.5rem .7rem} .btn{padding:.65rem .9rem} .badge{width:1.75rem;height:1.75rem} .timeline-item{grid-template-columns:64px 1fr} }
+    @media (max-width:640px){.toolbar{padding:.5rem .7rem}.btn{padding:.65rem .9rem}.badge{width:1.75rem;height:1.75rem}.timeline-item{grid-template-columns:64px 1fr}}
   </style>
 </head>
 
@@ -93,14 +90,7 @@
           </div>
           <div class="flex items-center gap-2">
             <select id="themeSelect" class="toolbar text-xs sm:text-sm">
-              <option value="indigo" selected>Indigo</option>
-              <option value="vin">Vin</option>
-              <option value="bleunuit">Bleu nuit</option>
-              <option value="emerald">Émeraude</option>
-              <option value="amber">Ambre</option>
-              <option value="rose">Rose</option>
-              <option value="sky">Ciel</option>
-              <option value="violet">Violet</option>
+              <option value="indigo" selected>Indigo</option><option value="vin">Vin</option><option value="bleunuit">Bleu nuit</option><option value="emerald">Émeraude</option><option value="amber">Ambre</option><option value="rose">Rose</option><option value="sky">Ciel</option><option value="violet">Violet</option>
             </select>
             <span class="toolbar text-xs" id="lastStudyPill">Dernière étude : —</span>
             <button id="resumeBtn" class="btn btn-outline text-xs sm:text-sm">Reprendre</button>
@@ -199,11 +189,11 @@
             </div>
           </aside>
 
-        <!-- CONTENU -->
+          <!-- CONTENU -->
           <section class="col-span-12 lg:col-span-8">
             <div class="card relative">
-              <div id="busy" class="hidden absolute inset-0 bg-white/70 dark:bg-black/40 z-10 grid place-items-center">
-                <div class="rounded-xl border bg-white dark:bg-neutral-900 px-4 py-3 shadow-md text-sm flex items-center gap-2">
+              <div id="busy" class="hidden absolute inset-0 bg-white/70 z-10 grid place-items-center">
+                <div class="rounded-xl border bg-white px-4 py-3 shadow-md text-sm flex items-center gap-2">
                   <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                   <span id="busyText">Génération…</span>
                 </div>
@@ -231,12 +221,13 @@
   </div>
 
   <script>
-    /* ==================== CONFIG QUALITÉ ==================== */
-    const MIN_CHARS_PER_POINT = 2500;   // objectif par rubrique
-    const BATCH_SIZE = 4;               // lots pour forcer de longues réponses
+    /* ==================== CONFIG ==================== */
+    const MIN_CHARS_PER_POINT = 2500;
+    const BATCH_SIZE = 4;
     const THEME_KEY='ui_theme8';
+    const API_URL_CHAT = new URL('./api/chat', location.href).toString();
 
-    /* ==================== UTIL & THEME ==================== */
+    /* ==================== UTILS ==================== */
     const $ = (s)=>document.querySelector(s);
     function toast(msg, kind='info', ms=3800){
       const z=$("#toasts"); const d=document.createElement('div');
@@ -257,44 +248,9 @@
 
     const ALIAS={gen:'Genèse',gn:'Genèse',ex:'Exode',exo:'Exode',lev:'Lévitique',lv:'Lévitique',nb:'Nombres',nbr:'Nombres',deut:'Deutéronome',dt:'Deutéronome',jos:'Josué',jg:'Juges',ru:'Ruth','1sa':'1 Samuel','2sa':'2 Samuel','1r':'1 Rois','2r':'2 Rois','1ch':'1 Chroniques','2ch':'2 Chroniques',esd:'Esdras',neh:'Néhémie',est:'Esther',ps:'Psaumes',prov:'Proverbes',eccl:'Ecclésiaste',cant:'Cantique',es:'Ésaïe',jr:'Jérémie',lam:'Lamentations',ez:'Ézéchiel',dn:'Daniel',os:'Osée',jl:'Joël',am:'Amos',abd:'Abdias',jon:'Jonas',mic:'Michée',nah:'Nahum',hb:'Habacuc',so:'Sophonie',ag:'Aggée',za:'Zacharie',ml:'Malachie',mt:'Matthieu',mc:'Marc',lc:'Luc',jn:'Jean',ac:'Actes',rm:'Romains','1co':'1 Corinthiens','2co':'2 Corinthiens',ga:'Galates',eph:'Éphésiens',php:'Philippiens',cl:'Colossiens','1th':'1 Thessaloniciens','2th':'2 Thessaloniciens','1ti':'1 Timothée','2ti':'2 Timothée',tt:'Tite',phm:'Philémon',he:'Hébreux',ja:'Jacques','1p':'1 Pierre','2p':'2 Pierre','1j':'1 Jean','2j':'2 Jean','3j':'3 Jean',jud:'Jude',ap:'Apocalypse'};
 
-    /* === PLAN OFFICIEL – 28 points (titres exacts) === */
-    const POINTS = [
-      "Prière d’ouverture",
-      "Canon et testament",
-      "Questions du chapitre précédent",
-      "Titre du chapitre",
-      "Contexte historique",
-      "Structure littéraire",
-      "Genre littéraire",
-      "Auteur et généalogie",
-      "Verset-clé doctrinal",
-      "Analyse exégétique",
-      "Analyse lexicale",
-      "Références croisées",
-      "Fondements théologiques",
-      "Thème doctrinal",
-      "Fruits spirituels",
-      "Types bibliques",
-      "Appui doctrinal",
-      "Comparaison entre versets",
-      "Comparaison avec Actes 2",
-      "Verset à mémoriser",
-      "Enseignement pour l’Église",
-      "Enseignement pour la famille",
-      "Enseignement pour enfants",
-      "Application missionnaire",
-      "Application pastorale",
-      "Application personnelle",
-      "Versets à retenir",
-      "Prière de fin"
-    ];
+    const POINTS=["Prière d’ouverture","Canon et testament","Contexte historique","Auteur et destinataires","Structure du passage","Mots-clés et thèmes","Observation du texte","Interprétation","Parallèles bibliques","Contexte théologique","Application personnelle","Application communautaire","Promesses et avertissements","Christ au centre","Prière d’illumination","Questions de discussion","Étude des personnages","Analyse littéraire","Cadre culturel","Original grec/hébreu","Difficultés du texte","Implications pratiques","Mission et témoignage","Louange / Adoration","Méditation","Engagement","Plan d’action","Prière de fin"];
 
-    /* Map p1..p28 -> titres, envoyé au backend pour forcer l’alignement */
-    const PLAN_SCHEMA = Object.fromEntries(POINTS.map((t,i)=>['p'+(i+1), t]));
-
-    const API_URL_CHAT = new URL('./api/chat', location.href).toString();
-
-    /* ==================== SÉLECTEURS & RECHERCHE ==================== */
+    /* ==================== ÉTAT SÉLECTION ==================== */
     let currentLivre=null, currentChap=null;
 
     function openMenu(el, open){ el.classList.toggle('open', open ?? !el.classList.contains('open')); }
@@ -321,34 +277,17 @@
       currentLivre = livre; $('#livreLabel').textContent = livre;
       $('#chapBtn').disabled = false; $('#chapLabel').textContent = 'Chapitre'; currentChap=null;
       fillChapters(livre); if (closeMenus) openMenu($('#livreMenu'), false);
-      updateButtons(); updateHash(); refreshLastStudyUI(false);
+      updateButtons(); updateHash(); refreshLastStudyUI();
     }
     function selectChapter(chap, closeMenus){
       currentChap = String(chap); $('#chapLabel').textContent = currentChap;
       if (closeMenus) openMenu($('#chapMenu'), false);
-      updateButtons(); updateHash(); refreshLastStudyUI(false);
+      updateButtons(); updateHash(); refreshLastStudyUI();
     }
     function updateButtons(){ $('#lireBtn').disabled = !(currentLivre && currentChap); }
     function updateHash(){ if (currentLivre && currentChap){ history.replaceState(null,'',`#/${encodeURIComponent(currentLivre)}/${currentChap}?point=1`); } }
 
-    function strip(s){return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'');}
-    function norm(s){return strip(s).toLowerCase().replace(/[^a-z0-9]/g,'');}
-    function resolveBook(term){
-      const k = norm(term);
-      if (ALIAS[k]) return ALIAS[k];
-      const first = Object.keys(ALIAS).find(a=>a.startsWith(k));
-      if (first) return ALIAS[first];
-      return Object.keys(LIVRES_CHAP).find(b=>norm(b).startsWith(k)) || null;
-    }
-    function parseRef(raw){
-      const s=(raw||'').trim().replace(/\s+/g,' ');
-      if(!s) return {book:null, chap:null};
-      const m=s.match(/^(.+?)[\s,;]+(\d{1,3})/i);
-      if(m) return {book:resolveBook(m[1]),chap:parseInt(m[2],10)};
-      return {book:resolveBook(s)||null, chap:null};
-    }
-
-    /* ==================== NAV + SECTIONS ==================== */
+    /* ==================== RENDU DES SECTIONS (SANS TEXTAREA) ==================== */
     function renderPoints(){
       const nav = $('#pointsNav'); const host = $('#sectionsHost');
       nav.innerHTML=''; host.innerHTML='';
@@ -368,43 +307,16 @@
         sec.innerHTML=`<h3 class="text-xl font-extrabold mb-2">${POINTS[i-1]}</h3>
           <div class="rounded-xl border p-3">
             <div class="text-xs text-neutral-500 mb-1 flex justify-between">
-              <span id="noteStatus-p${i}">Auto-enregistré</span>
+              <span id="noteStatus-p${i}">En attente</span>
               <span><span id="wordCount-p${i}">0</span> mots</span>
             </div>
-            <div class="prose prose-sm max-w-none" id="view-p${i}" hidden></div>
-            <textarea id="note-p${i}" class="w-full border rounded-lg p-3 mt-2" rows="8" placeholder="Écris / édite en Markdown : **gras**, listes -, tableaux |a|b|, images ![légende](https://...), dates 'YYYY — ...' pour une frise."></textarea>
+            <div class="prose prose-sm max-w-none" id="view-p${i}"></div>
           </div>`;
         host.appendChild(sec);
       }
-      attachAutosave();
-    }
-    function attachAutosave(){
-      for(let i=1;i<=28;i++){
-        const ta=$('#note-p'+i), wc=$('#wordCount-p'+i), st=$('#noteStatus-p'+i);
-        ta.addEventListener('input',()=>{
-          const txt=ta.value.trim(); wc.textContent=txt?txt.split(/\s+/).length:0;
-          st.textContent='Enregistrement…'; clearTimeout(ta._t);
-          ta._t=setTimeout(()=>{
-            if(currentLivre&&currentChap){
-              localStorage.setItem(`notes::${currentLivre}::${currentChap}::${i}`,ta.value);
-              st.textContent='Enregistré ✓';
-              renderRich(i, ta.value);
-            }
-          },260);
-        });
-      }
-    }
-    function loadSavedNotes(){
-      if(!(currentLivre&&currentChap)) return;
-      for(let i=1;i<=28;i++){
-        const key=`notes::${currentLivre}::${currentChap}::${i}`, txt=localStorage.getItem(key)||'';
-        const ta=$('#note-p'+i), wc=$('#wordCount-p'+i);
-        ta.value=txt; wc.textContent=txt.trim()?txt.trim().split(/\s+/).length:0;
-        renderRich(i, txt);
-      }
     }
 
-    /* ==================== RENDU ENRICHI ==================== */
+    /* ==================== MARKDOWN -> HTML (gras, tableaux, images, frises, versets cliquables) ==================== */
     function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
     function mdTables(block){
       return block.replace(/^(?:\s*\|.+\|\s*)+$/gms, tbl=>{
@@ -428,14 +340,21 @@
       });
     }
     function mdBold(t){ return t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>'); }
-    function paragraphs(t){
-      return t.split(/\n{2,}/).map(p=>`<p>${p}</p>`).join('');
-    }
+    function paragraphs(t){ return t.split(/\n{2,}/).map(p=>`<p>${p}</p>`).join(''); }
     function gatewayLink(book, chap, verses){
       const vMap={LSG:'LSG',BDS:'BDS',NEG1979:'NEG1979',SG21:'S21',PDV:'PDV-FR'};
       const code=vMap[$('#versionSelect').value]||'LSG';
       const ref = `${book} ${chap}${verses?(':'+verses):''}`;
       return `https://www.biblegateway.com/passage/?search=${encodeURIComponent(ref)}&version=${code}`;
+    }
+    function resolveBook(term){
+      const strip=(s)=> (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'');
+      const norm=(s)=> strip(s).toLowerCase().replace(/[^a-z0-9]/g,'');
+      const k=norm(term);
+      if(ALIAS[k]) return ALIAS[k];
+      const first=Object.keys(ALIAS).find(a=>a.startsWith(k));
+      if(first) return ALIAS[first];
+      return Object.keys(LIVRES_CHAP).find(b=>norm(b).startsWith(k))||term;
     }
     function linkifyVerses(html){
       const bookRegex="(?:[1-3]\\s*)?(?:Genèse|Exode|Lévitique|Nombres|Deutéronome|Josué|Juges|Ruth|1\\s*Samuel|2\\s*Samuel|1\\s*Rois|2\\s*Rois|1\\s*Chroniques|2\\s*Chroniques|Esdras|Néhémie|Esther|Job|Psaumes|Proverbes|Ecclésiaste|Cantique|Ésaïe|Esaïe|Jérémie|Lamentations|Ézéchiel|Ezechiel|Daniel|Osée|Joël|Amos|Abdias|Jonas|Michée|Nahum|Habacuc|Sophonie|Aggée|Zacharie|Malachie|Matthieu|Marc|Luc|Jean|Actes|Romains|1\\s*Corinthiens|2\\s*Corinthiens|Galates|Éphésiens|Philippiens|Colossiens|1\\s*Thessaloniciens|2\\s*Thessaloniciens|1\\s*Timothée|2\\s*Timothée|Tite|Philémon|Hébreux|Jacques|1\\s*Pierre|2\\s*Pierre|1\\s*Jean|2\\s*Jean|3\\s*Jean|Jude|Apocalypse)";
@@ -446,7 +365,6 @@
       });
     }
     function timelines(t){
-      // blocs de lignes "YYYY — Texte"
       return t.replace(/^(?:\s*\d{3,4}\s*[–-]\s+.+\n?){2,}$/gms, blk=>{
         const items = blk.trim().split('\n').map(l=>{
           const m=l.match(/^\s*(\d{3,4})\s*[–-]\s+(.+)$/); if(!m) return null;
@@ -468,25 +386,33 @@
       return t;
     }
     function renderRich(i, raw){
-      const view = $('#view-p'+i);
-      if(!view) return;
-      const html = mdToHtml(raw||'');
-      if(html){ view.hidden=false; view.innerHTML = html; }
-      else{ view.hidden=true; view.innerHTML=''; }
+      const view=$('#view-p'+i); if(!view) return;
+      const html=mdToHtml(raw||'');
+      view.innerHTML=html; view.parentElement.querySelector('#noteStatus-p'+i).textContent='Généré ✓';
+      const wc=view.parentElement.querySelector('#wordCount-p'+i);
+      wc.textContent=(raw||'').trim()? (raw.trim().split(/\s+/).length) : 0;
     }
 
-    /* ==================== NETTOYAGE & NORMALISATION ==================== */
+    /* ==================== STOCKAGE (SANS TEXTAREA) ==================== */
+    function rawKey(i){return `raw::${currentLivre}::${currentChap}::${i}`;}
+    function saveRaw(i,text){ try{ localStorage.setItem(rawKey(i), text||''); }catch{} }
+    function loadRaw(i){ try{ return localStorage.getItem(rawKey(i))||''; }catch{return ''} }
+
+    function loadSaved(){
+      if(!(currentLivre&&currentChap)) return;
+      for(let i=1;i<=28;i++){ renderRich(i, loadRaw(i)); }
+    }
+
+    /* ==================== NETTOYAGE & DÉDOUBLONNAGE ==================== */
     const BOILERPLATE_RX=/(voici\s+\d+\s+points.*|présentés\s+de\s+manière.*)$/i;
     function cleanPoint(text){ if(!text) return ''; let t=String(text).trim(); t=t.replace(BOILERPLATE_RX,'').trim(); return t; }
     function trySplitToPoints(str){
       if(!str) return [];
       const lines=String(str).replace(/\r/g,'').split(/\n+/).map(s=>s.trim()).filter(Boolean);
       const isPoint=s=>/^(\d{1,2}[\.\)]\s+|-|\•)\s*/.test(s);
-      const pts=[]; let buf=[];
-      const flush=()=>{ if(buf.length){ pts.push(buf.join(' ')); buf=[]; } };
+      const pts=[]; let buf=[]; const flush=()=>{ if(buf.length){ pts.push(buf.join(' ')); buf=[]; } };
       for(const ln of lines){ if(isPoint(ln)){ flush(); buf.push(ln.replace(/^(\d{1,2}[\.\)]\s+|-|\•)\s*/,'').trim()); } else buf.push(ln); }
-      flush();
-      if(!pts.length){ const byNum=String(str).split(/\n?\s*\d{1,2}[\.\)]\s+/).map(s=>s.trim()).filter(Boolean); if(byNum.length>1) return byNum; }
+      flush(); if(!pts.length){ const byNum=String(str).split(/\n?\s*\d{1,2}[\.\)]\s+/).map(s=>s.trim()).filter(Boolean); if(byNum.length>1) return byNum; }
       return pts.length?pts:[str];
     }
     function normalizeToP28(data){
@@ -498,14 +424,13 @@
       if(typeof data.content==='string'&&data.content.trim()){ const parts=trySplitToPoints(data.content); for(let i=1;i<=28&&i<=parts.length;i++) out['p'+i]=cleanPoint(parts[i-1]); return out; }
       out.p1=JSON.stringify(data); return out;
     }
-    function dedupeAndPad(obj){
+    function dedupe(obj){
       const seen=new Set();
       for(let i=1;i<=28;i++){
         let v=obj['p'+i]||'';
-        const norm=v.replace(/\s+/g,' ').toLowerCase();
-        if(seen.has(norm)) v='(Complément demandé : éviter les redites. Développer un angle distinct pour ce point.)';
-        seen.add(norm);
-        obj['p'+i]=v;
+        const k=v.replace(/\s+/g,' ').toLowerCase();
+        if(seen.has(k)) v='(Complément : développer un angle distinct pour éviter la redite.)';
+        seen.add(k); obj['p'+i]=v;
       }
       return obj;
     }
@@ -514,62 +439,38 @@
     function openingPrayer(book,chap){ return `Père céleste, alors que je lis ${book} ${chap}, illumine mon intelligence, affermis ma foi et fais briller la gloire de ton Fils dans ce passage. Amen.`; }
     function closingPrayer(book,chap){ return `Seigneur, scelle en moi les vérités de ${book} ${chap}. Donne-moi de les vivre avec humilité et courage. Au nom de Jésus. Amen.`; }
 
-    /* ==================== APPELS API (lots) ==================== */
+    /* ==================== APPELS API (LOTS) ==================== */
     async function callServerAI(payload){
       const strongHint =
-        "Réponds STRICTEMENT en JSON avec les clés demandées (p1..p28 ou sous-ensemble). "
-        + "Chaque point doit correspondre à son libellé exact dans 'plan_schema' (thème imposé), sans texte générique. "
-        + "Chaque point vise au moins " + MIN_CHARS_PER_POINT + " caractères, style théologique solide, pastoral, fidèle à la doctrine biblique. "
-        + "Prière d’ouverture (p1) et de fin (p28) à la première personne (je/moi). "
-        + "Intègre **gras**, listes, tableaux `|a|b|`, images `![alt](url)` si pertinent, frises 'YYYY — ...', et références bibliques cliquables.";
-      const res = await fetch(API_URL_CHAT,{
-        method:'POST',
-        headers:{'content-type':'application/json'},
-        body:JSON.stringify({
-          ...payload,
-          hint: strongHint,
-          min_chars_per_point: MIN_CHARS_PER_POINT,
-          plan_schema: PLAN_SCHEMA,
-          plan_titles: POINTS
-        })
-      });
+        "Réponds STRICTEMENT en JSON avec les clés demandées (p1..p28 ou sous-ensemble). Chaque point doit viser au moins "
+        + MIN_CHARS_PER_POINT + " caractères, style théologique solide, pastoral, fidèle à la doctrine biblique. "
+        + "Interdis toute phrase générique type 'Voici X points...'. Prière d’ouverture (p1) et de fin (p28) à la première personne (je/moi). "
+        + "Intègre **gras**, listes, tableaux `|a|b|`, images `![alt](url)`, frises 'YYYY — ...', et références bibliques cliquables.";
+      const res = await fetch(API_URL_CHAT,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...payload,hint:strongHint,min_chars_per_point:MIN_CHARS_PER_POINT})});
       const txt = await res.text(); let data; try{ data=JSON.parse(txt); }catch{ data={content:txt}; }
       if(!res.ok){ toast('API : '+(data?.error||data?.message||('HTTP '+res.status)),'err',7000); return null; }
       return data;
     }
-
-    function chunks(arr,size){ const out=[]; for(let i=0;i<arr.length;i+=size) out.push(arr.slice(i,i+size)); return out; }
+    function chunks(a,s){const out=[];for(let i=0;i<a.length;i+=s)out.push(a.slice(i,i+s));return out;}
 
     async function generateBatches(indices){
       const busy=$('#busy'), busyText=$('#busyText');
       busyText.textContent='Génération par lots…'; busy.classList.remove('hidden');
       try{
         for(const grp of chunks(indices,BATCH_SIZE)){
-          const payload = {
-            livre: currentLivre,
-            chapitre: parseInt(currentChap,10),
-            points: grp.length,
-            subset: grp,                 // indices exacts
-            schema: grp.map(n=>'p'+n),   // pour obliger le sous-ensemble
-          };
-          const data = await callServerAI(payload);
-          if(!data) continue;
-          const obj = normalizeToP28(data);
-          const norm = dedupeAndPad(obj);
+          const payload={livre:currentLivre,chapitre:parseInt(currentChap,10),points:grp.length,subset:grp,schema:grp.map(n=>'p'+n)};
+          const data=await callServerAI(payload); if(!data) continue;
+          const obj=dedupe(normalizeToP28(data));
           for(const n of grp){
-            const v = norm['p'+n] || '';
-            const ta=$('#note-p'+n), wc=$('#wordCount-p'+n), st=$('#noteStatus-p'+n);
-            ta.value=v; wc.textContent=v.trim()?v.trim().split(/\s+/).length:0; st.textContent='Généré ✓';
-            localStorage.setItem(`notes::${currentLivre}::${currentChap}::${n}`,v);
-            renderRich(n,v);
+            const raw=obj['p'+n]||''; saveRaw(n,raw); renderRich(n,raw);
           }
         }
         // Prières fallback si besoin
-        const p1=$('#note-p1').value.trim(); if(p1.length<120) { const v=openingPrayer(currentLivre,currentChap); $('#note-p1').value=v; renderRich(1,v); }
-        const p28=$('#note-p28').value.trim(); if(p28.length<120){ const v=closingPrayer(currentLivre,currentChap); $('#note-p28').value=v; renderRich(28,v); }
+        if(loadRaw(1).trim().length<120){ const v=openingPrayer(currentLivre,currentChap); saveRaw(1,v); renderRich(1,v); }
+        if(loadRaw(28).trim().length<120){ const v=closingPrayer(currentLivre,currentChap); saveRaw(28,v); renderRich(28,v); }
         document.querySelector('#pointsNav .sidebar-item')?.click();
         toast('Étude générée.','ok');
-      } finally { busy.classList.add('hidden'); }
+      }finally{ busy.classList.add('hidden'); }
     }
 
     async function generate(force28=false){
@@ -577,43 +478,43 @@
       if(force28){ $('#pointsSelect').value='28'; }
       const total=parseInt($('#pointsSelect').value,10)||28;
       const all=[...Array(28)].map((_,i)=>i+1);
-      const indices = (total===28) ? all : all.slice(0,total);
+      const indices=(total===28)?all:all.slice(0,total);
       await generateBatches(indices);
     }
 
     /* ==================== DERNIÈRE ÉTUDE ==================== */
-    function setLastStudy(livre, chap){ localStorage.setItem('derniere_etude', JSON.stringify({livre, chapitre:String(chap)})); refreshLastStudyUI(true); }
-    function getLastStudy(){ try{ return JSON.parse(localStorage.getItem('derniere_etude')||'null'); }catch{ return null; } }
+    function setLastStudy(livre,chap){ localStorage.setItem('derniere_etude', JSON.stringify({livre,chapitre:String(chap)})); refreshLastStudyUI(); }
+    function getLastStudy(){ try{return JSON.parse(localStorage.getItem('derniere_etude')||'null');}catch{return null} }
     function refreshLastStudyUI(){
-      const last = getLastStudy(); const label = last ? `${last.livre} ${last.chapitre}` : '—';
-      $('#lastStudyPill').textContent = `Dernière étude : ${label}`; $('#lastStudyInline').textContent = label;
+      const last=getLastStudy(); const label=last?`${last.livre} ${last.chapitre}`:'—';
+      $('#lastStudyPill').textContent=`Dernière étude : ${label}`; $('#lastStudyInline').textContent=label;
     }
 
     /* ==================== INIT ==================== */
     document.addEventListener('DOMContentLoaded', ()=>{
       applyTheme(localStorage.getItem(THEME_KEY)||'indigo');
-      $('#themeSelect').value = localStorage.getItem(THEME_KEY)||'indigo';
+      $('#themeSelect').value=localStorage.getItem(THEME_KEY)||'indigo';
       $('#themeSelect').addEventListener('change',e=>applyTheme(e.target.value));
 
-      fillBooks();
+      fillBooks(); renderPoints();
       $('#livreBtn').addEventListener('click',()=>openMenu($('#livreMenu')));
       $('#chapBtn').addEventListener('click',()=>openMenu($('#chapMenu')));
 
       // Recherche
       let si=null;
-      $('#searchInput').addEventListener('input',()=>{ clearTimeout(si); si=setTimeout(()=>{ const r=parseRef($('#searchInput').value); if(!r.book) return; selectBook(r.book,false); if(r.chap) selectChapter(r.chap,false); },140); });
-      $('#searchInput').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const r=parseRef($('#searchInput').value); if(!r.book){ toast('Ex : « mar 5 », « jean 3:16 ».','err'); return; } selectBook(r.book,false); selectChapter(r.chap||1,false); } });
+      $('#searchInput').addEventListener('input',()=>{clearTimeout(si);si=setTimeout(()=>{const s=$('#searchInput').value.trim();if(!s) return;const m=s.match(/^(.+?)[\s,;]+(\d{1,3})/i);if(m){selectBook((ALIAS[(m[1]||'').toLowerCase()]||m[1]).trim(),false);selectChapter(parseInt(m[2],10),false);}else{const k=(ALIAS[s.toLowerCase()]||s);if(LIVRES_CHAP[k]) selectBook(k,false);} },140);});
+      $('#searchInput').addEventListener('keydown',(e)=>{if(e.key==='Enter'){const s=$('#searchInput').value.trim();const m=s.match(/^(.+?)[\s,;]+(\d{1,3})/i);if(!m){toast('Ex : « mar 5 », « jean 3:16 ».','err');return;}selectBook((ALIAS[(m[1]||'').toLowerCase()]||m[1]).trim(),false);selectChapter(parseInt(m[2],10),false);}});
 
       // Valide → sauvegarde + 28 points
       $('#validerBtn').addEventListener('click', async ()=>{
         if(!(currentLivre&&currentChap)){ toast('Sélectionne un livre et un chapitre.','err'); return; }
-        setLastStudy(currentLivre, currentChap); loadSavedNotes(); await generate(true);
+        setLastStudy(currentLivre,currentChap); loadSaved(); await generate(true);
       });
 
       // Reprendre
       $('#resumeBtn').addEventListener('click', ()=>{
-        const last = getLastStudy(); if(!last){ toast('Aucune étude enregistrée.','err'); return; }
-        selectBook(last.livre,false); selectChapter(parseInt(last.chapitre,10),false); toast(`Repris : ${last.livre} ${last.chapitre}`,'ok');
+        const last=getLastStudy(); if(!last){ toast('Aucune étude enregistrée.','err'); return; }
+        selectBook(last.livre,false); selectChapter(parseInt(last.chapitre,10),false); loadSaved(); toast(`Repris : ${last.livre} ${last.chapitre}`,'ok');
       });
 
       // Réinit / Lire / Générer / Imprimer
@@ -623,18 +524,24 @@
       $('#printBtn').addEventListener('click',()=>window.print());
 
       // Export & lien
-      $('#exportMdBtn').addEventListener('click',()=>{ if(!(currentLivre&&currentChap)){ toast('Sélectionne un passage.','err'); return; } let out=`# ${currentLivre} ${currentChap}\n\n_Généré : ${new Date().toLocaleString()}_\n\n`; for(let i=1;i<=28;i++){ const title=POINTS[i-1]; const note=($('#note-p'+i).value||'').trim(); out+=`## ${i}. ${title}\n\n${note||'_(vide)_'}\n\n`; } const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([out],{type:'text/markdown;charset=utf-8'})); a.download=`Etude_${currentLivre.replace(/\s+/g,'_')}_${currentChap}.md`; document.body.appendChild(a); a.click(); a.remove();});
-      $('#copyLinkBtn').addEventListener('click',async()=>{ const url=new URL(location.href); url.hash=(currentLivre&&currentChap)?`#/${encodeURIComponent(currentLivre)}/${currentChap}?point=1`:'#'; try{ await navigator.clipboard.writeText(url.toString()); toast('Lien copié.','ok'); }catch{ toast('Copie impossible.','err'); } });
-
-      renderPoints();
-      document.querySelector('#pointsNav .sidebar-item')?.click();
+      $('#exportMdBtn').addEventListener('click',()=>{
+        if(!(currentLivre&&currentChap)){ toast('Sélectionne un passage.','err'); return; }
+        let out=`# ${currentLivre} ${currentChap}\n\n_Généré : ${new Date().toLocaleString()}_\n\n`;
+        for(let i=1;i<=28;i++){ const title=POINTS[i-1]; const raw=loadRaw(i)||''; out+=`## ${i}. ${title}\n\n${raw||'_(vide)_'}\n\n`; }
+        const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([out],{type:'text/markdown;charset=utf-8'})); a.download=`Etude_${currentLivre.replace(/\s+/g,'_')}_${currentChap}.md`; document.body.appendChild(a); a.click(); a.remove();
+      });
+      $('#copyLinkBtn').addEventListener('click',async()=>{
+        const url=new URL(location.href); url.hash=(currentLivre&&currentChap)?`#/${encodeURIComponent(currentLivre)}/${currentChap}?point=1`:'#';
+        try{ await navigator.clipboard.writeText(url.toString()); toast('Lien copié.','ok'); }catch{ toast('Copie impossible.','err'); }
+      });
 
       // Hash initial
       if(location.hash){
         const m=location.hash.match(/^#\/([^\/]+)\/(\d+)/);
-        if(m){ selectBook(decodeURIComponent(m[1]),false); selectChapter(parseInt(m[2],10),false); }
+        if(m){ selectBook(decodeURIComponent(m[1]),false); selectChapter(parseInt(m[2],10),false); loadSaved(); }
       }
       refreshLastStudyUI();
+      document.querySelector('#pointsNav .sidebar-item')?.click();
     });
   </script>
 </body>
