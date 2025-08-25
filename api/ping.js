@@ -1,3 +1,6 @@
+// /api/ping.js
+export const config = { runtime: 'nodejs18.x' };
+
 export default function handler(req, res) {
-  res.status(200).json({ ok: true, pong: true, env: !!process.env.OPENAI_API_KEY });
+  res.status(200).json({ pong: true, time: new Date().toISOString() });
 }
