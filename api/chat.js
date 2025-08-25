@@ -1,19 +1,46 @@
 // /api/chat.js
-// Vercel Serverless Function – génère une étude biblique complète en 28 points, par lots
-// Variables d'env à définir sur Vercel : OPENAI_API_KEY (obligatoire), OPENAI_PROJECT (optionnel)
+// Étude 28 points déterministe et contrainte par JSON Schema.
+// Variables d'env : OPENAI_API_KEY (obligatoire), OPENAI_PROJECT (optionnel)
 
-export const config = {
-  runtime: 'nodejs', // compatible Node on Vercel
-};
+export const config = { runtime: 'nodejs' };
 
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o'; // tu peux mettre 'gpt-4.1' si dispo
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_PROJECT = process.env.OPENAI_PROJECT || '';
+const MODEL = process.env.OPENAI_MODEL || 'gpt-4o'; // mets 'gpt-4.1' s’il est dispo chez toi
 
-if (!OPENAI_API_KEY) {
-  console.warn('[api/chat] OPENAI_API_KEY manquant (définis-le dans Vercel).');
-}
+// ---- Spécifications STRICTES par point (1..28) ----
+const POINT_SPEC = {
+  1:  "Prière d’ouverture en JE, liée explicitement au livre et chapitre, humble, théologique et pastorale. Pas de “nous”.",
+  2:  "Canon et testament : situer précisément le livre (AT/NT), place dans le canon, structure globale du livre, visée.",
+  3:  "Questions du chapitre précédent : AU MOINS 5 questions AVEC RÉPONSES INTÉGRALES et précises (Q->R).",
+  4:  "Titre du chapitre : résumé doctrinal synthétique (2–3 phrases fortes) et fidèle au passage.",
+  5:  "Contexte historique : période, géopolitique, culture, avec carte visuelle (image Markdown) localisée.",
+  6:  "Structure littéraire : séquençage narratif point par point (liste), composition interne du chapitre.",
+  7:  "Genre littéraire : identifier et expliquer les implications herméneutiques.",
+  8:  "Auteur et généalogie : auteur, destinataires, et arbre généalogique (tableau Markdown si pertinent).",
+  9:  "Verset-clé doctrinal : 1 verset central cité + courte explication. Référence explicite (sera linkifiée côté client).",
+  10: "Analyse exégétique : commentaire mot-à-mot avec appui grec/hébreu lorsque pertinent, références précises.",
+  11: "Analyse lexicale : mots-clés originaux (translittérations), champs sémantiques, portée doctrinale.",
+  12: "Références croisées : passages parallèles/complémentaires (liste de références explicites).",
+  13: "Fondements théologiques : doctrines majeures tirées du chapitre, brièvement argumentées.",
+  14: "Thème doctrinal : rattacher aux 22 grands thèmes (ex : salut, sanctification, alliance…) avec articulation claire.",
+  15: "Fruits spirituels : vertus et attitudes suscitées, avec exhortations concrètes.",
+  16: "Types bibliques : symboles, figures typologiques (tableau ou liste) et accomplissement en Christ.",
+  17: "Appui doctrinal : autres passages confirmant l’enseignement (citations + micro-commentaires).",
+  18: "Comparaison entre versets du chapitre : mise en relief de nuances (tableau comparatif recommandé).",
+  19: "Comparaison avec Actes 2 : points de contact et différences, rôle du Saint-Esprit.",
+  20: "Verset à mémoriser : un verset choisi + méthode de mémorisation (acrostiche, répétition espacée…).",
+  21: "Enseignement pour l’Église : implications ecclésiales concrètes (discipline, culte, diaconat…).",
+  22: "Enseignement pour la famille : valeurs et pratiques à transmettre dans le foyer chrétien.",
+  23: "Enseignement pour enfants : version simplifiée (récit court), idées d’activités/jeux/visuels.",
+  24: "Application missionnaire : pistes d’évangélisation, ponts culturels, prudence & clarté.",
+  25: "Application pastorale : CONSEILS pour pasteurs et enseignants (plan de prédication, prudences, exhortations).",
+  26: "Application personnelle : examen de conscience, engagements concrets (liste).",
+  27: "Versets à retenir : sélection pour la prédication (liste + brève utilité de chacun).",
+  28: "Prière de fin en JE, remerciant pour le livre et chapitre étudiés, demandant mise en pratique concrète."
+};
 
+// ---- Liste des 28 titres (juste informatif pour le prompt) ----
 const TITLES_28 = [
   'Prière d’ouverture — Invocation du Saint-Esprit pour éclairer mon étude.',
   'Canon et testament — Identifier le livre dans le canon (Ancien/Nouveau Testament).',
@@ -45,194 +72,245 @@ const TITLES_28 = [
   'Prière de fin — Clôture spirituelle de l’étude avec reconnaissance.'
 ];
 
-// ——— util ———
-function badRequest(res, message) {
+// ---- Utilitaires HTTP ----
+function badRequest(res, msg) {
   res.statusCode = 400;
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.end(JSON.stringify({ error: message || 'Bad request' }));
+  res.setHeader('Content-Type','application/json; charset=utf-8');
+  res.end(JSON.stringify({ error: msg || 'Bad request' }));
 }
-function json(res, data, status = 200) {
+function json(res, data, status=200) {
   res.statusCode = status;
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Content-Type','application/json; charset=utf-8');
+  res.setHeader('Cache-Control','no-store');
   res.end(JSON.stringify(data));
 }
-function chunkArray(arr, size) {
-  const out = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+function chunk(arr, size){ const out=[]; for(let i=0;i<arr.length;i+=size) out.push(arr.slice(i,i+size)); return out; }
+
+// ---- Normalisations / validations ----
+const BOILER_RX = /(voici\s+\d+\s+points|cette étude présente|nous allons|dans cette section)/i;
+
+function normalize(s){ return String(s||'').replace(/\s+/g,' ').trim(); }
+function isJe(s){ return /\b(je|moi|mon|ma|mes)\b/i.test(s); }
+function hasVerses(s){ return /\b(Genèse|Exode|Lévitique|Nombres|Deutéronome|Josué|Juges|Ruth|1\s*Samuel|2\s*Samuel|1\s*Rois|2\s*Rois|1\s*Chroniques|2\s*Chroniques|Esdras|Néhémie|Esther|Job|Psaumes|Proverbes|Ecclésiaste|Cantique|Ésaïe|Jérémie|Lamentations|Ézéchiel|Daniel|Osée|Joël|Amos|Abdias|Jonas|Michée|Nahum|Habacuc|Sophonie|Aggée|Zacharie|Malachie|Matthieu|Marc|Luc|Jean|Actes|Romains|1\s*Corinthiens|2\s*Corinthiens|Galates|Éphésiens|Philippiens|Colossiens|1\s*Thessaloniciens|2\s*Thessaloniciens|1\s*Timothée|2\s*Timothée|Tite|Philémon|Hébreux|Jacques|1\s*Pierre|2\s*Pierre|1\s*Jean|2\s*Jean|3\s*Jean|Jude|Apocalypse)\s+\d{1,3}([:.]\d{1,3}([-–]\d{1,3})?)?\b/i.test(s); }
+
+function validatePoint(n, text, {minChars, livre, chapitre}){
+  if (!text || normalize(text).length < minChars) return false;
+  if (BOILER_RX.test(text)) return false;
+  if (n===1 || n===28) { // prières en "je"
+    if (!isJe(text) || !new RegExp(`\\b${livre}\\b\\s+${chapitre}\\b`, 'i').test(text)) return false;
+  }
+  // encourager les références dans la plupart des points
+  if (n!==1 && n!==4 && n!==28 && !hasVerses(text)) return false;
+  return true;
+}
+
+function dedupeAcross(out){
+  const seen = new Set();
+  for(const key of Object.keys(out)){
+    const norm = normalize(out[key]).toLowerCase();
+    if (seen.has(norm)) {
+      out[key] = '(*) Réécrire ce point pour éviter la redite avec un autre point. Développer un angle réellement distinct.';
+    }
+    seen.add(norm);
+  }
   return out;
 }
 
-// ——— prompt builder ———
-function buildSystemMessage() {
-  return {
-    role: 'system',
-    content:
-      "Tu es un assistant d’étude biblique rigoureux, pastoral et fidèle à la doctrine chrétienne historique. " +
-      "Tu écris en français clair, structuré, riche et précis, pour un lecteur francophone. " +
-      "Tu ne fais aucun plagiat et tu produis un texte original et utile."
-  };
-}
-
-function buildUserMessage({ livre, chapitre, version, indices, minChars }) {
-  const list = TITLES_28.map((t, i) => `${i + 1}. ${t}`).join('\n');
-
-  const keys = indices.map(String).join('","');
-  const schemaKeys = indices.map(n => `"${n}"`).join(', ');
-
-  // On redonne TOUT le plan, mais on restreint la production au sous-ensemble demandé.
-  // On exige JSON strict avec ces clés numériques sous forme de chaînes "1".."28".
-  // Prières en "je", références bibliques explicites (seront linkifiées côté front).
-  const content = `
-Génère une étude biblique détaillée sur **${livre} ${chapitre}** (version ${version || 'LSG'}) en suivant STRICTEMENT le canevas ci-dessous.
-
-Canevas complet (28 points) :
-${list}
-
-⚠️ Dans CETTE réponse, NE PRODUIS QUE les sections dont les indices sont : ["${keys}"].
-Chaque section doit :
-- Respecter le titre correspondant du canevas.
-- Faire **au minimum ${minChars} caractères** (vise plus si pertinent).
-- Être spécifique à **${livre} ${chapitre}** (pas de généralités vagues).
-- Utiliser du **Markdown** : **gras**, listes, tableaux (\`|a|b|\`), images (\`![alt](https://...)\`), frises \`YYYY — ...\` si utile.
-- Citer **plusieurs versets** sous forme “Livre X:Y–Z” (ils seront cliquables côté client).
-- Ne pas dupliquer le même paragraphe d’un point à l’autre (éviter les redites).
-- Pour **1. Prière d’ouverture** et **28. Prière de fin** : écrire à la **première personne** (“je”), contextualisées à ${livre} ${chapitre}.
-- Interdiction des phrases génériques du type “Voici X points…” ou “cette étude présente…”.
-- Aucune introduction/conclusion globale en dehors des sections demandées.
-
-**SORTIE REQUISE** : un **JSON strict** (pas de texte hors JSON), objet dont les seules clés sont les indices demandés (en chaînes) :
-{ ${schemaKeys} }
-ex. { "3": "…", "4": "…" }
-
-Rappels importants :
-- Si tu ajoutes des tableaux, garde un contenu doctrinal solide et exact.
-- Si tu ajoutes des images (Markdown), elles doivent être pertinentes (cartes, schémas typologiques, etc.).
-- Sers-toi d’un ton pastoral et précis, sans polémique gratuite.
-
-Travaille maintenant uniquement sur : ["${keys}"].
-`;
-
-  return { role: 'user', content };
-}
-
-async function callOpenAIJson(messages) {
+// ---- OpenAI low-level ----
+async function openAIChatJSON({messages, schema, seed}) {
   const headers = {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${OPENAI_API_KEY}`
+    'Content-Type':'application/json',
+    'Authorization':`Bearer ${OPENAI_API_KEY}`
   };
   if (OPENAI_PROJECT) headers['OpenAI-Project'] = OPENAI_PROJECT;
 
+  // On tente le json_schema strict (minLength), sinon on retombe sur json_object.
   const body = {
     model: MODEL,
-    temperature: 0.7,
-    response_format: { type: 'json_object' },
+    temperature: 0,
+    top_p: 0,
+    max_tokens: 4000, // par lot
+    seed: typeof seed === 'number' ? seed : 42,
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'etude_points',
+        schema,
+        strict: true
+      }
+    },
     messages
   };
 
-  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body)
-  });
+  let resp = await fetch('https://api.openai.com/v1/chat/completions',{method:'POST', headers, body:JSON.stringify(body)});
+  let txt = await resp.text();
+  let json;
+  try { json = JSON.parse(txt); } catch { throw new Error(`OpenAI non-JSON: ${txt.slice(0,200)}…`); }
+  if (!resp.ok) throw new Error(json?.error?.message || `HTTP ${resp.status}`);
 
-  const text = await resp.text();
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error(`Réponse OpenAI non JSON: ${text.slice(0, 300)}…`);
-  }
-
-  if (!resp.ok) {
-    const msg = data?.error?.message || `HTTP ${resp.status}`;
-    throw new Error(`OpenAI: ${msg}`);
-  }
-
-  const content = data?.choices?.[0]?.message?.content || '{}';
-  try {
-    return JSON.parse(content);
-  } catch {
-    throw new Error('Le contenu OpenAI ne respecte pas le JSON strict.');
+  let content = json?.choices?.[0]?.message?.content || '{}';
+  try { return JSON.parse(content); }
+  catch {
+    // fallback json_object
+    const fallbackBody = {
+      model: MODEL,
+      temperature: 0,
+      top_p: 0,
+      max_tokens: 4000,
+      seed: typeof seed === 'number' ? seed : 42,
+      response_format: { type: 'json_object' },
+      messages
+    };
+    resp = await fetch('https://api.openai.com/v1/chat/completions',{method:'POST', headers, body:JSON.stringify(fallbackBody)});
+    txt = await resp.text();
+    try {
+      const j2 = JSON.parse(txt);
+      const c2 = j2?.choices?.[0]?.message?.content || '{}';
+      return JSON.parse(c2);
+    } catch {
+      throw new Error('Échec format JSON.');
+    }
   }
 }
 
-// ——— handler ———
-export default async function handler(req, res) {
-  try {
-    if (req.method !== 'POST') return badRequest(res, 'POST attendu.');
+// ---- Prompting ----
+function systemMsg(){
+  return {
+    role:'system',
+    content:
+      "Tu es un assistant d’étude biblique rigoureux, pastoral et fidèle à la doctrine chrétienne historique. " +
+      "Tu écris en français riche, précis, structuré, SANS PHRASÉ BOILERPLATE, et tu respectes strictement les consignes."
+  };
+}
 
-    if (!OPENAI_API_KEY) {
-      return json(res, { error: 'OPENAI_API_KEY manquant côté serveur.' }, 500);
-    }
+function userMsgBatch({livre, chapitre, version, indices, minChars}){
+  const plan = TITLES_28.map((t,i)=>`${i+1}. ${t}`).join('\n');
+  const specList = indices.map(n=>`- ${n}. ${POINT_SPEC[n]}`).join('\n');
 
-    let body = {};
-    try {
-      body = req.body && typeof req.body === 'object' ? req.body : JSON.parse(req.body || '{}');
-    } catch {
-      return badRequest(res, 'JSON invalide.');
-    }
+  const keys = indices.map(String);
+  const keyStr = keys.map(k=>`"${k}"`).join(', ');
+
+  const content =
+`Étude sur **${livre} ${chapitre}** (version ${version || 'LSG'}).
+
+Canevas complet (28 points) :
+${plan}
+
+Dans CETTE réponse, ne produis que les sections : [${keyStr}]
+Règles OBLIGATOIRES pour CHAQUE section demandée :
+- longueur : AU MINIMUM ${minChars} caractères utiles (pas de remplissage vide)
+- contenu strictement adapté à ${livre} ${chapitre}
+- utiliser Markdown : **gras**, listes, tableaux |a|b|, frises "YYYY — ..." et images ![alt](https://...) si pertinent
+- citer plusieurs références bibliques explicites (ex: Genèse 1:1–3), SANS faire de lien ; elles seront linkifiées côté client
+- proscrire les formules “Voici X points…”, “nous allons…”, etc.
+- 1 (prière d’ouverture) et 28 (prière de fin) : obligatoirement à la première personne (JE), contextualisées à ${livre} ${chapitre}
+
+Exigences spécifiques :
+${specList}
+
+SORTIE JSON STRICTE uniquement, sous la forme :
+{ ${keyStr} }
+Chaque valeur est un long texte Markdown, sans autre champ.
+`;
+
+  return { role:'user', content };
+}
+
+function revisionMsg({livre, chapitre, n, minChars, cause, previous}){
+  return {
+    role:'user',
+    content:
+`Réécris UNIQUEMENT la section **${n}** pour ${livre} ${chapitre} en respectant les contraintes. Raison : ${cause}.
+Exigences minimales : ${minChars} caractères, Markdown riche, références bibliques explicites, pas de boilerplate, et respecte : ${POINT_SPEC[n]}.
+Ancienne tentative (à corriger, ne la répète pas telle quelle) :
+"""${previous}"""
+Réponds en JSON : { "${n}": "NOUVELLE VERSION" }`
+  };
+}
+
+// ---- Handler principal ----
+export default async function handler(req, res){
+  try{
+    if (req.method !== 'POST') return badRequest(res, 'POST attendu');
+
+    if (!OPENAI_API_KEY) return json(res, { error:'OPENAI_API_KEY manquant' }, 500);
+
+    let body={};
+    try{ body = typeof req.body==='object' ? req.body : JSON.parse(req.body||'{}'); }catch{ return badRequest(res,'JSON invalide'); }
 
     const livre = String(body.livre || '').trim();
-    const chapitre = parseInt(body.chapitre, 10);
+    const chapitre = parseInt(body.chapitre,10);
     const version = String(body.version || 'LSG').trim();
-    const minChars = Math.max(1200, parseInt(body.min_chars_per_point, 10) || 2500); // garde un minimum réaliste
-    const batchSize = Math.min(6, Math.max(2, parseInt(body.batch_size, 10) || 4)); // 4 par défaut
-    let subset = Array.isArray(body.subset) ? body.subset.map(x => parseInt(x, 10)).filter(Boolean) : null;
+    const minChars = Math.max(1200, parseInt(body.min_chars_per_point,10) || 2500);
+    const batchSize = Math.min(4, Math.max(1, parseInt(body.batch_size,10) || 2)); // 2 par défaut pour la densité
+    const seed = (typeof body.seed === 'number') ? body.seed : 42;
 
-    if (!livre || !Number.isFinite(chapitre)) {
-      return badRequest(res, 'Paramètres requis : livre (string), chapitre (number).');
-    }
+    if (!livre || !Number.isFinite(chapitre)) return badRequest(res,'Paramètres requis : livre (string), chapitre (number)');
 
-    // Liste des indices à produire
-    const all = Array.from({ length: 28 }, (_, i) => i + 1);
-    const indices = subset && subset.length ? subset : all;
+    const subset = (Array.isArray(body.subset) && body.subset.length)
+      ? body.subset.map(x=>parseInt(x,10)).filter(n=>n>=1 && n<=28)
+      : Array.from({length:28},(_,i)=>i+1);
 
-    // Orchestration par lots
-    const sys = buildSystemMessage();
+    const groups = chunk(subset, batchSize);
     const out = {};
-    const groups = chunkArray(indices, batchSize);
+    const sys = systemMsg();
 
-    for (const grp of groups) {
-      const user = buildUserMessage({ livre, chapitre, version, indices: grp, minChars });
-      const obj = await callOpenAIJson([sys, user]);
+    // Construit un schema JSON strict pour CHAQUE lot
+    function makeSchema(keys){
+      const props = {};
+      for(const k of keys){
+        props[String(k)] = { type:'string', minLength: minChars };
+      }
+      return {
+        type: 'object',
+        additionalProperties: false,
+        required: keys.map(k=>String(k)),
+        properties: props
+      };
+    }
 
-      // On fusionne uniquement les clés attendues
-      for (const n of grp) {
+    for (const grp of groups){
+      // 1) première passe
+      const schema = makeSchema(grp);
+      const user = userMsgBatch({livre, chapitre, version, indices: grp, minChars});
+      let obj = await openAIChatJSON({messages:[sys, user], schema, seed});
+
+      // 2) validation + retentes ciblées
+      for (const n of grp){
         const key = String(n);
-        if (typeof obj[key] === 'string' && obj[key].trim()) {
-          out[key] = obj[key].trim();
-        } else {
-          // Fallback minimal si le modèle n’a pas fourni la clé (ça arrive rarement)
-          out[key] = `(*) Contenu insuffisant retourné par le modèle pour le point ${n}. Merci de relancer la génération de ce point.`;
+        let text = obj[key] || '';
+        // nettoyage boilerplate simple
+        if (BOILER_RX.test(text)) text = text.replace(BOILER_RX, '').trim();
+        let ok = validatePoint(n, text, {minChars, livre, chapitre});
+        let tries = 0;
+
+        while(!ok && tries < 2){
+          tries++;
+          const cause = !text ? 'contenu vide'
+                      : (normalize(text).length < minChars ? `longueur < ${minChars}` 
+                      : (BOILER_RX.test(text) ? 'boilerplate détecté'
+                      : ((n===1||n===28) && !isJe(text) ? 'la prière doit être en JE'
+                      : (!hasVerses(text) ? 'références bibliques insuffisantes' : 'incohérence'))));
+          const rev = revisionMsg({livre, chapitre, n, minChars, cause, previous:text});
+          const schemaOne = { type:'object', additionalProperties:false, required:[key], properties:{ [key]:{type:'string', minLength:minChars} } };
+          const fix = await openAIChatJSON({messages:[sys, rev], schema: schemaOne, seed});
+          text = fix[key] || text;
+          if (BOILER_RX.test(text)) text = text.replace(BOILER_RX, '').trim();
+          ok = validatePoint(n, text, {minChars, livre, chapitre});
         }
+        out[key] = text;
       }
     }
 
-    // Sécurités/filtres simples (antiboilerplate, prière en je)
-    const BOILER_RX = /(voici\s+\d+\s+points|cette étude présente|nous allons|dans cette section)/i;
-    for (const n of Object.keys(out)) {
-      let t = out[n] || '';
-      if (BOILER_RX.test(t)) {
-        t = t.replace(BOILER_RX, '').trim();
-      }
-      // S'assure que 1 et 28 restent bien en "je"
-      if (n === '1' && !/(\bje\b|\bmoi\b)/i.test(t)) {
-        t = `Père céleste, alors que je lis ${livre} ${chapitre}, dispose mon cœur à ta Parole. ${t}`;
-      }
-      if (n === '28' && !/(\bje\b|\bmoi\b)/i.test(t)) {
-        t = `Seigneur, je te rends grâce pour ${livre} ${chapitre}. ${t}`;
-      }
-      out[n] = t;
-    }
+    dedupeAcross(out);
 
-    // Retour objet complet + méta
     return json(res, {
-      meta: { livre, chapitre, version, minChars, batchSize, model: MODEL },
+      meta: { livre, chapitre, version, model: MODEL, minChars, batchSize, seed },
       ...out
     });
-  } catch (err) {
-    console.error('[api/chat] error:', err);
+
+  }catch(err){
+    console.error('[api/chat] ERR', err);
     return json(res, { error: String(err?.message || err) }, 500);
   }
 }
