@@ -1,9 +1,10 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./public/**/*.{html,js}", // On scanne ton index.html dans /public
-    "./src/**/*.{js,ts,jsx,tsx}", // Si tu ajoutes du JS/React plus tard
-    "./api/**/*.{js,ts}"          // Inclut les fonctions serverless si tu ajoutes du markup dynamique
+    "./public/index.html",       // ton fichier principal
+    "./public/**/*.html",        // tous les autres éventuels fichiers HTML dans /public
+    "./src/**/*.{js,ts,jsx,tsx}",// JS/TS/React si tu en ajoutes
+    "./api/**/*.{js,ts}"         // inclut les fonctions serverless
   ],
   theme: {
     extend: {
