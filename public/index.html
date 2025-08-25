@@ -144,16 +144,32 @@
     ];
 
     const $ = s=>document.querySelector(s);
-    function toast(msg){const d=document.createElement('div');d.className='toast';d.textContent=msg;$("#toasts").appendChild(d);setTimeout(()=>d.remove(),4000);}
+    function toast(msg){
+      const d=document.createElement('div');
+      d.className='toast';
+      d.textContent=msg;
+      $("#toasts").appendChild(d);
+      setTimeout(()=>d.remove(),4000);
+    }
 
     function renderSections(){
-      const nav=$("#pointsNav"), host=$("#sectionsHost"); nav.innerHTML=''; host.innerHTML='';
+      const nav=$("#pointsNav"), host=$("#sectionsHost");
+      nav.innerHTML=''; host.innerHTML='';
       for(let i=1;i<=28;i++){
-        const btn=document.createElement('button'); btn.className='sidebar-item w-full text-left'; btn.dataset.section='p'+i;
+        const btn=document.createElement('button');
+        btn.className='sidebar-item w-full text-left';
+        btn.dataset.section='p'+i;
         btn.innerHTML=`<span class="badge">${i}</span><span>${POINTS[i-1]}</span>`;
-        btn.addEventListener('click',()=>{document.querySelectorAll('.sidebar-item').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.content-section').forEach(s=>s.classList.remove('active'));btn.classList.add('active');$('#p'+i).classList.add('active');});
+        btn.addEventListener('click',()=>{
+          document.querySelectorAll('.sidebar-item').forEach(b=>b.classList.remove('active'));
+          document.querySelectorAll('.content-section').forEach(s=>s.classList.remove('active'));
+          btn.classList.add('active');
+          $('#p'+i).classList.add('active');
+        });
         nav.appendChild(btn);
-        const sec=document.createElement('div'); sec.id='p'+i; sec.className='content-section';
+        const sec=document.createElement('div');
+        sec.id='p'+i;
+        sec.className='content-section';
         sec.innerHTML=`<h3 class="text-xl font-bold mb-2">${i}. ${POINTS[i-1]}</h3><article class="prose" id="view-p${i}">—</article>`;
         host.appendChild(sec);
       }
@@ -165,19 +181,30 @@
       if(!livre||!chap){toast("Choisis un livre et un chapitre.");return;}
       $("#busy").classList.remove('hidden');
       try{
-        const res=await fetch(API_URL_CHAT,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({livre,chapitre:parseInt(chap,10),points:28})});
+        const res=await fetch(API_URL_CHAT,{
+          method:"POST",
+          headers:{"content-type":"application/json"},
+          body:JSON.stringify({livre,chapitre:parseInt(chap,10)})
+        });
         const data=await res.json();
-        for(let i=1;i<=28;i++){ $("#view-p"+i).innerHTML=data["p"+i]||"—"; }
+        for(let i=1;i<=28;i++){
+          $("#view-p"+i).innerHTML=data[i]||"—";
+        }
         document.querySelector('#pointsNav .sidebar-item')?.click();
         toast("Étude générée !");
-      }catch(e){toast("Erreur : "+e.message);}
+      }catch(e){
+        toast("Erreur : "+e.message);
+      }
       $("#busy").classList.add('hidden');
     }
 
     document.addEventListener('DOMContentLoaded',()=>{
       renderSections();
       $("#validerBtn").addEventListener('click',generateAll);
-      $("#reinitBtn").addEventListener('click',()=>{ $("#livreInput").value='';$("#chapInput").value='';});
+      $("#reinitBtn").addEventListener('click',()=>{
+        $("#livreInput").value='';
+        $("#chapInput").value='';
+      });
     });
   </script>
 </body>
