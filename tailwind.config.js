@@ -1,10 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./public/index.html",       // ton fichier principal
-    "./public/**/*.html",        // tous les autres éventuels fichiers HTML dans /public
-    "./src/**/*.{js,ts,jsx,tsx}",// JS/TS/React si tu en ajoutes
-    "./api/**/*.{js,ts}"         // inclut les fonctions serverless
+    "./public/**/*.{html,js}",   // <-- important : scanne ton index.html
+    "./src/**/*.{js,ts,jsx,tsx}",
+    "./api/**/*.{js,ts}"
   ],
   theme: {
     extend: {
