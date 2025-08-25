@@ -12,12 +12,12 @@ if (typeof global !== "undefined" && !global._chat_health) {
 
 export default async function handler(req, res) {
   try {
-    // Petit test de santé
+    // Test GET santé
     if (req.method === "GET" && req.query.ping !== undefined) {
       return res.status(200).json({ pong: true, model: MODEL });
     }
 
-    // Vérification méthode
+    // Vérif méthode
     if (req.method !== "POST") {
       return res
         .status(405)
@@ -29,7 +29,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "OPENAI_API_KEY manquant" });
     }
 
-    // Parsing body
+    // Parsing du body
     let body = {};
     try {
       body =
@@ -46,7 +46,7 @@ export default async function handler(req, res) {
         .json({ error: "Paramètres requis : livre, chapitre" });
     }
 
-    // Si subset n’est pas fourni → on génère les 28 points
+    // Subset ou 28 points
     const points = Array.isArray(subset)
       ? subset
       : Array.from({ length: 28 }, (_, i) => i + 1);
@@ -87,4 +87,24 @@ export default async function handler(req, res) {
       throw new Error("Réponse OpenAI invalide: " + txt.slice(0, 200));
     }
 
-    if (!
+    if (!r.ok) {
+      return res.status(r.status).json({ error: j?.error?.message || txt });
+    }
+
+    const content = j?.choices?.[0]?.message?.content || "{}";
+    let data;
+    try {
+      data = JSON.parse(content);
+    } catch (e) {
+      throw new Error("Contenu non JSON: " + content);
+    }
+
+    return res.status(200).json({
+      meta: { livre, chapitre, version, model: MODEL },
+      ...data,
+    });
+  } catch (e) {
+    console.error("[api/chat] erreur", e);
+    return res.status(500).json({ error: String(e.message || e) });
+  }
+}
