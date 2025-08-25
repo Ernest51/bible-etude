@@ -1,0 +1,46 @@
+/* public/dist/output.css */
+
+/* Reset de base */
+*,::before,::after{box-sizing:border-box;border:0 solid #e5e7eb}
+html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif,system-ui,sans-serif,"Apple Color Emoji","Segoe UI Emoji",Segoe UI Symbol,"Noto Color Emoji"}
+body{margin:0;line-height:inherit}
+
+/* Couleurs utilitaires */
+.text-slate-600{color:#475569}
+.text-slate-700{color:#334155}
+.text-slate-800{color:#1e293b}
+.bg-white{background-color:#fff}
+.bg-slate-100{background-color:#f1f5f9}
+.bg-slate-200{background-color:#e2e8f0}
+.bg-slate-50{background-color:#f8fafc}
+.bg-indigo-600{background-color:#4f46e5}
+.bg-indigo-700{background-color:#4338ca}
+
+/* Flex & grid utilitaires */
+.flex{display:flex}
+.grid{display:grid}
+.hidden{display:none}
+.items-center{align-items:center}
+.justify-between{justify-content:space-between}
+.gap-2{gap:.5rem}
+.gap-3{gap:.75rem}
+.gap-4{gap:1rem}
+.p-2{padding:.5rem}
+.p-3{padding:.75rem}
+.p-4{padding:1rem}
+.p-6{padding:1.5rem}
+.rounded-lg{border-radius:.5rem}
+.rounded-xl{border-radius:.75rem}
+.shadow{box-shadow:0 1px 2px 0 rgba(0,0,0,.05)}
+
+/* Boutons */
+.btn{display:inline-flex;align-items:center;font-weight:600;padding:.5rem 1rem;border-radius:.5rem}
+.btn-solid{background:#4f46e5;color:white}
+.btn-solid:hover{background:#4338ca}
+.btn-outline{border:1px solid #cbd5e1;background:white}
+.btn-ghost{border:1px dashed #cbd5e1;background:white}
+
+/* Sidebar */
+.sidebar-item{padding:.6rem .7rem;border-radius:.5rem;display:flex;align-items:center;gap:.5rem}
+.sidebar-item:hover{background:#f1f5f9}
+.sidebar-item.active{background:#e0e7ff;box-shadow:inset 4px 0 0 0 #4f46e5}
