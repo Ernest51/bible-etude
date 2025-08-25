@@ -1,68 +1,85 @@
 <!DOCTYPE html>
-<html lang="fr" class="h-full theme-indigo">
+<html lang="fr" class="h-full">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Étude Biblique — 28 points (strict)</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Étude Biblique — 28 points (modèle strict)</title>
 
-  <!-- IMPORTANT : CSS compilé localement -->
+  <!-- Tailwind compilé côté build -->
   <link rel="stylesheet" href="/dist/output.css" />
 
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
   <style>
-    /* petits compléments hors Tailwind */
-    :root{color-scheme:light dark}
+    :root{
+      --c50:#eef2ff;--c100:#e0e7ff;--c200:#c7d2fe;--c600:#4f46e5;--c700:#4338ca;--c800:#3730a3;
+      --ok:#10b981;--err:#ef4444;--ink:#0f172a;
+    }
+    body{background:#f7f8fb;color:#0f172a}
     .container-xl{max-width:1200px;margin-inline:auto}
-    .card{border-radius:16px}
-    .badge{display:inline-grid;place-items:center;width:1.9rem;height:1.9rem;border-radius:.55rem}
-    .toast{position:fixed;right:14px;bottom:14px;background:#111827;color:#fff;padding:.65rem .95rem;border-radius:12px;box-shadow:0 10px 20px rgba(0,0,0,.15);z-index:200;transition:opacity .25s, transform .25s}
+    .card{background:#fff;border:1px solid var(--c100);border-radius:16px;box-shadow:0 12px 24px -12px rgba(2,6,23,.15)}
+    .btn{display:inline-flex;align-items:center;gap:.55rem;border-radius:12px;font-weight:800;padding:.7rem 1rem}
+    .btn-solid{background:var(--c600);color:#fff}.btn-solid:hover{background:var(--c700)}
+    .btn-outline{border:1px solid var(--c200);background:#fff}
+    .btn-ghost{border:1px dashed var(--c200);background:#fff}
+    .badge{display:inline-grid;place-items:center;width:1.9rem;height:1.9rem;border-radius:.55rem;background:var(--c100);color:var(--c800);font-weight:800;font-size:.75rem}
     .sidebar-item{border:1px solid transparent;border-radius:12px;padding:.6rem .7rem;display:flex;align-items:flex-start;gap:.6rem}
-    .sidebar-item:hover{background:rgb(239 246 255)}
-    .sidebar-item.active{background:rgb(219 234 254);box-shadow:inset 4px 0 0 0 rgb(99 102 241)}
+    .sidebar-item:hover{background:var(--c50);border-color:var(--c200)}
+    .sidebar-item.active{background:var(--c100);border-color:var(--c200);box-shadow:inset 4px 0 0 0 var(--c600)}
+    .content-section{display:none;opacity:0;transition:opacity .18s ease}
+    .content-section.active{display:block;opacity:1}
+    .toast{position:fixed;right:14px;bottom:14px;background:#111827;color:#fff;padding:.65rem .95rem;border-radius:12px;box-shadow:0 10px 20px rgba(0,0,0,.15);z-index:200;transition:opacity .25s, transform .25s}
+    .toolbar{background:#fff;border:1px solid var(--c100);border-radius:14px;padding:.6rem .8rem}
+    .prose a{color:var(--c700);text-decoration:underline}
     .prose img{border-radius:12px;box-shadow:0 10px 24px rgba(2,6,23,.15);max-width:100%;height:auto}
-    .timeline{display:grid;gap:.6rem}
-    .timeline-item{display:grid;grid-template-columns:72px 1fr;gap:.6rem;align-items:start}
-    .timeline-year{font-weight:800;background:rgb(219 234 254);color:rgb(30 58 138);border-radius:10px;padding:.3rem .55rem;text-align:center}
-    .menu{position:absolute;left:0;right:0;z-index:40;background:#fff;border:1px solid rgb(226 232 240);border-radius:12px;box-shadow:0 14px 28px -12px rgba(2,6,23,.18);max-height:300px;overflow:auto;display:none}
+    .ghost-note{display:none} /* plus de textarea visibles par défaut */
+    .edit-wrap[aria-expanded="true"] .ghost-note{display:block}
+    .edit-wrap[aria-expanded="true"] .display-note{display:none}
+    .pill{background:#fff;border:1px solid var(--c100);border-radius:12px;padding:.35rem .6rem}
+    .dropdown{position:relative}
+    .menu{position:absolute;left:0;right:0;z-index:30;background:#fff;border:1px solid var(--c100);border-radius:12px;box-shadow:0 14px 28px -12px rgba(2,6,23,.18);max-height:300px;overflow:auto;display:none}
     .menu.open{display:block}
+    .menu button{display:block;width:100%;text-align:left;padding:.55rem .8rem}
+    .menu button:hover{background:var(--c50)}
+    @media (max-width: 640px){
+      .grid-mobile{display:grid;grid-template-columns:1fr;gap:12px}
+    }
   </style>
 </head>
-<body class="min-h-screen bg-slate-50 text-slate-900">
+<body class="min-h-screen">
   <div id="toasts"></div>
 
-  <!-- Header -->
-  <header class="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-slate-200">
+  <header class="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-[var(--c100)]">
     <div class="container-xl px-3 sm:px-4">
       <div class="py-2 sm:py-3 flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl grid place-items-center bg-indigo-100 text-indigo-700 shadow">
+          <div class="w-9 h-9 rounded-xl grid place-items-center bg-[var(--c100)] text-[var(--c700)] shadow">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M5 4h9a4 4 0 0 1 4 4v10H7a2 2 0 0 1-2-2V4z"/><path d="M7 18h11v2H7z"/></svg>
           </div>
           <div>
-            <h1 class="text-xl sm:text-2xl font-extrabold tracking-wide">Étude Biblique — 28 points</h1>
-            <p class="text-[11px] sm:text-xs text-slate-600 -mt-0.5">Modèle strict, riche et doctrinal</p>
+            <h1 class="text-xl sm:text-2xl font-extrabold tracking-wide">Étude Biblique — Modèle strict (28 points)</h1>
+            <p class="text-[11px] sm:text-xs text-slate-600 -mt-0.5">Chaque point = contenu ciblé, ≥ 2 500 caractères, format imposé</p>
           </div>
         </div>
         <div class="flex items-center gap-2">
-          <span class="px-3 py-1.5 rounded-lg border text-xs" id="lastStudyPill">Dernière étude : —</span>
-          <button id="resumeBtn" class="px-3 py-1.5 rounded-lg border text-xs">Reprendre</button>
-          <button id="printBtn" class="px-3 py-1.5 rounded-lg border text-xs">Imprimer / PDF</button>
+          <span class="pill text-xs" id="lastStudyPill">Dernière étude : —</span>
+          <button id="resumeBtn" class="btn btn-outline text-xs sm:text-sm">Reprendre</button>
+          <button id="printBtn" class="btn btn-outline text-xs sm:text-sm">Imprimer / PDF</button>
         </div>
       </div>
     </div>
   </header>
 
-  <!-- Main -->
   <main class="flex-1 py-5 sm:py-6">
     <div class="container-xl px-3 sm:px-4">
       <!-- Sélecteurs -->
-      <section class="card bg-white border border-slate-200 p-4 sm:p-6 mb-6">
-        <div class="grid grid-cols-12 gap-3 sm:gap-4 items-end">
+      <section class="card p-4 sm:p-6 mb-6">
+        <div class="grid grid-cols-12 gap-3 sm:gap-4 items-end grid-mobile">
           <!-- Recherche -->
           <div class="col-span-12">
             <label class="text-sm font-semibold block mb-1">Recherche</label>
             <div class="relative">
               <svg class="w-4 h-4 text-neutral-400 absolute left-3 top-3" viewBox="0 0 24 24" fill="currentColor"><path d="M10 18a8 8 0 1 1 5.293-14.293A8 8 0 0 1 10 18zm11 3-6-6"/></svg>
-              <input id="searchInput" class="w-full border rounded-lg pl-9 pr-3 py-2.5" placeholder="Tape ‘mar 5’, ‘jean 3:16’, ‘1co 13.4-7’…">
+              <input id="searchInput" class="w-full border rounded-lg pl-9 pr-3 py-2.5" placeholder="Tape ‘jean 3’, ‘1co 13’, ‘exo 3’…">
             </div>
             <p class="text-xs text-neutral-600 mt-1">Abréviations OK : mar, jn, 1co, rm… accents facultatifs.</p>
           </div>
@@ -70,7 +87,7 @@
           <!-- Livre -->
           <div class="col-span-12 sm:col-span-6 lg:col-span-5">
             <label class="text-sm font-semibold block mb-1">Livre</label>
-            <div class="relative">
+            <div class="dropdown">
               <button id="livreBtn" type="button" class="w-full bg-white border rounded-lg py-2.5 px-4 flex items-center justify-between">
                 <span id="livreLabel">Sélectionner un livre</span>
                 <svg class="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 20 20" fill="currentColor"><path d="M5 7l5 5 5-5"/></svg>
@@ -82,7 +99,7 @@
           <!-- Chapitre -->
           <div class="col-span-6 sm:col-span-3 lg:col-span-3">
             <label class="text-sm font-semibold block mb-1">Chapitre</label>
-            <div class="relative">
+            <div class="dropdown">
               <button id="chapBtn" type="button" class="w-full bg-white border rounded-lg py-2.5 px-4 flex items-center justify-between" disabled>
                 <span id="chapLabel">Chapitre</span>
                 <svg class="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 20 20" fill="currentColor"><path d="M5 7l5 5 5-5"/></svg>
@@ -105,21 +122,14 @@
 
           <!-- Actions -->
           <div class="col-span-12 flex flex-wrap gap-2 mt-1">
-            <button id="validerBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-lg shadow w-full sm:w-auto">
-              Valide (28 pts)
-            </button>
-            <button id="reinitBtn" class="px-4 py-2 rounded-lg border w-full sm:w-auto">Réinitialiser</button>
-            <button id="lireBtn" class="px-4 py-2 rounded-lg border w-full sm:w-auto" disabled>Lire (BibleGateway)</button>
+            <button id="validerBtn" class="btn btn-solid shadow w-full sm:w-auto">Valide (28 pts)</button>
+            <button id="reinitBtn" class="btn btn-outline w-full sm:w-auto">Réinitialiser</button>
+            <button id="lireBtn" class="btn btn-outline w-full sm:w-auto" disabled>Lire (BibleGateway)</button>
 
             <div class="ml-auto flex gap-2 w-full sm:w-auto">
-              <select id="pointsSelect" class="border rounded-lg px-3 py-2 w-full sm:w-auto">
-                <option value="28" selected>28 points</option>
-                <option value="12">12 points (partiel)</option>
-                <option value="8">8 points (rapide)</option>
-              </select>
-              <button id="generateBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-lg shadow w-full sm:w-auto">
-                Générer IA
-              </button>
+              <button id="generateBtn" class="btn btn-solid shadow w-full sm:w-auto">Générer IA</button>
+              <button id="exportMdBtn" class="btn btn-ghost w-full sm:w-auto">Exporter (Markdown)</button>
+              <button id="copyLinkBtn" class="btn btn-ghost w-full sm:w-auto">Copier le lien</button>
             </div>
           </div>
 
@@ -133,40 +143,34 @@
         </div>
       </section>
 
-      <!-- Corps -->
       <div class="grid grid-cols-12 gap-4 lg:gap-6">
-        <!-- NAV -->
+        <!-- NAV points -->
         <aside class="col-span-12 lg:col-span-4">
-          <div class="card bg-white border border-slate-200 p-3 sticky top-[84px] max-h-[calc(100vh-140px)] overflow-y-auto">
-            <h2 class="text-lg font-extrabold mb-2">Points d’étude</h2>
+          <div class="card p-3 sticky top-[84px] max-h-[calc(100vh-140px)] overflow-y-auto">
+            <h2 class="text-lg font-extrabold mb-2">Points d’étude (28)</h2>
             <nav id="pointsNav" class="space-y-1"></nav>
           </div>
         </aside>
 
         <!-- CONTENU -->
         <section class="col-span-12 lg:col-span-8">
-          <div class="card bg-white border border-slate-200 relative">
+          <div class="card relative">
             <div id="busy" class="hidden absolute inset-0 bg-white/70 z-10 grid place-items-center">
-              <div class="rounded-xl border bg-white px-4 py-3 shadow text-sm flex items-center gap-2">
+              <div class="rounded-xl border bg-white px-4 py-3 shadow-md text-sm flex items-center gap-2">
                 <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                 <span id="busyText">Génération…</span>
               </div>
             </div>
             <div id="contentArea" class="p-4 sm:p-6">
               <div id="welcome" class="text-center py-10">
-                <div class="w-16 h-16 rounded-xl bg-indigo-50 text-indigo-700 grid place-items-center mx-auto mb-3">
+                <div class="w-16 h-16 rounded-xl bg-[var(--c50)] text-[var(--c700)] grid place-items-center mx-auto mb-3">
                   <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M5 4h9a4 4 0 0 1 4 4v10H7a2 2 0 0 1-2-2V4z"/><path d="M7 18h11v2H7z"/></svg>
                 </div>
                 <h3 class="text-lg font-bold mb-2">Bienvenue 👋</h3>
-                <p class="text-neutral-600">Je choisis un livre et un chapitre, puis je clique <b>Valide</b> pour obtenir 28 points riches, strictement conformes au modèle.</p>
+                <p class="text-neutral-600">Choisis un livre et un chapitre, puis clique <b>Valide</b>. Chaque point est généré au format imposé (≥ 2 500 caractères).</p>
               </div>
               <div id="sectionsHost"></div>
             </div>
-          </div>
-
-          <div class="mt-4 flex flex-wrap gap-2">
-            <button id="exportMdBtn" class="px-3 py-1.5 rounded-lg border text-sm">Exporter (Markdown)</button>
-            <button id="copyLinkBtn" class="px-3 py-1.5 rounded-lg border text-sm">Copier le lien</button>
           </div>
         </section>
       </div>
@@ -174,14 +178,15 @@
   </main>
 
   <script>
-    /* ====== Constantes ====== */
-    const MIN_CHARS = 2500;               // objectif par rubrique
-    const BATCH_SIZE = 3;                 // lots courts → meilleure densité
+    /* ==================== PARAMS ==================== */
     const API_URL_CHAT = new URL('./api/chat', location.href).toString();
-    const LAST_KEY = 'derniere_etude_v2';
+    const MIN_CHARS = 2500;            // objectif par point
+    const BATCH = 3;                   // lots petits = plus stable
+    const $ = s=>document.querySelector(s);
+    const toast=(m,k='info',ms=4000)=>{const z=$("#toasts"),d=document.createElement('div');d.className='toast';d.textContent=m;d.style.background=k==='err'?'#ef4444':(k==='ok'?'#10b981':'#111827');z.appendChild(d);setTimeout(()=>{d.style.opacity='0';d.style.transform='translateY(4px)';},ms-300);setTimeout(()=>d.remove(),ms);};
 
+    /* ==================== LISTES ==================== */
     const LIVRES_CHAP={"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
-
     const ALIAS={gen:'Genèse',gn:'Genèse',ex:'Exode',exo:'Exode',lev:'Lévitique',lv:'Lévitique',nb:'Nombres',nbr:'Nombres',deut:'Deutéronome',dt:'Deutéronome',jos:'Josué',jg:'Juges',ru:'Ruth','1sa':'1 Samuel','2sa':'2 Samuel','1r':'1 Rois','2r':'2 Rois','1ch':'1 Chroniques','2ch':'2 Chroniques',esd:'Esdras',neh:'Néhémie',est:'Esther',ps:'Psaumes',prov:'Proverbes',eccl:'Ecclésiaste',cant:'Cantique',es:'Ésaïe',jr:'Jérémie',lam:'Lamentations',ez:'Ézéchiel',dn:'Daniel',os:'Osée',jl:'Joël',am:'Amos',abd:'Abdias',jon:'Jonas',mic:'Michée',nah:'Nahum',hb:'Habacuc',so:'Sophonie',ag:'Aggée',za:'Zacharie',ml:'Malachie',mt:'Matthieu',mc:'Marc',lc:'Luc',jn:'Jean',ac:'Actes',rm:'Romains','1co':'1 Corinthiens','2co':'2 Corinthiens',ga:'Galates',eph:'Éphésiens',php:'Philippiens',cl:'Colossiens','1th':'1 Thessaloniciens','2th':'2 Thessaloniciens','1ti':'1 Timothée','2ti':'2 Timothée',tt:'Tite',phm:'Philémon',he:'Hébreux',ja:'Jacques','1p':'1 Pierre','2p':'2 Pierre','1j':'1 Jean','2j':'2 Jean','3j':'3 Jean',jud:'Jude',ap:'Apocalypse'};
 
     const POINTS=[
@@ -198,337 +203,241 @@
       "Analyse lexicale — Analyse des mots-clés originaux et sens doctrinal.",
       "Références croisées — Passages parallèles ou complémentaires dans la Bible.",
       "Fondements théologiques — Doctrines majeures qui émergent du chapitre.",
-      "Thème doctrinal — Lien avec les grands thèmes de la doctrine biblique.",
+      "Thème doctrinal — Lien entre ce chapitre et les 22 grands thèmes de la doctrine biblique.",
       "Fruits spirituels — Vertus et attitudes inspirées par le chapitre.",
       "Types bibliques — Symboles ou figures typologiques présents.",
-      "Appui doctrinal — Autres passages qui confirment l’enseignement.",
-      "Comparaison entre versets — Mise en relief interne au chapitre.",
-      "Comparaison avec Actes 2 — Parallèle avec l’œuvre du Saint-Esprit.",
-      "Verset à mémoriser — Verset essentiel + piste de mémorisation.",
+      "Appui doctrinal — Autres passages bibliques qui confirment l’enseignement.",
+      "Comparaison entre versets — Comparer des versets du chapitre pour mise en relief.",
+      "Comparaison avec Actes 2 — Parallèle avec le début de l’Église et l’action du Saint-Esprit.",
+      "Verset à mémoriser — Verset essentiel à retenir dans ma vie spirituelle.",
       "Enseignement pour l’Église — Implications collectives et ecclésiales.",
-      "Enseignement pour la famille — Valeurs à transmettre dans le foyer.",
-      "Enseignement pour enfants — Méthode simplifiée (récits, images, jeux).",
-      "Application missionnaire — Orientations pour l’évangélisation.",
-      "Application pastorale — Conseils pour pasteurs et enseignants.",
-      "Application personnelle — Examen de conscience et engagements.",
-      "Versets à retenir — Sélection pour prédication.",
-      "Prière de fin — Clôture spirituelle, liée au passage."
+      "Enseignement pour la famille — Valeurs à transmettre dans le foyer chrétien.",
+      "Enseignement pour enfants — Méthode simplifiée avec récits, images, jeux.",
+      "Application missionnaire — Comment ce texte guide l’évangélisation.",
+      "Application pastorale — Conseils pour les pasteurs et enseignants.",
+      "Application personnelle — Examen de conscience et engagement individuel.",
+      "Versets à retenir — Versets incontournables pour la prédication.",
+      "Prière de fin — Clôture spirituelle de l’étude avec reconnaissance."
     ];
 
-    /* ====== Util ====== */
-    const $ = s => document.querySelector(s);
-    function toast(msg,kind='info',ms=3800){
-      const z=$("#toasts"); const d=document.createElement('div');
-      d.className='toast'; d.textContent=msg;
-      d.style.background = kind==='err' ? '#ef4444' : (kind==='ok' ? '#10b981' : '#111827');
-      z.appendChild(d); setTimeout(()=>{d.style.opacity='0';d.style.transform='translateY(4px)';}, ms-300);
-      setTimeout(()=>d.remove(), ms);
+    /* ==================== STATE ==================== */
+    let currentLivre=null,currentChap=null;
+
+    /* ==================== UI helpers ==================== */
+    function openMenu(el, open){ el.classList.toggle('open', open ?? !el.classList.contains('open')); }
+    function fillBooks(){
+      const m=$("#livreMenu"); m.innerHTML='';
+      Object.keys(LIVRES_CHAP).forEach((name,idx)=>{
+        const b=document.createElement('button'); b.type='button'; b.textContent=`${idx+1}. ${name}`;
+        b.addEventListener('click',()=>selectBook(name,true)); m.appendChild(b);
+      });
     }
+    function fillChaps(livre){
+      const m=$("#chapMenu"); m.innerHTML=''; const max=LIVRES_CHAP[livre]||1;
+      for(let i=1;i<=max;i++){ const b=document.createElement('button'); b.type='button'; b.textContent=i; b.addEventListener('click',()=>selectChap(i,true)); m.appendChild(b); }
+    }
+    function selectBook(l,close){currentLivre=l;$("#livreLabel").textContent=l;$("#chapBtn").disabled=false;$("#chapLabel").textContent='Chapitre';currentChap=null;fillChaps(l);if(close)openMenu($("#livreMenu"),false);updateButtons();syncHash();refreshLastStudy(false);}
+    function selectChap(c,close){currentChap=String(c);$("#chapLabel").textContent=currentChap;if(close)openMenu($("#chapMenu"),false);updateButtons();syncHash();refreshLastStudy(false);}
+    function updateButtons(){ $("#lireBtn").disabled=!(currentLivre&&currentChap); }
+    function syncHash(){ if(currentLivre&&currentChap){ history.replaceState(null,'',`#/${encodeURIComponent(currentLivre)}/${currentChap}?point=1`); } }
     function strip(s){return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'');}
     function norm(s){return strip(s).toLowerCase().replace(/[^a-z0-9]/g,'');}
-    function resolveBook(term){
-      const k = norm(term);
-      if (ALIAS[k]) return ALIAS[k];
-      const first = Object.keys(ALIAS).find(a=>a.startsWith(k));
-      if (first) return ALIAS[first];
-      return Object.keys(LIVRES_CHAP).find(b=>norm(b).startsWith(k)) || null;
-    }
-    function parseRef(raw){
-      const s=(raw||'').trim().replace(/\s+/g,' ');
-      if(!s) return {book:null, chap:null};
-      const m=s.match(/^(.+?)[\s,;]+(\d{1,3})/i);
-      if(m) return {book:resolveBook(m[1]),chap:parseInt(m[2],10)};
-      return {book:resolveBook(s)||null, chap:null};
-    }
-    function gatewayLink(book, chap, verses){
-      const vMap={LSG:'LSG',BDS:'BDS',NEG1979:'NEG1979',SG21:'S21',PDV:'PDV-FR'};
-      const code=vMap[$('#versionSelect').value]||'LSG';
-      const ref=`${book} ${chap}${verses?(':'+verses):''}`;
-      return `https://www.biblegateway.com/passage/?search=${encodeURIComponent(ref)}&version=${code}`;
-    }
-    function linkify(html){
-      const bookRegex="(?:[1-3]\\s*)?(?:Genèse|Exode|Lévitique|Nombres|Deutéronome|Josué|Juges|Ruth|1\\s*Samuel|2\\s*Samuel|1\\s*Rois|2\\s*Rois|1\\s*Chroniques|2\\s*Chroniques|Esdras|Néhémie|Esther|Job|Psaumes|Proverbes|Ecclésiaste|Cantique|Ésaïe|Esaïe|Jérémie|Lamentations|Ézéchiel|Ezechiel|Daniel|Osée|Joël|Amos|Abdias|Jonas|Michée|Nahum|Habacuc|Sophonie|Aggée|Zacharie|Malachie|Matthieu|Marc|Luc|Jean|Actes|Romains|1\\s*Corinthiens|2\\s*Corinthiens|Galates|Éphésiens|Philippiens|Colossiens|1\\s*Thessaloniciens|2\\s*Thessaloniciens|1\\s*Timothée|2\\s*Timothée|Tite|Philémon|Hébreux|Jacques|1\\s*Pierre|2\\s*Pierre|1\\s*Jean|2\\s*Jean|3\\s*Jean|Jude|Apocalypse)";
-      const rx=new RegExp(`\\b(${bookRegex})\\s+(\\d{1,3})(?:[.:](\\d{1,3}(?:[-–]\\d{1,3})?))?\\b`,'gi');
-      return html.replace(rx,(m,bk,ch,vv)=>{
-        const resolved = resolveBook(bk) || bk;
-        return `<a class="underline decoration-indigo-600 hover:text-indigo-700" target="_blank" rel="noopener" href="${gatewayLink(resolved,ch,vv||'')}">${m}</a>`;
-      });
-    }
-    function mdToHtml(md){
-      if(!md) return '';
-      let t = String(md).replace(/\r/g,'').trim();
-      // images
-      t = t.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g,(_m,alt,src)=>`<figure class="my-3"><img src="${src}" alt="${alt}" loading="lazy"><figcaption class="text-xs text-slate-500 mt-1">${alt}</figcaption></figure>`);
-      // tableaux
-      t = t.replace(/^(?:\s*\|.+\|\s*)+$/gms, tbl=>{
-        const rows = tbl.trim().split('\n').map(r=>r.trim().replace(/^\||\|$/g,''));
-        const trs = rows.map((r,idx)=>{
-          const tds = r.split('|').map(c=>`<td class="border px-2 py-1 align-top">${c.trim()}</td>`).join('');
-          return `<tr class="${idx? '' : 'font-semibold bg-indigo-50'}">${tds}</tr>`;
-        }).join('');
-        return `<div class="overflow-x-auto my-2"><table class="w-full text-sm border">${trs}</table></div>`;
-      });
-      // listes
-      t = t.replace(/^(?:\s*-\s.+\n?)+/gms, blk=>{
-        const items = blk.trim().split('\n').map(l=>l.replace(/^\s*-\s?/,'').trim()).filter(Boolean);
-        return `<ul class="list-disc pl-5">${items.map(i=>`<li>${i}</li>`).join('')}</ul>`;
-      });
-      // gras
-      t = t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
-      // frises
-      t = t.replace(/^(?:\s*\d{3,4}\s*[–-]\s+.+\n?){2,}$/gms, blk=>{
-        const items = blk.trim().split('\n').map(l=>{
-          const m=l.match(/^\s*(\d{3,4})\s*[–-]\s+(.+)$/); if(!m) return null;
-          return `<div class="timeline-item"><div class="timeline-year">${m[1]}</div><div>${m[2]}</div></div>`;
-        }).filter(Boolean).join('');
-        return `<div class="timeline my-3">${items}</div>`;
-      });
-      // paragraphes + liens
-      t = t.split(/\n{2,}/).map(p=>`<p>${p}</p>`).join('');
-      return linkify(t);
-    }
+    function resolveBook(t){const k=norm(t);if(ALIAS[k])return ALIAS[k];const f=Object.keys(ALIAS).find(a=>a.startsWith(k));if(f)return ALIAS[f];return Object.keys(LIVRES_CHAP).find(b=>norm(b).startsWith(k))||null;}
+    function parseRef(raw){const s=(raw||'').trim().replace(/\s+/g,' ');if(!s)return{book:null,chap:null};const m=s.match(/^(.+?)\s+(\d{1,3})$/i);if(m)return{book:resolveBook(m[1]),chap:parseInt(m[2],10)};return{book:resolveBook(s)||null,chap:null};}
 
-    /* ====== Sélection ====== */
-    let currentLivre=null, currentChap=null;
-    function fillBooks(){
-      const m = $('#livreMenu'); m.innerHTML = '';
-      Object.keys(LIVRES_CHAP).forEach((name, idx)=>{
-        const b = document.createElement('button');
-        b.type='button'; b.className='w-full text-left px-3 py-2 hover:bg-indigo-50';
-        b.textContent = `${idx+1}. ${name}`;
-        b.addEventListener('click', ()=> selectBook(name, true));
-        m.appendChild(b);
-      });
-    }
-    function fillChapters(livre){
-      const m = $('#chapMenu'); m.innerHTML = '';
-      const max = LIVRES_CHAP[livre] || 1;
-      for (let i=1;i<=max;i++){
-        const b = document.createElement('button');
-        b.type='button'; b.className='w-full text-left px-3 py-2 hover:bg-indigo-50';
-        b.textContent = i;
-        b.addEventListener('click', ()=> selectChapter(i, true));
-        m.appendChild(b);
-      }
-    }
-    function openMenu(el, open){ el.classList.toggle('open', open ?? !el.classList.contains('open')); }
-    function updateButtons(){ $('#lireBtn').disabled = !(currentLivre && currentChap); }
-    function updateHash(){ if(currentLivre&&currentChap){ history.replaceState(null,'',`#/${encodeURIComponent(currentLivre)}/${currentChap}?point=1`); } }
-    function selectBook(livre, close){
-      currentLivre=livre; $('#livreLabel').textContent=livre;
-      $('#chapBtn').disabled=false; $('#chapLabel').textContent='Chapitre'; currentChap=null;
-      fillChapters(livre); if(close) openMenu($('#livreMenu'), false); updateButtons(); updateHash(); refreshLastUI(false);
-    }
-    function selectChapter(ch, close){
-      currentChap=String(ch); $('#chapLabel').textContent=currentChap;
-      if(close) openMenu($('#chapMenu'), false); updateButtons(); updateHash(); refreshLastUI(false);
-    }
-
-    /* ====== Rendu des 28 sections (affichage SANS doublon) ====== */
-    function renderPoints(){
-      const nav=$('#pointsNav'), host=$('#sectionsHost');
-      nav.innerHTML=''; host.innerHTML='';
+    /* ==================== Rendu des 28 sections ==================== */
+    function renderSections(){
+      const nav=$("#pointsNav"), host=$("#sectionsHost"); nav.innerHTML=''; host.innerHTML='';
       for(let i=1;i<=POINTS.length;i++){
-        const btn=document.createElement('button');
-        btn.className='sidebar-item w-full text-left';
-        btn.dataset.section='p'+i;
-        btn.innerHTML=`<span class="badge bg-indigo-100 text-indigo-800 font-extrabold text-xs">${i}</span><span class="font-semibold">${POINTS[i-1]}</span>`;
-        btn.addEventListener('click',()=>{
-          document.querySelectorAll('#pointsNav .sidebar-item').forEach(b=>b.classList.remove('active'));
-          document.querySelectorAll('.content-section').forEach(s=>s.classList.add('hidden'));
-          btn.classList.add('active'); $('#'+btn.dataset.section)?.classList.remove('hidden');
-          $('#welcome')?.classList.add('hidden');
-        });
+        const btn=document.createElement('button'); btn.className='sidebar-item w-full text-left'; btn.dataset.section='p'+i;
+        btn.innerHTML=`<span class="badge">${i}</span><span class="font-semibold">${POINTS[i-1]}</span>`;
+        btn.addEventListener('click',()=>{document.querySelectorAll('#pointsNav .sidebar-item').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.content-section').forEach(s=>s.classList.remove('active'));btn.classList.add('active');$('#'+btn.dataset.section)?.classList.add('active');$("#welcome")?.classList.add('hidden');});
         nav.appendChild(btn);
 
         const sec=document.createElement('div'); sec.id='p'+i; sec.className='content-section';
         sec.innerHTML=`
-          <h3 class="text-xl font-extrabold mb-2">${POINTS[i-1]}</h3>
-          <div class="rounded-xl border border-slate-200 p-3">
-            <div class="text-xs text-slate-500 mb-2" id="meta-p${i}">En attente…</div>
-            <div class="prose prose-sm max-w-none" id="view-p${i}"></div>
-          </div>
-        `;
+          <h3 class="text-xl font-extrabold mb-2">${i}. ${POINTS[i-1]}</h3>
+          <div class="rounded-xl border p-3 edit-wrap" aria-expanded="false">
+            <div class="text-xs text-neutral-500 mb-1 flex justify-between">
+              <span id="noteStatus-p${i}">En attente…</span>
+              <div class="flex items-center gap-2">
+                <button class="btn btn-ghost text-xs" data-edit="${i}">Éditer</button>
+                <span><span id="wordCount-p${i}">0</span> mots</span>
+              </div>
+            </div>
+            <article class="prose max-w-none display-note" id="view-p${i}"></article>
+            <textarea id="note-p${i}" class="ghost-note w-full border rounded-lg p-3 mt-2" rows="12"></textarea>
+          </div>`;
         host.appendChild(sec);
       }
-    }
-    function showHtml(i, html, words){
-      const v=$('#view-p'+i), m=$('#meta-p'+i);
-      v.innerHTML = html || '<p class="text-slate-500">—</p>';
-      m.textContent = (words ? `${words} mots` : '') + ' Généré ✓';
-      document.querySelector('#pointsNav .sidebar-item')?.click();
-    }
-
-    /* ====== Schéma strict par point ====== */
-    // Pour les points “simples” → markdown long
-    function schemaMarkdown(i){ return { key:'p'+i, type:'markdown', min_chars:MIN_CHARS }; }
-
-    // Spécifiques
-    const SCHEMAS = {
-      1: { key:'p1', type:'markdown', role:'priere', min_chars:400,
-           strict_note:'Prière à la première personne, liée à {book} {chap}, invocation du Saint-Esprit, sans “nous”.' },
-      3: { key:'p3', type:'qa5',
-           example:{
-             q1:"Question 1 (référence chapitre précédent)…", r1:"Réponse détaillée (≥ 400 caractères)…",
-             q2:"…", r2:"…", q3:"…", r3:"…", q4:"…", r4:"…", q5:"…", r5:"…"
-           }},
-      5: { key:'p5', type:'markdown', fig:'map', min_chars:MIN_CHARS },
-      8: { key:'p8', type:'markdown', fig:'tree', min_chars:MIN_CHARS },
-      9: { key:'p9', type:'verse',
-           example:{ reference:"{book} {chap}:X", texte:"…", explication:"commentaire doctrinal long (≥ 600 caractères)" } },
-      10:{ key:'p10', type:'markdown', min_chars:MIN_CHARS, note:'inclure grec/hébreu avec translittération' },
-      11:{ key:'p11', type:'markdown', min_chars:MIN_CHARS, note:'définir chaque mot-clé (étymologie, usage, doctrine)' },
-      12:{ key:'p12', type:'list', min_items:6, min_chars_each:250 },
-      14:{ key:'p14', type:'markdown', min_chars:MIN_CHARS, note:'Relier au thème doctrinal explicite' },
-      16:{ key:'p16', type:'list', min_items:4, min_chars_each:300 },
-      17:{ key:'p17', type:'list', min_items:6, min_chars_each:220 },
-      18:{ key:'p18', type:'table', min_rows:4, cols:["Verset A","Verset B","Contraste/liaison"], min_chars_each:180 },
-      19:{ key:'p19', type:'markdown', min_chars:MIN_CHARS, note:'Comparer explicitement avec Actes 2 (Esprit, Église, mission)' },
-      20:{ key:'p20', type:'verse', example:{ reference:"{book} {chap}:X", texte:"…", memotech:"méthode de mémorisation" } },
-      21:{ key:'p21', type:'markdown', min_chars:MIN_CHARS },
-      22:{ key:'p22', type:'markdown', min_chars:MIN_CHARS },
-      23:{ key:'p23', type:'markdown', min_chars:MIN_CHARS, note:'récits/jeux/visuels simples' },
-      24:{ key:'p24', type:'markdown', min_chars:MIN_CHARS },
-      25:{ key:'p25', type:'markdown', min_chars:MIN_CHARS, note:'Conseils pratiques pour prédication/enseignement' },
-      26:{ key:'p26', type:'markdown', min_chars:MIN_CHARS },
-      27:{ key:'p27', type:'list', min_items:8, min_chars_each:120 },
-      28:{ key:'p28', type:'markdown', role:'priere', min_chars:400,
-           strict_note:'Prière de clôture à la première personne, liée à {book} {chap}, actions de grâce + engagement.' }
-    };
-
-    function schemaFor(i){
-      return SCHEMAS[i] || schemaMarkdown(i);
-    }
-
-    /* ====== Prompts renforcés ====== */
-    function buildPrompt(i){
-      const book=currentLivre, chap=currentChap;
-      const base =
-        `Tu écris la rubrique n°${i} sur **${book} ${chap}** selon ce modèle strict (1→28). `
-        + `Chaque rubrique doit respecter son **format** ci-dessous et atteindre ou dépasser **${MIN_CHARS} caractères** `
-        + `(ou contraintes spécifiques). Les références bibliques doivent être écrites et rester fidèles au texte. `
-        + `Rends les versets explicites (nous les lierons). Interdiction absolue des phrases “Voici X points…”.`;
-
-      const s = schemaFor(i);
-      let spec = '';
-
-      switch(s.type){
-        case 'qa5':
-          spec = `\nFormat JSON attendu pour p3 :\n{\n "p3": {\n  "q1": "...", "r1": "...",\n  "q2": "...", "r2": "...",\n  "q3": "...", "r3": "...",\n  "q4": "...", "r4": "...",\n  "q5": "...", "r5": "..." }\n}\n`
-               + `Chaque réponse ≥ 400 caractères, issue du **chapitre précédent** ( ${book} ${parseInt(chap,10)-1} si >1 ; sinon contexte d’intro canonique).`;
-          break;
-        case 'verse':
-          spec = `\nFormat JSON attendu : {"p${i}": {"reference":"${book} ${chap}:X","texte":"…","explication":"…"}} `
-               + `avec explication doctrinale développée (≥ 600 caractères).`;
-          break;
-        case 'list':
-          spec = `\nFormat JSON attendu : {"p${i}":[ "entrée 1 longue", "entrée 2 longue", ... ]} `
-               + `(min ${s.min_items} items, ≥ ${s.min_chars_each} caractères par item).`;
-          break;
-        case 'table':
-          spec = `\nFormat JSON attendu : {"p${i}":[ {"Verset A":"…","Verset B":"…","Contraste/liaison":"…"}, ... ]} `
-               + `(min ${s.min_rows} lignes, contenu doctrinal).`;
-          break;
-        default: // markdown
-          spec = `\nFormat JSON attendu : {"p${i}":"contenu en Markdown long (≥ ${s.min_chars||MIN_CHARS} caractères)"}`
-               + (s.role==='priere' ? `\nLa prière doit être à la première personne, **liée explicitement** à ${book} ${chap}.\n` : '');
-      }
-
-      const enrich =
-        `\nRappels : intégrer **gras**, listes, tableaux markdown, éventuelles frises "YYYY — …". `
-        + `Garder un ton pastoral, doctrinal et cohérent. Pas de doublons, pas de phrases d’en-tête inutiles.`;
-
-      return base + '\n' + spec + enrich;
-    }
-
-    /* ====== Appel API + validation ====== */
-    async function callAI(payload){
-      const res = await fetch(API_URL_CHAT,{
-        method:'POST', headers:{'content-type':'application/json'},
-        body:JSON.stringify(payload)
+      host.querySelectorAll('[data-edit]').forEach(b=>{
+        b.addEventListener('click',()=>{ const id=b.getAttribute('data-edit'); const wrap=b.closest('.edit-wrap'); const ex=wrap.getAttribute('aria-expanded')==='true'; wrap.setAttribute('aria-expanded', String(!ex)); b.textContent=ex?'Éditer':'Aperçu'; });
       });
-      const txt=await res.text(); let data; try{ data=JSON.parse(txt); }catch{ data={content:txt}; }
-      if(!res.ok){ toast('API : '+(data?.error||data?.message||('HTTP '+res.status)),'err',7000); return null; }
+    }
+
+    /* ==================== Markdown (léger) ==================== */
+    function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+    function mdBold(t){return t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');}
+    function mdLists(t){return t.replace(/^(?:\s*-\s.+\n?)+/gms,blk=>`<ul class="list-disc pl-5">${blk.trim().split('\n').map(l=>`<li>${l.replace(/^\s*-\s?/,'')}</li>`).join('')}</ul>`);}
+    function mdTables(block){return block.replace(/^(?:\s*\|.+\|\s*)+$/gms,tbl=>{const rows=tbl.trim().split('\n').map(r=>r.trim().replace(/^\||\|$/g,''));const trs=rows.map((r,idx)=>`<tr class="${idx?'':'font-semibold bg-[var(--c50)]'}">${r.split('|').map(c=>`<td class="border px-2 py-1 align-top">${escapeHtml(c.trim())}</td>`).join('')}</tr>`).join('');return `<div class="overflow-x-auto my-2"><table class="w-full text-sm border">${trs}</table></div>`;});}
+    function mdImages(t){return t.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g,(_m,alt,src)=>`<figure class="my-3"><img src="${src}" alt="${escapeHtml(alt)}" loading="lazy"><figcaption class="text-xs text-slate-500 mt-1">${escapeHtml(alt)}</figcaption></figure>`);}
+    function paragraphs(t){return t.split(/\n{2,}/).map(p=>`<p>${p}</p>`).join('');}
+    function gatewayLink(book,chap,vers){const vMap={LSG:'LSG',BDS:'BDS',NEG1979:'NEG1979',SG21:'S21',PDV:'PDV-FR'};const code=vMap[$("#versionSelect").value]||'LSG';const ref=`${book} ${chap}${vers?(':'+vers):''}`;return `https://www.biblegateway.com/passage/?search=${encodeURIComponent(ref)}&version=${code}`;}
+    function linkifyRefs(html){
+      const bookRx="(?:[1-3]\\s*)?(?:Genèse|Exode|Lévitique|Nombres|Deutéronome|Josué|Juges|Ruth|1\\s*Samuel|2\\s*Samuel|1\\s*Rois|2\\s*Rois|1\\s*Chroniques|2\\s*Chroniques|Esdras|Néhémie|Esther|Job|Psaumes|Proverbes|Ecclésiaste|Cantique|Ésaïe|Esaïe|Jérémie|Lamentations|Ézéchiel|Ezechiel|Daniel|Osée|Joël|Amos|Abdias|Jonas|Michée|Nahum|Habacuc|Sophonie|Aggée|Zacharie|Malachie|Matthieu|Marc|Luc|Jean|Actes|Romains|1\\s*Corinthiens|2\\s*Corinthiens|Galates|Éphésiens|Philippiens|Colossiens|1\\s*Thessaloniciens|2\\s*Thessaloniciens|1\\s*Timothée|2\\s*Timothée|Tite|Philémon|Hébreux|Jacques|1\\s*Pierre|2\\s*Pierre|1\\s*Jean|2\\s*Jean|3\\s*Jean|Jude|Apocalypse)";
+      const rx=new RegExp(`\\b(${bookRx})\\s+(\\d{1,3})(?:[.:](\\d{1,3}(?:[-–]\\d{1,3})?))?\\b`,'gi');
+      return html.replace(rx,(m,bk,ch,vv)=>{const resolved=resolveBook(bk)||bk;return `<a target="_blank" rel="noopener" href="${gatewayLink(resolved,ch,vv||'')}">${m}</a>`;});
+    }
+    function mdToHtml(md){if(!md)return'';let t=md.replace(/\r/g,'').trim();t=mdImages(t);t=mdTables(t);t=mdLists(t);t=mdBold(t);t=paragraphs(t);t=linkifyRefs(t);return t;}
+    function showPoint(i, md){ const html=mdToHtml(md); const view=$("#view-p"+i), wc=$("#wordCount-p"+i), st=$("#noteStatus-p"+i); view.innerHTML=html; wc.textContent=(md.trim()?md.trim().split(/\s+/).length:0); st.textContent='Généré ✓'; $("#note-p"+i).value=md; }
+
+    /* ==================== Normalisation & contrôle ==================== */
+    const BAN_RX=/(^|\n)\s*voici\s+\d+\s+points.*$/i;
+    function clean(txt){ return String(txt||'').replace(BAN_RX,'').trim(); }
+    function okLen(txt){ return (txt||'').replace(/\s+/g,' ').length >= MIN_CHARS; }
+
+    /* ==================== Prompts stricts ==================== */
+    // Instructions par point (ce qui oriente fortement l'IA)
+    function rulesForPoint(n, book, chap){
+      const base=`Rappelle le passage : ${book} ${chap}. Minimum ${MIN_CHARS} caractères. Utilise **gras**, listes, tableaux |a|b|, images ![alt](url) si pertinent, frises "YYYY — ...", et références bibliques cliquables (écris normalement, je ferai les liens). Interdis toute phrase du type "Voici X points..."`;
+      switch(n){
+        case 1:  return `${base}. Prière d’ouverture en **première personne** ("je"). Invoque le Saint-Esprit, relie explicitement à ${book} ${chap}. Pas de "nous".`;
+        case 3:  return `${base}. Fourni STRICTEMENT un objet JSON:
+{
+ "q1":"Question 1 ...",
+ "r1":"Réponse détaillée (exégèse, versets).",
+ "q2":"...",
+ "r2":"...",
+ "q3":"...",
+ "r3":"...",
+ "q4":"...",
+ "r4":"...",
+ "q5":"...",
+ "r5":"..."
+}
+Pas d'autre texte hors JSON. Questions précises sur le **chapitre précédent**. Chaque réponse longue et doctrinale.`;
+        case 4:  return `${base}. Donne un titre doctrinal synthétique (court) puis un paragraphe d'explication solide.`;
+        case 5:  return `${base}. Contexte historique: période, géopolitique, culture. Ajoute une carte sous forme d'image: ![Carte — ${book} ${chap}](https://upload.wikimedia.org/wikipedia/commons/thumb/3/32/BlankMap-World.svg/1024px-BlankMap-World.svg.png) et une frise chronologique (format "YYYY — évènement").`;
+        case 9:  return `${base}. Choisis **un verset-clé** du chapitre et ouvre par la citation exacte (référence entre parenthèses). Explique pourquoi doctrinalement.`;
+        case 10: return `${base}. Analyse exégétique mot-à-mot avec mention grec/hébreu quand utile (translittération).`;
+        case 20: return `${base}. Propose 1 verset à mémoriser, explique comment l’apprendre et l’appliquer.`;
+        case 24: return `${base}. Application missionnaire: plans, dialogues, prudence, apologétique.`;
+        case 25: return `${base}. Application pastorale: conseils **concrets** pour pasteurs/enseignants: structure de prédication, catéchèse, accompagnement, mise en garde.`;
+        case 26: return `${base}. Application personnelle: examen de conscience à la première personne, engagements pratiques.`;
+        case 28: return `${base}. Prière de fin en **première personne**, remerciements, supplication, centrée sur ${book} ${chap}. Pas de "nous".`;
+        default: return `${base}. Respecte strictement l’intitulé: "${POINTS[n-1]}".`;
+      }
+    }
+
+    // Schéma attendu (type JSON) : p3 est spécial
+    function schemaForPoint(n){
+      if(n===3){
+        return {type:'object',keys:['q1','r1','q2','r2','q3','r3','q4','r4','q5','r5']};
+      }
+      return {type:'string'};
+    }
+
+    /* ==================== API ==================== */
+    async function callAI(payload){
+      const res=await fetch(API_URL_CHAT,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+      const txt=await res.text(); let data; try{data=JSON.parse(txt);}catch{data={content:txt};}
+      if(!res.ok){toast('API: '+(data?.error||data?.message||('HTTP '+res.status)),'err',7000);return null;}
       return data;
     }
 
-    function wordsCount(txt){ return (txt||'').trim().split(/\s+/).filter(Boolean).length; }
+    /* ==================== Génération par lots ==================== */
+    function chunks(arr,size){const out=[];for(let i=0;i<arr.length;i+=size)out.push(arr.slice(i,i+size));return out;}
+    async function generateAll(){
+      if(!(currentLivre&&currentChap)){toast('Sélectionne un livre et un chapitre.','err');return;}
+      $("#busyText").textContent='Génération…'; $("#busy").classList.remove('hidden');
 
-    function validatePoint(i, obj){
-      const s=schemaFor(i); const k='p'+i; const v=obj && obj[k];
-      if(v==null) return {ok:false, why:'clé manquante'};
-      if(s.type==='qa5'){
-        const keys=['q1','r1','q2','r2','q3','r3','q4','r4','q5','r5'];
-        for(const key of keys){ if(!v[key] || String(v[key]).trim().length<10) return {ok:false, why:'qa5 incomplet'}; }
-        return {ok:true, html:linkify(`
-          <div class="space-y-3">
-            ${[1,2,3,4,5].map(n=>`
-              <div>
-                <p><strong>Q${n}.</strong> ${v['q'+n]}</p>
-                <p><em>Réponse :</em> ${v['r'+n]}</p>
-              </div>`).join('')}
-          </div>`), words:wordsCount(Object.values(v).join(' '))
-        };
-      }
-      if(s.type==='verse'){
-        if(!v.reference || !v.texte || !v.explication) return {ok:false, why:'verse incomplet'};
-        const html = `
-          <p><strong>Verset-clé :</strong> <a class="underline decoration-indigo-600"
-             target="_blank" rel="noopener"
-             href="${gatewayLink(currentLivre,currentChap,v.reference.split(':')[1]||'')}">${v.reference}</a></p>
-          <blockquote class="border-l-4 border-slate-300 pl-3 my-2">${v.texte}</blockquote>
-          ${mdToHtml(v.explication)}
-        `;
-        return {ok:true, html:linkify(html), words:wordsCount(v.texte+' '+v.explication)};
-      }
-      if(s.type==='list'){
-        if(!Array.isArray(v) || v.length<(s.min_items||1)) return {ok:false, why:'liste trop courte'};
-        const html = `<ul class="list-disc pl-5">${v.map(li=>`<li>${li}</li>`).join('')}</ul>`;
-        const w = wordsCount(v.join(' '));
-        if(s.min_chars_each){
-          for(const li of v){ if((li||'').length < s.min_chars_each) return {ok:false, why:'item trop court'}; }
+      try{
+        const all=[...Array(28)].map((_,i)=>i+1);
+        for(const grp of chunks(all,BATCH)){
+          const subPrompts = grp.map(n=>({n,rules:rulesForPoint(n,currentLivre,currentChap),schema:schemaForPoint(n)}));
+          const data=await callAI({
+            livre:currentLivre, chapitre:parseInt(currentChap,10),
+            strict_28:true, subset:grp, min_chars:MIN_CHARS, prompts:subPrompts
+          });
+          if(!data) continue;
+
+          for(const n of grp){
+            const raw = data['p'+n] ?? data.content ?? '';
+            let md='';
+            if(n===3){
+              // doit être objet avec q/r
+              let obj=null; try{ obj = typeof raw==='string' ? JSON.parse(raw) : raw; }catch{}
+              if(obj && ['q1','r1','q2','r2','q3','r3','q4','r4','q5','r5'].every(k=>typeof obj[k]==='string')){
+                md = `### Questions & réponses (chapitre précédent)
+${[1,2,3,4,5].map(i=>`**Q${i}. ${obj['q'+i]}**\n\n${obj['r'+i]}`).join('\n\n---\n\n')}`;
+              }else{
+                md = String(raw||''); // fallback
+              }
+            }else{
+              md = typeof raw==='string' ? raw : JSON.stringify(raw);
+            }
+            md = clean(md);
+
+            // Longueur minimale (relance 1 fois si trop court)
+            if(!okLen(md)){
+              const retry = await callAI({
+                livre:currentLivre, chapitre:parseInt(currentChap,10),
+                force_point:n, min_chars:MIN_CHARS,
+                prompt: rulesForPoint(n,currentLivre,currentChap) + ' Texte trop court précédemment : développe beaucoup plus, structure, exemples, références.'
+              });
+              const r2 = retry ? (retry['p'+n] ?? retry.content ?? '') : '';
+              md = clean(typeof r2==='string'? r2 : JSON.stringify(r2));
+            }
+
+            showPoint(n, md);
+          }
         }
-        return {ok:true, html:linkify(html), words:w};
+
+        // Prières fallback ultra-sécurisées
+        const p1=$("#note-p1").value.trim(); if(p1.length<200){ showPoint(1, `Père céleste, alors que je lis **${currentLivre} ${currentChap}**, éclaire mon intelligence... (développer)`) }
+        const p28=$("#note-p28").value.trim(); if(p28.length<200){ showPoint(28, `Seigneur, je te rends grâce pour **${currentLivre} ${currentChap}**... (développer)`) }
+
+        // Ouvre le premier point
+        document.querySelector('#pointsNav .sidebar-item')?.click();
+        toast('Étude générée.','ok');
+      } finally {
+        $("#busy").classList.add('hidden');
       }
-      if(s.type==='table'){
-        if(!Array.isArray(v) || v.length<(s.min_rows||1)) return {ok:false, why:'table trop courte'};
-        const head = Object.keys(v[0]||{});
-        const rows = v.map(r=>`<tr>${head.map(h=>`<td class="border px-2 py-1 align-top">${r[h]||''}</td>`).join('')}</tr>`).join('');
-        const html = `<div class="overflow-x-auto my-2"><table class="w-full text-sm border">
-          <tr class="font-semibold bg-indigo-50">${head.map(h=>`<td class="border px-2 py-1">${h}</td>`).join('')}</tr>${rows}</table></div>`;
-        return {ok:true, html:linkify(html), words:wordsCount(JSON.stringify(v))};
-      }
-      // markdown
-      const txt = String(v||'').trim();
-      const min = schemaFor(i).min_chars || MIN_CHARS;
-      if(txt.length < min) return {ok:false, why:`markdown trop court (${txt.length}/${min})`};
-      return {ok:true, html:mdToHtml(txt), words:wordsCount(txt)};
     }
 
-    async function generatePoint(i){
-      const prompt = buildPrompt(i);
-      const payload = {
-        livre: currentLivre,
-        chapitre: parseInt(currentChap,10),
-        target_point: i,
-        schema: schemaFor(i),
-        hint: prompt
-      };
-      const data = await callAI(payload);
-      if(!data) return false;
-      const obj = normalizeToPxx(data, i);
-      const val = validatePoint(i, obj);
-      if(!val.ok){
-        // relance une fois en forçant “développe davantage”
-        const data2 = await callAI({...payload, retry:1, force_more:true});
-        if(!data2) return false;
-        const obj2 = normalizeToPxx(data2, i);
-        const val2 = validatePoint(i, obj2);
-        if(!val2.ok){ toast(`Point ${i}: format non conforme (${val2.why})`,'err',6000); return false; }
-        showHtml(i, val2.html, val2.words); return true;
-      }
-      showHtml(i, val.html, val.words); return true;
-    }
+    /* ==================== Dernière étude ==================== */
+    function setLastStudy(l,c){localStorage.setItem('derniere_etude',JSON.stringify({livre:l,chapitre:String(c)}));refreshLastStudy(true);}
+    function getLast(){try{return JSON.parse(localStorage.getItem('derniere_etude')||'null');}catch{return null;}}
+    function refreshLastStudy(){const last=getLast();const label=last?`${last.livre} ${last.chapitre}`:'—';$("#lastStudyPill").textContent=`Dernière étude : ${label}`;$("#lastStudyInline").textContent=label;}
 
-    function normalizeToPxx(data, idx){
-      // Accepte {"pX": ...} ou content
+    /* ==================== Init ==================== */
+    document.addEventListener('DOMContentLoaded',()=>{
+      fillBooks(); renderSections(); refreshLastStudy();
+
+      $("#livreBtn").addEventListener('click',()=>openMenu($("#livreMenu")));
+      $("#chapBtn").addEventListener('click',()=>openMenu($("#chapMenu")));
+
+      let si=null;
+      $("#searchInput").addEventListener('input',()=>{clearTimeout(si);si=setTimeout(()=>{const r=parseRef($("#searchInput").value);if(!r.book)return;selectBook(r.book,false);if(r.chap)selectChap(r.chap,false);},140);});
+      $("#searchInput").addEventListener('keydown',e=>{if(e.key==='Enter'){const r=parseRef($("#searchInput").value);if(!r.book){toast('Ex : « jean 3 », « exo 3 ».','err');return;}selectBook(r.book,false);selectChap(r.chap||1,false);}});
+
+      $("#validerBtn").addEventListener('click',async()=>{if(!(currentLivre&&currentChap)){toast('Sélectionne un livre et un chapitre.','err');return;} setLastStudy(currentLivre,currentChap); await generateAll();});
+      $("#generateBtn").addEventListener('click',generateAll);
+
+      $("#resumeBtn").addEventListener('click',()=>{const last=getLast();if(!last){toast('Aucune étude enregistrée.','err');return;}selectBook(last.livre,false);selectChap(parseInt(last.chapitre,10),false);toast(`Repris : ${last.livre} ${last.chapitre}`,'ok');});
+
+      $("#reinitBtn").addEventListener('click',()=>{currentLivre=null;currentChap=null;$("#livreLabel").textContent='Sélectionner un livre';$("#chapLabel").textContent='Chapitre';$("#chapBtn").disabled=true;$("#lireBtn").disabled=true;$("#searchInput").value='';history.replaceState(null,'','#');toast('Réinitialisé.','info');});
+
+      $("#lireBtn").addEventListener('click',()=>{if(!(currentLivre&&currentChap))return; const url=gatewayLink(currentLivre,currentChap,''); window.open(url,'_blank','noopener');});
+      $("#printBtn").addEventListener('click',()=>window.print());
+
+      $("#exportMdBtn").addEventListener('click',()=>{if(!(currentLivre&&currentChap)){toast('Sélectionne un passage.','err');return;} let out=`# ${currentLivre} ${currentChap}\n\n_Généré : ${new Date().toLocaleString()}_\n\n`; for(let i=1;i<=28;i++){ const title=POINTS[i-1]; const note=($("#note-p"+i).value||'').trim(); out+=`## ${i}. ${title}\n\n${note||'_(vide)_'}\n\n`; } const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([out],{type:'text/markdown;charset=utf-8'})); a.download=`Etude_${currentLivre.replace(/\s+/g,'_')}_${currentChap}.md`; document.body.appendChild(a); a.click(); a.remove();});
+      $("#copyLinkBtn").addEventListener('click',async()=>{const url=new URL(location.href);url.hash=(currentLivre&&currentChap)?`#/${encodeURIComponent(currentLivre)}/${currentChap}?point=1`:'#';try{await navigator.clipboard.writeText(url.toString());toast('Lien copié.','ok');}catch{toast('Copie impossible.','err');}});
+
+      // hash
+      if(location.hash){const m=location.hash.match(/^#\/([^\/]+)\/(\d+)/);if(m){selectBook(decodeURIComponent(m[1]),false);selectChap(parseInt(m[2],10),false);}}
+      document.querySelector('#pointsNav .sidebar-item')?.click();
+    });
+  </script>
+</body>
+</html>
