@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bible Étude</title>
-  <!-- Empêche l’erreur favicon -->
   <link rel="icon" href="data:," />
   <style>
     :root { --bg:#f5f6f8; --card:#ffffff; --text:#111; --muted:#666; --green:#16a34a; --green-d:#0e7a36;}
@@ -45,40 +44,7 @@
         console.log(line);
       }
 
-      async function ping(path){
+      async function ping(path, options, label){
         try{
           const c = new AbortController();
-          const t = setTimeout(()=>c.abort(),2500);
-          const r = await fetch(path,{signal:c.signal});
-          clearTimeout(t);
-          log((r.ok?'OK ':'KO ') + path + ' → ' + r.status);
-        }catch(e){
-          log('KO ' + path + ' → ' + String(e));
-        }
-      }
-
-      function toggle(){
-        const open = panel.style.display==='block';
-        if(open){
-          panel.style.display='none';
-          btn.setAttribute('aria-expanded','false');
-          btn.textContent='✅ Ouvrir le Debug';
-        }else{
-          panel.style.display='block';
-          btn.setAttribute('aria-expanded','true');
-          btn.textContent='Fermer le Debug';
-          if(panel.textContent==='[init]'){ panel.textContent='[Debug démarré…]'; }
-          log('JS inline actif ✅');
-          log('Location: ' + window.location.href);
-          log('UA: ' + navigator.userAgent);
-          ping('/api/health'); ping('/api/chat'); ping('/api/ping');
-        }
-      }
-
-      btn.addEventListener('click', toggle);
-      // Trace visible pour confirmer que le script a tourné
-      console.log('🟢 index.html prêt — bouton initialisé');
-    })();
-  </script>
-</body>
-</html>
+          const t = setTimeout((
