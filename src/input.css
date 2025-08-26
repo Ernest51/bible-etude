@@ -45,7 +45,14 @@
 
 /* ==================== Custom utilities ==================== */
 @layer utilities {
+  /* Toast robuste : position fixe + z-index + petite anim */
   .toast {
-    @apply fixed right-4 bottom-4 bg-slate-900 text-white px-4 py-2 rounded-xl shadow-lg text-sm;
+    @apply fixed right-4 bottom-4 bg-slate-900 text-white px-4 py-2 rounded-xl shadow-lg text-sm z-50;
+    animation: toast-pop 120ms ease-out;
+  }
+
+  @keyframes toast-pop {
+    0% { transform: translateY(8px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
   }
 }
