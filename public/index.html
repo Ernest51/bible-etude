@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bible Étude</title>
   <meta name="description" content="Étude biblique — site statique" />
+  <!-- Empêche l'erreur 404 du favicon -->
+  <link rel="icon" href="data:," />
 
   <style>
     html, body { margin:0; padding:0; height:100%; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#f7f7f8; color:#111; }
@@ -16,7 +18,7 @@
     .card { background:#fff; border:1px solid #e6e6e6; border-radius: 12px; padding:16px; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
     .row { display:flex; gap:16px; flex-wrap: wrap; }
     .col { flex:1 1 280px; min-width:280px; }
-    /* Bouton Debug vert bien visible */
+    /* Bouton Debug vert */
     #debugBtn {
       display:inline-flex; align-items:center; gap:8px;
       background:#16a34a; color:#fff; border:none; border-radius:10px;
@@ -40,21 +42,4 @@
 <body class="h-full">
   <header>
     <div class="container">
-      <h1>Bible Étude</h1>
-      <p class="lead">Interface statique prête pour Vercel, avec outils de debug intégrés.</p>
-    </div>
-  </header>
-
-  <main>
-    <div class="container row">
-      <div class="col">
-        <div class="card">
-          <h2 style="margin:0 0 8px;">Bienvenue</h2>
-          <p style="margin:0 0 12px;">
-            Cette page sert d’enveloppe statique. Le bouton ci-dessous lance des diagnostics
-            utiles (chargement du JS, chemins, endpoints API éventuels).
-          </p>
-          <button id="debugBtn" type="button" aria-controls="debugPanel" aria-expanded="false">
-            ✅ Ouvrir le Debug
-          </button>
-          <div id="de
+      <h1>Bible Étude</
