@@ -3,17 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <title>Étude Biblique — 28 points (modèle strict)</title>
+  <title>Étude Biblique — Modèle strict (28 points)</title>
 
-  <!-- CSS (désormais servi à /dist/output.css) -->
   <link rel="stylesheet" href="/dist/output.css" />
 
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
   <style>
-    :root{
-      --c50:#eef2ff;--c100:#e0e7ff;--c200:#c7d2fe;--c600:#4f46e5;--c700:#4338ca;--c800:#3730a3;
-      --ok:#10b981;--err:#ef4444;--ink:#0f172a;
-    }
+    :root{--c50:#eef2ff;--c100:#e0e7ff;--c200:#c7d2fe;--c600:#4f46e5;--c700:#4338ca;--c800:#3730a3;--ok:#10b981;--err:#ef4444;--ink:#0f172a}
     body{background:#f7f8fb;color:#0f172a}
     .container-xl{max-width:1200px;margin-inline:auto}
     .card{background:#fff;border:1px solid var(--c100);border-radius:16px;box-shadow:0 12px 24px -12px rgba(2,6,23,.15)}
@@ -24,16 +20,13 @@
     .sidebar-item{border:1px solid transparent;border-radius:12px;padding:.6rem .7rem;display:flex;align-items:flex-start;gap:.6rem}
     .sidebar-item:hover{background:var(--c50);border-color:var(--c200)}
     .sidebar-item.active{background:var(--c100);border-color:var(--c200);box-shadow:inset 4px 0 0 0 var(--c600)}
-    .content-section{display:none;opacity:0;transition:opacity .18s ease}
+    .content-section{display:none;opacity:0;transition:opacity .18s}
     .content-section.active{display:block;opacity:1}
-    .toast{position:fixed;right:14px;bottom:14px;background:#111827;color:#fff;padding:.65rem .95rem;border-radius:12px;box-shadow:0 10px 20px rgba(0,0,0,.15);z-index:200;transition:opacity .25s, transform .25s}
+    .toast{position:fixed;right:14px;bottom:14px;background:#111827;color:#fff;padding:.65rem .95rem;border-radius:12px;box-shadow:0 10px 20px rgba(0,0,0,.15);z-index:200}
     .pill{background:#fff;border:1px solid var(--c100);border-radius:12px;padding:.35rem .6rem}
-
-    /* Barre de progression */
-    #progressContainer { position: relative; height: 6px; width: 100%; background: #e2e8f0; border-radius: 4px; overflow: hidden; display: none; margin-bottom: 8px; }
-    #progressBar { position: absolute; height: 100%; width: 0%; background: #3b82f6; transition: width 0.25s ease; }
-
-    @media (max-width: 640px){ .grid-mobile{display:grid;grid-template-columns:1fr;gap:12px} }
+    #progressContainer{position:relative;height:6px;width:100%;background:#e2e8f0;border-radius:4px;overflow:hidden;display:none;margin-bottom:8px}
+    #progressBar{position:absolute;height:100%;width:0%;background:#3b82f6;transition:width .25s}
+    @media (max-width:640px){.grid-mobile{display:grid;grid-template-columns:1fr;gap:12px}}
   </style>
 </head>
 <body class="min-h-screen">
@@ -62,7 +55,6 @@
 
   <main class="flex-1 py-5 sm:py-6">
     <div class="container-xl px-3 sm:px-4">
-      <!-- Sélecteurs -->
       <section class="card p-4 sm:p-6 mb-6">
         <div class="grid grid-cols-12 gap-3 sm:gap-4 items-end grid-mobile">
           <div class="col-span-12 sm:col-span-6 lg:col-span-5">
@@ -82,7 +74,6 @@
       </section>
 
       <div class="grid grid-cols-12 gap-4 lg:gap-6">
-        <!-- NAV -->
         <aside class="col-span-12 lg:col-span-4">
           <div class="card p-3 sticky top-[84px] max-h-[calc(100vh-140px)] overflow-y-auto">
             <h2 class="text-lg font-extrabold mb-2">Points d’étude (28)</h2>
@@ -90,19 +81,15 @@
           </div>
         </aside>
 
-        <!-- CONTENU -->
         <section class="col-span-12 lg:col-span-8">
           <div class="card relative">
-            <!-- Progress bar -->
             <div id="progressContainer"><div id="progressBar"></div></div>
-
             <div id="busy" class="hidden absolute inset-0 bg-white/70 z-10 grid place-items-center">
               <div class="rounded-xl border bg-white px-4 py-3 shadow-md text-sm flex items-center gap-2">
                 <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                 <span id="busyText">Génération…</span>
               </div>
             </div>
-
             <div id="contentArea" class="p-4 sm:p-6">
               <div id="welcome" class="text-center py-10">
                 <h3 class="text-lg font-bold mb-2">Bienvenue 👋</h3>
@@ -116,7 +103,7 @@
     </div>
   </main>
 
-  <!-- JS (on garde /src/app.js) -->
-  <script src="/src/app.js" defer></script>
+  <!-- Script servi depuis /public/app.js -->
+  <script src="/public/app.js" defer></script>
 </body>
 </html>
