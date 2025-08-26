@@ -36,9 +36,8 @@
     append(container, h("div", { class: "status" }, `Génération pour: ${reference}`));
 
     try {
-      // *** IMPORTANT: GET seulement, avec query string ***
+      // GET only
       const url = `/api/chat?q=${encodeURIComponent(reference)}&templateId=v28-standard`;
-
       const resp = await fetch(url, { method: "GET" });
 
       let payload = null;
@@ -56,7 +55,7 @@
         return;
       }
 
-      renderStudy(payload.data);
+      renderStudy(payload.data || payload); // s’adapte aux 2 formats
       toast("Étude générée.");
     } catch (e) {
       safeLog("Exception fetch /api/chat: " + (e?.message || e));
@@ -71,7 +70,7 @@
 
     const header = h("div", { class: "study-header" },
       h("h2", {}, `Étude (28 points) — ${data.reference || "Référence inconnue"}`),
-      h("div", { class: "template" }, `Modèle: ${data.templateId}`)
+      h("div", { class: "template" }, `Modèle: ${data.templateId || "v28-standard"}`)
     );
 
     const list = h("ol", { class: "study-list" });
