@@ -36,28 +36,26 @@
     append(container, h("div", { class: "status" }, `Génération pour: ${reference}`));
 
     try {
-      const resp = await fetch("/api/chat", {
+      // On envoie ET le query param (?q=...) ET le body JSON (ceinture+bretelles)
+      const url = `/api/chat?q=${encodeURIComponent(reference)}&templateId=v28-standard`;
+
+      const resp = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-ref": reference },
         body: JSON.stringify({ input: reference, templateId: "v28-standard" })
       });
 
       let payload = null;
-      try {
-        // On tente de lire le JSON même si resp.ok == false (pour afficher les détails)
-        payload = await resp.json();
-      } catch {
+      try { payload = await resp.json(); }
+      catch {
         const txt = await resp.text().catch(() => "");
         payload = { ok: false, error: `HTTP ${resp.status}`, raw: txt };
       }
 
       if (!resp.ok || !payload?.ok) {
-        const msg = payload?.error
-          ? `${payload.error}`
-          : `Erreur ${resp.status}`;
+        const msg = payload?.error ? `${payload.error}` : `Erreur ${resp.status}`;
         safeLog(`[${resp.status}] /api/chat → ${JSON.stringify(payload)}`);
         showError(container, msg);
-        // Affiche aussi un panneau "détails" pour dbg
         append(container, h("pre", { class: "error-details" }, JSON.stringify(payload, null, 2)));
         return;
       }
@@ -129,7 +127,7 @@
     }
   }
 
-  // DOM helpers + styles
+  // DOM + styles
   function createSearchInput() {
     const wrap = document.querySelector("#searchZone") || createTopBar();
     const inp = h("input", {
