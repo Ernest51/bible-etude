@@ -3,75 +3,180 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <title>Étude Biblique — Layout de base</title>
+  <title>Étude Biblique — 28 points (modèle strict)</title>
 
-  <!-- CSS généré par Tailwind -->
-  <link rel="stylesheet" href="/dist/output.css?v=7" />
+  <!-- CSS généré par Tailwind/PostCSS -->
+  <link rel="stylesheet" href="/dist/output.css" />
+
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+  <style>
+    :root{
+      --c50:#eef2ff;--c100:#e0e7ff;--c200:#c7d2fe;--c600:#4f46e5;--c700:#4338ca;--c800:#3730a3;
+      --ok:#10b981;--err:#ef4444;--ink:#0f172a;
+    }
+    body{background:#f7f8fb;color:#0f172a}
+    .container-xl{max-width:1200px;margin-inline:auto}
+    .card{background:#fff;border:1px solid var(--c100);border-radius:16px;box-shadow:0 12px 24px -12px rgba(2,6,23,.15)}
+    .btn{display:inline-flex;align-items:center;gap:.55rem;border-radius:12px;font-weight:800;padding:.7rem 1rem}
+    .btn-solid{background:var(--c600);color:#fff}.btn-solid:hover{background:var(--c700)}
+    .btn-outline{border:1px solid var(--c200);background:#fff}
+    .btn-ghost{border:1px dashed var(--c200);background:#fff}
+    .badge{display:inline-grid;place-items:center;width:1.9rem;height:1.9rem;border-radius:.55rem;background:var(--c100);color:var(--c800);font-weight:800;font-size:.75rem}
+    .sidebar-item{border:1px solid transparent;border-radius:12px;padding:.6rem .7rem;display:flex;align-items:flex-start;gap:.6rem}
+    .sidebar-item:hover{background:var(--c50);border-color:var(--c200)}
+    .sidebar-item.active{background:var(--c100);border-color:var(--c200);box-shadow:inset 4px 0 0 0 var(--c600)}
+    .content-section{display:none;opacity:0;transition:opacity .18s ease}
+    .content-section.active{display:block;opacity:1}
+    .toast{position:fixed;right:14px;bottom:14px;background:#111827;color:#fff;padding:.65rem .95rem;border-radius:12px;box-shadow:0 10px 20px rgba(0,0,0,.15);z-index:200;transition:opacity .25s, transform .25s}
+    .toolbar{background:#fff;border:1px solid var(--c100);border-radius:14px;padding:.6rem .8rem}
+    .prose a{color:var(--c700);text-decoration:underline}
+    .prose img{border-radius:12px;box-shadow:0 10px 24px rgba(2,6,23,.15);max-width:100%;height:auto}
+    .ghost-note{display:none}
+    .edit-wrap[aria-expanded="true"] .ghost-note{display:block}
+    .edit-wrap[aria-expanded="true"] .display-note{display:none}
+    .pill{background:#fff;border:1px solid var(--c100);border-radius:12px;padding:.35rem .6rem}
+    .dropdown{position:relative}
+    .menu{position:absolute;left:0;right:0;z-index:30;background:#fff;border:1px solid var(--c100);border-radius:12px;box-shadow:0 14px 28px -12px rgba(2,6,23,.18);max-height:300px;overflow:auto;display:none}
+    .menu.open{display:block}
+    .menu button{display:block;width:100%;text-align:left;padding:.55rem .8rem}
+    .menu button:hover{background:var(--c50)}
+    @media (max-width: 640px){
+      .grid-mobile{display:grid;grid-template-columns:1fr;gap:12px}
+    }
+  </style>
 </head>
-<body class="h-full flex flex-col">
-  <!-- Marqueur version -->
-  <div class="text-center text-xs text-slate-500 mt-2">INDEX v7 — footer collé en bas</div>
+<body class="min-h-screen">
+  <div id="toasts"></div>
 
-  <!-- Bannière JS -->
-  <div id="banner" class="hidden"></div>
-
-  <!-- ===== Header ===== -->
-  <header class="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-indigo-100">
-    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <span class="badge">EB</span>
-        <span class="font-extrabold tracking-tight text-lg text-slate-800">Étude Biblique</span>
+  <header class="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-[var(--c100)]">
+    <div class="container-xl px-3 sm:px-4">
+      <div class="py-2 sm:py-3 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl grid place-items-center bg-[var(--c100)] text-[var(--c700)] shadow">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M5 4h9a4 4 0 0 1 4 4v10H7a2 2 0 0 1-2-2V4z"/><path d="M7 18h11v2H7z"/></svg>
+          </div>
+          <div>
+            <h1 class="text-xl sm:text-2xl font-extrabold tracking-wide">Étude Biblique — Modèle strict (28 points)</h1>
+            <p class="text-[11px] sm:text-xs text-slate-600 -mt-0.5">Chaque point = contenu ciblé, ≥ 2 500 caractères, format imposé</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="pill text-xs" id="lastStudyPill">Dernière étude : —</span>
+          <button id="resumeBtn" class="btn btn-outline text-xs sm:text-sm">Reprendre</button>
+          <button id="printBtn" class="btn btn-outline text-xs sm:text-sm">Imprimer / PDF</button>
+        </div>
       </div>
-      <nav class="hidden sm:flex items-center gap-3 text-sm">
-        <a href="#" class="pill">Accueil</a>
-        <a href="#" class="pill">28 points</a>
-        <a href="#" class="pill">Ressources</a>
-      </nav>
-      <button class="btn btn-solid sm:hidden">Menu</button>
     </div>
   </header>
 
-  <!-- ===== Main ===== -->
-  <main class="flex-1 max-w-5xl mx-auto px-4 py-8 w-full">
-    <section class="card p-6 mb-6">
-      <h1 class="text-4xl mb-2">Test de chargement de app.js</h1>
-      <p>Si tout marche, une bannière verte "JS chargé ✅" doit apparaître tout en haut.</p>
+  <main class="flex-1 py-5 sm:py-6">
+    <div class="container-xl px-3 sm:px-4">
+      <!-- Sélecteurs -->
+      <section class="card p-4 sm:p-6 mb-6">
+        <div class="grid grid-cols-12 gap-3 sm:gap-4 items-end grid-mobile">
+          <!-- Recherche -->
+          <div class="col-span-12">
+            <label class="text-sm font-semibold block mb-1">Recherche</label>
+            <div class="relative">
+              <svg class="w-4 h-4 text-neutral-400 absolute left-3 top-3" viewBox="0 0 24 24" fill="currentColor"><path d="M10 18a8 8 0 1 1 5.293-14.293A8 8 0 0 1 10 18zm11 3-6-6"/></svg>
+              <input id="searchInput" class="w-full border rounded-lg pl-9 pr-3 py-2.5" placeholder="Tape ‘jean 3’, ‘1co 13’, ‘exo 3’…">
+            </div>
+            <p class="text-xs text-neutral-600 mt-1">Abréviations OK : mar, jn, 1co, rm… accents facultatifs.</p>
+          </div>
 
-      <div class="mt-6 flex items-center gap-3">
-        <button class="btn btn-solid">Bouton solide</button>
-        <button class="btn btn-outline">Bouton contour</button>
-        <button class="btn btn-ghost">Bouton ghost</button>
-      </div>
-    </section>
+          <!-- Livre -->
+          <div class="col-span-12 sm:col-span-6 lg:col-span-5">
+            <label class="text-sm font-semibold block mb-1">Livre</label>
+            <div class="dropdown">
+              <button id="livreBtn" type="button" class="w-full bg-white border rounded-lg py-2.5 px-4 flex items-center justify-between">
+                <span id="livreLabel">Sélectionner un livre</span>
+                <svg class="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 20 20" fill="currentColor"><path d="M5 7l5 5 5-5"/></svg>
+              </button>
+              <div id="livreMenu" class="menu"></div>
+            </div>
+          </div>
 
-    <section class="grid sm:grid-cols-2 gap-6">
-      <div class="card p-6">
-        <h2 class="text-2xl mb-2">Section A</h2>
-        <p>Bloc de contenu prêt à accueillir tes éléments (ex : sommaire, plan, etc.).</p>
+          <!-- Chapitre -->
+          <div class="col-span-6 sm:col-span-3 lg:col-span-3">
+            <label class="text-sm font-semibold block mb-1">Chapitre</label>
+            <div class="dropdown">
+              <button id="chapBtn" type="button" class="w-full bg-white border rounded-lg py-2.5 px-4 flex items-center justify-between" disabled>
+                <span id="chapLabel">Chapitre</span>
+                <svg class="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 20 20" fill="currentColor"><path d="M5 7l5 5 5-5"/></svg>
+              </button>
+              <div id="chapMenu" class="menu"></div>
+            </div>
+          </div>
+
+          <!-- Version -->
+          <div class="col-span-6 sm:col-span-3 lg:col-span-2">
+            <label class="text-sm font-semibold block mb-1">Version</label>
+            <select id="versionSelect" class="w-full bg-white border rounded-lg py-2.5 px-4">
+              <option value="LSG" selected>LSG — Louis Segond</option>
+              <option value="SG21">SG21 — Segond 21</option>
+              <option value="NEG1979">NEG79 — Nouvelle Édition de Genève</option>
+              <option value="BDS">BDS — La Bible du Semeur</option>
+              <option value="PDV">PDV — Parole de Vie</option>
+            </select>
+          </div>
+
+          <!-- Actions -->
+          <div class="col-span-12 flex flex-wrap gap-2 mt-1">
+            <button id="validerBtn" class="btn btn-solid shadow w-full sm:w-auto">Valide (28 pts)</button>
+            <button id="reinitBtn" class="btn btn-outline w-full sm:w-auto">Réinitialiser</button>
+            <button id="lireBtn" class="btn btn-outline w-full sm:w-auto" disabled>Lire (BibleGateway)</button>
+
+            <div class="ml-auto flex gap-2 w-full sm:w-auto">
+              <button id="generateBtn" class="btn btn-solid shadow w-full sm:w-auto">Générer IA</button>
+              <button id="exportMdBtn" class="btn btn-ghost w-full sm:w-auto">Exporter (Markdown)</button>
+              <button id="copyLinkBtn" class="btn btn-ghost w-full sm:w-auto">Copier le lien</button>
+            </div>
+          </div>
+
+          <!-- Dernière étude -->
+          <div class="col-span-12">
+            <div class="mt-3 text-sm text-slate-700">
+              <span class="font-semibold">Dernière étude :</span>
+              <span id="lastStudyInline">—</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Sidebar + contenu -->
+      <div class="grid grid-cols-12 gap-4 lg:gap-6">
+        <aside class="col-span-12 lg:col-span-4">
+          <div class="card p-3 sticky top-[84px] max-h-[calc(100vh-140px)] overflow-y-auto">
+            <h2 class="text-lg font-extrabold mb-2">Points d’étude (28)</h2>
+            <nav id="pointsNav" class="space-y-1"></nav>
+          </div>
+        </aside>
+
+        <section class="col-span-12 lg:col-span-8">
+          <div class="card relative">
+            <div id="busy" class="hidden absolute inset-0 bg-white/70 z-10 grid place-items-center">
+              <div class="rounded-xl border bg-white px-4 py-3 shadow-md text-sm flex items-center gap-2">
+                <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                <span id="busyText">Génération…</span>
+              </div>
+            </div>
+            <div id="contentArea" class="p-4 sm:p-6">
+              <div id="welcome" class="text-center py-10">
+                <div class="w-16 h-16 rounded-xl bg-[var(--c50)] text-[var(--c700)] grid place-items-center mx-auto mb-3">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M5 4h9a4 4 0 0 1 4 4v10H7a2 2 0 0 1-2-2V4z"/><path d="M7 18h11v2H7z"/></svg>
+                </div>
+                <h3 class="text-lg font-bold mb-2">Bienvenue 👋</h3>
+                <p class="text-neutral-600">Choisis un livre et un chapitre, puis clique <b>Valide</b>. Chaque point est généré au format imposé (≥ 2 500 caractères).</p>
+              </div>
+              <div id="sectionsHost"></div>
+            </div>
+          </div>
+        </section>
       </div>
-      <div class="card p-6">
-        <h2 class="text-2xl mb-2">Section B</h2>
-        <p>Ici on pourra placer une introduction, une navigation ou des raccourcis.</p>
-      </div>
-    </section>
+    </div>
   </main>
 
-  <!-- ===== Footer ===== -->
-  <footer class="border-t border-indigo-100 bg-white">
-    <div class="max-w-5xl mx-auto px-4 py-6 text-sm text-slate-500 flex items-center justify-between">
-      <span>© <span id="year"></span> Étude Biblique — Footer collé en bas</span>
-      <a href="#" class="pill">Mentions</a>
-    </div>
-  </footer>
-
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const y = document.getElementById('year');
-      if (y) y.textContent = new Date().getFullYear();
-      console.log('INDEX v7 chargé');
-    });
-  </script>
-  <script src="/app.js?v=7" defer></script>
+  <!-- ton JS : attention, sur Vercel le dossier /public est à la racine -->
+  <script src="/app.js"></script>
 </body>
 </html>
