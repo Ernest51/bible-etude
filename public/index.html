@@ -7,7 +7,7 @@
   <meta name="description" content="Étude biblique — site simple et rapide" />
   <link rel="icon" href="data:," />
   <style>
-    :root { --bg:#f5f6f8; --card:#ffffff; --text:#0f172a; --muted:#64748b; --link:#2563eb; --green:#16a34a; --green-d:#0e7a36;}
+    :root { --bg:#f5f6f8; --card:#ffffff; --text:#0f172a; --muted:#64748b; --link:#2563eb; --green:#16a34a; --red:#dc2626; --amber:#d97706; }
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
     header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:18px 20px;position:sticky;top:0}
@@ -18,11 +18,20 @@
     .muted{color:var(--muted)}
     a{color:var(--link);text-decoration:none}
     a:hover{text-decoration:underline}
-    footer{max-width:900px;margin:32px auto 24px;padding:0 16px;color:var(--muted);font-size:14px;position:relative}
-    /* Bouton Debug discret */
-    #debugBtn{margin-top:12px;background:var(--green);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;box-shadow:0 2px 0 var(--green-d)}
-    #debugBtn:active{transform:translateY(1px);box-shadow:0 1px 0 var(--green-d)}
+    footer{max-width:900px;margin:32px auto 24px;padding:0 16px;color:var(--muted);font-size:14px}
+    /* Debug footer */
+    #debugBtn{margin-top:8px;background:#111827;color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
     #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:240px;overflow:auto;white-space:pre-wrap;font-size:12px}
+    .status-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid #e5e7eb;background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
+    .dot{width:8px;height:8px;border-radius:999px;background:var(--amber)}
+    .dot.ok{background:var(--green)}
+    .dot.ko{background:var(--red)}
+    .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px}
+    select, label.switch {font-size:12px}
+    .switch {display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+    .switch input{accent-color:#111827}
+    .next {font-size:12px}
   </style>
 </head>
 <body>
@@ -43,44 +52,149 @@
 
   <footer>
     © <span id="y"></span> Bible Étude
-    <div>
-      <button id="debugBtn">Debug</button>
-      <div id="debugPanel">[init]</div>
+    <div class="status-row" aria-label="Statut API">
+      <span class="badge"><span id="dot-health" class="dot" aria-hidden="true"></span> health</span>
+      <span class="badge"><span id="dot-chat" class="dot" aria-hidden="true"></span> chat(POST)</span>
+      <span class="badge"><span id="dot-ping" class="dot" aria-hidden="true"></span> ping</span>
+      <button id="debugBtn" title="Ouvrir le panneau de debug">Debug</button>
     </div>
+    <div class="controls">
+      <label class="switch"><input type="checkbox" id="autoToggle" checked> Auto</label>
+      <label>Intervalle:
+        <select id="autoInterval">
+          <option value="5">5 min</option>
+          <option value="10" selected>10 min</option>
+          <option value="30">30 min</option>
+        </select>
+      </label>
+      <span class="next">Prochain check dans <strong id="nextIn">—</strong></span>
+    </div>
+    <div id="debugPanel">[init]</div>
   </footer>
 
   <script>
     (function(){
       document.getElementById('y').textContent = new Date().getFullYear();
+
       const btn = document.getElementById('debugBtn');
       const panel = document.getElementById('debugPanel');
+      const dotHealth = document.getElementById('dot-health');
+      const dotChat = document.getElementById('dot-chat');
+      const dotPing = document.getElementById('dot-ping');
+
+      const autoToggle = document.getElementById('autoToggle');
+      const autoInterval = document.getElementById('autoInterval');
+      const nextIn = document.getElementById('nextIn');
+
+      let autoTimer = null;
+      let countdownTimer = null;
+      let remainingMs = 0;
+
+      function setDot(dot, ok){
+        dot.classList.remove('ok','ko');
+        if (ok === true) dot.classList.add('ok');
+        else if (ok === false) dot.classList.add('ko');
+        // undefined → ambre
+      }
+
       function log(msg){
         const line = '['+new Date().toISOString()+'] '+msg;
         panel.textContent += (panel.textContent ? '\n' : '') + line;
         console.log(line);
       }
-      async function ping(path, options, label){
+
+      async function ping(path, options){
         try{
           const c = new AbortController();
           const t = setTimeout(()=>c.abort(),2500);
-          const r = await fetch(path,{...(options||{}), signal:c.signal});
+          const r = await fetch(path, { ...(options||{}), signal:c.signal });
           clearTimeout(t);
-          log((r.ok?'OK ':'KO ') + (label||path) + ' → ' + r.status);
-        }catch(e){ log('KO ' + (label||path) + ' → ' + String(e)); }
+          return r;
+        }catch(e){
+          return { ok:false, status:0, error:String(e) };
+        }
       }
-      function toggle(){
+
+      async function runChecks(logToPanel = true){
+        // Remettre les points en attente
+        setDot(dotHealth, undefined);
+        setDot(dotChat, undefined);
+        setDot(dotPing, undefined);
+
+        // /api/health (GET)
+        const r1 = await ping('/api/health');
+        setDot(dotHealth, !!(r1 && r1.ok));
+        if (logToPanel) log((r1 && r1.ok ? 'OK' : 'KO') + ' /api/health → ' + (r1.status||0));
+
+        // /api/chat (POST)
+        const r2 = await ping('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({probe:true, ts:Date.now()}) });
+        setDot(dotChat, !!(r2 && r2.ok));
+        if (logToPanel) log((r2 && r2.ok ? 'OK' : 'KO') + ' /api/chat (POST) → ' + (r2.status||0));
+
+        // /api/ping (GET)
+        const r3 = await ping('/api/ping');
+        setDot(dotPing, !!(r3 && r3.ok));
+        if (logToPanel) log((r3 && r3.ok ? 'OK' : 'KO') + ' /api/ping → ' + (r3.status||0));
+      }
+
+      function fmt(ms){
+        const s = Math.max(0, Math.floor(ms/1000));
+        const m = Math.floor(s/60);
+        const ss = String(s%60).padStart(2,'0');
+        return m + ':' + ss;
+      }
+
+      function clearTimers(){
+        if (autoTimer){ clearTimeout(autoTimer); autoTimer = null; }
+        if (countdownTimer){ clearInterval(countdownTimer); countdownTimer = null; }
+      }
+
+      function scheduleNext(){
+        clearTimers();
+        if (!autoToggle.checked){ nextIn.textContent = '—'; return; }
+        if (document.hidden){ nextIn.textContent = 'pause (onglet inactif)'; return; }
+
+        const mins = parseInt(autoInterval.value, 10) || 10;
+        remainingMs = mins * 60 * 1000;
+
+        // countdown
+        nextIn.textContent = fmt(remainingMs);
+        countdownTimer = setInterval(()=>{
+          remainingMs -= 1000;
+          nextIn.textContent = fmt(remainingMs);
+          if (remainingMs <= 0){ clearInterval(countdownTimer); }
+        }, 1000);
+
+        // next run
+        autoTimer = setTimeout(async ()=>{
+          // Checks silencieux (ne spamme pas le panneau si fermé)
+          const willLog = panel.style.display === 'block';
+          if (willLog) panel.textContent = '[Debug démarré…]';
+          await runChecks(willLog);
+          scheduleNext(); // replanifie
+        }, remainingMs);
+      }
+
+      function togglePanel(){
         const open = panel.style.display==='block';
         if(open){ panel.style.display='none'; btn.textContent='Debug'; }
         else{
           panel.style.display='block'; btn.textContent='Fermer Debug';
           panel.textContent='[Debug démarré…]';
-          log('JS inline actif ✅');
-          ping('/api/health');
-          ping('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({msg:'test'})},'/api/chat (POST)');
-          ping('/api/ping');
+          runChecks(true);
         }
       }
-      btn.addEventListener('click', toggle);
+
+      // Listeners
+      btn.addEventListener('click', togglePanel);
+      autoToggle.addEventListener('change', scheduleNext);
+      autoInterval.addEventListener('change', scheduleNext);
+      document.addEventListener('visibilitychange', scheduleNext);
+
+      // Init
+      scheduleNext(); // auto ON par défaut (10 min)
+      // Si tu veux lancer un check immédiat au chargement :
+      // runChecks(false);
     })();
   </script>
 </body>
