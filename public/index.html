@@ -4,27 +4,32 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bible Étude — 28 points</title>
-  <meta name="description" content="Interface d'étude biblique — colonne 28 points + éditeur central, sauvegarde locale." />
+  <meta name="description" content="Étude biblique — colonne 28 points + éditeur central, sauvegarde locale, sélection Livre/Chapitre/Version." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <style>
     :root{
       --bg:#f5f6f8; --panel:#ffffff; --text:#0f172a; --muted:#64748b; --link:#2563eb;
-      --border:#e5e7eb; --green:#16a34a; --red:#dc2626; --amber:#d97706;
+      --border:#e5e7eb; --green:#16a34a; --red:#dc2626; --amber:#d97706; --dark:#111827;
     }
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:16px 18px;position:sticky;top:0;z-index:10}
-    h1{margin:0;font-size:26px}
+    /* Barre de progression en haut du header */
+    .progress-wrap{position:sticky;top:0;z-index:20;background:transparent}
+    .progress{height:4px;background:#e5e7eb}
+    .progress > .bar{height:100%;width:0;background:linear-gradient(90deg,#2563eb,#16a34a);transition:width .2s ease}
+    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:12px 18px;position:sticky;top:4px;z-index:10}
+    h1{margin:0;font-size:24px}
     main{max-width:1200px;margin:18px auto;padding:0 14px}
-    .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 12px}
-    input[type="text"]{border:1px solid var(--border);border-radius:10px;padding:10px 12px}
-    .grow{flex:1 1 260px;min-width:240px}
-    .btn{background:#111827;color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
+    .toolbar{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;margin:12px 0}
+    .toolbar-2{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:0 0 12px}
+    .fullrow{grid-column:1 / -1}
+    input[type="text"], select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%}
+    .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
     .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
     .btn.warn{background:#f59e0b}
     .saved{font-size:12px;color:var(--muted);align-self:center}
     .layout{display:grid;grid-template-columns:280px 1fr;gap:12px}
-    @media (max-width:1000px){ .layout{grid-template-columns:1fr} }
+    @media (max-width:1000px){ .layout{grid-template-columns:1fr} .toolbar{grid-template-columns:1fr 1fr;}.toolbar-2{grid-template-columns:1fr 1fr} }
     /* Sidebar */
     .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
     .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700}
@@ -53,21 +58,40 @@
     .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
     .mini{width:8px;height:8px;border-radius:999px;background:#d97706}
     .mini.ok{background:var(--green)} .mini.ko{background:var(--red)}
-    @media print{ header, .toolbar, .sidebar, .ed-foot, footer .status-row, #debugPanel { display:none !important; } textarea{min-height:unset} }
+    @media print{ .progress-wrap, header, .toolbar, .toolbar-2, .sidebar, .ed-foot, footer .status-row, #debugPanel { display:none !important; } textarea{min-height:unset} }
   </style>
 </head>
 <body>
+  <!-- Barre de progression collée en haut du header -->
+  <div class="progress-wrap">
+    <div class="progress"><div id="progressBar" class="bar" style="width:0%"></div></div>
+  </div>
+
   <header><h1>Bible Étude — 28 points</h1></header>
 
   <main>
-    <!-- Toolbar -->
+    <!-- Ligne 1 : Référence + Titre + actions -->
     <div class="toolbar">
-      <input id="refInput" class="grow" type="text" placeholder="Référence (ex : Genèse 1:1-5)" />
-      <input id="titreInput" class="grow" type="text" placeholder="Titre de l’étude (ex : Création — Genèse 1)" />
+      <input id="refInput" class="fullrow" type="text" placeholder="Référence (ex : Genèse 1:1-5)" />
+      <input id="titreInput" class="fullrow" type="text" placeholder="Titre de l’étude (ex : Création — Genèse 1)" />
       <button id="save" class="btn">💾 Sauvegarder</button>
       <button id="clear" class="btn secondary">🧹 Vider</button>
       <button id="print" class="btn warn">🖨️ Imprimer / PDF</button>
       <span id="savedBadge" class="saved">—</span>
+    </div>
+
+    <!-- Ligne 2 : Livre / Chapitre / Version / Dernier + Valider -->
+    <div class="toolbar-2">
+      <select id="bookSelect" title="Livre"></select>
+      <select id="chapterSelect" title="Chapitre"></select>
+      <select id="versionSelect" title="Version">
+        <option value="PDV" selected>Parole de Vie (PDV)</option>
+        <option value="LSG">Louis Segond 1910 (LSG)</option>
+        <option value="S21">Segond 21 (S21)</option>
+        <option value="BFC">Français Courant (BFC)</option>
+      </select>
+      <div id="lastStudy" class="muted" style="align-self:center">Dernier : —</div>
+      <button id="validate" class="btn">Valider</button>
     </div>
 
     <div class="layout">
@@ -89,7 +113,7 @@
         </div>
         <div class="ed-foot">
           <span class="muted" id="metaInfo">Point — / 28</span>
-          <span class="muted">Astuce : sauvegarde auto toutes les 2s après saisie.</span>
+          <span class="muted">Sauvegarde auto (2s) après saisie.</span>
         </div>
       </section>
     </div>
@@ -109,7 +133,25 @@
 
   <script>
     (function(){
-      // ===== Données & constantes =====
+      // ===== Data: 66 livres + nb chapitres =====
+      const BOOKS = [
+        ["Genèse",50],["Exode",40],["Lévitique",27],["Nombres",36],["Deutéronome",34],
+        ["Josué",24],["Juges",21],["Ruth",4],["1 Samuel",31],["2 Samuel",24],
+        ["1 Rois",22],["2 Rois",25],["1 Chroniques",29],["2 Chroniques",36],["Esdras",10],
+        ["Néhémie",13],["Esther",10],["Job",42],["Psaumes",150],["Proverbes",31],
+        ["Ecclésiaste",12],["Cantique des cantiques",8],["Ésaïe",66],["Jérémie",52],["Lamentations",5],
+        ["Ézéchiel",48],["Daniel",12],["Osée",14],["Joël",3],["Amos",9],
+        ["Abdias",1],["Jonas",4],["Michée",7],["Nahoum",3],["Habacuc",3],
+        ["Sophonie",3],["Aggée",2],["Zacharie",14],["Malachie",4],
+        ["Matthieu",28],["Marc",16],["Luc",24],["Jean",21],["Actes",28],
+        ["Romains",16],["1 Corinthiens",16],["2 Corinthiens",13],["Galates",6],["Éphésiens",6],
+        ["Philippiens",4],["Colossiens",4],["1 Thessaloniciens",5],["2 Thessaloniciens",3],["1 Timothée",6],
+        ["2 Timothée",4],["Tite",3],["Philémon",1],["Hébreux",13],["Jacques",5],
+        ["1 Pierre",5],["2 Pierre",3],["1 Jean",5],["2 Jean",1],["3 Jean",1],
+        ["Jude",1],["Apocalypse",22]
+      ];
+
+      // ===== 28 sections =====
       const SECTIONS = [
         'Thème central / Titre','Référence & contexte immédiat','Auteur / Date / Destinataires','Contexte historique & culturel',
         'Structure littéraire du passage','Idées clés (bullet points)','Mots clés & termes importants (hébreu/grec)','Parallèles bibliques',
@@ -121,50 +163,99 @@
       ];
       const N = SECTIONS.length;
 
-      // ===== Éléments =====
+      // ===== Elements =====
       const refInput = document.getElementById('refInput');
       const titreInput = document.getElementById('titreInput');
+      const savedBadge = document.getElementById('savedBadge');
+      const bookSelect = document.getElementById('bookSelect');
+      const chapterSelect = document.getElementById('chapterSelect');
+      const versionSelect = document.getElementById('versionSelect');
+      const lastStudy = document.getElementById('lastStudy');
+      const validateBtn = document.getElementById('validate');
+
       const pointsList = document.getElementById('pointsList');
       const edTitle = document.getElementById('edTitle');
       const noteArea = document.getElementById('noteArea');
       const prevBtn = document.getElementById('prev');
       const nextBtn = document.getElementById('next');
-      const savedBadge = document.getElementById('savedBadge');
       const metaInfo = document.getElementById('metaInfo');
+      const progressBar = document.getElementById('progressBar');
 
       // Storage keys
       const KEY_META = 'be_meta';
       const KEY_NOTES = 'be_notes';
+      const KEY_LAST  = 'be_last'; // {book,chapter,version}
 
-      // État
-      let current = 0; // index du point sélectionné
-      let notes = {}; // {index: text}
+      // State
+      let current = 0;
+      let notes = {};
       let autosaveTimer = null;
 
       // ===== Helpers =====
       function fmtIndex(i){ return (i+1) + '. ' + SECTIONS[i]; }
-      function loadStorage(){
-        try{
-          const meta = JSON.parse(localStorage.getItem(KEY_META)||'{}');
-          const data = JSON.parse(localStorage.getItem(KEY_NOTES)||'{}');
-          notes = data || {};
-          if (meta.ref) refInput.value = meta.ref;
-          if (meta.titre) titreInput.value = meta.titre;
-        }catch{}
+      function toastSaved(txt){
+        savedBadge.textContent = txt + ' ✅ ' + new Date().toLocaleTimeString();
+        clearTimeout(toastSaved._t);
+        toastSaved._t = setTimeout(()=> savedBadge.textContent='—', 2000);
       }
       function saveStorage(){
         try{
           const meta = { ref: refInput.value.trim(), titre: titreInput.value.trim() };
           localStorage.setItem(KEY_META, JSON.stringify(meta));
           localStorage.setItem(KEY_NOTES, JSON.stringify(notes));
-          showSaved('Sauvegardé');
           renderSidebarDots();
+          toastSaved('Sauvegardé');
         }catch{}
       }
-      function showSaved(txt){
-        savedBadge.textContent = txt + ' ✅ ' + new Date().toLocaleTimeString();
-        clearTimeout(showSaved._t);
-        showSaved._t = setTimeout(()=>{ savedBadge.textContent='—'; }, 2000);
+      function loadStorage(){
+        try{
+          const meta = JSON.parse(localStorage.getItem(KEY_META)||'{}');
+          const data = JSON.parse(localStorage.getItem(KEY_NOTES)||'{}');
+          const last = JSON.parse(localStorage.getItem(KEY_LAST)||'{}');
+          notes = data || {};
+          if (meta.ref) refInput.value = meta.ref;
+          if (meta.titre) titreInput.value = meta.titre;
+          if (last.book && last.chapter){
+            lastStudy.textContent = `Dernier : ${last.book} ${last.chapter} (${last.version||'—'})`;
+          }
+          return {last};
+        }catch{ return {last:{}}; }
+      }
+      function clearStorage(){
+        localStorage.removeItem(KEY_META);
+        localStorage.removeItem(KEY_NOTES);
+        refInput.value=''; titreInput.value=''; notes={}; renderSidebarDots(); noteArea.value='';
+        toastSaved('Vidage');
+      }
+
+      // Progress bar control (placeholder – anim simple lors de Valider)
+      function setProgress(p){ progressBar.style.width = Math.max(0, Math.min(100, p)) + '%'; }
+      async function fakePrep(){
+        setProgress(10);
+        await new Promise(r=>setTimeout(r,120));
+        setProgress(55);
+        await new Promise(r=>setTimeout(r,120));
+        setProgress(100);
+        setTimeout(()=> setProgress(0), 350);
+      }
+
+      // ===== UI renders =====
+      function renderBooks(){
+        bookSelect.innerHTML = '';
+        BOOKS.forEach(([name, ch])=>{
+          const opt = document.createElement('option');
+          opt.value = name; opt.textContent = name; opt.dataset.ch = ch;
+          bookSelect.appendChild(opt);
+        });
+      }
+      function renderChapters(){
+        chapterSelect.innerHTML = '';
+        const sel = bookSelect.selectedOptions[0];
+        const ch = sel ? parseInt(sel.dataset.ch,10) : 1;
+        for(let i=1;i<=ch;i++){
+          const opt=document.createElement('option'); opt.value=String(i); opt.textContent=String(i);
+          chapterSelect.appendChild(opt);
+        }
       }
       function renderSidebar(){
         pointsList.innerHTML = '';
@@ -177,14 +268,11 @@
             <span>${label}</span>
             <span class="dot ${notes[i] && notes[i].trim() ? 'ok':''}"></span>
           `;
-          row.addEventListener('click', ()=>{
-            if (current !== i) { select(i); }
-          });
+          row.addEventListener('click', ()=>{ if(current!==i) select(i); });
           pointsList.appendChild(row);
         });
       }
       function renderSidebarDots(){
-        // Met à jour uniquement les pastilles selon contenu
         document.querySelectorAll('.list .item').forEach(el=>{
           const i = Number(el.dataset.idx);
           const dot = el.querySelector('.dot');
@@ -193,10 +281,8 @@
         });
       }
       function select(i){
-        // Sauvegarde le point courant avant de changer
         notes[current] = noteArea.value;
         saveStorage();
-
         current = i;
         document.querySelectorAll('.list .item').forEach(el=> el.classList.toggle('active', Number(el.dataset.idx)===current));
         edTitle.textContent = fmtIndex(current);
@@ -207,45 +293,56 @@
 
       // ===== Events =====
       noteArea.addEventListener('input', ()=>{
-        // autosave 2s après saisie
         clearTimeout(autosaveTimer);
-        autosaveTimer = setTimeout(()=>{
-          notes[current] = noteArea.value;
-          saveStorage();
-        }, 2000);
+        autosaveTimer = setTimeout(()=>{ notes[current] = noteArea.value; saveStorage(); }, 2000);
       });
+      document.getElementById('save').addEventListener('click', ()=>{ notes[current]=noteArea.value; saveStorage(); });
+      document.getElementById('clear').addEventListener('click', ()=>{ if(confirm('Vider le contenu local ?')) clearStorage(); });
+      document.getElementById('print').addEventListener('click', ()=>{ notes[current]=noteArea.value; saveStorage(); window.print(); });
+      document.getElementById('y').textContent = new Date().getFullYear();
 
       refInput.addEventListener('input', ()=>{ clearTimeout(autosaveTimer); autosaveTimer=setTimeout(saveStorage, 800); });
       titreInput.addEventListener('input', ()=>{ clearTimeout(autosaveTimer); autosaveTimer=setTimeout(saveStorage, 800); });
 
-      document.getElementById('save').addEventListener('click', ()=>{
-        notes[current] = noteArea.value; saveStorage();
-      });
+      bookSelect.addEventListener('change', renderChapters);
 
-      document.getElementById('clear').addEventListener('click', ()=>{
-        if (!confirm('Vider le contenu local (référence, titre et notes) ?')) return;
-        localStorage.removeItem(KEY_META);
-        localStorage.removeItem(KEY_NOTES);
-        refInput.value=''; titreInput.value='';
-        notes = {}; renderSidebarDots();
-        noteArea.value=''; showSaved('Vidage');
-      });
-
-      document.getElementById('print').addEventListener('click', ()=>{
-        notes[current] = noteArea.value; saveStorage();
-        window.print();
+      validateBtn.addEventListener('click', async ()=>{
+        const book = bookSelect.value;
+        const chap = chapterSelect.value;
+        const ver  = versionSelect.value;
+        // Met à jour Référence + Titre si vide
+        if (!refInput.value.trim()) refInput.value = `${book} ${chap}`;
+        if (!titreInput.value.trim()) titreInput.value = `${book} ${chap} (${ver})`;
+        // Mémorise "Dernier"
+        localStorage.setItem(KEY_LAST, JSON.stringify({book, chapter: chap, version: ver}));
+        lastStudy.textContent = `Dernier : ${book} ${chap} (${ver})`;
+        // (Plus tard: déclencher génération auto des 28 points ici)
+        await fakePrep(); // animation barre de progression (placeholder)
+        // Assure l’UI des 28 points prête
+        renderSidebar(); select(0);
+        saveStorage();
       });
 
       prevBtn.addEventListener('click', ()=> select( (current-1+N)%N ));
       nextBtn.addEventListener('click', ()=> select( (current+1)%N ));
 
       // ===== Init =====
-      document.getElementById('y').textContent = new Date().getFullYear();
-      loadStorage();
-      renderSidebar();
-      select(current);
+      const { last } = loadStorage();
+      renderBooks();
+      // Sélection initiale (dernier ou défaut)
+      if (last.book){
+        const idx = BOOKS.findIndex(([n])=> n===last.book);
+        if (idx>=0) bookSelect.selectedIndex = idx;
+      }
+      renderChapters();
+      if (last.chapter){
+        const cIdx = Math.max(0, Math.min(chapterSelect.options.length-1, Number(last.chapter)-1));
+        chapterSelect.selectedIndex = cIdx;
+      }
+      if (last.version){ versionSelect.value = last.version; }
+      renderSidebar(); select(0);
 
-      // ===== Debug discret (pied de page) =====
+      // ===== Debug discret (footer) =====
       const btn = document.getElementById('debugBtn');
       const panel = document.getElementById('debugPanel');
       const dotHealth = document.getElementById('dot-health');
