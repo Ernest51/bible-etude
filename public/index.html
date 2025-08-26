@@ -42,4 +42,138 @@
 <body class="h-full">
   <header>
     <div class="container">
-      <h1>Bible Étude</
+      <h1>Bible Étude</h1>
+      <p class="lead">Interface statique prête pour Vercel, avec outils de debug intégrés.</p>
+    </div>
+  </header>
+
+  <main>
+    <div class="container row">
+      <div class="col">
+        <div class="card">
+          <h2 style="margin:0 0 8px;">Bienvenue</h2>
+          <p style="margin:0 0 12px;">
+            Cette page sert d’enveloppe statique. Le bouton ci-dessous lance des diagnostics
+            utiles (chargement du JS, chemins, endpoints API éventuels).
+          </p>
+          <!-- Fallback onclick direct pour garantir le clic même si écouteur non attaché -->
+          <button id="debugBtn" type="button" aria-controls="debugPanel" aria-expanded="false" onclick="window.__toggleDebug && window.__toggleDebug()">
+            ✅ Ouvrir le Debug
+          </button>
+          <div id="debugPanel" role="region" aria-live="polite"></div>
+          <p class="muted">Astuce : si tu utilises une API, assure-toi d’avoir un dossier <code>/api</code> avec des fonctions serverless ou un endpoint externe valide.</p>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <h2 style="margin:0 0 8px;">Contenu</h2>
+          <p style="margin:0 0 12px;">Ajoute ici tes sections (lecture, plan d’étude, etc.).</p>
+          <ul style="margin:0 0 0 16px;">
+            <li>Statique prêt à déployer</li>
+            <li>Aucun framework requis</li>
+            <li>Debug intégré</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- JS inline pour éliminer tout souci de chemin/caching -->
+  <script>
+    (function () {
+      const state = { logs: [], ranAtLeastOnce: false };
+
+      function byId(id) { return document.getElementById(id); }
+      function append(text) {
+        const line = '[' + new Date().toISOString() + '] ' + text;
+        state.logs.push(line);
+        const panel = byId('debugPanel');
+        if (panel) panel.textContent = state.logs.join('\n');
+        console.log(line);
+      }
+
+      async function safeFetch(url, options, timeoutMs) {
+        const controller = new AbortController();
+        const t = setTimeout(function(){ controller.abort(); }, timeoutMs || 3000);
+        try {
+          const res = await fetch(url, Object.assign({ signal: controller.signal }, options || {}));
+          clearTimeout(t);
+          let text = '';
+          try { text = await res.text(); } catch(e) {}
+          return { ok: res.ok, status: res.status, url: url, text: text };
+        } catch (err) {
+          clearTimeout(t);
+          return { ok: false, status: 0, url: url, error: String(err) };
+        }
+      }
+
+      async function runDiagnostics() {
+        append('--- DÉBUT DIAGNOSTIC ---');
+        try {
+          append('JS inline actif ✅');
+          append('UserAgent: ' + navigator.userAgent);
+          append('Location: ' + window.location.href);
+
+          // Tester quelques endpoints éventuels
+          const candidates = ['/api/health', '/api/chat', '/api/ping'];
+          for (const path of candidates) {
+            const res = await safeFetch(path, { method: 'GET' }, 2500);
+            if (res.ok) {
+              append('Endpoint OK ' + path + ' → ' + res.status);
+            } else {
+              append('Endpoint KO ' + path + ' → ' + res.status + (res.error ? ' (' + res.error + ')' : ''));
+            }
+          }
+
+          append('Header présent: ' + Boolean(document.querySelector('header')));
+        } catch (e) {
+          append('Erreur inattendue: ' + String(e));
+        } finally {
+          append('--- FIN DIAGNOSTIC ---');
+          state.ranAtLeastOnce = true;
+        }
+      }
+
+      function toggle() {
+        const btn = byId('debugBtn');
+        const panel = byId('debugPanel');
+        if (!btn || !panel) {
+          console.error('Éléments debug introuvables');
+          return;
+        }
+        const isOpen = panel.style.display === 'block';
+        if (isOpen) {
+          panel.style.display = 'none';
+          btn.setAttribute('aria-expanded', 'false');
+          btn.textContent = '✅ Ouvrir le Debug';
+        } else {
+          panel.style.display = 'block';
+          btn.setAttribute('aria-expanded', 'true');
+          btn.textContent = 'Fermer le Debug';
+          if (state.logs.length === 0) panel.textContent = '[' + new Date().toISOString() + '] Debug démarré…';
+          runDiagnostics();
+        }
+      }
+
+      function init() {
+        const btn = byId('debugBtn');
+        const panel = byId('debugPanel');
+        if (!btn || !panel) return;
+
+        panel.style.display = 'none';
+        btn.setAttribute('aria-expanded', 'false');
+        btn.addEventListener('click', toggle);
+        window.__toggleDebug = toggle; // fallback pour l'attribut onclick
+        console.log('🟢 Debug prêt — clique sur le bouton.');
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+</body>
+</html>
