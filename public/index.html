@@ -116,22 +116,18 @@
       }
 
       async function runChecks(logToPanel = true){
-        // Remettre les points en attente
         setDot(dotHealth, undefined);
         setDot(dotChat, undefined);
         setDot(dotPing, undefined);
 
-        // /api/health (GET)
         const r1 = await ping('/api/health');
         setDot(dotHealth, !!(r1 && r1.ok));
         if (logToPanel) log((r1 && r1.ok ? 'OK' : 'KO') + ' /api/health → ' + (r1.status||0));
 
-        // /api/chat (POST)
         const r2 = await ping('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({probe:true, ts:Date.now()}) });
         setDot(dotChat, !!(r2 && r2.ok));
         if (logToPanel) log((r2 && r2.ok ? 'OK' : 'KO') + ' /api/chat (POST) → ' + (r2.status||0));
 
-        // /api/ping (GET)
         const r3 = await ping('/api/ping');
         setDot(dotPing, !!(r3 && r3.ok));
         if (logToPanel) log((r3 && r3.ok ? 'OK' : 'KO') + ' /api/ping → ' + (r3.status||0));
@@ -157,7 +153,6 @@
         const mins = parseInt(autoInterval.value, 10) || 10;
         remainingMs = mins * 60 * 1000;
 
-        // countdown
         nextIn.textContent = fmt(remainingMs);
         countdownTimer = setInterval(()=>{
           remainingMs -= 1000;
@@ -165,13 +160,11 @@
           if (remainingMs <= 0){ clearInterval(countdownTimer); }
         }, 1000);
 
-        // next run
         autoTimer = setTimeout(async ()=>{
-          // Checks silencieux (ne spamme pas le panneau si fermé)
           const willLog = panel.style.display === 'block';
           if (willLog) panel.textContent = '[Debug démarré…]';
           await runChecks(willLog);
-          scheduleNext(); // replanifie
+          scheduleNext();
         }, remainingMs);
       }
 
@@ -185,16 +178,12 @@
         }
       }
 
-      // Listeners
       btn.addEventListener('click', togglePanel);
       autoToggle.addEventListener('change', scheduleNext);
       autoInterval.addEventListener('change', scheduleNext);
       document.addEventListener('visibilitychange', scheduleNext);
 
-      // Init
-      scheduleNext(); // auto ON par défaut (10 min)
-      // Si tu veux lancer un check immédiat au chargement :
-      // runChecks(false);
+      scheduleNext(); // auto ON par défaut
     })();
   </script>
 </body>
