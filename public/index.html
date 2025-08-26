@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>Étude Biblique — Layout de base</title>
 
-  <!-- CSS généré par Tailwind -->
-  <link rel="stylesheet" href="/dist/output.css" />
+  <!-- CSS généré par Tailwind (cache-bust v=6) -->
+  <link rel="stylesheet" href="/dist/output.css?v=6" />
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
-<!-- Layout en colonne pour garantir le footer visible -->
-<body class="min-h-screen flex flex-col">
+<!-- Layout en colonne pour garantir le footer visible + bg différent pour repère -->
+<body class="min-h-screen flex flex-col bg-amber-50">
   <!-- Marqueur version -->
-  <div class="text-center text-xs text-slate-500 mt-2">INDEX v5 — /public/index.html</div>
+  <div class="text-center text-xs text-slate-700 mt-2">INDEX v6 — /public/index.html — cache-bust</div>
 
   <!-- Bannière JS (remplie par app.js) -->
   <div id="banner" class="hidden"></div>
@@ -67,13 +67,14 @@
   </footer>
 
   <script>
-    // met l’année courante dans le footer
+    // repère console + année
     document.addEventListener('DOMContentLoaded', () => {
       const y = document.getElementById('year');
       if (y) y.textContent = new Date().getFullYear();
-      console.log('INDEX v5 prêt');
+      console.log('INDEX v6 chargé (cache-bust)');
     });
   </script>
-  <script src="/app.js" defer></script>
+  <!-- JS avec cache-bust v=6 -->
+  <script src="/app.js?v=6" defer></script>
 </body>
 </html>
