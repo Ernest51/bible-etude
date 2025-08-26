@@ -5,16 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>Étude Biblique — Layout de base</title>
 
-  <!-- CSS généré par Tailwind (cache-bust v=6) -->
-  <link rel="stylesheet" href="/dist/output.css?v=6" />
+  <!-- CSS généré par Tailwind -->
+  <link rel="stylesheet" href="/dist/output.css?v=7" />
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
-<!-- Layout en colonne pour garantir le footer visible + bg différent pour repère -->
-<body class="min-h-screen flex flex-col bg-amber-50">
+<body class="h-full flex flex-col">
   <!-- Marqueur version -->
-  <div class="text-center text-xs text-slate-700 mt-2">INDEX v6 — /public/index.html — cache-bust</div>
+  <div class="text-center text-xs text-slate-500 mt-2">INDEX v7 — footer collé en bas</div>
 
-  <!-- Bannière JS (remplie par app.js) -->
+  <!-- Bannière JS -->
   <div id="banner" class="hidden"></div>
 
   <!-- ===== Header ===== -->
@@ -34,7 +33,7 @@
   </header>
 
   <!-- ===== Main ===== -->
-  <main class="flex-1 max-w-5xl mx-auto px-4 py-8">
+  <main class="flex-1 max-w-5xl mx-auto px-4 py-8 w-full">
     <section class="card p-6 mb-6">
       <h1 class="text-4xl mb-2">Test de chargement de app.js</h1>
       <p>Si tout marche, une bannière verte "JS chargé ✅" doit apparaître tout en haut.</p>
@@ -59,22 +58,20 @@
   </main>
 
   <!-- ===== Footer ===== -->
-  <footer class="border-t border-indigo-100">
+  <footer class="border-t border-indigo-100 bg-white">
     <div class="max-w-5xl mx-auto px-4 py-6 text-sm text-slate-500 flex items-center justify-between">
-      <span>© <span id="year"></span> Étude Biblique — Footer OK ✓</span>
+      <span>© <span id="year"></span> Étude Biblique — Footer collé en bas</span>
       <a href="#" class="pill">Mentions</a>
     </div>
   </footer>
 
   <script>
-    // repère console + année
     document.addEventListener('DOMContentLoaded', () => {
       const y = document.getElementById('year');
       if (y) y.textContent = new Date().getFullYear();
-      console.log('INDEX v6 chargé (cache-bust)');
+      console.log('INDEX v7 chargé');
     });
   </script>
-  <!-- JS avec cache-bust v=6 -->
-  <script src="/app.js?v=6" defer></script>
+  <script src="/app.js?v=7" defer></script>
 </body>
 </html>
