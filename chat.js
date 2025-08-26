@@ -1,8 +1,7 @@
 // api/chat.js
 export default async function handler(req, res) {
+  // En-têtes utiles
   res.setHeader('Cache-Control', 'no-store');
-
-  // Autorisations d'origine simple (utile si tu appelles depuis d'autres domaines)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -12,14 +11,11 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    // Lecture robuste du corps (JSON ou texte)
+    // Lecture du corps (JSON ou texte)
     let raw = '';
-    try {
-      for await (const chunk of req) raw += chunk;
-    } catch {}
+    try { for await (const chunk of req) raw += chunk; } catch {}
     let payload = null;
-    try { payload = raw ? JSON.parse(raw) : null; }
-    catch { payload = raw || null; }
+    try { payload = raw ? JSON.parse(raw) : null; } catch { payload = raw || null; }
 
     return res.status(200).json({
       ok: true,
@@ -30,13 +26,13 @@ export default async function handler(req, res) {
     });
   }
 
+  // Répond aussi en GET (pratique pour tester dans le navigateur)
   if (req.method === 'GET') {
-    // Répond aussi en GET pour éviter 405 côté debug/healthcheck
     return res.status(200).json({
       ok: true,
       route: 'chat',
       method: 'GET',
-      hint: 'Utilise POST pour envoyer un message.'
+      hint: 'Utilise POST pour envoyer un message JSON.'
     });
   }
 
