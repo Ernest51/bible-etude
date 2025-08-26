@@ -3,269 +3,258 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Bible Étude — Interface</title>
-  <meta name="description" content="Interface d'étude biblique — modèle 28 points avec sauvegarde locale et export." />
+  <title>Bible Étude — 28 points</title>
+  <meta name="description" content="Interface d'étude biblique — colonne 28 points + éditeur central, sauvegarde locale." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <style>
-    :root {
-      --bg:#f5f6f8; --card:#ffffff; --text:#0f172a; --muted:#64748b; --link:#2563eb;
-      --green:#16a34a; --red:#dc2626; --amber:#d97706; --border:#e5e7eb;
+    :root{
+      --bg:#f5f6f8; --panel:#ffffff; --text:#0f172a; --muted:#64748b; --link:#2563eb;
+      --border:#e5e7eb; --green:#16a34a; --red:#dc2626; --amber:#d97706;
     }
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:18px 20px;position:sticky;top:0;z-index:10}
-    h1{margin:0;font-size:28px}
-    main{max-width:1100px;margin:24px auto;padding:0 16px}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px}
-    .muted{color:var(--muted)}
-    a{color:var(--link);text-decoration:none} a:hover{text-decoration:underline}
-    .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
-    input[type="text"]{flex:1;min-width:220px;border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:16px 18px;position:sticky;top:0;z-index:10}
+    h1{margin:0;font-size:26px}
+    main{max-width:1200px;margin:18px auto;padding:0 14px}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+    input[type="text"]{border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+    .grow{flex:1 1 260px;min-width:240px}
     .btn{background:#111827;color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
     .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
-    .btn.success{background:var(--green)}
     .btn.warn{background:#f59e0b}
-    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-    @media (max-width:900px){ .grid{grid-template-columns:1fr} }
-    details.section{border:1px solid var(--border);border-radius:12px;background:#fff}
-    details.section summary{cursor:pointer;list-style:none;padding:12px 14px;font-weight:600;border-bottom:1px solid var(--border)}
-    details.section[open] summary{background:#f8fafc}
-    .body{padding:12px}
-    textarea{width:100%;min-height:130px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:10px}
-    .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .hl{background:#fffbeb;border:1px dashed #f59e0b;border-radius:10px;padding:10px}
-    .small{font-size:12px}
-    footer{max-width:1100px;margin:26px auto;padding:0 16px;color:var(--muted);font-size:14px}
+    .saved{font-size:12px;color:var(--muted);align-self:center}
+    .layout{display:grid;grid-template-columns:280px 1fr;gap:12px}
+    @media (max-width:1000px){ .layout{grid-template-columns:1fr} }
+    /* Sidebar */
+    .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700}
+    .list{max-height:70vh;overflow:auto}
+    .item{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
+    .item:last-child{border-bottom:0}
+    .item:hover{background:#f8fafc}
+    .item.active{background:#eef2ff}
+    .idx{min-width:22px;height:22px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
+    .dot{width:8px;height:8px;border-radius:999px;background:#eab308;margin-left:auto}
+    .dot.ok{background:var(--green)}
+    /* Editor */
+    .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:60vh;display:flex;flex-direction:column}
+    .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+    .ed-title{font-weight:700;flex:1}
+    .ed-body{padding:12px}
+    textarea{width:100%;min-height:380px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:12px}
+    .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center}
+    .navbtn{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 12px;cursor:pointer}
+    .muted{color:var(--muted)}
+    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:var(--muted);font-size:14px}
     /* Debug footer (discret) */
     #debugBtn{margin-top:8px;background:#111827;color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
     #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:240px;overflow:auto;white-space:pre-wrap;font-size:12px}
     .status-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
     .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
-    .dot{width:8px;height:8px;border-radius:999px;background:var(--amber)}
-    .dot.ok{background:var(--green)} .dot.ko{background:var(--red)}
-    .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px}
-    select, label.switch {font-size:12px}
-    .switch {display:inline-flex;align-items:center;gap:6px;cursor:pointer}
-    .switch input{accent-color:#111827}
-    .next {font-size:12px}
-    /* Impression: montre le contenu, cache le debug */
-    @media print{
-      header, .toolbar, footer .status-row, footer .controls, #debugPanel { display:none !important; }
-      body{background:#fff}
-      details.section{break-inside:avoid}
-    }
+    .mini{width:8px;height:8px;border-radius:999px;background:#d97706}
+    .mini.ok{background:var(--green)} .mini.ko{background:var(--red)}
+    @media print{ header, .toolbar, .sidebar, .ed-foot, footer .status-row, #debugPanel { display:none !important; } textarea{min-height:unset} }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Bible Étude</h1>
-  </header>
+  <header><h1>Bible Étude — 28 points</h1></header>
 
   <main>
-    <!-- Barre d’actions -->
-    <div class="card toolbar">
-      <div class="bar">
-        <input id="refInput" type="text" placeholder="Référence (ex : Genèse 1:1-5)" />
-        <input id="titreInput" type="text" placeholder="Titre de l’étude (ex : Création — Genèse 1)" />
-        <button class="btn success" id="loadModel">Charger modèle 28 pts</button>
-        <button class="btn" id="save">💾 Sauvegarder</button>
-        <button class="btn secondary" id="clear">🧹 Vider</button>
-        <button class="btn warn" id="print">🖨️ Imprimer / PDF</button>
-      </div>
-      <p class="muted small">Astuce : tout est sauvegardé en local sur ton navigateur (localStorage). Le bouton 💾 force une sauvegarde immédiate.</p>
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <input id="refInput" class="grow" type="text" placeholder="Référence (ex : Genèse 1:1-5)" />
+      <input id="titreInput" class="grow" type="text" placeholder="Titre de l’étude (ex : Création — Genèse 1)" />
+      <button id="save" class="btn">💾 Sauvegarder</button>
+      <button id="clear" class="btn secondary">🧹 Vider</button>
+      <button id="print" class="btn warn">🖨️ Imprimer / PDF</button>
+      <span id="savedBadge" class="saved">—</span>
     </div>
 
-    <!-- Zone Étude -->
-    <div id="study" class="grid"></div>
+    <div class="layout">
+      <!-- Colonne gauche : 28 points -->
+      <aside class="sidebar">
+        <div class="side-head">Plan d’étude (28)</div>
+        <div id="pointsList" class="list"></div>
+      </aside>
+
+      <!-- Colonne centrale : éditeur -->
+      <section class="editor">
+        <div class="ed-head">
+          <div class="ed-title" id="edTitle">—</div>
+          <button id="prev" class="navbtn">◀ Précédent</button>
+          <button id="next" class="navbtn">Suivant ▶</button>
+        </div>
+        <div class="ed-body">
+          <textarea id="noteArea" placeholder="Écris ici…"></textarea>
+        </div>
+        <div class="ed-foot">
+          <span class="muted" id="metaInfo">Point — / 28</span>
+          <span class="muted">Astuce : sauvegarde auto toutes les 2s après saisie.</span>
+        </div>
+      </section>
+    </div>
   </main>
 
-  <!-- Footer avec debug discret -->
+  <!-- Footer + debug discret -->
   <footer>
     © <span id="y"></span> Bible Étude
     <div class="status-row" aria-label="Statut API">
-      <span class="badge"><span id="dot-health" class="dot" aria-hidden="true"></span> health</span>
-      <span class="badge"><span id="dot-chat" class="dot" aria-hidden="true"></span> chat(POST)</span>
-      <span class="badge"><span id="dot-ping" class="dot" aria-hidden="true"></span> ping</span>
+      <span class="badge"><span id="dot-health" class="mini" aria-hidden="true"></span> health</span>
+      <span class="badge"><span id="dot-chat" class="mini" aria-hidden="true"></span> chat(POST)</span>
+      <span class="badge"><span id="dot-ping" class="mini" aria-hidden="true"></span> ping</span>
       <button id="debugBtn" title="Ouvrir le panneau de debug">Debug</button>
-    </div>
-    <div class="controls">
-      <label class="switch"><input type="checkbox" id="autoToggle"> Auto</label>
-      <label>Intervalle:
-        <select id="autoInterval">
-          <option value="5">5 min</option>
-          <option value="10" selected>10 min</option>
-          <option value="30">30 min</option>
-        </select>
-      </label>
-      <span class="next">Prochain check dans <strong id="nextIn">—</strong></span>
     </div>
     <div id="debugPanel">[init]</div>
   </footer>
 
   <script>
     (function(){
-      // ===== Étude — modèle 28 points =====
+      // ===== Données & constantes =====
       const SECTIONS = [
-        '1. Thème central / Titre',
-        '2. Référence & contexte immédiat',
-        '3. Auteur / Date / Destinataires',
-        '4. Contexte historique & culturel',
-        '5. Structure littéraire du passage',
-        '6. Idées clés (bullet points)',
-        '7. Mots clés & termes importants (hébreu/grec)',
-        '8. Parallèles bibliques',
-        '9. Promesses / Commandements',
-        '10. Vérités doctrinales',
-        '11. Christ au centre (typologie, prophétie, accomplissement)',
-        '12. Révélation sur Dieu (attributs, œuvres)',
-        '13. Condition humaine / péché / grâce',
-        '14. Plan du salut (si applicable)',
-        '15. Le rôle du Saint-Esprit dans le texte',
-        '16. Pistes d’interprétation (principes herméneutiques)',
-        '17. Erreurs d’interprétation courantes (anti-modèles)',
-        '18. Questions de méditation',
-        '19. Application personnelle',
-        '20. Application communautaire / Église',
-        '21. Prière de réponse',
-        '22. Engagement concret (cette semaine)',
-        '23. Témoignage / Partage',
-        '24. Versets à mémoriser',
-        '25. Plan d’étude complémentaire',
-        '26. Références de théologiens / commentaires',
-        '27. Notes diverses',
-        '28. Synthèse finale (une page)'
+        'Thème central / Titre','Référence & contexte immédiat','Auteur / Date / Destinataires','Contexte historique & culturel',
+        'Structure littéraire du passage','Idées clés (bullet points)','Mots clés & termes importants (hébreu/grec)','Parallèles bibliques',
+        'Promesses / Commandements','Vérités doctrinales','Christ au centre (typologie, prophétie, accomplissement)','Révélation sur Dieu (attributs, œuvres)',
+        'Condition humaine / péché / grâce','Plan du salut (si applicable)','Rôle du Saint-Esprit','Pistes d’interprétation (herméneutique)',
+        'Erreurs d’interprétation (anti-modèles)','Questions de méditation','Application personnelle','Application communautaire / Église',
+        'Prière de réponse','Engagement concret (semaine)','Témoignage / Partage','Versets à mémoriser',
+        'Plan d’étude complémentaire','Références de théologiens / commentaires','Notes diverses','Synthèse finale (une page)'
       ];
+      const N = SECTIONS.length;
 
-      const studyEl = document.getElementById('study');
+      // ===== Éléments =====
       const refInput = document.getElementById('refInput');
       const titreInput = document.getElementById('titreInput');
-      const btnModel = document.getElementById('loadModel');
-      const btnSave = document.getElementById('save');
-      const btnClear = document.getElementById('clear');
-      const btnPrint = document.getElementById('print');
+      const pointsList = document.getElementById('pointsList');
+      const edTitle = document.getElementById('edTitle');
+      const noteArea = document.getElementById('noteArea');
+      const prevBtn = document.getElementById('prev');
+      const nextBtn = document.getElementById('next');
+      const savedBadge = document.getElementById('savedBadge');
+      const metaInfo = document.getElementById('metaInfo');
 
       // Storage keys
-      const KEY_META = 'be_meta';  // {ref, titre}
-      const KEY_NOTES = 'be_notes'; // {index: text}
+      const KEY_META = 'be_meta';
+      const KEY_NOTES = 'be_notes';
 
-      function loadFromStorage(){
+      // État
+      let current = 0; // index du point sélectionné
+      let notes = {}; // {index: text}
+      let autosaveTimer = null;
+
+      // ===== Helpers =====
+      function fmtIndex(i){ return (i+1) + '. ' + SECTIONS[i]; }
+      function loadStorage(){
         try{
           const meta = JSON.parse(localStorage.getItem(KEY_META)||'{}');
-          const notes = JSON.parse(localStorage.getItem(KEY_NOTES)||'{}');
-          if(meta.ref) refInput.value = meta.ref;
-          if(meta.titre) titreInput.value = meta.titre;
-          return {meta, notes};
-        }catch{ return {meta:{}, notes:{}}; }
+          const data = JSON.parse(localStorage.getItem(KEY_NOTES)||'{}');
+          notes = data || {};
+          if (meta.ref) refInput.value = meta.ref;
+          if (meta.titre) titreInput.value = meta.titre;
+        }catch{}
       }
-
-      function saveToStorage(){
+      function saveStorage(){
         try{
           const meta = { ref: refInput.value.trim(), titre: titreInput.value.trim() };
-          const notes = {};
-          document.querySelectorAll('[data-note-index]').forEach(area=>{
-            notes[area.dataset.noteIndex] = area.value;
-          });
           localStorage.setItem(KEY_META, JSON.stringify(meta));
           localStorage.setItem(KEY_NOTES, JSON.stringify(notes));
-          toast('Sauvegardé ✅');
-        }catch(e){ console.warn('Storage error', e); }
+          showSaved('Sauvegardé');
+          renderSidebarDots();
+        }catch{}
       }
-
-      function clearStorage(){
-        localStorage.removeItem(KEY_META);
-        localStorage.removeItem(KEY_NOTES);
-        refInput.value = '';
-        titreInput.value = '';
-        renderSections({}); // reset all textareas
+      function showSaved(txt){
+        savedBadge.textContent = txt + ' ✅ ' + new Date().toLocaleTimeString();
+        clearTimeout(showSaved._t);
+        showSaved._t = setTimeout(()=>{ savedBadge.textContent='—'; }, 2000);
       }
-
-      function toast(msg){
-        const t = document.createElement('div');
-        t.textContent = msg;
-        t.style.position='fixed'; t.style.right='16px'; t.style.bottom='16px';
-        t.style.background='#111827'; t.style.color='#fff'; t.style.padding='10px 12px';
-        t.style.borderRadius='10px'; t.style.boxShadow='0 6px 18px rgba(0,0,0,.15)'; t.style.zIndex='9999';
-        document.body.appendChild(t);
-        setTimeout(()=>t.remove(), 1400);
-      }
-
-      function renderSections(savedNotes){
-        studyEl.innerHTML = '';
-        // Bandeau titre et référence
-        const head = document.createElement('div');
-        head.className = 'card';
-        head.style.marginBottom = '14px';
-        head.innerHTML = `
-          <div class="two">
-            <div class="hl">
-              <div class="small muted">Référence</div>
-              <div style="font-weight:700;font-size:18px">${refInput.value || '—'}</div>
-            </div>
-            <div class="hl">
-              <div class="small muted">Titre</div>
-              <div style="font-weight:700;font-size:18px">${titreInput.value || '—'}</div>
-            </div>
-          </div>
-        `;
-        studyEl.appendChild(head);
-
-        // Sections (accordéons)
+      function renderSidebar(){
+        pointsList.innerHTML = '';
         SECTIONS.forEach((label, i)=>{
-          const d = document.createElement('details');
-          d.className = 'section';
-          d.open = i < 4; // ouvre les premières pour démarrer
-          const s = document.createElement('summary');
-          s.textContent = label;
-          const body = document.createElement('div');
-          body.className = 'body';
-          const ta = document.createElement('textarea');
-          ta.placeholder = 'Écris ici…';
-          ta.value = (savedNotes && savedNotes[i]) || '';
-          ta.dataset.noteIndex = String(i);
-          ta.addEventListener('input', throttle(saveToStorage, 500));
-          body.appendChild(ta);
-          d.appendChild(s); d.appendChild(body);
-          studyEl.appendChild(d);
+          const row = document.createElement('div');
+          row.className = 'item' + (i===current ? ' active' : '');
+          row.dataset.idx = i;
+          row.innerHTML = `
+            <span class="idx">${i+1}</span>
+            <span>${label}</span>
+            <span class="dot ${notes[i] && notes[i].trim() ? 'ok':''}"></span>
+          `;
+          row.addEventListener('click', ()=>{
+            if (current !== i) { select(i); }
+          });
+          pointsList.appendChild(row);
         });
       }
+      function renderSidebarDots(){
+        // Met à jour uniquement les pastilles selon contenu
+        document.querySelectorAll('.list .item').forEach(el=>{
+          const i = Number(el.dataset.idx);
+          const dot = el.querySelector('.dot');
+          if (!dot) return;
+          if (notes[i] && notes[i].trim()) dot.classList.add('ok'); else dot.classList.remove('ok');
+        });
+      }
+      function select(i){
+        // Sauvegarde le point courant avant de changer
+        notes[current] = noteArea.value;
+        saveStorage();
 
-      // simple throttle
-      let throttleTimer=null;
-      function throttle(fn, delay){
-        return function(...args){
-          if(throttleTimer) return;
-          throttleTimer = setTimeout(()=>{ throttleTimer=null; fn.apply(this,args); }, delay);
-        };
+        current = i;
+        document.querySelectorAll('.list .item').forEach(el=> el.classList.toggle('active', Number(el.dataset.idx)===current));
+        edTitle.textContent = fmtIndex(current);
+        noteArea.value = notes[current] || '';
+        metaInfo.textContent = `Point ${current+1} / ${N}`;
+        noteArea.focus();
       }
 
-      // Init
-      (function init(){
-        document.getElementById('y').textContent = new Date().getFullYear();
-        const { notes } = loadFromStorage();
-        renderSections(notes);
+      // ===== Events =====
+      noteArea.addEventListener('input', ()=>{
+        // autosave 2s après saisie
+        clearTimeout(autosaveTimer);
+        autosaveTimer = setTimeout(()=>{
+          notes[current] = noteArea.value;
+          saveStorage();
+        }, 2000);
+      });
 
-        btnModel.addEventListener('click', ()=>{ renderSections(loadFromStorage().notes); toast('Modèle chargé'); });
-        btnSave.addEventListener('click', saveToStorage);
-        btnClear.addEventListener('click', ()=>{ if(confirm('Vider le contenu local ?')){ clearStorage(); toast('Vidage effectué'); } });
-        btnPrint.addEventListener('click', ()=>{ saveToStorage(); window.print(); });
-        refInput.addEventListener('input', throttle(saveToStorage, 500));
-        titreInput.addEventListener('input', throttle(saveToStorage, 500));
-      })();
+      refInput.addEventListener('input', ()=>{ clearTimeout(autosaveTimer); autosaveTimer=setTimeout(saveStorage, 800); });
+      titreInput.addEventListener('input', ()=>{ clearTimeout(autosaveTimer); autosaveTimer=setTimeout(saveStorage, 800); });
 
-      // ===== Debug (footer) identique, en mode discret =====
+      document.getElementById('save').addEventListener('click', ()=>{
+        notes[current] = noteArea.value; saveStorage();
+      });
+
+      document.getElementById('clear').addEventListener('click', ()=>{
+        if (!confirm('Vider le contenu local (référence, titre et notes) ?')) return;
+        localStorage.removeItem(KEY_META);
+        localStorage.removeItem(KEY_NOTES);
+        refInput.value=''; titreInput.value='';
+        notes = {}; renderSidebarDots();
+        noteArea.value=''; showSaved('Vidage');
+      });
+
+      document.getElementById('print').addEventListener('click', ()=>{
+        notes[current] = noteArea.value; saveStorage();
+        window.print();
+      });
+
+      prevBtn.addEventListener('click', ()=> select( (current-1+N)%N ));
+      nextBtn.addEventListener('click', ()=> select( (current+1)%N ));
+
+      // ===== Init =====
+      document.getElementById('y').textContent = new Date().getFullYear();
+      loadStorage();
+      renderSidebar();
+      select(current);
+
+      // ===== Debug discret (pied de page) =====
       const btn = document.getElementById('debugBtn');
       const panel = document.getElementById('debugPanel');
       const dotHealth = document.getElementById('dot-health');
       const dotChat = document.getElementById('dot-chat');
       const dotPing = document.getElementById('dot-ping');
-      const autoToggle = document.getElementById('autoToggle');
-      const autoInterval = document.getElementById('autoInterval');
-      const nextIn = document.getElementById('nextIn');
-      let autoTimer=null, countdownTimer=null, remainingMs=0;
 
-      function setDot(dot, ok){
+      function setMini(dot, ok){
         dot.classList.remove('ok','ko');
-        if (ok === true) dot.classList.add('ok'); else if (ok === false) dot.classList.add('ko');
+        if (ok===true) dot.classList.add('ok'); else if (ok===false) dot.classList.add('ko');
       }
       function log(msg){
         const line = '['+new Date().toISOString()+'] '+msg;
@@ -274,38 +263,21 @@
       }
       async function ping(path, options){
         try{
-          const c = new AbortController();
-          const t = setTimeout(()=>c.abort(),2500);
-          const r = await fetch(path, { ...(options||{}), signal:c.signal });
-          clearTimeout(t);
-          return r;
-        }catch(e){ return { ok:false, status:0, error:String(e) }; }
+          const c = new AbortController(); const t=setTimeout(()=>c.abort(),2500);
+          const r = await fetch(path,{...(options||{}),signal:c.signal}); clearTimeout(t); return r;
+        }catch(e){ return {ok:false,status:0,error:String(e)}; }
       }
-      async function runChecks(logToPanel=true){
-        setDot(dotHealth, undefined); setDot(dotChat, undefined); setDot(dotPing, undefined);
-        const r1 = await ping('/api/health'); setDot(dotHealth, !!(r1 && r1.ok)); if (logToPanel) log((r1 && r1.ok ? 'OK':'KO')+' /api/health → '+(r1.status||0));
-        const r2 = await ping('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({probe:true,ts:Date.now()})}); setDot(dotChat, !!(r2 && r2.ok)); if (logToPanel) log((r2 && r2.ok ? 'OK':'KO')+' /api/chat (POST) → '+(r2.status||0));
-        const r3 = await ping('/api/ping'); setDot(dotPing, !!(r3 && r3.ok)); if (logToPanel) log((r3 && r3.ok ? 'OK':'KO')+' /api/ping → '+(r3.status||0));
+      async function runChecks(){
+        setMini(dotHealth, undefined); setMini(dotChat, undefined); setMini(dotPing, undefined);
+        const r1 = await ping('/api/health'); setMini(dotHealth, !!(r1&&r1.ok)); log((r1&&r1.ok?'OK':'KO')+' /api/health → '+(r1.status||0));
+        const r2 = await ping('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({probe:true})}); setMini(dotChat, !!(r2&&r2.ok)); log((r2&&r2.ok?'OK':'KO')+' /api/chat (POST) → '+(r2.status||0));
+        const r3 = await ping('/api/ping'); setMini(dotPing, !!(r3&&r3.ok)); log((r3&&r3.ok?'OK':'KO')+' /api/ping → '+(r3.status||0));
       }
-      function fmt(ms){ const s=Math.max(0,Math.floor(ms/1000)); const m=Math.floor(s/60); const ss=String(s%60).padStart(2,'0'); return m+':'+ss; }
-      function clearTimers(){ if(autoTimer){clearTimeout(autoTimer);autoTimer=null;} if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;} }
-      function scheduleNext(){
-        clearTimers();
-        if (!autoToggle.checked){ nextIn.textContent='—'; return; }
-        if (document.hidden){ nextIn.textContent='pause (onglet inactif)'; return; }
-        const mins=parseInt(autoInterval.value,10)||10; remainingMs=mins*60*1000;
-        nextIn.textContent = fmt(remainingMs);
-        countdownTimer=setInterval(()=>{ remainingMs-=1000; nextIn.textContent=fmt(remainingMs); if(remainingMs<=0){clearInterval(countdownTimer);} },1000);
-        autoTimer=setTimeout(async ()=>{ const willLog = panel.style.display==='block'; if (willLog) panel.textContent='[Debug démarré…]'; await runChecks(willLog); scheduleNext(); }, remainingMs);
-      }
-      function togglePanel(){ const open=panel.style.display==='block'; if(open){ panel.style.display='none'; btn.textContent='Debug'; } else { panel.style.display='block'; btn.textContent='Fermer Debug'; panel.textContent='[Debug démarré…]'; runChecks(true); } }
-      btn.addEventListener('click', togglePanel);
-      autoToggle.addEventListener('change', scheduleNext);
-      autoInterval.addEventListener('change', scheduleNext);
-      document.addEventListener('visibilitychange', scheduleNext);
-      document.getElementById('y').textContent = new Date().getFullYear();
-      // auto OFF par défaut pour économiser les requêtes
-      scheduleNext();
+      btn.addEventListener('click', ()=>{
+        const open = panel.style.display==='block';
+        if(open){ panel.style.display='none'; btn.textContent='Debug'; }
+        else{ panel.style.display='block'; btn.textContent='Fermer Debug'; panel.textContent='[Debug démarré…]'; runChecks(); }
+      });
     })();
   </script>
 </body>
