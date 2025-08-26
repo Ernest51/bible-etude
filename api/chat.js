@@ -1,5 +1,5 @@
 // api/chat.js
-export const config = { runtime: 'nodejs20.x' };
+export const config = { runtime: 'nodejs' };
 
 function send(res, code, payload) {
   res.status(code)
