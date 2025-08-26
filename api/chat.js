@@ -1,125 +1,183 @@
 // api/chat.js
-// Génération des 28 rubriques (libellés exacts) via OpenAI Responses API
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+import OpenAI from "openai";
+import { z } from "zod";
 
-// Libellés EXACTS (comme ton étude)
-const RUBRIQUES = [
-  "Prière d’ouverture","Canon et testament","Questions du chapitre précédent","Titre du chapitre",
-  "Contexte historique","Structure littéraire","Genre littéraire","Auteur et généalogie",
-  "Verset-clé doctrinal","Analyse exégétique","Analyse lexicale","Références croisées",
-  "Fondements théologiques","Thème doctrinal","Fruits spirituels","Types bibliques",
-  "Appui doctrinal","Comparaison entre versets","Comparaison avec Actes 2","Verset à mémoriser",
-  "Enseignement pour l’Église","Enseignement pour la famille","Enseignement pour enfants",
-  "Application missionnaire","Application pastorale","Application personnelle",
-  "Versets à retenir","Prière de fin"
-];
+/**
+ * === Schéma d'entrée attendu ===
+ * {
+ *   "input": "Marc 5:1-20",   // ou "Marc 5:1" etc.
+ *   "templateId": "v28-standard" // optionnel, défaut "v28-standard"
+ * }
+ *
+ * Réponse:
+ * { ok: true, data: { reference, templateId, sections: [...] } }
+ * ou { ok: false, error: "...", details?: ... }
+ */
 
-function bad(res, code, msg) { return res.status(code).json({ ok:false, error: msg }); }
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const BodySchema = z.object({
+  input: z.string().min(1, "input requis (ex: 'Marc 5:1-20')"),
+  templateId: z.string().optional().default("v28-standard")
+});
+
+// Parser très tolérant pour "Livre Chapitre:Verses"
+function parseReference(raw) {
+  const str = (raw || "").trim();
+  // Exemple capturé : "Marc 5:1-20" / "Marc 5" / "Marc 5:1"
+  const m = str.match(/^([\p{L}\p{M}\s\.\-’']+)\s+(\d+)(?::([\d\-–,; ]+))?$/u);
+  if (!m) {
+    return { book: str, chapter: null, verses: null, raw };
+  }
+  const [, book, chapter, verses] = m;
+  return {
+    book: book.trim(),
+    chapter: Number(chapter),
+    verses: verses ? verses.replace(/\s+/g, "") : null,
+    raw: str
+  };
+}
+
+// Prompt système : génération en 28 points, stricte, en FR.
+// On force un JSON strict pour l’affichage fiable côté front.
+function buildMessages({ book, chapter, verses, raw, templateId }) {
+  const system = `
+Tu es un assistant de théologie qui génère des études bibliques **structurées en 28 points** selon un canevas fixe.
+Contraintes IMPÉRATIVES :
+- Langue : français.
+- Aucune digression : colle strictement au passage demandé.
+- Pas d’aléatoire : chaque point doit découler du passage, de son contexte et des références croisées.
+- Style : pédagogique, clair, numéroté de 1 à 28.
+- Sortie **UNIQUEMENT en JSON valide** correspondant au schéma suivant :
+
+{
+  "reference": "Livre Chapitre:Verses",
+  "templateId": "v28-standard",
+  "sections": [
+    {
+      "id": 1,
+      "title": "Titre du point 1",
+      "content": "Contenu concis et précis du point 1, fidèle au texte biblique",
+      "verses": ["Marc 5:1-5"] // versets principalement mobilisés pour ce point
+    },
+    ...
+    {
+      "id": 28,
+      "title": "Titre du point 28",
+      "content": "Conclusion et application",
+      "verses": ["..."]
+    }
+  ]
+}
+
+Rappels de forme :
+- 28 sections **exactement**.
+- "title" ≤ 90 caractères. "content" ≤ 700 caractères par point.
+- Citer des versets précis en "verses" (tableau de chaînes), pas de texte biblique intégral.
+- Pas de commentaire en dehors du JSON.
+`.trim();
+
+  const user = `
+Génère l'étude en 28 points pour : ${raw}
+Détails structurés:
+- Livre: ${book || "Inconnu"}
+- Chapitre: ${chapter ?? "Inconnu"}
+- Versets: ${verses ?? "Non spécifié"}
+- Modèle: ${templateId}
+`.trim();
+
+  return [
+    { role: "system", content: system },
+    { role: "user", content: user }
+  ];
+}
+
+// Réponse utilitaire
+function json(res, code, payload) {
+  res.status(code).setHeader("Content-Type", "application/json");
+  res.end(JSON.stringify(payload));
+}
 
 export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST') return bad(res, 405, 'Method Not Allowed');
-  if (!OPENAI_API_KEY) return bad(res, 500, 'OPENAI_API_KEY manquante');
-
-  // Lire le corps
-  let raw = '';
-  for await (const chunk of req) raw += chunk;
-  let body = {};
-  try { body = raw ? JSON.parse(raw) : {}; } catch { return bad(res, 400, 'Invalid JSON'); }
-
-  const { book, chapter, verse, version, reference, titre } = body || {};
-  if (!book || !chapter) return bad(res, 400, 'Paramètres requis: {book, chapter}');
-
-  // Contexte de génération
-  const refText = `${book} ${chapter}${verse ? ':'+verse : ''}`;
-  const versionText = version || 'PDV';
-
-  // Prompt: on exige un JSON strict pour faciliter l’intégration
-  const userPrompt = [
-    `Tu es un assistant exégétique et doctrinal francophone.`,
-    `Génère une étude biblique en 28 rubriques EXACTEMENT avec ces libellés:`,
-    RUBRIQUES.map((t,i)=>`${i+1}. ${t}`).join(' | '),
-    `Passage cible: ${refText} (${versionText}).`,
-    `Contraintes:`,
-    `- Langue: français.`,
-    `- Style: pédagogique, fidèle au texte biblique, sans spéculation.` ,
-    `- Citer *uniquement* des références bibliques (Livre Chapitre:Verset) quand nécessaire.`,
-    `- Sortie STRICTEMENT en JSON (AUCUN texte hors JSON).`,
-    `Format attendu: {"sections":[{"title":"<libellé exact>","content":"<contenu>"}, ... 28 items ...]}`,
-    `- "title" DOIT correspondre à la liste exacte ci-dessus (même orthographe).`,
-    `- "content": 5–12 phrases concises par rubrique (sauf prières: quelques lignes).`,
-    `- Adapter le contenu au passage ${refText}.`,
-    titre ? `- Titre de l’étude à refléter dans "Titre du chapitre": ${titre}.` : ``
-  ].join('\n');
-
-  // Appel OpenAI Responses API (modèle léger et économique ; ajuste si besoin)
-  // Réf. API officielle: "Responses" (requête HTTP POST /v1/responses). 
-  let openaiResp;
   try {
-    const r = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-4.1-mini',   // tu peux tester 'gpt-4o-mini' selon ton abonnement
-        input: userPrompt,
-        temperature: 0.3,
-        max_output_tokens: 2200,
-        // On demande explicitement du JSON; si ton compte supporte response_format, tu peux décommenter:
-        // response_format: { type: "json_object" }
-      })
-    });
-    openaiResp = await r.json();
-  } catch (e) {
-    return bad(res, 502, 'Erreur réseau OpenAI: '+ String(e));
-  }
-
-  // Extraire le texte de sortie (Responses => output_text)
-  let text = '';
-  try {
-    // Selon Responses API, "output_text" regroupe le texte. Fallback si structure différente.
-    text = openaiResp.output_text ?? (
-      Array.isArray(openaiResp.output) ? openaiResp.output.map(x => x.content?.[0]?.text ?? '').join('\n') : ''
-    );
-  } catch {}
-
-  if (!text) {
-    return bad(res, 502, 'Réponse vide du modèle');
-  }
-
-  // Parser le JSON retourné par le modèle
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch (e) {
-    // Tentative de récupération: extraire bloc JSON si le modèle a bavardé (rare avec ce prompt)
-    const m = text.match(/\{[\s\S]*\}$/);
-    if (m) {
-      try { parsed = JSON.parse(m[0]); } catch {}
+    // CORS minimal si besoin (facultatif si même domaine)
+    if (req.method === "OPTIONS") {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+      return res.status(204).end();
     }
-  }
-  if (!parsed || !Array.isArray(parsed.sections)) {
-    return bad(res, 502, 'Format inattendu du modèle (sections manquantes)');
-  }
 
-  // Sécurité: remapper proprement aux libellés exacts et garantir 28 items
-  const byTitle = new Map(parsed.sections.map(s => [String(s.title || '').trim(), String(s.content || '').trim()]));
-  const sections = RUBRIQUES.map(title => ({
-    title,
-    content: byTitle.get(title) || ''
-  }));
+    if (req.method !== "POST") {
+      return json(res, 405, { ok: false, error: "Méthode non autorisée" });
+    }
 
-  return res.status(200).json({
-    ok: true,
-    reference: refText,
-    version: versionText,
-    sections
-  });
+    if (!process.env.OPENAI_API_KEY) {
+      return json(res, 500, { ok: false, error: "OPENAI_API_KEY manquant (variable d'environnement)" });
+    }
+
+    let body;
+    try {
+      body = BodySchema.parse(await readJson(req));
+    } catch (e) {
+      return json(res, 400, { ok: false, error: "Entrée invalide", details: e?.errors ?? String(e) });
+    }
+
+    const ref = parseReference(body.input);
+    const messages = buildMessages({ ...ref, templateId: body.templateId });
+
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.2,             // moins de variance
+      max_tokens: 4000,
+      messages
+    });
+
+    const text = completion.choices?.[0]?.message?.content?.trim();
+    if (!text) {
+      return json(res, 502, { ok: false, error: "Réponse vide du modèle" });
+    }
+
+    // Tenter de parser le JSON strict (on refuse tout préfixe/suffixe)
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // Si le modèle a ajouté du texte autour, on essaie d'extraire le 1er bloc JSON
+      const match = text.match(/\{[\s\S]*\}$/);
+      if (match) {
+        try {
+          data = JSON.parse(match[0]);
+        } catch (e2) {
+          return json(res, 502, { ok: false, error: "JSON de sortie invalide", details: e2?.message, raw: text });
+        }
+      } else {
+        return json(res, 502, { ok: false, error: "Sortie non JSON", raw: text });
+      }
+    }
+
+    // Validation minimale du contenu
+    if (!data?.sections || !Array.isArray(data.sections) || data.sections.length !== 28) {
+      return json(res, 502, { ok: false, error: "Le résultat ne contient pas 28 sections exactes", raw: data });
+    }
+
+    // OK
+    return json(res, 200, {
+      ok: true,
+      data: {
+        reference: data.reference ?? ref.raw,
+        templateId: body.templateId,
+        sections: data.sections
+      }
+    });
+  } catch (err) {
+    return json(res, 500, { ok: false, error: "Erreur serveur", details: err?.message ?? String(err) });
+  }
+}
+
+async function readJson(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const raw = Buffer.concat(chunks).toString("utf8") || "{}";
+  return JSON.parse(raw);
 }
