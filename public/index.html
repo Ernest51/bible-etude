@@ -10,8 +10,8 @@
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
 <body class="h-full">
-  <!-- Marqueur version pour vérifier le bon fichier -->
-  <div class="text-center text-xs text-slate-500 mt-2">INDEX v4 — layout de base</div>
+  <!-- Marqueur version -->
+  <div class="text-center text-xs text-slate-500 mt-2">INDEX v4 — depuis /public/index.html</div>
 
   <!-- Bannière JS (remplie par app.js) -->
   <div id="banner" class="hidden"></div>
@@ -38,7 +38,6 @@
       <h1 class="text-4xl mb-2">Test de chargement de app.js</h1>
       <p>Si tout marche, une bannière verte "JS chargé ✅" doit apparaître tout en haut.</p>
 
-      <!-- Boutons de test (vérif interactions JS) -->
       <div class="mt-6 flex items-center gap-3">
         <button class="btn btn-solid">Bouton solide</button>
         <button class="btn btn-outline">Bouton contour</button>
@@ -60,19 +59,4 @@
 
   <!-- ===== Footer ===== -->
   <footer class="mt-12 border-t border-indigo-100">
-    <div class="max-w-5xl mx-auto px-4 py-6 text-sm text-slate-500 flex items-center justify-between">
-      <span>© <span id="year"></span> Étude Biblique</span>
-      <a href="#" class="pill">Mentions</a>
-    </div>
-  </footer>
-
-  <script>
-    // met l’année courante dans le footer sans toucher à app.js
-    document.addEventListener('DOMContentLoaded', () => {
-      const y = document.getElementById('year');
-      if (y) y.textContent = new Date().getFullYear();
-    });
-  </script>
-  <script src="/app.js" defer></script>
-</body>
-</html>
+    <div class="max-w-5xl mx-auto px-4 py-6 text-sm text-slate-500 flex
