@@ -1,13 +1,7 @@
 {
-  "version": 2,
-  "rewrites": [
-    { "source": "/", "destination": "/public/index.html" },
-    { "source": "/dist/(.*)", "destination": "/public/dist/$1" }
-  ],
-  "headers": [
-    {
-      "source": "/dist/(.*)\\.css",
-      "headers": [{ "key": "Content-Type", "value": "text/css; charset=utf-8" }]
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs20.x"
     }
-  ]
+  }
 }
