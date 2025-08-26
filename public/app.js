@@ -143,7 +143,9 @@
   }
 
   // --- Helpers saisie / sélection
-  const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\./g,'').trim();
+  const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+                    .toLowerCase().replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+
   function parseSearch(q){
     q = q.trim();
     const m = q.match(/^([\d]?\s*[A-Za-zÀ-ÿ'’\.\s]+)\s+(\d+)(?::(\d+))?/);
@@ -172,22 +174,18 @@
   function buildReference(){
     const typed = (searchRef.value || '').trim();
     if (typed) return typed;
-    const b = bookSelect.value, c = chapterSelect.value, v = verseSelect.value;
+    const b = bookSelect.value, c = chapterSelect.value;
     return c ? `${b} ${c}` : b;
   }
 
   // --- Appel API robuste: GET puis fallback POST
   async function fetchChat(ref) {
     const url = `/api/chat?q=${encodeURIComponent(ref)}&templateId=v28-standard`;
-
-    // 1) GET
     try {
       const r = await fetch(url, { method: 'GET' });
       const j = await r.json().catch(() => ({}));
       if (r.ok && (j?.ok || j?.data)) return { ok: true, payload: j, status: r.status };
     } catch (_) {}
-
-    // 2) POST
     try {
       const r = await fetch('/api/chat', {
         method: 'POST',
@@ -202,7 +200,58 @@
     }
   }
 
-  // --- Génération: on remplit uniquement les contenus (gauche figée)
+  // --- Dictionnaire de correspondances (synonymes/ mots clés) -> index fixe
+  const MATCHERS = [
+    ["priere ouverture","priere d ouverture","ouverture","priere"], // 0
+    ["canon","testament"],
+    ["questions chapitre precedent","questions precedent"],
+    ["titre chapitre","resume doctrinal","titre"],
+    ["contexte historique","histoire","contexte"],
+    ["structure litteraire","structure","composition"],
+    ["genre litteraire","genre"],
+    ["auteur","genealogie","biographie"],
+    ["verset cle","verset-cle","verset central","doctrinal"],
+    ["analyse exegetique","exegetique","exegese"],
+    ["analyse lexicale","lexicale","lexique"],
+    ["references croisees","croisees","paralleles","renvois"],
+    ["fondements theologiques","theologiques","theologie"],
+    ["theme doctrinal","theme","doctrinal"],
+    ["fruits spirituels","fruits","vertus"],
+    ["types bibliques","typologie","types"],
+    ["appui doctrinal","appui"],
+    ["comparaison versets","comparaison entre versets"],
+    ["comparaison actes 2","actes 2"],
+    ["verset memoriser","a memoriser","memorisation"],
+    ["enseignement eglise","eglise"],
+    ["enseignement famille","famille"],
+    ["enseignement enfants","enfants"],
+    ["application missionnaire","missionnaire"],
+    ["application pastorale","pastorale"],
+    ["application personnelle","personnelle"],
+    ["versets retenir","a retenir"],
+    ["priere fin","priere de fin","cloture"]
+  ];
+
+  function bestIndexFor(title){
+    const t = norm(String(title||""));
+    let bestI = -1, bestScore = 0;
+    MATCHERS.forEach((keys,i)=>{
+      let s = 0;
+      for (const k of keys){ if (t.includes(k)) s++; }
+      if (s>bestScore){ bestScore=s; bestI=i; }
+    });
+    return bestScore>0 ? bestI : -1;
+  }
+
+  // Génère une prière deterministe si manquante
+  function defaultPrayerOpen(reference){
+    return `Père céleste, nous venons devant toi pour lire ${reference}. Ouvre nos cœurs par ton Saint-Esprit, éclaire notre intelligence et conduis-nous dans la vérité. Que cette étude fortifie notre foi et glorifie Jésus-Christ. Amen.`;
+  }
+  function defaultPrayerClose(reference){
+    return `Seigneur, merci pour la lumière reçue dans ${reference}. Aide-nous à mettre ta Parole en pratique, à l’Église, en famille et personnellement. Garde-nous dans ta paix et conduis-nous par ton Esprit. Au nom de Jésus, amen.`;
+  }
+
+  // --- Génération: on remplit uniquement les contenus (gauche figée) en mappant par titre
   async function generateStudy(){
     const ref = buildReference();
     if (!ref) { alert("Choisis un Livre + Chapitre (ou saisis une référence ex: Marc 5:1-20)"); return; }
@@ -218,22 +267,30 @@
       return;
     }
 
-    // normalisation réponse
     const data = payload.data || payload;
-    const sections = Array.isArray(data.sections) ? data.sections : [];
-    if (!sections.length) {
-      const panel = document.getElementById('debugPanel'); const btnDbg = document.getElementById('debugBtn');
-      if (panel) { panel.style.display='block'; btnDbg.textContent='Fermer Debug'; panel.textContent += `\n[API OK mais sans sections] ${JSON.stringify(data).slice(0,800)}…`; }
+    const apiSections = Array.isArray(data.sections) ? data.sections : [];
+    if (!apiSections.length) {
       alert("Réponse API sans sections.");
       return;
     }
 
-    // Remplit notes : 1..28 -> content/description/text
+    // 1) map par titre (meilleure concordance)
     notes = {};
-    for (let i=0; i<N; i++) {
-      const s = sections[i] || {};
-      notes[i] = String(s.content ?? s.description ?? s.text ?? '');
+    const used = new Set();
+    for (const s of apiSections){
+      const idx = bestIndexFor(s.title || s.titre || '');
+      if (idx >= 0 && !used.has(idx)){
+        const body = String(s.content ?? s.description ?? s.text ?? '');
+        notes[idx] = body;
+        used.add(idx);
+      }
     }
+
+    // 2) fallbacks : si la prière d’ouverture/fin manquent, on place une prière déterministe
+    if (!notes[0]) notes[0] = defaultPrayerOpen(data.reference || ref);
+    if (!notes[27]) notes[27] = defaultPrayerClose(data.reference || ref);
+
+    // 3) les autres points non couverts restent vides (l’utilisateur peut compléter)
 
     // mémoriser “dernier”
     try {
@@ -254,7 +311,7 @@
   searchRef.addEventListener('keydown', e=>{ if(e.key==='Enter'){ const sel=parseSearch(searchRef.value); if(sel){applySelection(sel); autoGenerate();} }});
   searchRef.addEventListener('blur', ()=>{ const sel=parseSearch(searchRef.value); if(sel){applySelection(sel); autoGenerate();} });
 
-  // Valider => BibleGateway (aucun appel /api/chat)
+  // Valider => BibleGateway
   validateBtn.addEventListener('click', ()=>{
     updateReadLink();
     try{
@@ -268,7 +325,7 @@
   // Générer => /api/chat
   generateBtn.addEventListener('click', generateStudy);
 
-  // Auto-génération Livre+Chapitre (si l’utilisateur n’a rien tapé dans la barre de recherche)
+  // Auto-génération Livre+Chapitre (si l’utilisateur n’a rien tapé)
   function autoGenerate(){
     clearTimeout(autoTimer);
     autoTimer = setTimeout(()=>{
