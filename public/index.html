@@ -1,71 +1,26 @@
-// public/app.js
-const API_URL_CHAT = "/api/chat";
-const POINTS = [
-  "Prière d’ouverture — Invocation du Saint-Esprit pour éclairer mon étude.",
-  "Canon et testament — Identifier le livre dans le canon.",
-  "Questions du chapitre précédent — Minimum 5 questions et réponses intégrales.",
-  "Titre du chapitre — Résumé doctrinal.",
-  "Contexte historique — Carte, frise.",
-  "Structure littéraire.",
-  "Genre littéraire.",
-  "Auteur et généalogie.",
-  "Verset-clé doctrinal.",
-  "Analyse exégétique.",
-  "Analyse lexicale.",
-  "Références croisées.",
-  "Fondements théologiques.",
-  "Thème doctrinal.",
-  "Fruits spirituels.",
-  "Types bibliques.",
-  "Appui doctrinal.",
-  "Comparaison entre versets.",
-  "Comparaison avec Actes 2.",
-  "Verset à mémoriser.",
-  "Enseignement pour l’Église.",
-  "Enseignement pour la famille.",
-  "Enseignement pour enfants.",
-  "Application missionnaire.",
-  "Application pastorale.",
-  "Application personnelle.",
-  "Versets à retenir.",
-  "Prière de fin."
-];
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Étude Biblique — 28 points (modèle strict)</title>
 
-// Sélecteur rapide
-const $ = (s) => document.querySelector(s);
+  <!-- CSS généré par Tailwind/PostCSS (depuis /public/index.html vers /public/dist/output.css) -->
+  <link rel="stylesheet" href="./dist/output.css" />
 
-// Toast
-function toast(msg) {
-  const d = document.createElement("div");
-  d.className = "toast";
-  d.textContent = msg;
-  $("#toasts").appendChild(d);
-  setTimeout(() => d.remove(), 4000);
-}
-
-// Barre de progression
-function startProgress() {
-  $("#progressContainer").style.display = "block";
-  $("#progressBar").style.width = "0%";
-
-  let width = 0;
-  const interval = setInterval(() => {
-    width += 3;
-    if (width >= 90) {
-      clearInterval(interval);
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+  <style>
+    :root{
+      --c50:#eef2ff;--c100:#e0e7ff;--c200:#c7d2fe;--c600:#4f46e5;--c700:#4338ca;--c800:#3730a3;
+      --ok:#10b981;--err:#ef4444;--ink:#0f172a;
     }
-    $("#progressBar").style.width = width + "%";
-  }, 200);
-  return interval;
-}
-
-function finishProgress() {
-  $("#progressBar").style.width = "100%";
-  setTimeout(() => {
-    $("#progressContainer").style.display = "none";
-    $("#progressBar").style.width = "0%";
-  }, 800);
-}
-
-// Génération des sections
-functi
+    body{background:#f7f8fb;color:#0f172a}
+    .container-xl{max-width:1200px;margin-inline:auto}
+    .card{background:#fff;border:1px solid var(--c100);border-radius:16px;box-shadow:0 12px 24px -12px rgba(2,6,23,.15)}
+    .btn{display:inline-flex;align-items:center;gap:.55rem;border-radius:12px;font-weight:800;padding:.7rem 1rem}
+    .btn-solid{background:var(--c600);color:#fff}.btn-solid:hover{background:var(--c700)}
+    .btn-outline{border:1px solid var(--c200);background:#fff}
+    .btn-ghost{border:1px dashed var(--c200);background:#fff}
+    .badge{display:inline-grid;place-items:center;width:1.9rem;height:1.9rem;border-radius:.55rem;background:var(--c100);color:var(--c800);font-weight:800;font-size:.75rem}
+    .sidebar-item{border:1px solid transparent;border-radius:12px;padding:.6rem .7rem;display:flex;align-items:flex-start;gap:.6rem}
+    .sidebar-item:ho
