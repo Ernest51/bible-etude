@@ -10,14 +10,21 @@
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
 <body class="h-full">
+  <!-- Marqueur visuel pour confirmer la bonne version -->
+  <div class="text-center text-xs text-slate-500 mt-2">INDEX v2</div>
+
   <div id="banner" class="hidden"></div>
 
   <main class="max-w-3xl mx-auto p-6">
-    <h1 class="text-4xl font-bold mb-2">Test de chargement de app.js</h1>
-    <p>Si tout marche, une bannière verte "JS chargé ✅" doit apparaître tout en haut.</p>
+    <h1 class="text-4xl font-extrabold tracking-tight text-slate-800 mb-2">
+      Test de chargement de app.js
+    </h1>
+    <p class="leading-relaxed">
+      Si tout marche, une bannière verte "JS chargé ✅" doit apparaître tout en haut.
+    </p>
 
     <!-- Test de composants custom -->
-    <div class="mt-6 space-x-4">
+    <div class="mt-6 flex items-center gap-3">
       <button class="btn btn-solid">Bouton solide</button>
       <button class="btn btn-outline">Bouton contour</button>
       <button class="btn btn-ghost">Bouton ghost</button>
