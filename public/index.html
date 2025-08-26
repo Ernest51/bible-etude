@@ -9,9 +9,10 @@
   <link rel="stylesheet" href="/dist/output.css" />
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
-<body class="h-full">
+<!-- Layout en colonne pour garantir le footer visible -->
+<body class="min-h-screen flex flex-col">
   <!-- Marqueur version -->
-  <div class="text-center text-xs text-slate-500 mt-2">INDEX v4 — depuis /public/index.html</div>
+  <div class="text-center text-xs text-slate-500 mt-2">INDEX v5 — /public/index.html</div>
 
   <!-- Bannière JS (remplie par app.js) -->
   <div id="banner" class="hidden"></div>
@@ -33,7 +34,7 @@
   </header>
 
   <!-- ===== Main ===== -->
-  <main class="max-w-5xl mx-auto px-4 py-8">
+  <main class="flex-1 max-w-5xl mx-auto px-4 py-8">
     <section class="card p-6 mb-6">
       <h1 class="text-4xl mb-2">Test de chargement de app.js</h1>
       <p>Si tout marche, une bannière verte "JS chargé ✅" doit apparaître tout en haut.</p>
@@ -58,5 +59,21 @@
   </main>
 
   <!-- ===== Footer ===== -->
-  <footer class="mt-12 border-t border-indigo-100">
-    <div class="max-w-5xl mx-auto px-4 py-6 text-sm text-slate-500 flex
+  <footer class="border-t border-indigo-100">
+    <div class="max-w-5xl mx-auto px-4 py-6 text-sm text-slate-500 flex items-center justify-between">
+      <span>© <span id="year"></span> Étude Biblique — Footer OK ✓</span>
+      <a href="#" class="pill">Mentions</a>
+    </div>
+  </footer>
+
+  <script>
+    // met l’année courante dans le footer
+    document.addEventListener('DOMContentLoaded', () => {
+      const y = document.getElementById('year');
+      if (y) y.textContent = new Date().getFullYear();
+      console.log('INDEX v5 prêt');
+    });
+  </script>
+  <script src="/app.js" defer></script>
+</body>
+</html>
