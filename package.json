@@ -1,20 +1,6 @@
-{
-  "name": "bible-etude",
-  "version": "1.0.0",
-  "description": "Projet d'étude biblique avec Tailwind et API OpenAI",
-  "main": "index.js",
-  "scripts": {
-    "dev": "vercel dev",
-    "build": "tailwindcss -i ./src/input.css -o ./public/dist/output.css --minify",
-    "start": "vercel start"
-  },
-  "dependencies": {
-    "openai": "^4.0.0"
-  },
-  "devDependencies": {
-    "tailwindcss": "^3.4.0",
-    "postcss": "^8.4.0",
-    "autoprefixer": "^10.4.0"
-  },
-  "license": "MIT"
+"scripts": {
+  "dev": "vercel dev",
+  "build": "echo no-build",
+  "build:css": "tailwindcss -i ./src/input.css -o ./public/dist/output.css --minify",
+  "start": "vercel start"
 }
