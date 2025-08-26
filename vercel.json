@@ -1,7 +1,8 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/", "destination": "/public/index.html" }
+    { "source": "/", "destination": "/public/index.html" },
+    { "source": "/dist/(.*)", "destination": "/public/dist/$1" }
   ],
   "headers": [
     {
@@ -9,7 +10,7 @@
       "headers": [{ "key": "Content-Type", "value": "application/javascript; charset=utf-8" }]
     },
     {
-      "source": "/public/(.*)\\.css",
+      "source": "/dist/(.*)\\.css",
       "headers": [{ "key": "Content-Type", "value": "text/css; charset=utf-8" }]
     }
   ]
