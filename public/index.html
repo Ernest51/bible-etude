@@ -4,18 +4,25 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bible Étude</title>
+  <meta name="description" content="Étude biblique — site simple et rapide" />
   <link rel="icon" href="data:," />
   <style>
-    :root { --bg:#f5f6f8; --card:#ffffff; --text:#111; --muted:#666; --green:#16a34a; --green-d:#0e7a36;}
+    :root { --bg:#f5f6f8; --card:#ffffff; --text:#0f172a; --muted:#64748b; --link:#2563eb; --green:#16a34a; --green-d:#0e7a36;}
+    *{box-sizing:border-box}
     html,body{margin:0;padding:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:16px 20px;position:sticky;top:0}
+    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:18px 20px;position:sticky;top:0}
     h1{margin:0;font-size:28px}
-    main{max-width:900px;margin:20px auto;padding:0 16px}
-    .card{background:var(--card);border:1px solid #e5e7eb;border-radius:12px;padding:16px}
-    #debugBtn{display:inline-flex;align-items:center;gap:8px;background:var(--green);color:#fff;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer;box-shadow:0 2px 0 var(--green-d)}
+    main{max-width:900px;margin:24px auto;padding:0 16px}
+    .card{background:var(--card);border:1px solid #e5e7eb;border-radius:14px;padding:18px}
+    p{margin:0 0 10px}
+    .muted{color:var(--muted)}
+    a{color:var(--link);text-decoration:none}
+    a:hover{text-decoration:underline}
+    footer{max-width:900px;margin:32px auto 24px;padding:0 16px;color:var(--muted);font-size:14px;position:relative}
+    /* Bouton Debug discret */
+    #debugBtn{margin-top:12px;background:var(--green);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;box-shadow:0 2px 0 var(--green-d)}
     #debugBtn:active{transform:translateY(1px);box-shadow:0 1px 0 var(--green-d)}
-    #debugPanel{display:none;margin-top:12px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:10px;padding:12px;max-height:320px;overflow:auto;white-space:pre-wrap}
-    .muted{color:var(--muted);font-size:14px}
+    #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:240px;overflow:auto;white-space:pre-wrap;font-size:12px}
   </style>
 </head>
 <body>
@@ -24,16 +31,57 @@
   <main>
     <div class="card">
       <h2 style="margin:0 0 8px">Bienvenue</h2>
-      <p style="margin:0 0 12px">Clique pour ouvrir le panneau et lancer un diagnostic.</p>
-
-      <button id="debugBtn" type="button" aria-controls="debugPanel" aria-expanded="false">✅ Ouvrir le Debug</button>
-      <div id="debugPanel" role="region" aria-live="polite">[init]</div>
-
-      <p class="muted" style="margin-top:10px">API testée: <code>/api/health</code> (GET), <code>/api/chat</code> (POST), <code>/api/ping</code> (GET)</p>
+      <p class="muted">Base propre prête pour la mise en prod.</p>
+      <p style="margin-top:12px">
+        API en ligne :
+        <a href="/api/health">/api/health</a> ·
+        <a href="/api/chat">/api/chat</a> ·
+        <a href="/api/ping">/api/ping</a>
+      </p>
     </div>
   </main>
 
-  <!-- On utilise maintenant le JS externe -->
-  <script src="./public/app.js" defer></script>
+  <footer>
+    © <span id="y"></span> Bible Étude
+    <div>
+      <button id="debugBtn">Debug</button>
+      <div id="debugPanel">[init]</div>
+    </div>
+  </footer>
+
+  <script>
+    (function(){
+      document.getElementById('y').textContent = new Date().getFullYear();
+      const btn = document.getElementById('debugBtn');
+      const panel = document.getElementById('debugPanel');
+      function log(msg){
+        const line = '['+new Date().toISOString()+'] '+msg;
+        panel.textContent += (panel.textContent ? '\n' : '') + line;
+        console.log(line);
+      }
+      async function ping(path, options, label){
+        try{
+          const c = new AbortController();
+          const t = setTimeout(()=>c.abort(),2500);
+          const r = await fetch(path,{...(options||{}), signal:c.signal});
+          clearTimeout(t);
+          log((r.ok?'OK ':'KO ') + (label||path) + ' → ' + r.status);
+        }catch(e){ log('KO ' + (label||path) + ' → ' + String(e)); }
+      }
+      function toggle(){
+        const open = panel.style.display==='block';
+        if(open){ panel.style.display='none'; btn.textContent='Debug'; }
+        else{
+          panel.style.display='block'; btn.textContent='Fermer Debug';
+          panel.textContent='[Debug démarré…]';
+          log('JS inline actif ✅');
+          ping('/api/health');
+          ping('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({msg:'test'})},'/api/chat (POST)');
+          ping('/api/ping');
+        }
+      }
+      btn.addEventListener('click', toggle);
+    })();
+  </script>
 </body>
 </html>
