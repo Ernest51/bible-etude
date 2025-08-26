@@ -3,34 +3,76 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <title>Étude Biblique — Test stable</title>
+  <title>Étude Biblique — Layout de base</title>
 
   <!-- CSS généré par Tailwind -->
   <link rel="stylesheet" href="/dist/output.css" />
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
 <body class="h-full">
-  <!-- Marqueur visuel pour confirmer la bonne version -->
-  <div class="text-center text-xs text-slate-500 mt-2">INDEX v2</div>
+  <!-- Marqueur version -->
+  <div class="text-center text-xs text-slate-500 mt-2">INDEX v3 — layout de base</div>
 
+  <!-- Bannière JS (remplie par app.js) -->
   <div id="banner" class="hidden"></div>
 
-  <main class="max-w-3xl mx-auto p-6">
-    <h1 class="text-4xl font-extrabold tracking-tight text-slate-800 mb-2">
-      Test de chargement de app.js
-    </h1>
-    <p class="leading-relaxed">
-      Si tout marche, une bannière verte "JS chargé ✅" doit apparaître tout en haut.
-    </p>
-
-    <!-- Test de composants custom -->
-    <div class="mt-6 flex items-center gap-3">
-      <button class="btn btn-solid">Bouton solide</button>
-      <button class="btn btn-outline">Bouton contour</button>
-      <button class="btn btn-ghost">Bouton ghost</button>
+  <!-- ===== Header ===== -->
+  <header class="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-indigo-100">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="badge">EB</span>
+        <span class="font-extrabold tracking-tight text-lg text-slate-800">Étude Biblique</span>
+      </div>
+      <nav class="hidden sm:flex items-center gap-4 text-sm">
+        <a href="#" class="pill">Accueil</a>
+        <a href="#" class="pill">28 points</a>
+        <a href="#" class="pill">Ressources</a>
+      </nav>
+      <button class="btn btn-solid sm:hidden">Menu</button>
     </div>
+  </header>
+
+  <!-- ===== Main ===== -->
+  <main class="max-w-5xl mx-auto px-4 py-8">
+    <section class="card p-6 mb-6">
+      <h1 class="text-4xl mb-2">Test de chargement de app.js</h1>
+      <p>Si tout marche, une bannière verte "JS chargé ✅" doit apparaître tout en haut.</p>
+
+      <!-- Boutons de test (garde-les pour vérifier les interactions JS) -->
+      <div class="mt-6 flex items-center gap-3">
+        <button class="btn btn-solid">Bouton solide</button>
+        <button class="btn btn-outline">Bouton contour</button>
+        <button class="btn btn-ghost">Bouton ghost</button>
+      </div>
+    </section>
+
+    <section class="grid sm:grid-cols-2 gap-6">
+      <div class="card p-6">
+        <h2 class="text-2xl mb-2">Section A</h2>
+        <p>Bloc de contenu prêt à accueillir tes éléments (ex: plan, sommaire, etc.).</p>
+      </div>
+      <div class="card p-6">
+        <h2 class="text-2xl mb-2">Section B</h2>
+        <p>Ici on pourra placer une introduction, une navigation ou des raccourcis.</p>
+      </div>
+    </section>
   </main>
 
+  <!-- ===== Footer ===== -->
+  <footer class="mt-12 border-t border-indigo-100">
+    <div class="max-w-5xl mx-auto px-4 py-6 text-sm text-slate-500 flex items-center justify-between">
+      <span>© <span id="year"></span> Étude Biblique</span>
+      <a href="#" class="pill">Mentions</a>
+    </div>
+  </footer>
+
+  <script>
+    // met l’année courante dans le footer sans toucher à app.js
+    document.addEventListener('DOMContentLoaded', () => {
+      const y = document.getElementById('year');
+      if (y) y.textContent = new Date().getFullYear();
+    });
+  </script>
   <script src="/app.js" defer></script>
 </body>
 </html>
