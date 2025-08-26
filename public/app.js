@@ -36,14 +36,10 @@
     append(container, h("div", { class: "status" }, `Génération pour: ${reference}`));
 
     try {
-      // On envoie ET le query param (?q=...) ET le body JSON (ceinture+bretelles)
+      // *** IMPORTANT: GET seulement, avec query string ***
       const url = `/api/chat?q=${encodeURIComponent(reference)}&templateId=v28-standard`;
 
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-ref": reference },
-        body: JSON.stringify({ input: reference, templateId: "v28-standard" })
-      });
+      const resp = await fetch(url, { method: "GET" });
 
       let payload = null;
       try { payload = await resp.json(); }
