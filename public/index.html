@@ -3,17 +3,27 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <title>Test Chargement JS</title>
+  <title>Étude Biblique — Test stable</title>
+
+  <!-- CSS généré par Tailwind -->
   <link rel="stylesheet" href="/dist/output.css" />
-  <style>
-    body{font-family:ui-sans-serif,system-ui; background:#f7f8ff; color:#111}
-  </style>
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
 <body class="h-full">
-  <h1 style="margin:20px">Test de chargement de app.js</h1>
-  <p>Si tout marche, une bannière verte "JS chargé ✅" doit apparaître tout en haut.</p>
+  <div id="banner" class="hidden"></div>
 
-  <!-- On appelle app.js -->
+  <main class="max-w-3xl mx-auto p-6">
+    <h1 class="text-4xl font-bold mb-2">Test de chargement de app.js</h1>
+    <p>Si tout marche, une bannière verte "JS chargé ✅" doit apparaître tout en haut.</p>
+
+    <!-- Test de composants custom -->
+    <div class="mt-6 space-x-4">
+      <button class="btn btn-solid">Bouton solide</button>
+      <button class="btn btn-outline">Bouton contour</button>
+      <button class="btn btn-ghost">Bouton ghost</button>
+    </div>
+  </main>
+
   <script src="/app.js" defer></script>
 </body>
 </html>
