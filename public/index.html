@@ -1,144 +1,71 @@
-<!DOCTYPE html>
-<html lang="fr" class="h-full">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <title>Étude Biblique — 28 points (modèle strict)</title>
+// public/app.js
+const API_URL_CHAT = "/api/chat";
+const POINTS = [
+  "Prière d’ouverture — Invocation du Saint-Esprit pour éclairer mon étude.",
+  "Canon et testament — Identifier le livre dans le canon.",
+  "Questions du chapitre précédent — Minimum 5 questions et réponses intégrales.",
+  "Titre du chapitre — Résumé doctrinal.",
+  "Contexte historique — Carte, frise.",
+  "Structure littéraire.",
+  "Genre littéraire.",
+  "Auteur et généalogie.",
+  "Verset-clé doctrinal.",
+  "Analyse exégétique.",
+  "Analyse lexicale.",
+  "Références croisées.",
+  "Fondements théologiques.",
+  "Thème doctrinal.",
+  "Fruits spirituels.",
+  "Types bibliques.",
+  "Appui doctrinal.",
+  "Comparaison entre versets.",
+  "Comparaison avec Actes 2.",
+  "Verset à mémoriser.",
+  "Enseignement pour l’Église.",
+  "Enseignement pour la famille.",
+  "Enseignement pour enfants.",
+  "Application missionnaire.",
+  "Application pastorale.",
+  "Application personnelle.",
+  "Versets à retenir.",
+  "Prière de fin."
+];
 
-  <!-- CSS généré par Tailwind/PostCSS -->
-  <link rel="stylesheet" href="/dist/output.css" />
+// Sélecteur rapide
+const $ = (s) => document.querySelector(s);
 
-  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
-  <style>
-    :root{
-      --c50:#eef2ff;--c100:#e0e7ff;--c200:#c7d2fe;--c600:#4f46e5;--c700:#4338ca;--c800:#3730a3;
-      --ok:#10b981;--err:#ef4444;--ink:#0f172a;
+// Toast
+function toast(msg) {
+  const d = document.createElement("div");
+  d.className = "toast";
+  d.textContent = msg;
+  $("#toasts").appendChild(d);
+  setTimeout(() => d.remove(), 4000);
+}
+
+// Barre de progression
+function startProgress() {
+  $("#progressContainer").style.display = "block";
+  $("#progressBar").style.width = "0%";
+
+  let width = 0;
+  const interval = setInterval(() => {
+    width += 3;
+    if (width >= 90) {
+      clearInterval(interval);
     }
-    body{background:#f7f8fb;color:#0f172a}
-    .container-xl{max-width:1200px;margin-inline:auto}
-    .card{background:#fff;border:1px solid var(--c100);border-radius:16px;box-shadow:0 12px 24px -12px rgba(2,6,23,.15)}
-    .btn{display:inline-flex;align-items:center;gap:.55rem;border-radius:12px;font-weight:800;padding:.7rem 1rem}
-    .btn-solid{background:var(--c600);color:#fff}.btn-solid:hover{background:var(--c700)}
-    .btn-outline{border:1px solid var(--c200);background:#fff}
-    .btn-ghost{border:1px dashed var(--c200);background:#fff}
-    .badge{display:inline-grid;place-items:center;width:1.9rem;height:1.9rem;border-radius:.55rem;background:var(--c100);color:var(--c800);font-weight:800;font-size:.75rem}
-    .sidebar-item{border:1px solid transparent;border-radius:12px;padding:.6rem .7rem;display:flex;align-items:flex-start;gap:.6rem}
-    .sidebar-item:hover{background:var(--c50);border-color:var(--c200)}
-    .sidebar-item.active{background:var(--c100);border-color:var(--c200);box-shadow:inset 4px 0 0 0 var(--c600)}
-    .content-section{display:none;opacity:0;transition:opacity .18s ease}
-    .content-section.active{display:block;opacity:1}
-    .toast{position:fixed;right:14px;bottom:14px;background:#111827;color:#fff;padding:.65rem .95rem;border-radius:12px;box-shadow:0 10px 20px rgba(0,0,0,.15);z-index:200;transition:opacity .25s, transform .25s}
-    .pill{background:#fff;border:1px solid var(--c100);border-radius:12px;padding:.35rem .6rem}
+    $("#progressBar").style.width = width + "%";
+  }, 200);
+  return interval;
+}
 
-    /* Barre de progression */
-    #progressContainer {
-      position: relative;
-      height: 6px;
-      width: 100%;
-      background: #e2e8f0; /* gris clair */
-      border-radius: 4px;
-      overflow: hidden;
-      display: none; /* cachée par défaut */
-      margin-bottom: 8px;
-    }
-    #progressBar {
-      position: absolute;
-      height: 100%;
-      width: 0%;
-      background: #3b82f6; /* bleu Tailwind */
-      transition: width 0.25s ease;
-    }
+function finishProgress() {
+  $("#progressBar").style.width = "100%";
+  setTimeout(() => {
+    $("#progressContainer").style.display = "none";
+    $("#progressBar").style.width = "0%";
+  }, 800);
+}
 
-    @media (max-width: 640px){
-      .grid-mobile{display:grid;grid-template-columns:1fr;gap:12px}
-    }
-  </style>
-</head>
-<body class="min-h-screen">
-  <div id="toasts"></div>
-
-  <header class="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-[var(--c100)]">
-    <div class="container-xl px-3 sm:px-4">
-      <div class="py-2 sm:py-3 flex flex-wrap items-center justify-between gap-2">
-        <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl grid place-items-center bg-[var(--c100)] text-[var(--c700)] shadow">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M5 4h9a4 4 0 0 1 4 4v10H7a2 2 0 0 1-2-2V4z"/><path d="M7 18h11v2H7z"/></svg>
-          </div>
-          <div>
-            <h1 class="text-xl sm:text-2xl font-extrabold tracking-wide">Étude Biblique — Modèle strict (28 points)</h1>
-            <p class="text-[11px] sm:text-xs text-slate-600 -mt-0.5">Chaque point = contenu ciblé, ≥ 2 500 caractères, format imposé</p>
-          </div>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="pill text-xs" id="lastStudyPill">Dernière étude : —</span>
-          <button id="resumeBtn" class="btn btn-outline text-xs sm:text-sm">Reprendre</button>
-          <button id="printBtn" class="btn btn-outline text-xs sm:text-sm">Imprimer / PDF</button>
-        </div>
-      </div>
-    </div>
-  </header>
-
-  <main class="flex-1 py-5 sm:py-6">
-    <div class="container-xl px-3 sm:px-4">
-      <!-- Sélecteurs -->
-      <section class="card p-4 sm:p-6 mb-6">
-        <div class="grid grid-cols-12 gap-3 sm:gap-4 items-end grid-mobile">
-          <!-- Livre -->
-          <div class="col-span-12 sm:col-span-6 lg:col-span-5">
-            <label class="text-sm font-semibold block mb-1">Livre</label>
-            <input id="livreInput" class="w-full border rounded-lg px-4 py-2.5" placeholder="Jean, Exode, Genèse..." />
-          </div>
-          <!-- Chapitre -->
-          <div class="col-span-6 sm:col-span-3 lg:col-span-3">
-            <label class="text-sm font-semibold block mb-1">Chapitre</label>
-            <input id="chapInput" type="number" min="1" class="w-full border rounded-lg px-4 py-2.5" placeholder="1" />
-          </div>
-          <!-- Actions -->
-          <div class="col-span-12 flex flex-wrap gap-2 mt-1">
-            <button id="validerBtn" class="btn btn-solid shadow w-full sm:w-auto">Valide (28 pts)</button>
-            <button id="reinitBtn" class="btn btn-outline w-full sm:w-auto">Réinitialiser</button>
-            <button id="lireBtn" class="btn btn-outline w-full sm:w-auto" disabled>Lire (BibleGateway)</button>
-          </div>
-        </div>
-      </section>
-
-      <div class="grid grid-cols-12 gap-4 lg:gap-6">
-        <!-- NAV -->
-        <aside class="col-span-12 lg:col-span-4">
-          <div class="card p-3 sticky top-[84px] max-h-[calc(100vh-140px)] overflow-y-auto">
-            <h2 class="text-lg font-extrabold mb-2">Points d’étude (28)</h2>
-            <nav id="pointsNav" class="space-y-1"></nav>
-          </div>
-        </aside>
-
-        <!-- CONTENU -->
-        <section class="col-span-12 lg:col-span-8">
-          <div class="card relative">
-            
-            <!-- Progress bar -->
-            <div id="progressContainer"><div id="progressBar"></div></div>
-
-            <div id="busy" class="hidden absolute inset-0 bg-white/70 z-10 grid place-items-center">
-              <div class="rounded-xl border bg-white px-4 py-3 shadow-md text-sm flex items-center gap-2">
-                <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-                <span id="busyText">Génération…</span>
-              </div>
-            </div>
-
-            <div id="contentArea" class="p-4 sm:p-6">
-              <div id="welcome" class="text-center py-10">
-                <h3 class="text-lg font-bold mb-2">Bienvenue 👋</h3>
-                <p class="text-neutral-600">Choisis un livre et un chapitre, puis clique <b>Valide</b>. Chaque point sera généré au format imposé (≥ 2 500 caractères).</p>
-              </div>
-              <div id="sectionsHost"></div>
-            </div>
-          </div>
-        </section>
-      </div>
-    </div>
-  </main>
-
-  <!-- Script -->
-  <script src="/src/app.js"></script>
-</body>
-</html>
+// Génération des sections
+functi
