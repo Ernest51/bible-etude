@@ -176,7 +176,96 @@
     </div>
   </main>
 
-  <!-- ton JS : attention, sur Vercel le dossier /public est à la racine -->
-  <script src="/app.js"></script>
+  <!-- JS principal (si présent) -->
+  <script src="/app.js?v=debug1" defer></script>
+
+  <!-- ===== DEBUG INJECTOR — bouton vert garanti visible ===== -->
+  <script>
+    (function () {
+      function makeBtn() {
+        var b = document.createElement('button');
+        b.id = '__debug_btn';
+        b.textContent = 'DEBUG';
+        b.type = 'button';
+        b.style.position = 'fixed';
+        b.style.right = '16px';
+        b.style.bottom = '20px';
+        b.style.zIndex = '999999';
+        b.style.padding = '12px 18px';
+        b.style.borderRadius = '14px';
+        b.style.border = '2px solid #065f46';
+        b.style.background = '#10b981';
+        b.style.color = '#fff';
+        b.style.fontWeight = '900';
+        b.style.fontSize = '14px';
+        b.style.boxShadow = '0 8px 16px rgba(0,0,0,.25)';
+        b.style.cursor = 'pointer';
+        return b;
+      }
+      function buildReport() {
+        var links = Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map(l => l.href);
+        var scripts = Array.from(document.scripts).map(s => s.src || '(inline)');
+        var hasOutputCss = links.some(h => (h || '').includes('/dist/output.css'));
+        var report = {
+          meta: { ts: new Date().toISOString(), url: location.href, ua: navigator.userAgent },
+          links, scripts, hasOutputCss,
+          dom: {
+            pointsNav: !!document.getElementById('pointsNav'),
+            sectionsHost: !!document.getElementById('sectionsHost'),
+            contentArea: !!document.getElementById('contentArea'),
+          },
+          note: "Colle moi ce JSON dans le chat."
+        };
+        return JSON.stringify(report, null, 2);
+      }
+      function showToast(msg){
+        var t = document.createElement('div');
+        t.textContent = msg;
+        t.style.position = 'fixed';
+        t.style.right = '16px';
+        t.style.bottom = '70px';
+        t.style.zIndex = '1000000';
+        t.style.background = '#111827';
+        t.style.color = '#fff';
+        t.style.padding = '10px 14px';
+        t.style.borderRadius = '12px';
+        t.style.boxShadow = '0 10px 20px rgba(0,0,0,.15)';
+        document.body.appendChild(t);
+        setTimeout(()=> t.remove(), 2000);
+      }
+      function openPanel() {
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);backdrop-filter:blur(2px);z-index:1000000;';
+        var panel = document.createElement('div');
+        panel.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(900px,90vw);max-height:80vh;background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,.3);display:grid;grid-template-rows:auto 1fr auto;';
+        var head = document.createElement('div');
+        head.textContent = 'Rapport Debug — client';
+        head.style.cssText = 'padding:12px 16px;border-bottom:1px solid #ddd;font-weight:800;';
+        var ta = document.createElement('textarea');
+        ta.readOnly = true;
+        ta.style.cssText = 'width:100%;height:100%;border:none;padding:12px;background:#f9fafb;font-family:monospace;font-size:12px;';
+        ta.value = buildReport();
+        var foot = document.createElement('div');
+        foot.style.cssText = 'padding:12px 16px;border-top:1px solid #ddd;display:flex;gap:8px;justify-content:flex-end;';
+        var copy = document.createElement('button');
+        copy.textContent = 'Copier';
+        copy.onclick = async () => { try{ await navigator.clipboard.writeText(ta.value); showToast('Copié ✅'); } catch(e){ ta.select(); document.execCommand('copy'); showToast('Copié (fallback) ✅'); } };
+        var close = document.createElement('button');
+        close.textContent = 'Fermer';
+        close.onclick = () => document.body.removeChild(overlay);
+        [copy, close].forEach(b => { b.style.cssText = 'padding:6px 12px;border:1px solid #ccc;border-radius:8px;background:#f9fafb;font-weight:600;cursor:pointer;'; foot.appendChild(b); });
+        panel.appendChild(head); panel.appendChild(ta); panel.appendChild(foot);
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+      }
+      function init(){
+        var btn = document.getElementById('__debug_btn');
+        if (!btn) { btn = makeBtn(); document.body.appendChild(btn); }
+        btn.onclick = openPanel;
+      }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+      else init();
+    })();
+  </script>
 </body>
 </html>
