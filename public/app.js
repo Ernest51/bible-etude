@@ -1,4 +1,4 @@
-// public/app.js
+// public/app.js (corrigé)
 (function () {
   // --- Progress
   const progressBar = document.getElementById('progressBar');
@@ -65,7 +65,7 @@
     readLink.href = 'https://www.biblegateway.com/passage/?search=' + encodeURIComponent(ref) + '&version=' + encodeURIComponent(ver);
   }
 
-  // --- Rubriques FIXES (de ton fichier)
+  // --- Rubriques FIXES
   const FIXED_POINTS = [
     {t:"Prière d’ouverture",d:"Invocation du Saint-Esprit pour éclairer l’étude."},
     {t:"Canon et testament",d:"Identification du livre selon le canon biblique."},
@@ -95,14 +95,14 @@
     {t:"Application personnelle",d:"Examen de conscience et engagement individuel."},
     {t:"Versets à retenir",d:"Versets incontournables pour la prédication pastorale."},
     {t:"Prière de fin",d:"Clôture spirituelle de l’étude avec reconnaissance."}
-  ]; // source: etude biblique 28 points.json :contentReference[oaicite:1]{index=1}
+  ];
   const N = FIXED_POINTS.length;
 
   // --- État
   let current = 0;
-  let notes = {};           // contenus (droite) par index
+  let notes = {};
   let autosaveTimer = null;
-  let autoTimer = null;
+  let autoTimer = null; // <-- une seule déclaration (corrigé)
 
   // --- Rendu colonne fixe
   function renderSidebar(){
@@ -125,7 +125,6 @@
       if (notes[i] && notes[i].trim()) dot.classList.add('ok'); else dot.classList.remove('ok');
     });
   }
-
   function select(i){
     notes[current] = noteArea.value;
     saveStorage();
@@ -136,7 +135,6 @@
     metaInfo.textContent = `Point ${i+1} / ${N}`;
     noteArea.focus();
   }
-
   function saveStorage(){
     try{
       localStorage.setItem('be_notes', JSON.stringify(notes));
@@ -150,16 +148,15 @@
     q = q.trim();
     const m = q.match(/^([\d]?\s*[A-Za-zÀ-ÿ'’\.\s]+)\s+(\d+)(?::(\d+))?/);
     if(!m) return null;
-    let book = null, raw = norm(m[1]);
+    let book = null;
     for (const [name] of BOOKS) if (norm(name)===norm(m[1]).trim()) { book=name; break; }
-    if (!book) {
+    if (!book){
       const cand = BOOKS.find(([name]) => norm(name).startsWith(norm(m[1]).trim()));
       if (cand) book = cand[0];
     }
     if (!book) return null;
     return { book, chap: parseInt(m[2],10), vers: m[3]?parseInt(m[3],10):null };
   }
-
   function applySelection(sel){
     if(!sel) return;
     const idx = BOOKS.findIndex(([n])=> n===sel.book);
@@ -172,16 +169,14 @@
     if (sel.vers){ verseSelect.value = String(sel.vers); }
     updateReadLink();
   }
-
   function buildReference(){
     const typed = (searchRef.value || '').trim();
     if (typed) return typed;
     const b = bookSelect.value, c = chapterSelect.value, v = verseSelect.value;
-    // pour la génération : Livre + Chapitre suffisent
     return c ? `${b} ${c}` : b;
   }
 
-  // --- Génération: on NE change pas la colonne fixe, on remplit seulement les contenus
+  // --- Génération: on remplit seulement les contenus (notes)
   async function generateStudy(){
     const ref = buildReference();
     if (!ref) { alert("Choisis un Livre + Chapitre (ou saisis une référence ex: Marc 5:1-20)"); return; }
@@ -203,24 +198,21 @@
       return;
     }
 
-    const data = payload.data || payload;      // {reference, sections}
+    const data = payload.data || payload;
     const sections = Array.isArray(data.sections) ? data.sections.slice(0, N) : [];
 
-    // Remplir notes[] en mappant 1..28 -> sections[i].content (si vide, on laisse "")
     notes = {};
     for (let i=0; i<N; i++){
       const s = sections[i] || {};
       notes[i] = String(s.content || "");
     }
 
-    // mémorise “dernier”
     try {
       const book=bookSelect.value, chap=chapterSelect.value, vers=verseSelect.value, ver=versionSelect.value;
       localStorage.setItem('be_last', JSON.stringify({book, chapter:chap, verse:vers, version:ver}));
       lastStudy.textContent = `Dernier : ${data.reference || `${book} ${chap}`} (${ver})`;
     } catch {}
 
-    // rafraîchir UI (titres inchangés)
     renderSidebar();
     select(0);
   }
@@ -233,7 +225,7 @@
   searchRef.addEventListener('keydown', e=>{ if(e.key==='Enter'){ const sel=parseSearch(searchRef.value); if(sel){applySelection(sel); autoGenerate();} }});
   searchRef.addEventListener('blur', ()=>{ const sel=parseSearch(searchRef.value); if(sel){applySelection(sel); autoGenerate();} });
 
-  // Valider => BibleGateway uniquement
+  // Valider => BibleGateway
   validateBtn.addEventListener('click', ()=>{
     updateReadLink();
     try{
@@ -244,11 +236,10 @@
     window.open(readLink.href, '_blank', 'noopener');
   });
 
-  // Générer => /api/chat -> remplit notes (colonne gauche figée)
+  // Générer => /api/chat
   generateBtn.addEventListener('click', generateStudy);
 
-  // Auto-génération dès qu’on a Livre + Chapitre (sans saisie libre)
-  let autoTimer=null;
+  // Auto-génération Livre+Chapitre
   function autoGenerate(){
     clearTimeout(autoTimer);
     autoTimer = setTimeout(()=>{
@@ -261,7 +252,7 @@
   chapterSelect.addEventListener('change', ()=>{ updateReadLink(); autoGenerate(); });
   verseSelect.addEventListener('change', ()=>{ updateReadLink(); });
 
-  // nav + autosave
+  // Navigation + autosave
   prevBtn.addEventListener('click', ()=> select((current-1+N)%N));
   nextBtn.addEventListener('click', ()=> select((current+1)%N));
   noteArea.addEventListener('input', ()=>{ clearTimeout(autosaveTimer); autosaveTimer=setTimeout(()=>{ notes[current]=noteArea.value; saveStorage(); }, 2000); });
