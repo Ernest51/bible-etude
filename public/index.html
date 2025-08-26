@@ -29,7 +29,7 @@
       <button id="debugBtn" type="button" aria-controls="debugPanel" aria-expanded="false">✅ Ouvrir le Debug</button>
       <div id="debugPanel" role="region" aria-live="polite">[init]</div>
 
-      <p class="muted" style="margin-top:10px">Si tu utilises une API, ajoute des routes dans <code>/api</code>.</p>
+      <p class="muted" style="margin-top:10px">API testée: <code>/api/health</code> (GET), <code>/api/chat</code> (POST), <code>/api/ping</code> (GET)</p>
     </div>
   </main>
 
@@ -47,4 +47,52 @@
       async function ping(path, options, label){
         try{
           const c = new AbortController();
-          const t = setTimeout((
+          const t = setTimeout(()=>c.abort(),2500);
+          const r = await fetch(path,{...(options||{}), signal:c.signal});
+          clearTimeout(t);
+          const txt = await r.text().catch(()=> '');
+          log((r.ok?'OK ':'KO ') + (label||path) + ' → ' + r.status + (txt ? ' | body: ' + txt.slice(0,120) : ''));
+        }catch(e){
+          log('KO ' + (label||path) + ' → ' + String(e));
+        }
+      }
+
+      function toggle(){
+        const open = panel.style.display==='block';
+        if(open){
+          panel.style.display='none';
+          btn.setAttribute('aria-expanded','false');
+          btn.textContent='✅ Ouvrir le Debug';
+        }else{
+          panel.style.display='block';
+          btn.setAttribute('aria-expanded','true');
+          btn.textContent='Fermer le Debug';
+          if(panel.textContent==='[init]'){ panel.textContent='[Debug démarré…]'; }
+          log('--- DÉBUT DIAGNOSTIC ---');
+          log('JS inline actif ✅');
+          log('Location: ' + window.location.href);
+          log('UA: ' + navigator.userAgent);
+
+          // GET /api/health
+          ping('/api/health');
+
+          // POST /api/chat (label explicite)
+          ping('/api/chat',
+            { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({test:true, ts: Date.now()}) },
+            '/api/chat (POST)'
+          );
+
+          // GET /api/ping
+          ping('/api/ping');
+
+          log('Header présent: ' + Boolean(document.querySelector('header')));
+          log('--- FIN DIAGNOSTIC ---');
+        }
+      }
+
+      btn.addEventListener('click', toggle);
+      console.log('🟢 index.html prêt — bouton initialisé');
+    })();
+  </script>
+</body>
+</html>
