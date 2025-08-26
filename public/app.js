@@ -1,4 +1,4 @@
-// src/app.js
+// public/app.js
 const API_URL_CHAT = "/api/chat";
 const POINTS = [
   "Prière d’ouverture — Invocation du Saint-Esprit pour éclairer mon étude.",
@@ -52,7 +52,6 @@ function startProgress() {
   }, 200);
   return interval;
 }
-
 function finishProgress() {
   $("#progressBar").style.width = "100%";
   setTimeout(() => {
@@ -70,8 +69,8 @@ function renderSections() {
     btn.dataset.section = "p" + i;
     btn.innerHTML = `<span class="badge">${i}</span><span>${POINTS[i - 1]}</span>`;
     btn.addEventListener("click", () => {
-      document.querySelectorAll(".sidebar-item").forEach((b) => b.classList.remove("active"));
-      document.querySelectorAll(".content-section").forEach((s) => s.classList.remove("active"));
+      document.querySelectorAll(".sidebar-item").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".content-section").forEach(s => s.classList.remove("active"));
       btn.classList.add("active");
       $("#p" + i).classList.add("active");
     });
@@ -99,7 +98,6 @@ async function generateAll() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ livre, chapitre: parseInt(chap, 10), points: 28 })
     });
-
     let data;
     try { data = await res.json(); } catch { throw new Error("Réponse non JSON de l'API."); }
     if (!res.ok) throw new Error(data?.error || "Erreur API");
