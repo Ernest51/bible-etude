@@ -1,15 +1,11 @@
 {
   "name": "bible-etude",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.1.0",
+  "description": "Site statique Bible Etude",
+  "type": "module",
   "scripts": {
-    "dev": "tailwindcss -i src/input.css -o dist/output.css --watch",
-    "build": "tailwindcss -i src/input.css -o dist/output.css --minify",
-    "vercel-build": "npm run build"
-  },
-  "devDependencies": {
-    "tailwindcss": "^3.4.10",
-    "postcss": "^8.4.41",
-    "autoprefixer": "^10.4.20"
+    "dev": "vercel dev",
+    "build": "echo \"Static site - no build step\""
   }
 }
