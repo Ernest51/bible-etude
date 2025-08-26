@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Test Étude (GET)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    input { padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; min-width: 260px; }
+    button { background:#16a34a;color:#fff;border:none;padding:10px 16px;border-radius:8px;font-weight:600;cursor:pointer; }
+    .error { background:#fee2e2;border:1px solid #fecaca;color:#7f1d1d;padding:10px;border-radius:8px;margin-top:12px; }
+    ol { list-style: decimal inside; display: flex; flex-direction: column; gap: 8px; padding: 0; }
+    li { border: 1px solid #eee; border-radius: 10px; padding: 8px 10px; }
+    small { color: #374151; }
+    #log { font-family: ui-monospace, monospace; font-size: 12px; color: #374151; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 8px; margin-top: 12px; max-height: 200px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>Test Étude (GET /api/chat)</h1>
+  <div class="row">
+    <input id="ref" placeholder="Ex: Marc 5:1-20" value="Marc 5:1-20" />
+    <button id="go" type="button">Valider</button>
+    <a href="/api/echo" target="_blank">/api/echo</a>
+  </div>
+
+  <div id="status" style="margin-top:12px;color:#6b7280;">Prêt.</div>
+  <div id="result" style="margin-top:12px;"></div>
+  <div id="log"></div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const log = (m, ...rest) => { console.log(m, ...rest); $('#log').textContent += m + ' ' + (rest[0] ? JSON.stringify(rest[0]) : '') + '\n'; };
+
+    $('#go').addEventListener('click', async () => {
+      const ref = ($('#ref').value || '').trim();
+      if (!ref) { alert('Entre une référence'); return; }
+
+      $('#status').textContent = `⏳ Requête en cours pour : ${ref}`;
+      $('#result').innerHTML = '';
+      log('[TEST] GET /api/chat', { ref });
+
+      try {
+        const url = `/api/chat?q=${encodeURIComponent(ref)}&templateId=v28-standard`;
+        const resp = await fetch(url, { method: 'GET' });
+        let payload = null;
+        try { payload = await resp.json(); } catch { payload = { ok:false, error:'Réponse non JSON' }; }
+
+        log('[TEST] HTTP', resp.status, payload);
+
+        if (!resp.ok || !payload?.ok) {
+          $('#status').textContent = '❌ Erreur API';
+          $('#result').innerHTML = `<div class="error">Erreur: ${payload?.error || ('HTTP '+resp.status)}</div><pre>${escapeHtml(JSON.stringify(payload, null, 2))}</pre>`;
+          return;
+        }
+
+        const data = payload.data || payload; // s’adapte aux 2 formats
+        $('#status').textContent = `✅ OK — ${data.reference || ref}`;
+
+        const ol = document.createElement('ol');
+        (data.sections || []).forEach(s => {
+          const li = document.createElement('li');
+          li.innerHTML = `<strong>${s.id}. ${escapeHtml(s.title || '')}</strong><br>
+                          <div>${escapeHtml(s.content || '')}</div>
+                          <small>${(s.verses || []).join(' · ')}</small>`;
+          ol.appendChild(li);
+        });
+        $('#result').appendChild(ol);
+      } catch (e) {
+        $('#status').textContent = '❌ Erreur réseau';
+        $('#result').innerHTML = `<div class="error">${escapeHtml(e?.message || e)}</div>`;
+      }
+    });
+
+    function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));}
+  </script>
+</body>
+</html>
