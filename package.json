@@ -1,6 +1,15 @@
-"scripts": {
-  "dev": "vercel dev",
-  "build": "echo no-build",
-  "build:css": "tailwindcss -i ./src/input.css -o ./public/dist/output.css --minify",
-  "start": "vercel start"
+{
+  "name": "bible-etude",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "tailwindcss -i src/input.css -o dist/output.css --watch",
+    "build": "tailwindcss -i src/input.css -o dist/output.css --minify",
+    "vercel-build": "npm run build"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.10",
+    "postcss": "^8.4.41",
+    "autoprefixer": "^10.4.20"
+  }
 }
