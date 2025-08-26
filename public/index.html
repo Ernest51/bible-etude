@@ -5,44 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>Étude Biblique — 28 points (modèle strict)</title>
 
-  <!-- CSS généré par Tailwind/PostCSS -->
-  <link rel="stylesheet" href="/dist/output.css" />
+  <!-- CSS généré -->
+  <link rel="stylesheet" href="/public/dist/output.css" />
 
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
   <style>
-    :root{
-      --c50:#eef2ff;--c100:#e0e7ff;--c200:#c7d2fe;--c600:#4f46e5;--c700:#4338ca;--c800:#3730a3;
-      --ok:#10b981;--err:#ef4444;--ink:#0f172a;
-    }
+    :root{--c50:#eef2ff;--c100:#e0e7ff;--c200:#c7d2fe;--c600:#4f46e5;--c700:#4338ca;--c800:#3730a3;--ok:#10b981;--err:#ef4444;--ink:#0f172a}
     body{background:#f7f8fb;color:#0f172a}
     .container-xl{max-width:1200px;margin-inline:auto}
     .card{background:#fff;border:1px solid var(--c100);border-radius:16px;box-shadow:0 12px 24px -12px rgba(2,6,23,.15)}
     .btn{display:inline-flex;align-items:center;gap:.55rem;border-radius:12px;font-weight:800;padding:.7rem 1rem}
     .btn-solid{background:var(--c600);color:#fff}.btn-solid:hover{background:var(--c700)}
     .btn-outline{border:1px solid var(--c200);background:#fff}
-    .btn-ghost{border:1px dashed var(--c200);background:#fff}
     .badge{display:inline-grid;place-items:center;width:1.9rem;height:1.9rem;border-radius:.55rem;background:var(--c100);color:var(--c800);font-weight:800;font-size:.75rem}
     .sidebar-item{border:1px solid transparent;border-radius:12px;padding:.6rem .7rem;display:flex;align-items:flex-start;gap:.6rem}
     .sidebar-item:hover{background:var(--c50);border-color:var(--c200)}
     .sidebar-item.active{background:var(--c100);border-color:var(--c200);box-shadow:inset 4px 0 0 0 var(--c600)}
     .content-section{display:none;opacity:0;transition:opacity .18s ease}
     .content-section.active{display:block;opacity:1}
-    .toast{position:fixed;right:14px;bottom:14px;background:#111827;color:#fff;padding:.65rem .95rem;border-radius:12px;box-shadow:0 10px 20px rgba(0,0,0,.15);z-index:200;transition:opacity .25s, transform .25s}
-    .toolbar{background:#fff;border:1px solid var(--c100);border-radius:14px;padding:.6rem .8rem}
-    .prose a{color:var(--c700);text-decoration:underline}
-    .prose img{border-radius:12px;box-shadow:0 10px 24px rgba(2,6,23,.15);max-width:100%;height:auto}
-    .ghost-note{display:none}
-    .edit-wrap[aria-expanded="true"] .ghost-note{display:block}
-    .edit-wrap[aria-expanded="true"] .display-note{display:none}
+    .toast{position:fixed;right:14px;bottom:14px;background:#111827;color:#fff;padding:.65rem .95rem;border-radius:12px;box-shadow:0 10px 20px rgba(0,0,0,.15);z-index:200}
     .pill{background:#fff;border:1px solid var(--c100);border-radius:12px;padding:.35rem .6rem}
-    .dropdown{position:relative}
-    .menu{position:absolute;left:0;right:0;z-index:30;background:#fff;border:1px solid var(--c100);border-radius:12px;box-shadow:0 14px 28px -12px rgba(2,6,23,.18);max-height:300px;overflow:auto;display:none}
-    .menu.open{display:block}
-    .menu button{display:block;width:100%;text-align:left;padding:.55rem .8rem}
-    .menu button:hover{background:var(--c50)}
-    @media (max-width: 640px){
-      .grid-mobile{display:grid;grid-template-columns:1fr;gap:12px}
-    }
+    #progressContainer{position:relative;height:6px;width:100%;background:#e2e8f0;border-radius:4px;overflow:hidden;display:none;margin-bottom:8px}
+    #progressBar{position:absolute;height:100%;width:0%;background:#3b82f6;transition:width .25s ease}
+    @media (max-width:640px){.grid-mobile{display:grid;grid-template-columns:1fr;gap:12px}}
   </style>
 </head>
 <body class="min-h-screen">
@@ -71,79 +56,24 @@
 
   <main class="flex-1 py-5 sm:py-6">
     <div class="container-xl px-3 sm:px-4">
-      <!-- Sélecteurs -->
       <section class="card p-4 sm:p-6 mb-6">
         <div class="grid grid-cols-12 gap-3 sm:gap-4 items-end grid-mobile">
-          <!-- Recherche -->
-          <div class="col-span-12">
-            <label class="text-sm font-semibold block mb-1">Recherche</label>
-            <div class="relative">
-              <svg class="w-4 h-4 text-neutral-400 absolute left-3 top-3" viewBox="0 0 24 24" fill="currentColor"><path d="M10 18a8 8 0 1 1 5.293-14.293A8 8 0 0 1 10 18zm11 3-6-6"/></svg>
-              <input id="searchInput" class="w-full border rounded-lg pl-9 pr-3 py-2.5" placeholder="Tape ‘jean 3’, ‘1co 13’, ‘exo 3’…">
-            </div>
-            <p class="text-xs text-neutral-600 mt-1">Abréviations OK : mar, jn, 1co, rm… accents facultatifs.</p>
-          </div>
-
-          <!-- Livre -->
           <div class="col-span-12 sm:col-span-6 lg:col-span-5">
             <label class="text-sm font-semibold block mb-1">Livre</label>
-            <div class="dropdown">
-              <button id="livreBtn" type="button" class="w-full bg-white border rounded-lg py-2.5 px-4 flex items-center justify-between">
-                <span id="livreLabel">Sélectionner un livre</span>
-                <svg class="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 20 20" fill="currentColor"><path d="M5 7l5 5 5-5"/></svg>
-              </button>
-              <div id="livreMenu" class="menu"></div>
-            </div>
+            <input id="livreInput" class="w-full border rounded-lg px-4 py-2.5" placeholder="Jean, Exode, Genèse..." />
           </div>
-
-          <!-- Chapitre -->
           <div class="col-span-6 sm:col-span-3 lg:col-span-3">
             <label class="text-sm font-semibold block mb-1">Chapitre</label>
-            <div class="dropdown">
-              <button id="chapBtn" type="button" class="w-full bg-white border rounded-lg py-2.5 px-4 flex items-center justify-between" disabled>
-                <span id="chapLabel">Chapitre</span>
-                <svg class="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 20 20" fill="currentColor"><path d="M5 7l5 5 5-5"/></svg>
-              </button>
-              <div id="chapMenu" class="menu"></div>
-            </div>
+            <input id="chapInput" type="number" min="1" class="w-full border rounded-lg px-4 py-2.5" placeholder="1" />
           </div>
-
-          <!-- Version -->
-          <div class="col-span-6 sm:col-span-3 lg:col-span-2">
-            <label class="text-sm font-semibold block mb-1">Version</label>
-            <select id="versionSelect" class="w-full bg-white border rounded-lg py-2.5 px-4">
-              <option value="LSG" selected>LSG — Louis Segond</option>
-              <option value="SG21">SG21 — Segond 21</option>
-              <option value="NEG1979">NEG79 — Nouvelle Édition de Genève</option>
-              <option value="BDS">BDS — La Bible du Semeur</option>
-              <option value="PDV">PDV — Parole de Vie</option>
-            </select>
-          </div>
-
-          <!-- Actions -->
           <div class="col-span-12 flex flex-wrap gap-2 mt-1">
             <button id="validerBtn" class="btn btn-solid shadow w-full sm:w-auto">Valide (28 pts)</button>
             <button id="reinitBtn" class="btn btn-outline w-full sm:w-auto">Réinitialiser</button>
             <button id="lireBtn" class="btn btn-outline w-full sm:w-auto" disabled>Lire (BibleGateway)</button>
-
-            <div class="ml-auto flex gap-2 w-full sm:w-auto">
-              <button id="generateBtn" class="btn btn-solid shadow w-full sm:w-auto">Générer IA</button>
-              <button id="exportMdBtn" class="btn btn-ghost w-full sm:w-auto">Exporter (Markdown)</button>
-              <button id="copyLinkBtn" class="btn btn-ghost w-full sm:w-auto">Copier le lien</button>
-            </div>
-          </div>
-
-          <!-- Dernière étude -->
-          <div class="col-span-12">
-            <div class="mt-3 text-sm text-slate-700">
-              <span class="font-semibold">Dernière étude :</span>
-              <span id="lastStudyInline">—</span>
-            </div>
           </div>
         </div>
       </section>
 
-      <!-- Sidebar + contenu -->
       <div class="grid grid-cols-12 gap-4 lg:gap-6">
         <aside class="col-span-12 lg:col-span-4">
           <div class="card p-3 sticky top-[84px] max-h-[calc(100vh-140px)] overflow-y-auto">
@@ -154,19 +84,19 @@
 
         <section class="col-span-12 lg:col-span-8">
           <div class="card relative">
+            <div id="progressContainer"><div id="progressBar"></div></div>
+
             <div id="busy" class="hidden absolute inset-0 bg-white/70 z-10 grid place-items-center">
               <div class="rounded-xl border bg-white px-4 py-3 shadow-md text-sm flex items-center gap-2">
                 <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                 <span id="busyText">Génération…</span>
               </div>
             </div>
+
             <div id="contentArea" class="p-4 sm:p-6">
               <div id="welcome" class="text-center py-10">
-                <div class="w-16 h-16 rounded-xl bg-[var(--c50)] text-[var(--c700)] grid place-items-center mx-auto mb-3">
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M5 4h9a4 4 0 0 1 4 4v10H7a2 2 0 0 1-2-2V4z"/><path d="M7 18h11v2H7z"/></svg>
-                </div>
                 <h3 class="text-lg font-bold mb-2">Bienvenue 👋</h3>
-                <p class="text-neutral-600">Choisis un livre et un chapitre, puis clique <b>Valide</b>. Chaque point est généré au format imposé (≥ 2 500 caractères).</p>
+                <p class="text-neutral-600">Choisis un livre et un chapitre, puis clique <b>Valide</b>. Chaque point sera généré au format imposé (≥ 2 500 caractères).</p>
               </div>
               <div id="sectionsHost"></div>
             </div>
@@ -176,96 +106,7 @@
     </div>
   </main>
 
-  <!-- JS principal (si présent) -->
-  <script src="/app.js?v=debug1" defer></script>
-
-  <!-- ===== DEBUG INJECTOR — bouton vert garanti visible ===== -->
-  <script>
-    (function () {
-      function makeBtn() {
-        var b = document.createElement('button');
-        b.id = '__debug_btn';
-        b.textContent = 'DEBUG';
-        b.type = 'button';
-        b.style.position = 'fixed';
-        b.style.right = '16px';
-        b.style.bottom = '20px';
-        b.style.zIndex = '999999';
-        b.style.padding = '12px 18px';
-        b.style.borderRadius = '14px';
-        b.style.border = '2px solid #065f46';
-        b.style.background = '#10b981';
-        b.style.color = '#fff';
-        b.style.fontWeight = '900';
-        b.style.fontSize = '14px';
-        b.style.boxShadow = '0 8px 16px rgba(0,0,0,.25)';
-        b.style.cursor = 'pointer';
-        return b;
-      }
-      function buildReport() {
-        var links = Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map(l => l.href);
-        var scripts = Array.from(document.scripts).map(s => s.src || '(inline)');
-        var hasOutputCss = links.some(h => (h || '').includes('/dist/output.css'));
-        var report = {
-          meta: { ts: new Date().toISOString(), url: location.href, ua: navigator.userAgent },
-          links, scripts, hasOutputCss,
-          dom: {
-            pointsNav: !!document.getElementById('pointsNav'),
-            sectionsHost: !!document.getElementById('sectionsHost'),
-            contentArea: !!document.getElementById('contentArea'),
-          },
-          note: "Colle moi ce JSON dans le chat."
-        };
-        return JSON.stringify(report, null, 2);
-      }
-      function showToast(msg){
-        var t = document.createElement('div');
-        t.textContent = msg;
-        t.style.position = 'fixed';
-        t.style.right = '16px';
-        t.style.bottom = '70px';
-        t.style.zIndex = '1000000';
-        t.style.background = '#111827';
-        t.style.color = '#fff';
-        t.style.padding = '10px 14px';
-        t.style.borderRadius = '12px';
-        t.style.boxShadow = '0 10px 20px rgba(0,0,0,.15)';
-        document.body.appendChild(t);
-        setTimeout(()=> t.remove(), 2000);
-      }
-      function openPanel() {
-        var overlay = document.createElement('div');
-        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);backdrop-filter:blur(2px);z-index:1000000;';
-        var panel = document.createElement('div');
-        panel.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(900px,90vw);max-height:80vh;background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,.3);display:grid;grid-template-rows:auto 1fr auto;';
-        var head = document.createElement('div');
-        head.textContent = 'Rapport Debug — client';
-        head.style.cssText = 'padding:12px 16px;border-bottom:1px solid #ddd;font-weight:800;';
-        var ta = document.createElement('textarea');
-        ta.readOnly = true;
-        ta.style.cssText = 'width:100%;height:100%;border:none;padding:12px;background:#f9fafb;font-family:monospace;font-size:12px;';
-        ta.value = buildReport();
-        var foot = document.createElement('div');
-        foot.style.cssText = 'padding:12px 16px;border-top:1px solid #ddd;display:flex;gap:8px;justify-content:flex-end;';
-        var copy = document.createElement('button');
-        copy.textContent = 'Copier';
-        copy.onclick = async () => { try{ await navigator.clipboard.writeText(ta.value); showToast('Copié ✅'); } catch(e){ ta.select(); document.execCommand('copy'); showToast('Copié (fallback) ✅'); } };
-        var close = document.createElement('button');
-        close.textContent = 'Fermer';
-        close.onclick = () => document.body.removeChild(overlay);
-        [copy, close].forEach(b => { b.style.cssText = 'padding:6px 12px;border:1px solid #ccc;border-radius:8px;background:#f9fafb;font-weight:600;cursor:pointer;'; foot.appendChild(b); });
-        panel.appendChild(head); panel.appendChild(ta); panel.appendChild(foot);
-        overlay.appendChild(panel);
-        document.body.appendChild(overlay);
-      }
-      function init(){
-        var btn = document.getElementById('__debug_btn');
-        if (!btn) { btn = makeBtn(); document.body.appendChild(btn); }
-        btn.onclick = openPanel;
-      }
-      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-      else init();
-    })();
-  </script>
+  <!-- JS (servi depuis /src/app.js) -->
+  <script src="/src/app.js" defer></script>
 </body>
 </html>
