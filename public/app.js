@@ -1,55 +1,239 @@
-// public/app.js — même debug, mais externe
-(function(){
-  const btn = document.getElementById('debugBtn');
-  const panel = document.getElementById('debugPanel');
+// public/app.js
 
-  function log(msg){
-    const line = '['+new Date().toISOString()+'] '+msg;
-    panel.textContent += (panel.textContent ? '\n' : '') + line;
-    console.log(line);
-  }
+(function () {
+  // === Sélecteurs souples ===
+  // Zone d'entrée (recherche livre+chapitre+versets). On essaye plusieurs ids/classes usuelles.
+  const input =
+    document.querySelector("#searchRef") ||
+    document.querySelector("#refInput") ||
+    document.querySelector("input[type='search']") ||
+    document.querySelector("input[data-role='reference']") ||
+    createSearchInput();
 
-  async function ping(path, options, label){
-    try{
-      const c = new AbortController();
-      const t = setTimeout(()=>c.abort(),2500);
-      const r = await fetch(path,{...(options||{}), signal:c.signal});
-      clearTimeout(t);
-      const txt = await r.text().catch(()=> '');
-      log((r.ok?'OK ':'KO ') + (label||path) + ' → ' + r.status + (txt ? ' | body: ' + txt.slice(0,120) : ''));
-    }catch(e){
-      log('KO ' + (label||path) + ' → ' + String(e));
+  // Bouton "Valide" — on l'injecte s'il n'existe pas.
+  let valideBtn =
+    document.querySelector("#valideBtn") ||
+    document.querySelector("button[data-action='valide']") ||
+    createValideButton();
+
+  // Conteneur de rendu des 28 points
+  const container =
+    document.querySelector("#studyContainer") || createStudyContainer();
+
+  // Petit logger visible (diagnostics)
+  const logArea =
+    document.querySelector("#debugLog") || createDebugLog(container);
+
+  // Ping rapide (facultatif) — utile pour voir si la page cause des erreurs réseau
+  ping();
+
+  // Action
+  valideBtn.addEventListener("click", async () => {
+    const value = (input.value || "").trim();
+    if (!value) {
+      toast("Entre une référence (ex: Marc 5:1-20)");
+      input.focus();
+      return;
+    }
+    await generateStudy(value);
+  });
+
+  // ====== Fonctions ======
+
+  async function generateStudy(reference) {
+    setLoading(true);
+    clear(container);
+
+    append(container, h("div", { class: "status" }, `Génération pour: ${reference}`));
+
+    try {
+      const resp = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input: reference,
+          templateId: "v28-standard"
+        })
+      });
+
+      // Gestion des statuts
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "");
+        safeLog(`[${resp.status}] /api/chat → ${errText}`);
+        showError(container, `Erreur ${resp.status} lors de la génération`);
+        return;
+      }
+
+      const json = await resp.json();
+      if (!json?.ok) {
+        safeLog(`Réponse ok=false: ${JSON.stringify(json)}`);
+        showError(container, json?.error || "Erreur inconnue");
+        return;
+      }
+
+      renderStudy(json.data);
+      toast("Étude générée.");
+    } catch (e) {
+      safeLog("Exception fetch /api/chat: " + (e?.message || e));
+      showError(container, "Erreur réseau /api/chat");
+    } finally {
+      setLoading(false);
     }
   }
 
-  function toggle(){
-    const open = panel.style.display==='block';
-    if(open){
-      panel.style.display='none';
-      btn.setAttribute('aria-expanded','false');
-      btn.textContent='✅ Ouvrir le Debug';
-    }else{
-      panel.style.display='block';
-      btn.setAttribute('aria-expanded','true');
-      btn.textContent='Fermer le Debug';
-      if(panel.textContent==='[init]'){ panel.textContent='[Debug démarré…]'; }
-      log('--- DÉBUT DIAGNOSTIC ---');
-      log('JS chargé depuis public/app.js ✅');
-      log('Location: ' + window.location.href);
-      log('UA: ' + navigator.userAgent);
-      ping('/api/health');
-      ping('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({test:true,ts:Date.now()})},'/api/chat (POST)');
-      ping('/api/ping');
-      log('Header présent: ' + Boolean(document.querySelector('header')));
-      log('--- FIN DIAGNOSTIC ---');
+  function renderStudy(data) {
+    clear(container);
+
+    const header = h("div", { class: "study-header" },
+      h("h2", {}, `Étude (28 points) — ${data.reference || "Référence inconnue"}`),
+      h("div", { class: "template" }, `Modèle: ${data.templateId}`)
+    );
+
+    const list = h("ol", { class: "study-list" });
+    (data.sections || []).forEach((sec) => {
+      const li = h("li", { class: "study-item" },
+        h("h3", { class: "title" }, `${sec.id}. ${sec.title}`),
+        h("p", { class: "content" }, sec.content),
+        h("div", { class: "verses" },
+          h("span", { class: "tag" }, (sec.verses || []).join(" · "))
+        )
+      );
+      list.appendChild(li);
+    });
+
+    append(container, header, list);
+  }
+
+  // ====== UI helpers ======
+
+  function setLoading(isLoading) {
+    valideBtn.disabled = !!isLoading;
+    valideBtn.textContent = isLoading ? "Génération…" : "Valide";
+  }
+
+  function showError(parent, message) {
+    append(parent, h("div", { class: "error" }, message));
+  }
+
+  function toast(msg) {
+    let t = document.querySelector("#toast");
+    if (!t) {
+      t = h("div", { id: "toast", style: toastStyle() });
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = "1";
+    setTimeout(() => (t.style.opacity = "0"), 1800);
+  }
+
+  function safeLog(msg) {
+    console.log(msg);
+    append(logArea, h("div", {}, `[${new Date().toLocaleTimeString()}] ${msg}`));
+  }
+
+  async function ping() {
+    try {
+      const ok = await fetch("/api/ping").then(r => r.ok);
+      safeLog(ok ? "Ping OK" : "Ping KO");
+    } catch {
+      safeLog("Ping exception");
     }
   }
 
-  if(!btn || !panel){
-    console.error('Éléments debug introuvables'); return;
+  // ====== DOM builders ======
+
+  function createSearchInput() {
+    const wrap = document.querySelector("#searchZone") || createTopBar();
+    const inp = h("input", {
+      id: "searchRef",
+      placeholder: "Livre Chapitre:Versets (ex: Marc 5:1-20)",
+      class: "search-input"
+    });
+    wrap.appendChild(inp);
+    return inp;
   }
-  panel.style.display='none';
-  btn.setAttribute('aria-expanded','false');
-  btn.addEventListener('click', toggle);
-  console.log('🟢 app.js prêt');
+
+  function createValideButton() {
+    const wrap = document.querySelector("#searchZone") || createTopBar();
+    const btn = h("button", {
+      id: "valideBtn",
+      class: "valide-btn",
+      style:
+        "background:#16a34a;color:#fff;border:none;padding:10px 16px;border-radius:8px;font-weight:600;cursor:pointer;"
+    }, "Valide");
+    wrap.appendChild(btn);
+    return btn;
+  }
+
+  function createStudyContainer() {
+    const c = h("div", { id: "studyContainer", class: "study-container" });
+    document.body.appendChild(c);
+    injectBaseStyles();
+    return c;
+  }
+
+  function createDebugLog(parent) {
+    const d = h("div", { id: "debugLog", class: "debug-log" });
+    append(parent, h("h4", {}, "Debug"), d);
+    return d;
+  }
+
+  function createTopBar() {
+    const bar = h("div", { id: "searchZone", class: "topbar" });
+    document.body.prepend(bar);
+    injectBaseStyles();
+    return bar;
+  }
+
+  function injectBaseStyles() {
+    if (document.getElementById("studyBaseStyles")) return;
+    const css = `
+      .topbar{display:flex;gap:8px;align-items:center;padding:12px;position:sticky;top:0;background:#fff;border-bottom:1px solid #eee;z-index:10}
+      .search-input{flex:1;min-width:240px;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px}
+      .study-container{max-width:980px;margin:20px auto;padding:0 16px}
+      .study-header{display:flex;justify-content:space-between;align-items:center;margin:12px 0}
+      .study-list{list-style:decimal inside;display:flex;flex-direction:column;gap:12px;padding:0}
+      .study-item{border:1px solid #eee;border-radius:12px;padding:12px 14px}
+      .study-item .title{margin:0 0 6px 0;font-size:16px}
+      .study-item .content{margin:0 0 8px 0;line-height:1.45}
+      .study-item .verses .tag{display:inline-block;font-size:12px;border:1px solid #ddd;border-radius:999px;padding:3px 8px;background:#f9fafb}
+      .error{background:#fee2e2;border:1px solid #fecaca;color:#7f1d1d;padding:10px;border-radius:8px;margin:10px 0}
+      .debug-log{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12px;color:#374151;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:8px;max-height:160px;overflow:auto}
+    `;
+    const style = h("style", { id: "studyBaseStyles" }, css);
+    document.head.appendChild(style);
+  }
+
+  function toastStyle() {
+    return [
+      "position:fixed",
+      "bottom:20px",
+      "right:20px",
+      "background:#111827",
+      "color:#fff",
+      "padding:10px 14px",
+      "border-radius:8px",
+      "opacity:0",
+      "transition:opacity .25s",
+      "z-index:9999"
+    ].join(";");
+  }
+
+  // Tiny DOM helpers
+  function h(tag, attrs = {}, ...children) {
+    const el = document.createElement(tag);
+    for (const k of Object.keys(attrs || {})) {
+      if (k === "class") el.className = attrs[k];
+      else if (k === "style") el.setAttribute("style", attrs[k]);
+      else el.setAttribute(k, attrs[k]);
+    }
+    for (const c of children) {
+      if (c == null) continue;
+      if (typeof c === "string") el.appendChild(document.createTextNode(c));
+      else el.appendChild(c);
+    }
+    return el;
+  }
+  function append(parent, ...kids) { kids.forEach(k => parent.appendChild(k)); }
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
 })();
