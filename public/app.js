@@ -1,8 +1,5 @@
 // public/app.js
-
 (function () {
-  // === Sélecteurs souples ===
-  // Zone d'entrée (recherche livre+chapitre+versets). On essaye plusieurs ids/classes usuelles.
   const input =
     document.querySelector("#searchRef") ||
     document.querySelector("#refInput") ||
@@ -10,24 +7,19 @@
     document.querySelector("input[data-role='reference']") ||
     createSearchInput();
 
-  // Bouton "Valide" — on l'injecte s'il n'existe pas.
   let valideBtn =
     document.querySelector("#valideBtn") ||
     document.querySelector("button[data-action='valide']") ||
     createValideButton();
 
-  // Conteneur de rendu des 28 points
   const container =
     document.querySelector("#studyContainer") || createStudyContainer();
 
-  // Petit logger visible (diagnostics)
   const logArea =
     document.querySelector("#debugLog") || createDebugLog(container);
 
-  // Ping rapide (facultatif) — utile pour voir si la page cause des erreurs réseau
   ping();
 
-  // Action
   valideBtn.addEventListener("click", async () => {
     const value = (input.value || "").trim();
     if (!value) {
@@ -38,40 +30,39 @@
     await generateStudy(value);
   });
 
-  // ====== Fonctions ======
-
   async function generateStudy(reference) {
     setLoading(true);
     clear(container);
-
     append(container, h("div", { class: "status" }, `Génération pour: ${reference}`));
 
     try {
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          input: reference,
-          templateId: "v28-standard"
-        })
+        body: JSON.stringify({ input: reference, templateId: "v28-standard" })
       });
 
-      // Gestion des statuts
-      if (!resp.ok) {
-        const errText = await resp.text().catch(() => "");
-        safeLog(`[${resp.status}] /api/chat → ${errText}`);
-        showError(container, `Erreur ${resp.status} lors de la génération`);
+      let payload = null;
+      try {
+        // On tente de lire le JSON même si resp.ok == false (pour afficher les détails)
+        payload = await resp.json();
+      } catch {
+        const txt = await resp.text().catch(() => "");
+        payload = { ok: false, error: `HTTP ${resp.status}`, raw: txt };
+      }
+
+      if (!resp.ok || !payload?.ok) {
+        const msg = payload?.error
+          ? `${payload.error}`
+          : `Erreur ${resp.status}`;
+        safeLog(`[${resp.status}] /api/chat → ${JSON.stringify(payload)}`);
+        showError(container, msg);
+        // Affiche aussi un panneau "détails" pour dbg
+        append(container, h("pre", { class: "error-details" }, JSON.stringify(payload, null, 2)));
         return;
       }
 
-      const json = await resp.json();
-      if (!json?.ok) {
-        safeLog(`Réponse ok=false: ${JSON.stringify(json)}`);
-        showError(container, json?.error || "Erreur inconnue");
-        return;
-      }
-
-      renderStudy(json.data);
+      renderStudy(payload.data);
       toast("Étude générée.");
     } catch (e) {
       safeLog("Exception fetch /api/chat: " + (e?.message || e));
@@ -103,8 +94,6 @@
 
     append(container, header, list);
   }
-
-  // ====== UI helpers ======
 
   function setLoading(isLoading) {
     valideBtn.disabled = !!isLoading;
@@ -140,8 +129,7 @@
     }
   }
 
-  // ====== DOM builders ======
-
+  // DOM helpers + styles
   function createSearchInput() {
     const wrap = document.querySelector("#searchZone") || createTopBar();
     const inp = h("input", {
@@ -198,7 +186,8 @@
       .study-item .content{margin:0 0 8px 0;line-height:1.45}
       .study-item .verses .tag{display:inline-block;font-size:12px;border:1px solid #ddd;border-radius:999px;padding:3px 8px;background:#f9fafb}
       .error{background:#fee2e2;border:1px solid #fecaca;color:#7f1d1d;padding:10px;border-radius:8px;margin:10px 0}
-      .debug-log{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:12px;color:#374151;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:8px;max-height:160px;overflow:auto}
+      .error-details{white-space:pre-wrap;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px;margin-top:8px;font-size:12px}
+      .debug-log{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;font-size:12px;color:#374151;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:8px;max-height:160px;overflow:auto}
     `;
     const style = h("style", { id: "studyBaseStyles" }, css);
     document.head.appendChild(style);
@@ -206,20 +195,11 @@
 
   function toastStyle() {
     return [
-      "position:fixed",
-      "bottom:20px",
-      "right:20px",
-      "background:#111827",
-      "color:#fff",
-      "padding:10px 14px",
-      "border-radius:8px",
-      "opacity:0",
-      "transition:opacity .25s",
-      "z-index:9999"
+      "position:fixed","bottom:20px","right:20px","background:#111827","color:#fff",
+      "padding:10px 14px","border-radius:8px","opacity:0","transition:opacity .25s","z-index:9999"
     ].join(";");
   }
 
-  // Tiny DOM helpers
   function h(tag, attrs = {}, ...children) {
     const el = document.createElement(tag);
     for (const k of Object.keys(attrs || {})) {
