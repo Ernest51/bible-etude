@@ -1,4 +1,4 @@
-// app.js — v4 (clean)
+// /public/app.js — v4 (clean)
 
 // 1) Bannière "JS chargé"
 const banner = document.getElementById('banner');
