@@ -1,4 +1,4 @@
-// public/app.js (corrigé)
+// public/app.js
 (function () {
   // --- Progress
   const progressBar = document.getElementById('progressBar');
@@ -65,7 +65,7 @@
     readLink.href = 'https://www.biblegateway.com/passage/?search=' + encodeURIComponent(ref) + '&version=' + encodeURIComponent(ver);
   }
 
-  // --- Rubriques FIXES
+  // --- Rubriques FIXES (colonne gauche)
   const FIXED_POINTS = [
     {t:"Prière d’ouverture",d:"Invocation du Saint-Esprit pour éclairer l’étude."},
     {t:"Canon et testament",d:"Identification du livre selon le canon biblique."},
@@ -100,9 +100,9 @@
 
   // --- État
   let current = 0;
-  let notes = {};
+  let notes = {};               // contenus (droite) par index
   let autosaveTimer = null;
-  let autoTimer = null; // <-- une seule déclaration (corrigé)
+  let autoTimer = null;         // (corrigé) une seule déclaration
 
   // --- Rendu colonne fixe
   function renderSidebar(){
@@ -142,7 +142,7 @@
     }catch{}
   }
 
-  // --- Helpers
+  // --- Helpers saisie / sélection
   const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\./g,'').trim();
   function parseSearch(q){
     q = q.trim();
@@ -176,37 +176,66 @@
     return c ? `${b} ${c}` : b;
   }
 
-  // --- Génération: on remplit seulement les contenus (notes)
+  // --- Appel API robuste: GET puis fallback POST
+  async function fetchChat(ref) {
+    const url = `/api/chat?q=${encodeURIComponent(ref)}&templateId=v28-standard`;
+
+    // 1) GET
+    try {
+      const r = await fetch(url, { method: 'GET' });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && (j?.ok || j?.data)) return { ok: true, payload: j, status: r.status };
+    } catch (_) {}
+
+    // 2) POST
+    try {
+      const r = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q: ref, templateId: 'v28-standard' })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && (j?.ok || j?.data)) return { ok: true, payload: j, status: r.status };
+      return { ok: false, payload: j, status: r.status };
+    } catch (e) {
+      return { ok: false, payload: { error: String(e) }, status: 0 };
+    }
+  }
+
+  // --- Génération: on remplit uniquement les contenus (gauche figée)
   async function generateStudy(){
     const ref = buildReference();
     if (!ref) { alert("Choisis un Livre + Chapitre (ou saisis une référence ex: Marc 5:1-20)"); return; }
 
     await fakePrep();
 
-    let resp=null, payload=null;
-    try{
-      const url = `/api/chat?q=${encodeURIComponent(ref)}&templateId=v28-standard`;
-      resp = await fetch(url, { method: 'GET' });
-      try { payload = await resp.json(); } catch { payload = { ok:false, error:'Réponse non JSON' }; }
-    }catch(e){
-      payload = { ok:false, error: 'Erreur réseau: '+(e?.message || e) };
-    }
-    if (!resp || !resp.ok || !payload?.ok) {
+    const { ok, payload, status } = await fetchChat(ref);
+
+    if (!ok) {
       const panel = document.getElementById('debugPanel'); const btnDbg = document.getElementById('debugBtn');
-      if (panel) { panel.style.display='block'; btnDbg.textContent='Fermer Debug'; panel.textContent += `\n[API KO] ${(resp&&resp.status)||0}\n`+JSON.stringify(payload,null,2); }
-      alert(payload?.error || `Erreur HTTP ${resp ? resp.status : 0}`);
+      if (panel) { panel.style.display='block'; btnDbg.textContent='Fermer Debug'; panel.textContent += `\n[API KO] /api/chat → ${status}\n`+JSON.stringify(payload,null,2); }
+      alert(payload?.error || `Erreur HTTP ${status}`);
       return;
     }
 
+    // normalisation réponse
     const data = payload.data || payload;
-    const sections = Array.isArray(data.sections) ? data.sections.slice(0, N) : [];
-
-    notes = {};
-    for (let i=0; i<N; i++){
-      const s = sections[i] || {};
-      notes[i] = String(s.content || "");
+    const sections = Array.isArray(data.sections) ? data.sections : [];
+    if (!sections.length) {
+      const panel = document.getElementById('debugPanel'); const btnDbg = document.getElementById('debugBtn');
+      if (panel) { panel.style.display='block'; btnDbg.textContent='Fermer Debug'; panel.textContent += `\n[API OK mais sans sections] ${JSON.stringify(data).slice(0,800)}…`; }
+      alert("Réponse API sans sections.");
+      return;
     }
 
+    // Remplit notes : 1..28 -> content/description/text
+    notes = {};
+    for (let i=0; i<N; i++) {
+      const s = sections[i] || {};
+      notes[i] = String(s.content ?? s.description ?? s.text ?? '');
+    }
+
+    // mémoriser “dernier”
     try {
       const book=bookSelect.value, chap=chapterSelect.value, vers=verseSelect.value, ver=versionSelect.value;
       localStorage.setItem('be_last', JSON.stringify({book, chapter:chap, verse:vers, version:ver}));
@@ -225,7 +254,7 @@
   searchRef.addEventListener('keydown', e=>{ if(e.key==='Enter'){ const sel=parseSearch(searchRef.value); if(sel){applySelection(sel); autoGenerate();} }});
   searchRef.addEventListener('blur', ()=>{ const sel=parseSearch(searchRef.value); if(sel){applySelection(sel); autoGenerate();} });
 
-  // Valider => BibleGateway
+  // Valider => BibleGateway (aucun appel /api/chat)
   validateBtn.addEventListener('click', ()=>{
     updateReadLink();
     try{
@@ -239,7 +268,7 @@
   // Générer => /api/chat
   generateBtn.addEventListener('click', generateStudy);
 
-  // Auto-génération Livre+Chapitre
+  // Auto-génération Livre+Chapitre (si l’utilisateur n’a rien tapé dans la barre de recherche)
   function autoGenerate(){
     clearTimeout(autoTimer);
     autoTimer = setTimeout(()=>{
@@ -257,7 +286,7 @@
   nextBtn.addEventListener('click', ()=> select((current+1)%N));
   noteArea.addEventListener('input', ()=>{ clearTimeout(autosaveTimer); autosaveTimer=setTimeout(()=>{ notes[current]=noteArea.value; saveStorage(); }, 2000); });
 
-  // Debug footer
+  // Debug footer (facultatif)
   const btnDbg = document.getElementById('debugBtn');
   const panel = document.getElementById('debugPanel');
   const dotHealth = document.getElementById('dot-health');
