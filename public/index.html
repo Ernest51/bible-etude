@@ -1,178 +1,83 @@
 <!DOCTYPE html>
-<html lang="fr" class="h-full">
+<html lang="fr">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bible Étude</title>
-  <meta name="description" content="Étude biblique — site statique" />
-  <!-- Empêche l'erreur 404 du favicon -->
+  <!-- Empêche l’erreur favicon -->
   <link rel="icon" href="data:," />
-
   <style>
-    html, body { margin:0; padding:0; height:100%; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#f7f7f8; color:#111; }
-    header { padding:24px 16px; background:#fff; box-shadow: 0 1px 0 rgba(0,0,0,.06); position: sticky; top:0; z-index: 10; }
-    .container { max-width: 960px; margin: 0 auto; }
-    h1 { margin:0 0 8px; font-size: 24px; }
-    p.lead { margin:0; color:#555; }
-    main { padding: 24px 16px; }
-    .card { background:#fff; border:1px solid #e6e6e6; border-radius: 12px; padding:16px; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
-    .row { display:flex; gap:16px; flex-wrap: wrap; }
-    .col { flex:1 1 280px; min-width:280px; }
-    /* Bouton Debug vert */
-    #debugBtn {
-      display:inline-flex; align-items:center; gap:8px;
-      background:#16a34a; color:#fff; border:none; border-radius:10px;
-      padding:12px 16px; font-weight:600; cursor:pointer;
-      box-shadow: 0 2px 0 #0e7a36;
-    }
-    #debugBtn:active { transform: translateY(1px); box-shadow: 0 1px 0 #0e7a36; }
-
-    /* Panneau debug */
-    #debugPanel {
-      margin-top:16px; display:none;
-      background:#0b1020; color:#e2e8f0; border-radius:10px; padding:12px;
-      border:1px solid #1f2a44; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      max-height: 320px; overflow:auto; white-space: pre-wrap;
-    }
-    .muted { color:#666; font-size:14px; margin-top:6px; }
-    a { color:#2563eb; text-decoration: none; }
-    a:hover { text-decoration: underline; }
+    :root { --bg:#f5f6f8; --card:#ffffff; --text:#111; --muted:#666; --green:#16a34a; --green-d:#0e7a36;}
+    html,body{margin:0;padding:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:16px 20px;position:sticky;top:0}
+    h1{margin:0;font-size:28px}
+    main{max-width:900px;margin:20px auto;padding:0 16px}
+    .card{background:var(--card);border:1px solid #e5e7eb;border-radius:12px;padding:16px}
+    #debugBtn{display:inline-flex;align-items:center;gap:8px;background:var(--green);color:#fff;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer;box-shadow:0 2px 0 var(--green-d)}
+    #debugBtn:active{transform:translateY(1px);box-shadow:0 1px 0 var(--green-d)}
+    #debugPanel{display:none;margin-top:12px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:10px;padding:12px;max-height:320px;overflow:auto;white-space:pre-wrap}
+    .muted{color:var(--muted);font-size:14px}
   </style>
 </head>
-<body class="h-full">
-  <header>
-    <div class="container">
-      <h1>Bible Étude</h1>
-      <p class="lead">Interface statique prête pour Vercel, avec outils de debug intégrés.</p>
-    </div>
-  </header>
+<body>
+  <header><h1>Bible Étude</h1></header>
 
   <main>
-    <div class="container row">
-      <div class="col">
-        <div class="card">
-          <h2 style="margin:0 0 8px;">Bienvenue</h2>
-          <p style="margin:0 0 12px;">
-            Cette page sert d’enveloppe statique. Le bouton ci-dessous lance des diagnostics
-            utiles (chargement du JS, chemins, endpoints API éventuels).
-          </p>
-          <!-- Fallback onclick direct pour garantir le clic même si écouteur non attaché -->
-          <button id="debugBtn" type="button" aria-controls="debugPanel" aria-expanded="false" onclick="window.__toggleDebug && window.__toggleDebug()">
-            ✅ Ouvrir le Debug
-          </button>
-          <div id="debugPanel" role="region" aria-live="polite"></div>
-          <p class="muted">Astuce : si tu utilises une API, assure-toi d’avoir un dossier <code>/api</code> avec des fonctions serverless ou un endpoint externe valide.</p>
-        </div>
-      </div>
+    <div class="card">
+      <h2 style="margin:0 0 8px">Bienvenue</h2>
+      <p style="margin:0 0 12px">Clique pour ouvrir le panneau et lancer un diagnostic.</p>
 
-      <div class="col">
-        <div class="card">
-          <h2 style="margin:0 0 8px;">Contenu</h2>
-          <p style="margin:0 0 12px;">Ajoute ici tes sections (lecture, plan d’étude, etc.).</p>
-          <ul style="margin:0 0 0 16px;">
-            <li>Statique prêt à déployer</li>
-            <li>Aucun framework requis</li>
-            <li>Debug intégré</li>
-          </ul>
-        </div>
-      </div>
+      <button id="debugBtn" type="button" aria-controls="debugPanel" aria-expanded="false">✅ Ouvrir le Debug</button>
+      <div id="debugPanel" role="region" aria-live="polite">[init]</div>
+
+      <p class="muted" style="margin-top:10px">Si tu utilises une API, ajoute des routes dans <code>/api</code>.</p>
     </div>
   </main>
 
-  <!-- JS inline pour éliminer tout souci de chemin/caching -->
   <script>
-    (function () {
-      const state = { logs: [], ranAtLeastOnce: false };
+    (function(){
+      const btn = document.getElementById('debugBtn');
+      const panel = document.getElementById('debugPanel');
 
-      function byId(id) { return document.getElementById(id); }
-      function append(text) {
-        const line = '[' + new Date().toISOString() + '] ' + text;
-        state.logs.push(line);
-        const panel = byId('debugPanel');
-        if (panel) panel.textContent = state.logs.join('\n');
+      function log(msg){
+        const line = '['+new Date().toISOString()+'] '+msg;
+        panel.textContent += (panel.textContent ? '\n' : '') + line;
         console.log(line);
       }
 
-      async function safeFetch(url, options, timeoutMs) {
-        const controller = new AbortController();
-        const t = setTimeout(function(){ controller.abort(); }, timeoutMs || 3000);
-        try {
-          const res = await fetch(url, Object.assign({ signal: controller.signal }, options || {}));
+      async function ping(path){
+        try{
+          const c = new AbortController();
+          const t = setTimeout(()=>c.abort(),2500);
+          const r = await fetch(path,{signal:c.signal});
           clearTimeout(t);
-          let text = '';
-          try { text = await res.text(); } catch(e) {}
-          return { ok: res.ok, status: res.status, url: url, text: text };
-        } catch (err) {
-          clearTimeout(t);
-          return { ok: false, status: 0, url: url, error: String(err) };
+          log((r.ok?'OK ':'KO ') + path + ' → ' + r.status);
+        }catch(e){
+          log('KO ' + path + ' → ' + String(e));
         }
       }
 
-      async function runDiagnostics() {
-        append('--- DÉBUT DIAGNOSTIC ---');
-        try {
-          append('JS inline actif ✅');
-          append('UserAgent: ' + navigator.userAgent);
-          append('Location: ' + window.location.href);
-
-          // Tester quelques endpoints éventuels
-          const candidates = ['/api/health', '/api/chat', '/api/ping'];
-          for (const path of candidates) {
-            const res = await safeFetch(path, { method: 'GET' }, 2500);
-            if (res.ok) {
-              append('Endpoint OK ' + path + ' → ' + res.status);
-            } else {
-              append('Endpoint KO ' + path + ' → ' + res.status + (res.error ? ' (' + res.error + ')' : ''));
-            }
-          }
-
-          append('Header présent: ' + Boolean(document.querySelector('header')));
-        } catch (e) {
-          append('Erreur inattendue: ' + String(e));
-        } finally {
-          append('--- FIN DIAGNOSTIC ---');
-          state.ranAtLeastOnce = true;
+      function toggle(){
+        const open = panel.style.display==='block';
+        if(open){
+          panel.style.display='none';
+          btn.setAttribute('aria-expanded','false');
+          btn.textContent='✅ Ouvrir le Debug';
+        }else{
+          panel.style.display='block';
+          btn.setAttribute('aria-expanded','true');
+          btn.textContent='Fermer le Debug';
+          if(panel.textContent==='[init]'){ panel.textContent='[Debug démarré…]'; }
+          log('JS inline actif ✅');
+          log('Location: ' + window.location.href);
+          log('UA: ' + navigator.userAgent);
+          ping('/api/health'); ping('/api/chat'); ping('/api/ping');
         }
       }
 
-      function toggle() {
-        const btn = byId('debugBtn');
-        const panel = byId('debugPanel');
-        if (!btn || !panel) {
-          console.error('Éléments debug introuvables');
-          return;
-        }
-        const isOpen = panel.style.display === 'block';
-        if (isOpen) {
-          panel.style.display = 'none';
-          btn.setAttribute('aria-expanded', 'false');
-          btn.textContent = '✅ Ouvrir le Debug';
-        } else {
-          panel.style.display = 'block';
-          btn.setAttribute('aria-expanded', 'true');
-          btn.textContent = 'Fermer le Debug';
-          if (state.logs.length === 0) panel.textContent = '[' + new Date().toISOString() + '] Debug démarré…';
-          runDiagnostics();
-        }
-      }
-
-      function init() {
-        const btn = byId('debugBtn');
-        const panel = byId('debugPanel');
-        if (!btn || !panel) return;
-
-        panel.style.display = 'none';
-        btn.setAttribute('aria-expanded', 'false');
-        btn.addEventListener('click', toggle);
-        window.__toggleDebug = toggle; // fallback pour l'attribut onclick
-        console.log('🟢 Debug prêt — clique sur le bouton.');
-      }
-
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-      } else {
-        init();
-      }
+      btn.addEventListener('click', toggle);
+      // Trace visible pour confirmer que le script a tourné
+      console.log('🟢 index.html prêt — bouton initialisé');
     })();
   </script>
 </body>
