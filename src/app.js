@@ -1,153 +1,46 @@
-const API_URL_CHAT = "/api/chat";
-const POINTS = [
-  "Prière d’ouverture — Invocation du Saint-Esprit pour éclairer mon étude.",
-  "Canon et testament — Identifier le livre dans le canon.",
-  "Questions du chapitre précédent — Minimum 5 questions et réponses intégrales.",
-  "Titre du chapitre — Résumé doctrinal.",
-  "Contexte historique — Carte, frise.",
-  "Structure littéraire.",
-  "Genre littéraire.",
-  "Auteur et généalogie.",
-  "Verset-clé doctrinal.",
-  "Analyse exégétique.",
-  "Analyse lexicale.",
-  "Références croisées.",
-  "Fondements théologiques.",
-  "Thème doctrinal.",
-  "Fruits spirituels.",
-  "Types bibliques.",
-  "Appui doctrinal.",
-  "Comparaison entre versets.",
-  "Comparaison avec Actes 2.",
-  "Verset à mémoriser.",
-  "Enseignement pour l’Église.",
-  "Enseignement pour la famille.",
-  "Enseignement pour enfants.",
-  "Application missionnaire.",
-  "Application pastorale.",
-  "Application personnelle.",
-  "Versets à retenir.",
-  "Prière de fin."
-];
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Étude Biblique — 28 points</title>
 
-// Sélecteur rapide
-const $ = (s) => document.querySelector(s);
+  <!-- Ton CSS (facultatif si tu utilises Tailwind) -->
+  <link rel="stylesheet" href="/dist/output.css" />
 
-// Toast
-function toast(msg) {
-  const d = document.createElement("div");
-  d.className = "toast";
-  d.textContent = msg;
-  $("#toasts").appendChild(d);
-  setTimeout(() => d.remove(), 4000);
-}
-
-// Barre de progression
-function startProgress() {
-  $("#progressContainer").style.display = "block";
-  $("#progressBar").style.width = "0%";
-
-  let width = 0;
-  const interval = setInterval(() => {
-    width += 3; // avance de 3% par tick
-    if (width >= 90) { // ne dépasse pas 90% tant que l’API n’a pas fini
-      clearInterval(interval);
+  <style>
+    :root{
+      --c50:#eef2ff;--c100:#e0e7ff;--c200:#c7d2fe;--c600:#4f46e5;--c700:#4338ca;--ink:#0f172a;
+      --ok:#10b981;--err:#ef4444;
     }
-    $("#progressBar").style.width = width + "%";
-  }, 200);
-  return interval;
-}
+    html,body{height:100%}
+    body{margin:0;background:#f7f8ff;color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto}
+    .wrap{max-width:1200px;margin:0 auto;padding:16px}
+    .toolbar{display:flex;gap:8px;align-items:end;margin-bottom:12px}
+    .field{display:flex;flex-direction:column;gap:6px}
+    .label{font-size:.85rem;color:#334}
+    .input{border:1px solid #e5e7eb;border-radius:.7rem;padding:.55rem .75rem;background:#fff;min-width:180px}
+    .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.6rem .9rem;border-radius:.8rem;background:var(--c600);color:#fff;font-weight:600;border:0;cursor:pointer}
+    .btn.sec{background:#fff;color:var(--c700);border:1px solid #e5e7eb}
+    .layout{display:grid;grid-template-columns:280px 1fr;gap:14px;min-height:70vh}
+    .sidebar{background:#fff;border:1px solid #eef2ff;border-radius:12px;padding:8px;overflow:auto}
+    .sidebar-item{display:flex;align-items:center;gap:.6rem;padding:.55rem .6rem;border-radius:.6rem;border:1px solid transparent;cursor:pointer;background:transparent}
+    .sidebar-item:hover{background:#f8f9ff}
+    .sidebar-item.active{background:#fff;border-color:#c7d2fe;box-shadow:0 6px 20px rgba(67,56,202,.08)}
+    .badge{display:inline-grid;place-items:center;min-width:22px;height:22px;border-radius:999px;background:var(--c700);color:#fff;font-size:.75rem}
+    .content{background:#fff;border:1px solid #eef2ff;border-radius:12px;padding:14px}
+    .content-section{display:none}
+    .content-section.active{display:block}
+    .prose{white-space:pre-wrap;line-height:1.6}
+    .hidden{display:none !important}
 
-function finishProgress() {
-  $("#progressBar").style.width = "100%";
-  setTimeout(() => {
-    $("#progressContainer").style.display = "none";
-    $("#progressBar").style.width = "0%";
-  }, 800);
-}
+    /* Progress */
+    #progressContainer{display:none;position:fixed;left:0;right:0;top:0;height:4px;background:#eef2ff;z-index:50}
+    #progressBar{height:100%;width:0;background:var(--c700);transition:width .2s ease}
 
-// Génération des sections
-function renderSections() {
-  const nav = $("#pointsNav"),
-    host = $("#sectionsHost");
-  nav.innerHTML = "";
-  host.innerHTML = "";
+    /* Toasts */
+    #toasts{position:fixed;right:1rem;bottom:1rem;display:flex;flex-direction:column;gap:.5rem;z-index:60}
+    .toast{background:#111827;color:#fff;padding:.6rem .8rem;border-radius:.7rem;box-shadow:0 6px 20px rgba(0,0,0,.2)}
 
-  for (let i = 1; i <= 28; i++) {
-    const btn = document.createElement("button");
-    btn.className = "sidebar-item w-full text-left";
-    btn.dataset.section = "p" + i;
-    btn.innerHTML = `<span class="badge">${i}</span><span>${POINTS[i - 1]}</span>`;
-    btn.addEventListener("click", () => {
-      document
-        .querySelectorAll(".sidebar-item")
-        .forEach((b) => b.classList.remove("active"));
-      document
-        .querySelectorAll(".content-section")
-        .forEach((s) => s.classList.remove("active"));
-      btn.classList.add("active");
-      $("#p" + i).classList.add("active");
-    });
-    nav.appendChild(btn);
-
-    const sec = document.createElement("div");
-    sec.id = "p" + i;
-    sec.className = "content-section";
-    sec.innerHTML = `<h3 class="text-xl font-bold mb-2">${i}. ${
-      POINTS[i - 1]
-    }</h3><article class="prose" id="view-p${i}">—</article>`;
-    host.appendChild(sec);
-  }
-}
-
-// Génération via API
-async function generateAll() {
-  const livre = $("#livreInput").value.trim();
-  const chap = $("#chapInput").value.trim();
-  if (!livre || !chap) {
-    toast("Choisis un livre et un chapitre.");
-    return;
-  }
-
-  $("#busy").classList.remove("hidden");
-  const progressInterval = startProgress();
-
-  try {
-    const res = await fetch(API_URL_CHAT, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        livre,
-        chapitre: parseInt(chap, 10),
-        points: 28,
-      }),
-    });
-
-    const data = await res.json();
-
-    for (let i = 1; i <= 28; i++) {
-      $("#view-p" + i).innerHTML = data[String(i)] || "—";
-    }
-
-    // Active le premier point
-    document.querySelector("#pointsNav .sidebar-item")?.click();
-
-    toast("Étude générée !");
-  } catch (e) {
-    toast("Erreur : " + e.message);
-  } finally {
-    clearInterval(progressInterval);
-    finishProgress();
-    $("#busy").classList.add("hidden");
-  }
-}
-
-// Initialisation
-document.addEventListener("DOMContentLoaded", () => {
-  renderSections();
-  $("#validerBtn").addEventListener("click", generateAll);
-  $("#reinitBtn").addEventListener("click", () => {
-    $("#livreInput").value = "";
-    $("#chapInput").value = "";
-  });
-});
+    /* Loader badge */
+    #busy{display:inline-flex;align-items:center;gap:.5rem;font-size:.9rem;color:#
