@@ -24,7 +24,16 @@
   const nextBtn = document.getElementById('next');
   const metaInfo = document.getElementById('metaInfo');
 
-  document.getElementById('y').textContent = new Date().getFullYear();
+  // Debug footer
+  const btnDbg = document.getElementById('debugBtn');
+  const panel = document.getElementById('debugPanel');
+  const dotHealth = document.getElementById('dot-health');
+  const dotChat = document.getElementById('dot-chat');
+  const dotPing = document.getElementById('dot-ping');
+  const setMini = (dot,ok)=>{ dot.classList.remove('ok','ko'); if(ok===true) dot.classList.add('ok'); else if(ok===false) dot.classList.add('ko'); };
+  function dlog(msg){ if(!panel) return; panel.style.display='block'; btnDbg.textContent='Fermer Debug'; const line='['+new Date().toISOString()+'] '+msg; panel.textContent += (panel.textContent?'\n':'')+line; console.log(line); }
+
+  document.getElementById('y') && (document.getElementById('y').textContent = new Date().getFullYear());
 
   // --- Livres
   const BOOKS = [
@@ -102,7 +111,7 @@
   let current = 0;
   let notes = {};               // contenus (droite) par index
   let autosaveTimer = null;
-  let autoTimer = null;         // (corrigé) une seule déclaration
+  let autoTimer = null;         // une seule déclaration
 
   // --- Rendu colonne fixe
   function renderSidebar(){
@@ -251,7 +260,7 @@
     return `Seigneur, merci pour la lumière reçue dans ${reference}. Aide-nous à mettre ta Parole en pratique, à l’Église, en famille et personnellement. Garde-nous dans ta paix et conduis-nous par ton Esprit. Au nom de Jésus, amen.`;
   }
 
-  // --- Génération: on remplit uniquement les contenus (gauche figée) en mappant par titre
+  // --- Génération: mapping par titre, puis secours positionnel si insuffisant
   async function generateStudy(){
     const ref = buildReference();
     if (!ref) { alert("Choisis un Livre + Chapitre (ou saisis une référence ex: Marc 5:1-20)"); return; }
@@ -261,8 +270,7 @@
     const { ok, payload, status } = await fetchChat(ref);
 
     if (!ok) {
-      const panel = document.getElementById('debugPanel'); const btnDbg = document.getElementById('debugBtn');
-      if (panel) { panel.style.display='block'; btnDbg.textContent='Fermer Debug'; panel.textContent += `\n[API KO] /api/chat → ${status}\n`+JSON.stringify(payload,null,2); }
+      dlog(`[API KO] /api/chat → ${status} ${JSON.stringify(payload).slice(0,300)}…`);
       alert(payload?.error || `Erreur HTTP ${status}`);
       return;
     }
@@ -270,27 +278,46 @@
     const data = payload.data || payload;
     const apiSections = Array.isArray(data.sections) ? data.sections : [];
     if (!apiSections.length) {
+      dlog(`[API OK mais sans sections] ${JSON.stringify(data).slice(0,400)}…`);
       alert("Réponse API sans sections.");
       return;
     }
 
-    // 1) map par titre (meilleure concordance)
+    // Normalisation simple {title, body}
+    const secs = apiSections.map(s => ({
+      title: s.title || s.titre || '',
+      body: String(s.content ?? s.description ?? s.text ?? '')
+    }));
+
+    // 1) mapping par titre (synonymes)
     notes = {};
     const used = new Set();
-    for (const s of apiSections){
-      const idx = bestIndexFor(s.title || s.titre || '');
-      if (idx >= 0 && !used.has(idx)){
-        const body = String(s.content ?? s.description ?? s.text ?? '');
-        notes[idx] = body;
+    let mappedCount = 0;
+    for (const s of secs){
+      const idx = bestIndexFor(s.title);
+      if (idx >= 0 && !used.has(idx) && s.body.trim()){
+        notes[idx] = s.body;
         used.add(idx);
+        mappedCount++;
       }
     }
 
-    // 2) fallbacks : si la prière d’ouverture/fin manquent, on place une prière déterministe
+    // 2) secours positionnel si trop peu mappé (<10 ou 0)
+    let positionalCount = 0;
+    if (mappedCount < Math.min(10, secs.length)) {
+      for (let i=0; i<N; i++){
+        if (!notes[i] && secs[i] && secs[i].body.trim()){
+          notes[i] = secs[i].body;
+          positionalCount++;
+        }
+      }
+    }
+
+    // 3) prières par défaut si absentes
     if (!notes[0]) notes[0] = defaultPrayerOpen(data.reference || ref);
     if (!notes[27]) notes[27] = defaultPrayerClose(data.reference || ref);
 
-    // 3) les autres points non couverts restent vides (l’utilisateur peut compléter)
+    dlog(`[GEN] sections=${secs.length}, mapped=${mappedCount}, positional=${positionalCount}`);
 
     // mémoriser “dernier”
     try {
@@ -304,6 +331,7 @@
   }
 
   // --- Initialisation
+  document.getElementById('y') && (document.getElementById('y').textContent = new Date().getFullYear());
   renderBooks(); renderChapters(); renderVerses(); updateReadLink();
   renderSidebar(); select(0);
 
@@ -343,20 +371,19 @@
   nextBtn.addEventListener('click', ()=> select((current+1)%N));
   noteArea.addEventListener('input', ()=>{ clearTimeout(autosaveTimer); autosaveTimer=setTimeout(()=>{ notes[current]=noteArea.value; saveStorage(); }, 2000); });
 
-  // Debug footer (facultatif)
-  const btnDbg = document.getElementById('debugBtn');
-  const panel = document.getElementById('debugPanel');
-  const dotHealth = document.getElementById('dot-health');
-  const dotChat = document.getElementById('dot-chat');
-  const dotPing = document.getElementById('dot-ping');
-  const setMini = (dot,ok)=>{ dot.classList.remove('ok','ko'); if(ok===true) dot.classList.add('ok'); else if(ok===false) dot.classList.add('ko'); };
-  async function ping(path, options){ try{ const c=new AbortController(); const t=setTimeout(()=>c.abort(),2500); const r=await fetch(path,{...(options||{}),signal:c.signal}); clearTimeout(t); return r; }catch(e){ return {ok:false,status:0}; } }
-  async function runChecks(){
-    setMini(dotHealth,undefined); setMini(dotChat,undefined); setMini(dotPing,undefined);
-    const r1=await ping('/api/health'); setMini(dotHealth,!!(r1&&r1.ok));
-    const r2=await ping('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({probe:true})}); setMini(dotChat,!!(r2&&r2.ok));
-    const r3=await ping('/api/ping'); setMini(dotPing,!!(r3&&r3.ok));
-  }
-  btnDbg.addEventListener('click', ()=>{ const open=panel.style.display==='block'; panel.style.display=open?'none':'block'; btnDbg.textContent=open?'Debug':'Fermer Debug'; if(!open){ panel.textContent='[Debug démarré…]'; runChecks(); } });
+  // Debug footer actions
+  btnDbg.addEventListener('click', ()=>{
+    const open=panel.style.display==='block';
+    panel.style.display=open?'none':'block';
+    btnDbg.textContent=open?'Debug':'Fermer Debug';
+    if(!open){
+      panel.textContent='[Debug démarré…]';
+      (async ()=>{
+        try{ const r1=await fetch('/api/health'); setMini(dotHealth, r1.ok); dlog(`health → ${r1.status}`); }catch{ setMini(dotHealth,false); }
+        try{ const r2=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({probe:true})}); setMini(dotChat, r2.ok); dlog(`chat(POST) → ${r2.status}`); }catch{ setMini(dotChat,false); }
+        try{ const r3=await fetch('/api/ping'); setMini(dotPing, r3.ok); dlog(`ping → ${r3.status}`); }catch{ setMini(dotPing,false); }
+      })();
+    }
+  });
 
 })();
