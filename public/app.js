@@ -18,6 +18,9 @@
   const logArea =
     document.querySelector("#debugLog") || createDebugLog(container);
 
+  const spinner =
+    document.querySelector("#spinner") || createSpinner();
+
   ping();
 
   valideBtn.addEventListener("click", async () => {
@@ -36,7 +39,6 @@
     append(container, h("div", { class: "status" }, `Génération pour: ${reference}`));
 
     try {
-      // GET only
       const url = `/api/chat?q=${encodeURIComponent(reference)}&templateId=v28-standard`;
       const resp = await fetch(url, { method: "GET" });
 
@@ -55,7 +57,7 @@
         return;
       }
 
-      renderStudy(payload.data || payload); // s’adapte aux 2 formats
+      renderStudy(payload.data || payload);
       toast("Étude générée.");
     } catch (e) {
       safeLog("Exception fetch /api/chat: " + (e?.message || e));
@@ -91,6 +93,7 @@
   function setLoading(isLoading) {
     valideBtn.disabled = !!isLoading;
     valideBtn.textContent = isLoading ? "Génération…" : "Valide";
+    spinner.style.display = isLoading ? "flex" : "none";
   }
 
   function showError(parent, message) {
@@ -122,7 +125,45 @@
     }
   }
 
-  // DOM + styles
+  // Spinner
+  function createSpinner() {
+    const s = h("div", { id: "spinner", style: spinnerStyle() },
+      h("div", { class: "loader" })
+    );
+    document.body.appendChild(s);
+    injectSpinnerStyles();
+    return s;
+  }
+
+  function spinnerStyle() {
+    return [
+      "position:fixed","top:0","left:0","width:100%","height:100%",
+      "background:rgba(255,255,255,0.6)","display:none",
+      "align-items:center","justify-content:center","z-index:9999"
+    ].join(";");
+  }
+
+  function injectSpinnerStyles() {
+    if (document.getElementById("spinnerStyles")) return;
+    const css = `
+      .loader {
+        border: 6px solid #f3f3f3;
+        border-top: 6px solid #16a34a;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    `;
+    const style = h("style", { id: "spinnerStyles" }, css);
+    document.head.appendChild(style);
+  }
+
+  // DOM utils
   function createSearchInput() {
     const wrap = document.querySelector("#searchZone") || createTopBar();
     const inp = h("input", {
