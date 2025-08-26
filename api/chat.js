@@ -1,58 +1,41 @@
 // api/chat.js
-// Route Serverless Vercel (Node.js) — GET/POST/OPTIONS
 export default async function handler(req, res) {
-  // En-têtes utiles
   res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Origin', '*'); // ⚠ à restreindre plus tard
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-  // Préflight CORS
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+  if (req.method === 'OPTIONS') return res.status(204).end();
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
   }
 
-  // GET → simple ping (pratique pour tester dans le navigateur)
-  if (req.method === 'GET') {
-    return res.status(200).json({
-      ok: true,
-      route: 'chat',
-      method: 'GET',
-      hint: 'Utilise POST avec du JSON pour envoyer un message.'
+  let body = {};
+  try {
+    const raw = await new Promise((resolve, reject) => {
+      let data = '';
+      req.on('data', chunk => data += chunk);
+      req.on('end', () => resolve(data));
+      req.on('error', reject);
     });
+    body = raw ? JSON.parse(raw) : {};
+  } catch {
+    return res.status(400).json({ ok: false, error: 'Invalid JSON' });
   }
 
-  // POST → écho du corps (JSON ou texte)
-  if (req.method === 'POST') {
-    let raw = '';
-    try {
-      for await (const chunk of req) raw += chunk;
-    } catch { /* ignore */ }
+  const msg = (body.msg || '').toLowerCase();
 
-    const ctype = (req.headers['content-type'] || '').toLowerCase();
-    let payload = null;
+  // Petite logique de démo
+  let reply = "Je n'ai pas compris.";
+  if (msg.includes('bonjour')) reply = "Bonjour 🙏 Que la paix soit avec toi.";
+  else if (msg.includes('verset')) reply = "Jean 3:16 — Car Dieu a tant aimé le monde...";
+  else if (msg.includes('aide')) reply = "Bien sûr, dis-moi sur quel passage biblique tu veux de l'aide.";
 
-    if (ctype.includes('application/json')) {
-      try { payload = raw ? JSON.parse(raw) : null; }
-      catch { 
-        return res.status(400).json({ ok: false, error: 'Invalid JSON' });
-      }
-    } else {
-      // Pas JSON: renvoyer tel quel (texte ou binaire encodé base64)
-      payload = raw || null;
-    }
-
-    return res.status(200).json({
-      ok: true,
-      route: 'chat',
-      method: 'POST',
-      received: payload,
-      contentType: ctype || null,
-      time: new Date().toISOString()
-    });
-  }
-
-  // Autres méthodes → 405
-  res.setHeader('Allow', 'POST, GET, OPTIONS');
-  return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
+  return res.status(200).json({
+    ok: true,
+    received: body.msg || null,
+    reply,
+    time: new Date().toISOString()
+  });
 }
