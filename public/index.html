@@ -87,13 +87,13 @@
         <option value="S21">Segond 21 (S21)</option>
         <option value="BFC">Français Courant (BFC)</option>
       </select>
-      <button id="validate" class="btn">Valider</button>
+      <button id="validate" class="btn" type="button">Valider</button>
       <a id="readLink" class="btn secondary" href="#" target="_blank" rel="noopener">Lire la Bible</a>
       <span id="lastStudy" class="small">Dernier : —</span>
     </div>
 
     <div class="layout">
-      <!-- Colonne gauche : rubriques EXACTES -->
+      <!-- Colonne gauche : rubriques -->
       <aside class="sidebar">
         <div class="side-head">Rubriques (28)</div>
         <div id="pointsList" class="list"></div>
@@ -103,8 +103,8 @@
       <section class="editor">
         <div class="ed-head">
           <div class="ed-title" id="edTitle">—</div>
-          <button id="prev" class="navbtn">◀ Précédent</button>
-          <button id="next" class="navbtn">Suivant ▶</button>
+          <button id="prev" class="navbtn" type="button">◀ Précédent</button>
+          <button id="next" class="navbtn" type="button">Suivant ▶</button>
         </div>
         <div class="ed-body">
           <textarea id="noteArea" placeholder="Écris ici…"></textarea>
@@ -124,7 +124,7 @@
       <span class="badge"><span id="dot-health" class="mini" aria-hidden="true"></span> health</span>
       <span class="badge"><span id="dot-chat" class="mini" aria-hidden="true"></span> chat(POST)</span>
       <span class="badge"><span id="dot-ping" class="mini" aria-hidden="true"></span> ping</span>
-      <button id="debugBtn" title="Ouvrir le panneau de debug">Debug</button>
+      <button id="debugBtn" title="Ouvrir le panneau de debug" type="button">Debug</button>
     </div>
     <div id="debugPanel">[init]</div>
   </footer>
@@ -151,12 +151,9 @@
 
       // Alias pour la recherche (simplifiés)
       const ALIAS = {
-        "gen": "Genèse", "gene": "Genèse", "genese": "Genèse",
-        "exo": "Exode", "lev": "Lévitique", "nom": "Nombres", "nb": "Nombres", "deut": "Deutéronome", "deu": "Deutéronome",
-        "jos": "Josué", "jug": "Juges", "rut": "Ruth",
-        "1sam": "1 Samuel", "2sam":"2 Samuel", "1sa":"1 Samuel", "2sa":"2 Samuel",
-        "1rois":"1 Rois","2rois":"2 Rois","1roi":"1 Rois","2roi":"2 Rois",
-        "1chr":"1 Chroniques","2chr":"2 Chroniques",
+        "gen":"Genèse","gene":"Genèse","genese":"Genèse","exo":"Exode","lev":"Lévitique","nom":"Nombres","nb":"Nombres","deut":"Deutéronome","deu":"Deutéronome",
+        "jos":"Josué","jug":"Juges","rut":"Ruth","1sam":"1 Samuel","2sam":"2 Samuel","1sa":"1 Samuel","2sa":"2 Samuel",
+        "1rois":"1 Rois","2rois":"2 Rois","1roi":"1 Rois","2roi":"2 Rois","1chr":"1 Chroniques","2chr":"2 Chroniques",
         "esd":"Esdras","neh":"Néhémie","est":"Esther","job":"Job","ps":"Psaumes","psa":"Psaumes","prov":"Proverbes","ecc":"Ecclésiaste","cant":"Cantique des cantiques",
         "esa":"Ésaïe","isa":"Ésaïe","jer":"Jérémie","lam":"Lamentations","ez":"Ézéchiel","eze":"Ézéchiel","dan":"Daniel","osee":"Osée","joel":"Joël","amos":"Amos",
         "abd":"Abdias","jon":"Jonas","mic":"Michée","nah":"Nahoum","hab":"Habacuc","soph":"Sophonie","agg":"Aggée","zac":"Zacharie","mal":"Malachie",
@@ -166,8 +163,8 @@
         "jac":"Jacques","jacques":"Jacques","1pi":"1 Pierre","2pi":"2 Pierre","1jean":"1 Jean","2jean":"2 Jean","3jean":"3 Jean","jud":"Jude","apo":"Apocalypse","apoc":"Apocalypse","ap":"Apocalypse"
       };
 
-      // 28 rubriques EXACTES (depuis ton étude)
-      const RUBRIQUES = [
+      // 28 rubriques par défaut (remplaçables par l’API)
+      let RUBRIQUES = [
         { t:"Prière d’ouverture", d:"Invocation du Saint-Esprit pour éclairer l’étude." },
         { t:"Canon et testament", d:"Identification du livre selon le canon biblique." },
         { t:"Questions du chapitre précédent", d:"(Min. 5) Réponses intégrales, éléments de compréhension exigés." },
@@ -236,7 +233,7 @@
         const ch = bookSelect.selectedOptions[0] ? parseInt(bookSelect.selectedOptions[0].dataset.ch,10) : 1;
         for(let i=1;i<=ch;i++){ const o=document.createElement('option'); o.value=String(i); o.textContent=String(i); chapterSelect.appendChild(o); }
       }
-      function renderVerses(max=60){ // borne généreuse (on ne connaît pas le max exact sans API)
+      function renderVerses(max=60){
         verseSelect.innerHTML=''; const m=Math.max(1,Math.min(200,max));
         for(let i=1;i<=m;i++){ const o=document.createElement('option'); o.value=String(i); o.textContent=String(i); verseSelect.appendChild(o); }
       }
@@ -247,11 +244,36 @@
         readLink.href = url;
       }
 
+      // === NOUVEAU : fabrique la référence (champ libre prioritaire) ===
+      function buildReference(){
+        const typed = (searchRef.value || '').trim();
+        if (typed) return typed;
+        const b = bookSelect.value, c = chapterSelect.value, v = verseSelect.value;
+        return v ? `${b} ${c}:${v}` : `${b} ${c}`;
+      }
+
+      // === NOUVEAU : applique les sections API dans l’UI ===
+      function applyStudyFromApi(sections, reference){
+        if (!Array.isArray(sections) || sections.length === 0) return false;
+
+        // Titres/desc (verses) pour la colonne de gauche
+        RUBRIQUES = sections.slice(0,28).map((s,i)=>({
+          t: String(s.title || `Point ${i+1}`),
+          d: Array.isArray(s.verses) ? s.verses.join(' · ') : String(reference || '')
+        }));
+
+        // Notes éditables = content du point
+        notes = {};
+        sections.slice(0,28).forEach((s,i)=>{ notes[i] = String(s.content || ''); });
+
+        return true;
+      }
+
       function renderSidebar(){
         pointsList.innerHTML='';
         RUBRIQUES.forEach((r,i)=>{
           const row=document.createElement('div');
-          row.className='item'+(i===current?' active':'');
+          row.className='item'+(i===current?' active':'' );
           row.dataset.idx=i;
           row.innerHTML = `<span class="idx">${i+1}</span><div><div>${r.t}</div><span class="desc">${r.d||''}</span></div><span class="dot ${notes[i]&&notes[i].trim()?'ok':''}"></span>`;
           row.addEventListener('click', ()=>{ if(current!==i) select(i); });
@@ -305,27 +327,18 @@
       function norm(s){ return s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\./g,'').trim(); }
       function parseSearch(q){
         q = q.trim();
-        // cas "Livre Chap:Vers" / "Livre Chap"
         const m = q.match(/^([\d]?\s*[A-Za-zÀ-ÿ'’\.\s]+)\s+(\d+)(?::(\d+))?/);
         if(!m) return null;
         let rawBook = norm(m[1].replace(/\s+/g,' ').trim());
-        rawBook = rawBook.replace(/\s+/g,''); // "1 jean" -> "1jean"
+        rawBook = rawBook.replace(/\s+/g,'');
         let book = null;
-
-        // correspondance directe
-        for (const [name] of BOOKS) {
-          if (norm(name)===norm(m[1]).trim()) { book=name; break; }
-        }
-        // alias
+        for (const [name] of BOOKS) { if (norm(name)===norm(m[1]).trim()) { book=name; break; } }
         if (!book && ALIAS[rawBook]) book = ALIAS[rawBook];
-
-        // dernier recours: commence par
         if (!book){
           const cand = BOOKS.find(([name])=> norm(name).startsWith(norm(m[1]).trim()));
           if (cand) book=cand[0];
         }
         if (!book) return null;
-
         const chap = parseInt(m[2],10);
         const vers = m[3] ? parseInt(m[3],10) : null;
         return { book, chap, vers };
@@ -339,13 +352,12 @@
         const chMax = bookSelect.selectedOptions[0] ? parseInt(bookSelect.selectedOptions[0].dataset.ch,10):1;
         const chap = Math.max(1, Math.min(chMax, sel.chap||1));
         chapterSelect.value = String(chap);
-        // Versets: on ne connaît pas le max exact → on donne 1..200 et on place le curseur si fourni
         renderVerses(sel.book==="Psaumes" ? 200 : 60);
         if (sel.vers){ verseSelect.value = String(sel.vers); }
         updateReadLink();
       }
 
-      // Événements
+      // Événements de recherche
       searchRef.addEventListener('keydown', (e)=>{
         if(e.key==='Enter'){
           const sel=parseSearch(searchRef.value);
@@ -362,22 +374,47 @@
       verseSelect.addEventListener('change', ()=>{ updateReadLink(); });
       versionSelect.addEventListener('change', ()=>{ updateReadLink(); });
 
+      // === NOUVEAU : Valider → appelle /api/chat, remplit la page ===
       validateBtn.addEventListener('click', async ()=>{
-        // Mémorise dernier passage
-        const book=bookSelect.value, chap=chapterSelect.value, vers=verseSelect.value, ver=versionSelect.value;
-        localStorage.setItem(KEY_LAST, JSON.stringify({book, chapter:chap, verse:vers, version:ver}));
-        lastStudy.textContent = `Dernier : ${book} ${chap} (${ver})`;
+        const ref = buildReference();
+        if (!ref) { alert("Choisis un Livre + Chapitre (et éventuellement Verset) ou saisis une référence ex: Marc 5:1-20"); return; }
 
-        // Référence par défaut dans META si vide
-        const meta=JSON.parse(localStorage.getItem(KEY_META)||'{}');
-        if(!meta.ref) meta.ref = `${book} ${chap}${vers?':'+vers:''}`;
-        if(!meta.titre) meta.titre = `${book} ${chap} (${ver})`;
-        localStorage.setItem(KEY_META, JSON.stringify(meta));
-
-        // Lancer la “préparation” (barre progression)
+        // Animation visuelle
         await fakePrep();
 
-        // Met l’éditeur sur la première rubrique
+        // Appel API (GET)
+        let payload = null, resp = null;
+        try {
+          const url = `/api/chat?q=${encodeURIComponent(ref)}&templateId=v28-standard`;
+          resp = await fetch(url, { method: 'GET' });
+          try { payload = await resp.json(); } catch { payload = { ok:false, error:'Réponse non JSON' }; }
+        } catch (e) {
+          payload = { ok:false, error: 'Erreur réseau: '+(e?.message || e) };
+        }
+
+        if (!resp || !resp.ok || !payload?.ok) {
+          const panel = document.getElementById('debugPanel');
+          const btnDbg = document.getElementById('debugBtn');
+          if (panel) {
+            panel.style.display = 'block'; if (btnDbg) btnDbg.textContent = 'Fermer Debug';
+            panel.textContent += `\n[API KO] /api/chat → ${(resp && resp.status) || 0}\n` + JSON.stringify(payload, null, 2);
+          }
+          alert(payload?.error || `Erreur HTTP ${resp ? resp.status : 0}`);
+          return;
+        }
+
+        const data = payload.data || payload;
+        const ok = applyStudyFromApi(data.sections || [], data.reference || ref);
+        if (!ok) { alert("Réponse API inattendue (sections manquantes)"); return; }
+
+        // Mémoriser “dernier”
+        try {
+          const book=bookSelect.value, chap=chapterSelect.value, vers=verseSelect.value, ver=versionSelect.value;
+          localStorage.setItem(KEY_LAST, JSON.stringify({book, chapter:chap, verse:vers, version:ver}));
+          lastStudy.textContent = `Dernier : ${data.reference || `${book} ${chap}`} (${ver})`;
+        } catch {}
+
+        // Rafraîchir l’UI avec les 28 rubriques + notes préremplies
         renderSidebar(); select(0);
       });
 
@@ -423,6 +460,8 @@
       btn.addEventListener('click', ()=>{ const open=panel.style.display==='block'; if(open){ panel.style.display='none'; btn.textContent='Debug'; } else { panel.style.display='block'; btn.textContent='Fermer Debug'; panel.textContent='[Debug démarré…]'; runChecks(); } });
     })();
   </script>
-<script src="/app.js" defer></script>
+  <!-- script externe supprimé pour éviter tout conflit :
+  <script src="/app.js" defer></script>
+  -->
 </body>
 </html>
