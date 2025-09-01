@@ -1,89 +1,148 @@
-// /api/chat.js — API robuste : 28 rubriques garanties (JSON strict + fallback)
+// api/chat.js — API robuste: 28 rubriques en JSON (OpenAI → fallback)
+// - GET  /api/chat?q="Genèse 1"[&version=LSG][&probe=1]
+// - POST /api/chat   { book, chapter, version, probe }
+// Réponse: { ok, source, data: { reference, version, sections:[{id,title,content}...] } }
 
 const TITLES = [
-  "1. Prière d’ouverture","2. Canon et testament","3. Questions du chapitre précédent","4. Titre du chapitre",
-  "5. Contexte historique","6. Structure littéraire","7. Genre littéraire","8. Auteur et généalogie",
-  "9. Verset-clé doctrinal","10. Analyse exégétique","11. Analyse lexicale","12. Références croisées",
-  "13. Fondements théologiques","14. Thème doctrinal","15. Fruits spirituels","16. Types bibliques",
-  "17. Appui doctrinal","18. Comparaison entre versets","19. Comparaison avec Actes 2","20. Verset à mémoriser",
-  "21. Enseignement pour l’Église","22. Enseignement pour la famille","23. Enseignement pour enfants","24. Application missionnaire",
-  "25. Application pastorale","26. Application personnelle","27. Versets à retenir","28. Prière de fin"
+  "Prière d’ouverture",                    // 1
+  "Canon et testament",                    // 2
+  "Questions du chapitre précédent",       // 3
+  "Titre du chapitre",                     // 4
+  "Contexte historique",                   // 5
+  "Structure littéraire",                  // 6
+  "Genre littéraire",                      // 7
+  "Auteur et généalogie",                  // 8
+  "Verset-clé doctrinal",                  // 9
+  "Analyse exégétique",                    // 10
+  "Analyse lexicale",                      // 11
+  "Références croisées",                   // 12
+  "Fondements théologiques",               // 13
+  "Thème doctrinal",                       // 14
+  "Fruits spirituels",                     // 15
+  "Types bibliques",                       // 16
+  "Appui doctrinal",                       // 17
+  "Comparaison entre versets",             // 18
+  "Comparaison avec Actes 2",              // 19
+  "Verset à mémoriser",                    // 20
+  "Enseignement pour l’Église",            // 21
+  "Enseignement pour la famille",          // 22
+  "Enseignement pour enfants",             // 23
+  "Application missionnaire",              // 24
+  "Application pastorale",                 // 25
+  "Application personnelle",               // 26
+  "Versets à retenir",                     // 27
+  "Prière de fin"                          // 28
 ];
 
-function parseQ(q){
-  if(!q) return {book:"",chapter:NaN};
-  const m=String(q).match(/^(.+?)\s+(\d+)\s*$/);
-  return m?{book:m[1].trim(),chapter:Number(m[2])}:{book:String(q).trim(),chapter:NaN};
+const N = TITLES.length;
+const DEFAULT_VERSION = "LSG"; // Louis Segond 1910
+
+function parseQ(q) {
+  if (!q) return { book: "", chapter: NaN };
+  const m = String(q).match(/^(.+?)\s+(\d+)\s*$/);
+  return m ? { book: m[1].trim(), chapter: Number(m[2]) } : { book: String(q).trim(), chapter: NaN };
 }
 
-function youVersionLink(book,chapter){
-  const map={"Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN","Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahoum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL","Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"};
-  const code=map[book]; return code?`https://www.bible.com/fr/bible/93/${code}.${chapter}.LSG`:"";
-}
-
-// -------- Fallback “propre” en 28 sections (style discipliné)
-function buildFallbackSections(book,chapter,version){
-  const ref = `${book} ${chapter}`;
-  const link=youVersionLink(book,chapter)||"";
-  const S = [];
-  const P = (i, body) => S.push({ id:i, title:TITLES[i-1], content:body.trim() });
-
-  P(1,  `Père céleste, nous venons devant toi pour lire ${ref}. Ouvre nos cœurs par ton Saint-Esprit, éclaire notre intelligence et conduis-nous dans la vérité. Au nom de Jésus, amen.`);
-  P(2,  `Le livre de ${book} appartient au canon biblique (${book === "Matthieu" || book==="Marc" || book==="Luc" || book==="Jean" || book==="Actes" ? "Nouveau" : "Ancien"} Testament).`);
-  P(3,  `Prépare au moins 5 questions de révision sur le chapitre précédent (comprendre, appliquer, comparer, retenir).`);
-  P(4,  `${ref} — titre doctrinal synthétique.`);
-  P(5,  `Contexte historique : repères d’auteurs / époque / situation du peuple. ${ref} s’inscrit dans la trajectoire théologique du livre.`);
-  P(6,  `Structure : découpe interne claire du chapitre (péricopes, refrains, parallélismes, progression logique).`);
-  P(7,  `Genre littéraire : narratif/poétique/prophétique/sapientiel… et incidences d’interprétation.`);
-  P(8,  `Auteur et généalogie : tradition, destinataires, filiation avec les patriarches / apôtres.`);
-  P(9,  `Verset-clé du chapitre (${version}) — insère la référence + courte citation. ${link ? "YouVersion : "+link : ""}`);
-  P(10, `Analyse exégétique : observations sur les verbes, constructions, connecteurs, relations logique/théologique.`);
-  P(11, `Analyse lexicale : mots hébreux/grecs clés et leur charge sémantique pour l’argument.`);
-  P(12, `Références croisées : passages parallèles/complémentaires, canonicité et unité de la révélation.`);
-  P(13, `Fondements : attributs divins, création/chute/rédemption, alliance, sainteté, grâce, foi, espérance.`);
-  P(14, `Thème doctrinal principal explicitement articulé par le chapitre et ses sous-thèses.`);
-  P(15, `Fruits spirituels : louange, repentance, obéissance, charité, espérance, persévérance.`);
-  P(16, `Types bibliques (s’il y en a) : figures, symboles, préfigurations christologiques.`);
-  P(17, `Appui doctrinal : autres textes qui confirment la lecture théologique proposée.`);
-  P(18, `Comparaison interne : mise en parallèle de versets du même chapitre pour la mise en relief.`);
-  P(19, `Comparaison avec Actes 2 : continuité/discontinuité avec l’ecclésiologie naissante.`);
-  P(20, `Verset à mémoriser (${version}) : référence + brève citation (respecter le texte biblique).`);
-  P(21, `Pour l’Église : implications communautaires, culte, mission, discipline, service, unité.`);
-  P(22, `Pour la famille : transmission, liturgie domestique, éducation, compassion, gestion.`);
-  P(23, `Pour enfants : récits, images, questions simples, activités, prière adaptée.`);
-  P(24, `Application missionnaire : annonce, témoignage, hospitalité, justice, miséricorde.`);
-  P(25, `Application pastorale : accompagnement, encouragement, correction, formation.`);
-  P(26, `Application personnelle : examen de conscience, décisions concrètes, prière.`);
-  P(27, `Versets à retenir : 3–5 passages du chapitre en lien direct avec le thème.`)
-  P(28, `Seigneur, merci pour la lumière reçue dans ${ref}. Aide-nous à la mettre en pratique à l’Église, en famille et personnellement. Garde-nous dans ta paix. Amen.`);
-  return S;
-}
-
-// ---------- heuristiques de validation JSON renvoyé par l’IA
-function isBadAI(sections){
-  if(!Array.isArray(sections) || sections.length !== 28) return true;
-  // Exiger du texte non trivial (éviter le dump de versets/titres vides)
-  let ok = 0;
-  for(const s of sections){
-    const text = String(s?.content||"");
-    const title = String(s?.title||"");
-    if(title.trim().length === 0) return true; // on veut nos 28 titres
-    const letters = text.replace(/[^A-Za-zÀ-ÿ]/g,"");
-    if(letters.length >= 60) ok++;
+function toSectionsFromMap(reference, version, map) {
+  const sections = [];
+  for (let i = 0; i < N; i++) {
+    const id = i + 1;
+    const key = `s${id}`;
+    const content = (map && typeof map[key] === "string") ? map[key].trim() : "";
+    sections.push({ id, title: TITLES[i], content });
   }
-  return ok < 18; // si < 18 rubriques avec contenu “utile”, on considère mauvais
+  return { reference, version, sections };
 }
 
-// ---------- Appel OpenAI (JSON mode strict)
-async function askOpenAI({book,chapter,version,apiKey}){
-  const SYSTEM = `
-Tu dois répondre en **JSON strict**: { "sections": [ { "id":1, "title":"${TITLES[0]}", "content":"..." }, ..., { "id":28, "title":"${TITLES[27]}", "content":"..." } ] }.
-- 28 entrées, ids 1..28, titres EXACTS comme donnés.
-- Français pastoral, 3–6 phrases par section. Toute citation biblique en ${version}.
-- Pour "Verset-clé" et "Verset à mémoriser", inclure "Référence + citation" (${version}).
-- Ne renvoie rien d’autre que cet objet JSON unique.`.trim();
+function ok(res, payload) {
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.statusCode = 200;
+  res.end(JSON.stringify(payload));
+}
 
-  const USER = `Livre="${book}", Chapitre="${chapter}", Version="${version}".`;
+function fail(res, status, message) {
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.statusCode = status || 500;
+  res.end(JSON.stringify({ ok: false, error: message || "Server error" }));
+}
+
+// --------- Fallback local (Markdown → JSON) ---------
+
+function defaultOpenPrayer(reference) {
+  return `Père céleste, nous venons devant toi pour lire ${reference}. Ouvre nos cœurs par ton Saint-Esprit, éclaire notre intelligence et conduis-nous dans la vérité. Au nom de Jésus, amen.`;
+}
+function defaultClosePrayer(reference) {
+  return `Seigneur, merci pour la lumière reçue dans ${reference}. Aide-nous à mettre ta Parole en pratique, à l’Église, en famille et personnellement. Garde-nous dans ta paix. Amen.`;
+}
+
+function fallbackData(book, chapter, version) {
+  const reference = `${book} ${chapter}`;
+  const base = {
+    s1:  defaultOpenPrayer(reference),
+    s2:  `Le livre de ${book} appartient à l’${isOT(book) ? "Ancien" : "Nouveau"} Testament.`,
+    s3:  "Prépare au moins 5 questions de révision sur le chapitre précédent (comprendre, appliquer, comparer, retenir).",
+    s4:  `${book} ${chapter} — titre doctrinal synthétique.`,
+    s5:  "Contexte historique: auteur traditionnel, cadre, destinataires, enjeux théologiques.",
+    s6:  "Structure littéraire: découpage interne du chapitre (péricoses, refrains, parallélismes).",
+    s7:  "Genre littéraire: narratif / poétique / prophétique / sapientiel (selon le cas).",
+    s8:  "Auteur et généalogie: informations traditionnelles et liens aux patriarches / apôtres.",
+    s9:  `${book} ${chapter}:1 — Verset-clé proposé (version ${version}).`,
+    s10: "Analyse exégétique: remarques sur les tournures, les parallèles, les citations.",
+    s11: "Analyse lexicale: termes-clés (hébreu/grec) et portée doctrinale.",
+    s12: "Références croisées: passages parallèles dans l'Écriture.",
+    s13: "Fondements théologiques majeurs du chapitre.",
+    s14: "Thème doctrinal principal et sous-thèmes.",
+    s15: "Fruits spirituels: vertus, attitudes, marqueurs de sanctification.",
+    s16: "Types bibliques: symboles, figures, préfigurations.",
+    s17: "Appui doctrinal: autres textes confirmant l'enseignement.",
+    s18: "Comparaison interne: mise en relief entre versets du chapitre.",
+    s19: "Comparaison avec Actes 2: dynamique de la Parole et de l'Esprit.",
+    s20: `${book} ${chapter}:1 — Verset à mémoriser (version ${version}).`,
+    s21: "Applications pour l’Église: vie communautaire et mission.",
+    s22: "Applications pour la famille: transmission de la foi, éducation.",
+    s23: "Applications pour enfants: formulation simple, images, activités.",
+    s24: "Application missionnaire: annoncer l'Évangile en lien avec le chapitre.",
+    s25: "Application pastorale: accompagnement, exhortation, counselling.",
+    s26: "Application personnelle: examen, décisions, prière.",
+    s27: `${book} ${chapter}:1 ; ${book} ${chapter}:2 ; ${book} ${chapter}:3 (à retenir).`,
+    s28: defaultClosePrayer(reference)
+  };
+  return toSectionsFromMap(reference, version, base);
+}
+
+function isOT(book) {
+  const NT = [
+    "Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens",
+    "1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre",
+    "1 Jean","2 Jean","3 Jean","Jude","Apocalypse"
+  ];
+  return !NT.includes(book);
+}
+
+// --------- OpenAI (JSON mode) ---------
+
+async function callOpenAI_JSON({ book, chapter, version, apiKey }) {
+  const reference = `${book} ${chapter}`;
+
+  const schema = {
+    type: "object",
+    properties: Object.fromEntries(Array.from({ length: N }, (_, i) => [`s${i + 1}`, { type: "string" }])),
+    required: Array.from({ length: N }, (_, i) => `s${i + 1}`),
+    additionalProperties: false
+  };
+
+  const SYSTEM = `
+Tu DOIS répondre en **JSON strict** (rien d'autre), avec exactement **28** clés "s1"..."s28".
+Chaque clé contient 3–6 phrases en français, ton pastoral/clair, citations en ${version}.
+Respecte cette correspondance stricte:
+${TITLES.map((t, i) => `- s${i + 1} => "${t}"`).join("\n")}
+`.trim();
+
+  const USER = `
+Livre="${book}", Chapitre="${chapter}", Version="${version}".
+Renvoie UNIQUEMENT un JSON objet conforme au schéma annoncé (s1..s28).
+`.trim();
 
   const payload = {
     model: "gpt-4o-mini",
@@ -96,88 +155,113 @@ Tu dois répondre en **JSON strict**: { "sections": [ { "id":1, "title":"${TITLE
     ]
   };
 
-  const r = await fetch("https://api.openai.com/v1/chat/completions",{
-    method:"POST",
-    headers:{ "Authorization":`Bearer ${apiKey}`,"Content-Type":"application/json"},
-    body: JSON.stringify(payload)
-  });
+  const controller = new AbortController();
+  const to = setTimeout(() => controller.abort(), 18000);
 
-  const text = await r.text();
-  if(!r.ok) throw new Error(`OpenAI ${r.status}: ${text.slice(0,200)}`);
+  try {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    const text = await r.text();
+    if (!r.ok) throw new Error(`OpenAI ${r.status}: ${text.slice(0, 200)}`);
 
-  let outer; try{ outer = JSON.parse(text); }catch{ throw new Error("Réponse OpenAI non-JSON"); }
-  const raw = outer?.choices?.[0]?.message?.content || "";
-  let obj;  try{ obj   = JSON.parse(raw); }catch{ throw new Error("Contenu IA non-JSON"); }
+    let data;
+    try { data = JSON.parse(text); } catch { throw new Error("Réponse OpenAI: JSON global invalide"); }
+    const raw = data?.choices?.[0]?.message?.content || "";
+    let obj;
+    try { obj = JSON.parse(raw); } catch { throw new Error("Réponse OpenAI: contenu non-JSON"); }
 
-  const sections = Array.isArray(obj.sections) ? obj.sections : [];
-  // Normaliser : imposer nos titres et ids au cas où
-  const normalized = TITLES.map((t, i) => {
-    const idx = i+1;
-    const found = sections.find(s => Number(s?.id)===idx) || {};
-    return { id: idx, title: t, content: String(found.content||"").trim() };
-  });
-
-  return normalized;
+    // Validation simple
+    for (let i = 1; i <= N; i++) {
+      if (typeof obj[`s${i}`] !== "string") throw new Error(`Champ manquant s${i}`);
+    }
+    return { ok: true, data: toSectionsFromMap(reference, version, obj) };
+  } finally {
+    clearTimeout(to);
+  }
 }
 
-// ---------- handler
-export default async function handler(req,res){
-  res.setHeader("Cache-Control","no-store, no-cache, must-revalidate, max-age=0");
-  try{
-    // lecture entrée
-    let body={};
-    if(req.method==="POST"){
-      body = await new Promise(resolve=>{
-        let b=""; req.on("data",c=>b+=c);
-        req.on("end",()=>{ try{resolve(JSON.parse(b||"{}"))}catch{resolve({})} });
+// --------- Handler ---------
+
+export default async function handler(req, res) {
+  try {
+    // Parse body / query
+    let body = {};
+    if (req.method === "POST") {
+      body = await new Promise((resolve) => {
+        let b = "";
+        req.on("data", (c) => (b += c));
+        req.on("end", () => {
+          try { resolve(JSON.parse(b || "{}")); } catch { resolve({}); }
+        });
       });
     }
-    const url = new URL(req.url,`http://${req.headers.host}`);
-    const qp  = Object.fromEntries(url.searchParams.entries());
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const qp = Object.fromEntries(url.searchParams.entries());
 
-    // inputs
-    const q          = body.q || qp.q || "";
-    let   book       = body.book || qp.book || parseQ(q).book || "Genèse";
-    let   chapter    = Number(body.chapter || qp.chapter || parseQ(q).chapter || 1);
-    const version    = (body.version || qp.version || "LSG").trim();
-
-    // endpoints utilitaires
-    if(url.pathname.endsWith("/ping")){
-      return res.status(200).json({ pong:true, time:new Date().toISOString() });
-    }
-    if(url.pathname.endsWith("/health")){
-      return res.status(200).json({
-        ok:true, env:{ hasOpenAIKey: !!process.env.OPENAI_API_KEY, region: process.env.VERCEL_REGION||"local", node: process.version },
-        time:new Date().toISOString()
-      });
-    }
-
-    const reference = `${book} ${chapter}`;
-    const apiKey    = process.env.OPENAI_API_KEY;
-
-    // Si pas de clé : fallback direct
-    if(!apiKey){
-      const sections = buildFallbackSections(book,chapter,version);
-      return res.status(200).json({ ok:true, source:"fallback-no-key", data:{ reference, version, sections }});
-    }
-
-    // Mode “probe=1” -> renvoie un fallback markdown simple (si tu en as besoin)
     const probe = qp.probe === "1" || body.probe === true;
 
-    try{
-      const sections = await askOpenAI({book,chapter,version,apiKey});
-      if(isBadAI(sections)){
-        const fb = buildFallbackSections(book,chapter,version);
-        return res.status(200).json({ ok:true, source:"fallback-bad-ai", data:{ reference, version, sections: fb }});
-      }
-      return res.status(200).json({ ok:true, source:"openai", data:{ reference, version, sections }});
-    }catch(e){
-      // panne OpenAI => fallback
-      const fb = buildFallbackSections(book,chapter,version);
-      return res.status(200).json({ ok:true, source:"fallback-error", error:String(e?.message||e), data:{ reference, version, sections: fb }});
+    let book = body.book || qp.book;
+    let chapter = Number(body.chapter || qp.chapter);
+    let version = (body.version || qp.version || DEFAULT_VERSION).trim() || DEFAULT_VERSION;
+
+    const q = body.q || qp.q;
+    if ((!book || !chapter) && q) {
+      const p = parseQ(q);
+      book = book || p.book;
+      chapter = chapter || p.chapter;
     }
 
-  }catch(e){
-    return res.status(500).json({ ok:false, error:String(e?.message||e) });
+    // Valeurs par défaut
+    book = book || "Genèse";
+    chapter = chapter || 1;
+
+    if (probe) {
+      // Renvoie du Markdown "simple" (lecture directe utile en debug)
+      const fb = fallbackData(book, chapter, version);
+      const md = renderAsMarkdown(fb);
+      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+      res.statusCode = 200;
+      return res.end(md);
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY?.trim();
+    if (!apiKey) {
+      // Pas de clé → fallback
+      const fb = fallbackData(book, chapter, version);
+      return ok(res, { ok: true, source: "fallback", data: fb });
+    }
+
+    try {
+      const ai = await callOpenAI_JSON({ book, chapter, version, apiKey });
+      if (ai?.ok && ai.data) {
+        return ok(res, { ok: true, source: "openai", data: ai.data });
+      }
+      // Sécurité: si pas ok → fallback
+      const fb = fallbackData(book, chapter, version);
+      return ok(res, { ok: true, source: "fallback", data: fb });
+    } catch (e) {
+      // Erreur OpenAI → fallback
+      const fb = fallbackData(book, chapter, version);
+      return ok(res, { ok: true, source: "fallback", data: fb, warn: String(e?.message || e) });
+    }
+  } catch (e) {
+    return fail(res, 500, String(e?.message || e));
   }
+}
+
+// --------- Utils ---------
+
+function renderAsMarkdown({ reference, sections }) {
+  const lines = [`# ${reference}`, ""];
+  sections.forEach((s) => {
+    lines.push(`${s.id}. ${s.title}`, "", s.content || "—", "");
+  });
+  return lines.join("\n");
 }
