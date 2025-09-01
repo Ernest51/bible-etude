@@ -1,9 +1,6 @@
-// public/app.js — FRONT complet (POST + 28 rubriques + logs + retries)
+// public/app.js — FRONT COMPLET (28 rubriques, JSON ou Markdown)
+// ➜ v=2025-09-01-ENR-1  (rubrique 3 corrigée + support optionnel "mode enrichi")
 (function () {
-  // ---------- Boot logs ----------
-  console.info("[BOOT] app.js chargé");
-  window.addEventListener("DOMContentLoaded", () => console.info("[BOOT] DOM prêt"));
-
   // ---------- helpers UI ----------
   const $ = (id) => document.getElementById(id);
   const progressBar = $("progressBar");
@@ -12,6 +9,7 @@
     if (!progressBar) return;
     progressBar.style.width = Math.max(0, Math.min(100, p)) + "%";
   };
+
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const busy = (el, on) => {
     if (!el) return;
@@ -19,6 +17,7 @@
     el.classList.toggle("opacity-60", !!on);
     el.textContent = on ? "Génération..." : el.dataset.label || el.textContent;
   };
+
   const dpanel = $("debugPanel");
   const dbtn = $("debugBtn");
   const dlog = (msg) => {
@@ -29,6 +28,7 @@
     dpanel.textContent += (dpanel.textContent ? "\n" : "") + line;
     console.log(line);
   };
+
   const setMini = (dot, ok) => {
     if (!dot) return;
     dot.classList.remove("ok", "ko");
@@ -54,7 +54,9 @@
     metaInfo = $("metaInfo"),
     dotHealth = $("dot-health"),
     dotChat = $("dot-chat"),
-    dotPing = $("dot-ping");
+    dotPing = $("dot-ping"),
+    // peut ne pas exister : on supporte aussi ?mode=enrichi
+    modeRich = document.getElementById("modeRich");
 
   $("y") && ($("y").textContent = new Date().getFullYear());
 
@@ -113,7 +115,7 @@
   function updateReadLink() {
     if (!readLink || !bookSelect || !chapterSelect || !verseSelect || !versionSelect) return;
     const ref = `${bookSelect.value} ${chapterSelect.value}:${verseSelect.value}`;
-    const ver = versionSelect.value || "LSG";
+    const ver = versionSelect.value;
     readLink.href = "https://www.biblegateway.com/passage/?search=" + encodeURIComponent(ref) + "&version=" + encodeURIComponent(ver);
   }
 
@@ -187,7 +189,10 @@
     if (noteArea) noteArea.focus();
   }
   function saveStorage() {
-    try { localStorage.setItem("be_notes", JSON.stringify(notes)); renderSidebarDots(); } catch { }
+    try {
+      localStorage.setItem("be_notes", JSON.stringify(notes));
+      renderSidebarDots();
+    } catch { }
   }
 
   // ---------- parse saisie ----------
@@ -232,6 +237,11 @@
     return c ? `${b} ${c}` : b;
   }
 
+  // ---------- cache navigateur ----------
+  const cacheKey = (ref, ver) => `be_cache:${ref}::${ver || "LSG"}`;
+  const loadCache = (ref, ver) => { try { return JSON.parse(localStorage.getItem(cacheKey(ref, ver)) || "null"); } catch { return null; } };
+  const saveCache = (ref, ver, data) => { try { localStorage.setItem(cacheKey(ref, ver), JSON.stringify({ at: Date.now(), data })); } catch { } };
+
   // ---------- garde-fous ----------
   function defaultPrayerOpen(reference) {
     return `Père céleste, nous venons devant toi pour lire ${reference}. Ouvre nos cœurs par ton Saint-Esprit, éclaire notre intelligence et conduis-nous dans la vérité. Au nom de Jésus, amen.`;
@@ -248,8 +258,25 @@
     return `Verset-clé proposé : ${ref.split(" ")[0]} ${chap}:1 — ${txt}`.trim();
   }
 
-  // ---------- fetch /api/chat (POST + retries) ----------
-  async function postJSON(url, payload, tries = 3) {
+  // ✅ rubrique 3 enrichie (5 questions prêtes)
+  function makePrevChapterQuestions(reference) {
+    const ref = String(reference || "").trim() || "le chapitre précédent";
+    return [
+      `**Révision sur ${ref} — 5 questions**`,
+      "",
+      `1) **Observation :** Quels sont les 3 faits ou événements principaux du texte ? Quelles expressions reviennent (refrains, mots-clés) ?`,
+      `2) **Compréhension :** Que révèle ce chapitre sur Dieu (attributs, intentions) et sur l’homme (vocation, limites) ?`,
+      `3) **Interprétation :** Quel est le verset-clef du chapitre et pourquoi ? Comment s’articule-t-il avec le reste du passage ?`,
+      `4) **Connexions bibliques :** Citez un ou deux passages parallèles/échos (dans l’AT ou le NT) et expliquez le lien.`,
+      `5) **Application :** Quelle mise en pratique concrète cette semaine (personnelle, famille, église) découle de ce chapitre ?`,
+      "",
+      `*(Bonus)* : Un verset à **mémoriser** du chapitre et une courte **prière** de réponse.`
+    ].join("\n");
+  }
+
+  // ---------- fetch /api/chat ----------
+  // POST avec no-store + retries (stable)
+  async function postJSON(url, payload, tries = 2) {
     let lastErr;
     for (let k = 0; k < tries; k++) {
       try {
@@ -272,35 +299,60 @@
     throw lastErr;
   }
 
-  async function getStudy() {
-    const ver = (versionSelect && versionSelect.value) || "LSG";
-    const book = bookSelect?.value || "Genèse";
-    const chapter = Number(chapterSelect?.value || 1);
+  async function getStudy(ref) {
+    const ver = versionSelect ? versionSelect.value : "LSG";
 
-    const r = await postJSON("/api/chat", { book, chapter, version: ver }, 3);
+    // Déduire livre/chapitre
+    let book = bookSelect?.value || "Genèse";
+    let chapter = Number(chapterSelect?.value || 1);
+
+    // Support du mode enrichi : case à cocher OU ?mode=enrichi
+    const urlParams = new URLSearchParams(location.search);
+    const urlMode = urlParams.get("mode");
+    const enriched = (modeRich && modeRich.checked) || urlMode === "enrichi";
+
+    const r = await postJSON(
+      "/api/chat",
+      { book, chapter, version: ver, mode: enriched ? "openai-rich" : "canonical" },
+      3
+    );
+
     const ct = r.headers.get("Content-Type") || "";
 
     if (/application\/json/i.test(ct)) {
       const j = await r.json().catch(() => ({}));
       if (!j || (j.ok === false)) throw new Error(j?.error || "Réponse JSON invalide");
-      window.__lastChatSource = j.source || "unknown";
-      window.__lastChatWarn = j.warn || "";
-      window.__lastModel = j.model || "?";
+
+      // debug meta (affiche la source en UI)
+      try {
+        if (lastStudy) {
+          const src = String(j.source || "").toLowerCase();
+          const lbl = src ? ` • source=${src}` : "";
+          lastStudy.textContent = `${lastStudy.textContent || ""}`.replace(/ • source=.*$/, "") + lbl;
+        }
+        window.__lastChatSource = j.source || "unknown";
+        window.__lastChatWarn = j.warn || "";
+      } catch {}
+
       return { from: j.source || "api", data: j.data };
     }
 
-    // Cas rarissime: fallback texte
+    // fallback improbable
     const text = await r.text();
-    return { from: "api-md", data: { reference: `${book} ${chapter}`, sections: parseMarkdownToSections(text) } };
+    const sections = parseMarkdownToSections(text);
+    const data = { reference: ref, sections };
+    return { from: "api-md", data };
   }
 
-  // ---------- parser Markdown (backup) ----------
+  // ---------- parser Markdown (titres numérotés) ----------
   function parseMarkdownToSections(md) {
     const result = [];
     if (!md || typeof md !== "string") return result;
+
     const lines = md.split(/\r?\n/);
     let cur = null;
     const startRe = /^(\d{1,2})\.\s+/;
+
     for (const line of lines) {
       const m = line.match(startRe);
       if (m) {
@@ -311,9 +363,26 @@
           continue;
         }
       }
-      if (cur) cur.content += (cur.content ? "\n" : "") + line;
+      if (cur) {
+        cur.content += (cur.content ? "\n" : "") + line;
+      }
     }
     if (cur) result.push(cur);
+
+    if (result.length < 10) {
+      const mdBlocks = md.split(/\n(?=\d{1,2}\.\s)/g);
+      const alt = [];
+      mdBlocks.forEach((blk) => {
+        const m2 = blk.match(/^(\d{1,2})\.\s+(.*?)(?:\n|$)/);
+        if (m2) {
+          const id = +m2[1];
+          let body = blk.slice(m2[0].length);
+          alt.push({ id, title: m2[2].trim(), content: body.trim() });
+        }
+      });
+      if (alt.length) return alt;
+    }
+
     return result;
   }
 
@@ -321,20 +390,18 @@
   async function generateStudy() {
     if (inFlight) return;
     const ref = buildReference();
-    if (!ref) { alert("Choisis un Livre + Chapitre (ex: Marc 5)"); return; }
+    if (!ref) { alert("Choisis un Livre + Chapitre (ou saisis une référence ex: Marc 5:1-20)"); return; }
 
     inFlight = true;
     const btn = generateBtn;
     btn && (btn.dataset.label = btn.dataset.label || btn.textContent);
     busy(btn, true);
-
     try {
       setProgress(15); await wait(80);
       setProgress(55);
 
-      const { data } = await getStudy();
-
-      // Remplir les 28 notes
+      const { data } = await getStudy(ref);
+      // data.sections attendu : [{id,title,content}, ...]
       notes = {};
       const secs = Array.isArray(data.sections) ? data.sections : [];
       secs.forEach((s) => {
@@ -343,18 +410,25 @@
       });
 
       // Garde-fous
-      const refFull = data.reference || ref;
-      notes[0]  = notes[0]  || defaultPrayerOpen(refFull);
-      notes[2]  = notes[2]  || "À compléter par l’animateur : préparer au moins 5 questions de révision (comprendre, appliquer, comparer, retenir).";
-      notes[8]  = ensureKeyVerse(notes[8], refFull);
-      notes[27] = notes[27] || defaultPrayerClose(refFull);
+      notes[0] = defaultPrayerOpen(data.reference || ref);
+      if (!notes[1]) {
+        const idx = bookSelect ? bookSelect.selectedIndex : 0;
+        const testament = idx < NT_START_INDEX ? "Ancien Testament" : "Nouveau Testament";
+        notes[1] = `Le livre de ${bookSelect ? bookSelect.value : "—"} appartient à l’${testament}.`;
+      }
 
-      dlog(`[GEN] source=${window.__lastChatSource || "?"} model=${window.__lastModel || "?"} sections=${secs.length} filled=${Object.keys(notes).length}`);
+      // ✅ rubrique 3 corrigée, toujours remplie proprement
+      notes[2] = makePrevChapterQuestions(data.reference || ref);
+
+      notes[8]  = ensureKeyVerse(notes[8],  data.reference || ref);
+      notes[27] = defaultPrayerClose(data.reference || ref);
+
+      dlog(`[GEN] source=${(window.__lastChatSource||'')} sections=${secs.length} filled=${Object.keys(notes).length}`);
 
       // Mémoire “dernier”
       try {
         const book = bookSelect?.value, chap = chapterSelect?.value, vers = verseSelect?.value, ver = versionSelect?.value;
-        lastStudy && (lastStudy.textContent = `Dernier : ${data.reference || `${book} ${chap}`} (${ver}) • source=${window.__lastChatSource || "?"}`);
+        lastStudy && (lastStudy.textContent = `Dernier : ${data.reference || `${book} ${chap}`} (${ver})`);
         localStorage.setItem("be_last", JSON.stringify({ book, chapter: chap, verse: vers, version: ver }));
       } catch { }
 
@@ -364,15 +438,6 @@
     } catch (e) {
       console.error(e);
       alert(String((e && e.message) || e));
-      // Filet de secours: probe Markdown
-      try {
-        const t = await fetch(`/api/chat?probe=1`, { cache:"no-store" }).then(r => r.text());
-        const sections = parseMarkdownToSections(t);
-        notes = {};
-        sections.forEach(s => { const i = s.id - 1; if (i >= 0 && i < N) notes[i] = (s.content || "").trim(); });
-        renderSidebar(); select(0);
-        dlog("[GEN] Fallback probe appliqué");
-      } catch {}
     } finally {
       busy(btn, false);
       inFlight = false;
@@ -380,80 +445,67 @@
   }
 
   // ---------- init ----------
-  function initUI() {
-    // Sécurité: vérifier la présence minimale des IDs essentiels
-    const required = ["pointsList","generateBtn","bookSelect","chapterSelect","versionSelect","noteArea"];
-    const missing = required.filter(id => !$(id));
-    if (missing.length) console.warn("[BOOT] IDs manquants:", missing.join(", "));
+  renderBooks(); renderChapters(); renderVerses(); updateReadLink();
+  renderSidebar(); select(0);
 
-    renderBooks(); renderChapters(); renderVerses(); updateReadLink();
-    renderSidebar(); select(0);
-
-    // recherche intelligente
-    if (searchRef) {
-      searchRef.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          const sel = parseSearch(searchRef.value);
-          if (sel) { applySelection(sel); autoGenerate(); }
-        }
-      });
-      searchRef.addEventListener("blur", () => {
+  if (searchRef) {
+    searchRef.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
         const sel = parseSearch(searchRef.value);
         if (sel) { applySelection(sel); autoGenerate(); }
-      });
-    }
-
-    // Valider => BibleGateway + mémoire rapide
-    validateBtn && validateBtn.addEventListener("click", () => {
-      updateReadLink();
-      try {
-        const book = bookSelect?.value, chap = chapterSelect?.value, vers = verseSelect?.value, ver = versionSelect?.value;
-        localStorage.setItem("be_last", JSON.stringify({ book, chapter: chap, verse: vers, version: ver }));
-        lastStudy && (lastStudy.textContent = `Dernier : ${book} ${chap || 1} (${ver})`);
-      } catch { }
-      readLink && window.open(readLink.href, "_blank", "noopener");
-    });
-
-    // Générer => /api/chat
-    generateBtn && generateBtn.addEventListener("click", generateStudy);
-
-    // auto-génération si pas de texte saisi
-    function autoGenerate() {
-      clearTimeout(autoTimer);
-      autoTimer = setTimeout(() => {
-        if (bookSelect?.value && chapterSelect?.value && !(searchRef?.value || "").trim()) generateStudy();
-      }, 250);
-    }
-    bookSelect && bookSelect.addEventListener("change", () => { renderChapters(); renderVerses(bookSelect.value === "Psaumes" ? 200 : 60); updateReadLink(); autoGenerate(); });
-    chapterSelect && chapterSelect.addEventListener("change", () => { updateReadLink(); autoGenerate(); });
-    verseSelect && verseSelect.addEventListener("change", () => { updateReadLink(); });
-
-    // autosave
-    noteArea && noteArea.addEventListener("input", () => {
-      clearTimeout(autosaveTimer);
-      autosaveTimer = setTimeout(() => { notes[current] = noteArea.value; saveStorage(); }, 700);
-    });
-
-    // navigation simple
-    prevBtn && prevBtn.addEventListener("click", () => { if (current > 0) select(current - 1); });
-    nextBtn && nextBtn.addEventListener("click", () => { if (current < N - 1) select(current + 1); });
-
-    // bouton debug
-    dbtn && dbtn.addEventListener("click", () => {
-      const open = dpanel.style.display === "block";
-      dpanel.style.display = open ? "none" : "block";
-      dbtn.textContent = open ? "Debug" : "Fermer Debug";
-      if (!open) {
-        dpanel.textContent = "[Debug démarré…]";
-        (async () => {
-          try { const r1 = await fetch("/api/health", { cache:"no-store" }); setMini(dotHealth, r1.ok); dlog(`health → ${r1.status}`); } catch { setMini(dotHealth, false); }
-          try { const r2 = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ probe: true }) }); setMini(dotChat, r2.ok); dlog(`chat(POST probe) → ${r2.status}`); } catch { setMini(dotChat, false); }
-          try { const r3 = await fetch("/api/chat?probe=1", { cache:"no-store" }); setMini(dotPing, r3.ok); dlog(`chat(GET probe) → ${r3.status}`); } catch { setMini(dotPing, false); }
-        })();
       }
+    });
+    searchRef.addEventListener("blur", () => {
+      const sel = parseSearch(searchRef.value);
+      if (sel) { applySelection(sel); autoGenerate(); }
     });
   }
 
-  // Lancer l'init
-  initUI();
+  validateBtn && validateBtn.addEventListener("click", () => {
+    updateReadLink();
+    try {
+      const book = bookSelect?.value, chap = chapterSelect?.value, vers = verseSelect?.value, ver = versionSelect?.value;
+      localStorage.setItem("be_last", JSON.stringify({ book, chapter: chap, verse: vers, version: ver }));
+      lastStudy && (lastStudy.textContent = `Dernier : ${book} ${chap || 1} (${ver})`);
+    } catch { }
+    readLink && window.open(readLink.href, "_blank", "noopener");
+  });
+
+  generateBtn && generateBtn.addEventListener("click", generateStudy);
+
+  function autoGenerate() {
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(() => {
+      if (bookSelect?.value && chapterSelect?.value && !(searchRef?.value || "").trim()) generateStudy();
+    }, 250);
+  }
+  bookSelect && bookSelect.addEventListener("change", () => { renderChapters(); renderVerses(bookSelect.value === "Psaumes" ? 200 : 60); updateReadLink(); autoGenerate(); });
+  chapterSelect && chapterSelect.addEventListener("change", () => { updateReadLink(); autoGenerate(); });
+  verseSelect && verseSelect.addEventListener("change", () => { updateReadLink(); });
+  modeRich && modeRich.addEventListener("change", () => { /* pas d’auto, juste un flag */ });
+
+  noteArea && noteArea.addEventListener("input", () => {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(() => { notes[current] = noteArea.value; saveStorage(); }, 700);
+  });
+
+  prevBtn && prevBtn.addEventListener("click", () => { if (current > 0) select(current - 1); });
+  nextBtn && nextBtn.addEventListener("click", () => { if (current < N - 1) select(current + 1); });
+
+  dbtn && dbtn.addEventListener("click", () => {
+    const open = dpanel.style.display === "block";
+    dpanel.style.display = open ? "none" : "block";
+    dbtn.textContent = open ? "Debug" : "Fermer Debug";
+    if (!open) {
+      dpanel.textContent = "[Debug démarré…]";
+      (async () => {
+        try { const r1 = await fetch("/api/health"); setMini(dotHealth, r1.ok); dlog(`health → ${r1.status}`); } catch { setMini(dotHealth, false); }
+        try {
+          const r2 = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ probe: true }) });
+          setMini(dotChat, r2.ok); dlog(`chat(POST) → ${r2.status}`);
+        } catch { setMini(dotChat, false); }
+        try { const r3 = await fetch("/api/ping"); setMini(dotPing, r3.ok); dlog(`ping → ${r3.status}`); } catch { setMini(dotPing, false); }
+      })();
+    }
+  });
 })();
