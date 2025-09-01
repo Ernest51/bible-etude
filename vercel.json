@@ -1,4 +1,5 @@
 {
+  "regions": ["cdg1", "fra1"],
   "functions": {
     "api/**/*.js": {
       "runtime": "nodejs20.x",
@@ -11,6 +12,5 @@
       "source": "/api/chat",
       "headers": [{ "key": "Cache-Control", "value": "no-store" }]
     }
-  ],
-  "regions": ["cdg1", "fra1"]
+  ]
 }
