@@ -1,41 +1,15 @@
-// api/chat.js — Route Vercel robuste (Markdown 28 rubriques) ✔
-// - POST { book, chapter, version } OU GET ?q="Genèse 1"
-// - Utilise OpenAI si OPENAI_API_KEY est défini, sinon renvoie un fallback Markdown propre
-// - Jamais d'erreur 500 silencieuse: retourne un message clair en text/plain
-// - ?probe=1 pour test rapide (sans OpenAI)
+// api/chat.js — Version sans import top-level (évite crash si 'openai' absent)
 
-import OpenAI from "openai";
-
-// ----- Canevas 28 rubriques -----
 const TITLES = [
-  "1. Ouverture en prière",
-  "2. Contexte historique",
-  "3. Contexte littéraire",
-  "4. Structure du passage",
-  "5. Analyse exégétique et lexicale",
-  "6. Personnages principaux",
-  "7. Résumé du chapitre",
-  "8. Thème théologique central",
-  "9. Vérité spirituelle principale",
-  "10. Verset-clé doctrinal",
-  "11. Verset à mémoriser",
-  "12. Références croisées",
-  "13. Liens avec le reste de la Bible",
-  "14. Jésus-Christ dans ce passage",
-  "15. Questions de réflexion",
-  "16. Applications pratiques",
-  "17. Illustration",
-  "18. Objections courantes",
-  "19. Réponses",
-  "20. Promesse de Dieu",
-  "21. Commandement de Dieu",
-  "22. Application communautaire",
-  "23. Hymne ou chant suggéré",
-  "24. Prière finale",
-  "25. Pensée clé du jour",
-  "26. Plan de lecture associé",
-  "27. Limites et exceptions",
-  "28. Conclusion",
+  "1. Ouverture en prière","2. Contexte historique","3. Contexte littéraire","4. Structure du passage",
+  "5. Analyse exégétique et lexicale","6. Personnages principaux","7. Résumé du chapitre",
+  "8. Thème théologique central","9. Vérité spirituelle principale","10. Verset-clé doctrinal",
+  "11. Verset à mémoriser","12. Références croisées","13. Liens avec le reste de la Bible",
+  "14. Jésus-Christ dans ce passage","15. Questions de réflexion","16. Applications pratiques",
+  "17. Illustration","18. Objections courantes","19. Réponses","20. Promesse de Dieu",
+  "21. Commandement de Dieu","22. Application communautaire","23. Hymne ou chant suggéré",
+  "24. Prière finale","25. Pensée clé du jour","26. Plan de lecture associé",
+  "27. Limites et exceptions","28. Conclusion"
 ];
 
 const TEMPLATE = `# {{BOOK}} {{CHAP}}
@@ -163,21 +137,19 @@ function parseQ(q) {
 
 function youVersionLink(book, chapter) {
   const map = {
-    "Genèse": "GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU",
+    "Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU",
     "Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA",
     "1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH",
     "Esdras":"EZR","Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA",
     "Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des cantiques":"SNG","Ésaïe":"ISA",
     "Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN",
-    "Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON",
-    "Michée":"MIC","Nahoum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG",
-    "Zacharie":"ZEC","Malachie":"MAL",
-    "Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT",
-    "Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH",
-    "Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI",
+    "Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC",
+    "Nahoum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL",
+    "Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM",
+    "1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP",
+    "Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI",
     "2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS",
-    "1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN",
-    "Jude":"JUD","Apocalypse":"REV"
+    "1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"
   };
   const code = map[book];
   return code ? `https://www.bible.com/fr/bible/93/${code}.${chapter}.LSG` : "";
@@ -186,7 +158,6 @@ function youVersionLink(book, chapter) {
 function fallbackMarkdown(book, chapter) {
   const ref = `${book} ${chapter}`;
   const link = youVersionLink(book, chapter) || "—";
-  const fill = (s) => s || "—";
   const md = TEMPLATE
     .replace("{{BOOK}}", book).replace("{{CHAP}}", String(chapter))
     .replace("{{S1}}", `Seigneur Tout-Puissant, éclaire ma lecture de ${ref}. Amen.`)
@@ -219,7 +190,7 @@ function fallbackMarkdown(book, chapter) {
     .replace("{{S26}}", "Lecture associée (p.ex. Jean 1).")
     .replace("{{S27}}", "Ce que le texte ne traite pas (cadre, limites).")
     .replace("{{S28}}", "Synthèse finale.");
-  return md.split("{{").map(fill).join(""); // safety no-op
+  return md;
 }
 
 function ok28(md, book, chapter) {
@@ -229,7 +200,6 @@ function ok28(md, book, chapter) {
 
 export default async function handler(req, res) {
   try {
-    // --- Méthode + paramètres ---
     const method = req.method || "GET";
     let body = {};
     if (method === "POST") {
@@ -243,35 +213,46 @@ export default async function handler(req, res) {
     }
     const url = new URL(req.url, `http://${req.headers.host}`);
     const qp = Object.fromEntries(url.searchParams.entries());
+
     const probe = qp.probe === "1" || body.probe === true;
 
-    let book = body.book || qp.book, chapter = Number(body.chapter || qp.chapter);
+    let book = body.book || qp.book;
+    let chapter = Number(body.chapter || qp.chapter);
     const q = body.q || qp.q;
     if ((!book || !chapter) && q) {
       const p = parseQ(q);
       book = book || p.book;
       chapter = chapter || p.chapter;
     }
+    const b = book || "Genèse";
+    const c = chapter || 1;
+
     if (probe) {
-      const b = book || "Genèse", c = chapter || 1;
       const md = fallbackMarkdown(b, c);
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
       return res.status(200).send(md);
     }
-    if (!book || !chapter) {
-      return res.status(400).send("Paramètres manquants: envoyez { book, chapter } ou { q }.");
-    }
 
-    // --- Si pas de clé OpenAI → fallback propre (pas d'échec) ---
-    const haveKey = !!process.env.OPENAI_API_KEY;
-    if (!haveKey) {
-      const md = fallbackMarkdown(book, chapter);
+    // Si pas de clé → fallback propre
+    if (!process.env.OPENAI_API_KEY) {
+      const md = fallbackMarkdown(b, c);
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      res.setHeader("Content-Disposition", `inline; filename="${book}-${chapter}.md"`);
+      res.setHeader("Content-Disposition", `inline; filename="${b}-${c}.md"`);
       return res.status(200).send(md);
     }
 
-    // --- Appel OpenAI (avec garde-fous) ---
+    // Import dynamique d'openai (évite crash si module absent)
+    let OpenAI;
+    try {
+      ({ default: OpenAI } = await import("openai"));
+    } catch (e) {
+      // Module non installé → fallback propre
+      const md = fallbackMarkdown(b, c);
+      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+      res.setHeader("X-Note", "openai module missing, served fallback");
+      return res.status(200).send(md);
+    }
+
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const SYSTEM = `
@@ -279,15 +260,15 @@ Tu produis des études bibliques **strictement** en Markdown, 28 rubriques numé
 Contraintes:
 - Utilise EXACTEMENT ces titres et cet ordre: ${TITLES.join(" | ")}.
 - Pas de texte hors canevas.
-- Version biblique pour citations: Louis Segond 1910 (LSG).
-- 3–6 phrases par rubrique en moyenne, style pastoral et précis.
+- Version biblique: Louis Segond 1910 (LSG).
+- 3–6 phrases par rubrique, style pastoral et précis.
 `.trim();
 
-    const link = youVersionLink(book, chapter) || "—";
+    const link = youVersionLink(b, c) || "—";
 
     const USER = `
-Remplis le gabarit suivant pour Livre="${book}", Chapitre="${chapter}" (LSG).
-Ajoute si pertinent "YouVersion : ${link}" dans la rubrique adéquate (10/11/12/26).
+Remplis le gabarit suivant pour Livre="${b}", Chapitre="${c}" (LSG).
+Ajoute si pertinent "YouVersion : ${link}" dans la rubrique adéquate.
 
 GABARIT:
 ${TEMPLATE}
@@ -306,40 +287,37 @@ ${TEMPLATE}
       });
       md = (rsp?.choices?.[0]?.message?.content || "").trim();
     } catch (e) {
-      // Erreur OpenAI → fallback explicite mais sans 500
-      const fb = fallbackMarkdown(book, chapter);
+      const fb = fallbackMarkdown(b, c);
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
       res.setHeader("X-OpenAI-Error", String(e?.message || e));
       return res.status(200).send(fb);
     }
 
-    // Vérification format 28 rubriques
-    if (!ok28(md, book, chapter)) {
-      const fb = fallbackMarkdown(book, chapter);
+    if (!ok28(md, b, c)) {
+      const fb = fallbackMarkdown(b, c);
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      res.setHeader("X-Format-Note", "Gabarit partiel: envoi fallback");
+      res.setHeader("X-Format-Note", "Gabarit partiel: fallback");
       return res.status(200).send(fb);
     }
 
-    // OK
     res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-    res.setHeader("Content-Disposition", `inline; filename="${book}-${chapter}.md"`);
+    res.setHeader("Content-Disposition", `inline; filename="${b}-${c}.md"`);
     return res.status(200).send(md);
   } catch (e) {
-    // Dernier filet: ne pas planter en 500 opaque
+    // Dernier filet: jamais de 500 opaque
     try {
       const url = new URL(req.url, `http://${req.headers.host}`);
       const q = url.searchParams.get("q") || "";
       const p = parseQ(q);
-      const book = p.book || "Genèse";
-      const chapter = p.chapter || 1;
-      const md = fallbackMarkdown(book, chapter);
+      const b = p.book || "Genèse";
+      const c = p.chapter || 1;
+      const md = fallbackMarkdown(b, c);
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
       res.setHeader("X-Last-Error", String(e?.message || e));
       return res.status(200).send(md);
     } catch {
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
-      return res.status(500).send("Erreur interne finale.");
+      return res.status(200).send(fallbackMarkdown("Genèse", 1));
     }
   }
 }
