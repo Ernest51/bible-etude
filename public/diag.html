@@ -5,48 +5,57 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Diagnostic FRONT — Bible Étude</title>
   <style>
-    body{font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:24px;color:#1f2937;background:#f9fafb}
-    h1{font-size:20px;margin:0 0 12px}
-    .card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin:12px 0}
+    :root{--border:#e5e7eb;--ok:#10b981;--okbg:#e8fff2;--ko:#ef4444;--kobg:#fff1f2;--warn:#f59e0b;--warnbg:#fff7ed}
+    body{font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:24px;background:#f9fafb;color:#111827}
+    h1{margin:0 0 12px;font-size:20px}
+    .card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px;margin:12px 0}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:12px}
-    .ok{background:#e8fff2;color:#065f46;border:1px solid #10b981}
-    .ko{background:#fff1f2;color:#991b1b;border:1px solid #ef4444}
-    .warn{background:#fff7ed;color:#9a3412;border:1px solid #f59e0b}
-    code{background:#f3f4f6;padding:2px 4px;border-radius:6px}
-    button{background:#111827;color:#fff;border:none;border-radius:8px;padding:10px 14px;cursor:pointer}
-    button:disabled{opacity:.5}
+    .hr{height:1px;background:var(--border);margin:12px 0}
+    code{background:#f3f4f6;padding:2px 6px;border-radius:6px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .badge{display:inline-block;border-radius:999px;font-size:12px;padding:3px 9px;border:1px solid}
+    .ok{color:#065f46;background:var(--okbg);border-color:var(--ok)}
+    .ko{color:#991b1b;background:var(--kobg);border-color:var(--ko)}
+    .warn{color:#9a3412;background:var(--warnbg);border-color:var(--warn)}
+    button{background:#111827;color:#fff;border:0;border-radius:8px;padding:10px 14px;cursor:pointer}
+    button:disabled{opacity:.6;cursor:default}
+    a.btn{display:inline-block;text-decoration:none;background:#111827;color:#fff;border-radius:8px;padding:10px 14px}
     .small{font-size:12px;color:#6b7280}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
-    .row{display:flex;align-items:center;justify-content:space-between;margin:6px 0}
-    .hr{height:1px;background:#e5e7eb;margin:12px 0}
-    a.btn{display:inline-block;text-decoration:none}
+    .log{white-space:pre-wrap;font-size:12px;background:#0b1020;color:#e2e8f0;border-radius:8px;padding:8px;margin-top:8px;max-height:260px;overflow:auto}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
   <h1>Diagnostic FRONT — Bible Étude</h1>
 
+  <!-- 1) app.js (refetch en no-store) -->
   <div class="card">
     <div class="row">
-      <strong>1) Vérifier le chargement d’<code>/app.js</code> (sans le charger ici)</strong>
-      <span id="jsBadge" class="badge">…</span>
+      <strong>1) Vérifier <code>/app.js</code> (refetch en <code>no-store</code>)</strong>
+      <span id="jsBadge" class="badge warn">…</span>
     </div>
     <div class="hr"></div>
     <div class="grid">
       <div>
-        <div>Hash du contenu actuel de <code>/app.js</code> (no-store) : <code id="jsHash" class="mono">—</code></div>
-        <div class="small">Cette page <u>n’inclut pas</u> <code>app.js</code>. Elle télécharge juste le fichier en <code>no-store</code> pour mesurer le hash.</div>
-        <div class="small">Sur ta page principale (<code>index.html</code>), assure-toi d’utiliser <code>&lt;script src="/app-loader.js"&gt;</code> (le loader ajoute <code>?v=…</code> à app.js).</div>
+        <div>Hash actuel de <code>/app.js</code> : <code id="jsHash" class="mono">—</code></div>
+        <div class="small">Cette page ne charge pas <code>app.js</code>. Elle le télécharge juste pour mesurer un hash et vérifier l’accessibilité.</div>
+        <div class="small">Dans <strong>index.html</strong>, utilise <code>&lt;script src="/app-loader.js"&gt;</code> (le loader pose <code>?v=…</code> sur <code>app.js</code>).</div>
       </div>
       <div>
-        <a class="btn" href="/" target="_blank" rel="noopener">Ouvrir la page principale</a>
         <button id="btnRefetch">Re-télécharger /app.js (no-store)</button>
+        <a class="btn" href="/" target="_blank" rel="noopener">Ouvrir la page principale</a>
       </div>
     </div>
+    <div id="jsLog" class="log" hidden></div>
   </div>
 
+  <!-- 2) API -->
   <div class="card">
-    <div class="row"><strong>2) API</strong> <span id="apiBadge" class="badge">…</span></div>
+    <div class="row">
+      <strong>2) API</strong>
+      <span id="apiBadge" class="badge warn">…</span>
+    </div>
     <div class="hr"></div>
     <div class="grid">
       <div>
@@ -59,15 +68,20 @@
         <button id="btnChat">Tester /api/chat (POST)</button>
       </div>
     </div>
+    <div id="apiLog" class="log" hidden></div>
   </div>
 
+  <!-- 3) localStorage -->
   <div class="card">
-    <div class="row"><strong>3) LocalStorage (be_notes)</strong> <span id="storeBadge" class="badge">…</span></div>
+    <div class="row">
+      <strong>3) LocalStorage (<code>be_notes</code>)</strong>
+      <span id="storeBadge" class="badge warn">…</span>
+    </div>
     <div class="hr"></div>
     <div class="grid">
       <div>
         <div>État actuel : <code id="storeState">—</code></div>
-        <div class="small">Tu peux injecter une étude de test (28 rubriques) puis revenir sur l’app principale et cliquer « Générer ».</div>
+        <div class="small">Tu peux injecter une étude de test (28 rubriques), puis revenir sur l’app principale et cliquer « Générer ».</div>
       </div>
       <div>
         <button id="btnFill">Remplir 28 rubriques (exemple)</button>
@@ -76,110 +90,115 @@
     </div>
   </div>
 
-  <script>
-    (function(){
-      const $ = (id)=>document.getElementById(id);
+<script>
+(function(){
+  const $ = (id)=>document.getElementById(id);
 
-      async function sha256Hex(text){
-        const enc = new TextEncoder().encode(text);
-        const buf = await crypto.subtle.digest("SHA-256", enc);
-        return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("").slice(0,12);
-      }
-      function setBadge(el, ok){ el.className = "badge " + (ok?"ok":"ko"); el.textContent = ok ? "OK" : "KO"; }
+  // helpers
+  function setBadge(el, kind){ el.className = "badge " + kind; el.textContent = (kind==="ok"?"OK":kind==="ko"?"KO":"…"); }
+  function showLog(el, text){ if(!text){ el.hidden = true; el.textContent = ""; return; } el.hidden = false; el.textContent = text; }
 
-      // 1) Refetch /app.js (no-store) pour hash d’intégrité
-      async function refetchJS(){
-        try{
-          const r = await fetch("/app.js", {cache:"no-store"});
-          const txt = await r.text();
-          $("jsHash").textContent = await sha256Hex(txt);
-          // On ne peut pas détecter ici si index.html utilise le loader, mais:
-          // - si hash change après déploiement, c’est bon signe
-          // - surtout, assure-toi d’avoir <script src="/app-loader.js"></script> dans index.html
-          setBadge($("jsBadge"), !!txt);
-        }catch(e){
-          $("jsHash").textContent = "Erreur: " + e.message;
-          setBadge($("jsBadge"), false);
-        }
-      }
-      $("btnRefetch").addEventListener("click", refetchJS);
-      refetchJS();
+  async function sha256Hex(text){
+    const enc = new TextEncoder().encode(text);
+    const buf = await crypto.subtle.digest("SHA-256", enc);
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("").slice(0,12);
+  }
 
-      // 2) API health & chat
-      async function testHealth(){
-        const el = $("healthStatus");
-        try{
-          const r = await fetch("/api/health", {cache:"no-store"});
-          const j = await r.json();
-          const ok = j && j.ok === true && j.env && j.env.hasOpenAIKey;
-          el.innerHTML = ok ? '<span class="badge ok">OK</span>' : '<span class="badge ko">KO</span>';
-          return ok;
-        }catch(e){
-          el.innerHTML = '<span class="badge ko">KO</span> ' + e.message;
-          return false;
-        }
-      }
-      async function testChat(){
-        const S = (id,v)=>($(id).textContent = (v==null? "—" : v));
-        try{
-          const r = await fetch("/api/chat", {
-            method:"POST",
-            headers:{ "Content-Type":"application/json" },
-            cache:"no-store",
-            body: JSON.stringify({ book:"Genèse", chapter:1, version:"LSG" })
-          });
-          const j = await r.json();
-          const ok = j && j.ok === true && j.data && Array.isArray(j.data.sections);
-          $("chatStatus").innerHTML = ok ? '<span class="badge ok">OK</span>' : '<span class="badge ko">KO</span>';
-          S("chatSections", ok ? j.data.sections.length : "—");
-          S("chatSource", j.source || "—");
-          S("chatWarn", j.warn || "");
-          setBadge($("apiBadge"), ok && j.data.sections.length === 28);
-          return ok;
-        }catch(e){
-          $("chatStatus").innerHTML = '<span class="badge ko">KO</span> ' + e.message;
-          setBadge($("apiBadge"), false);
-          return false;
-        }
-      }
-      $("btnHealth").addEventListener("click", testHealth);
-      $("btnChat").addEventListener("click", testChat);
-      (async()=>{ await testHealth(); await testChat(); })();
+  // 1) /app.js refetch (no-store)
+  async function refetchJS(){
+    const log = $("jsLog");
+    try{
+      const r = await fetch("/app.js", { cache:"no-store" });
+      const t = await r.text();
+      if(!r.ok) throw new Error("HTTP " + r.status);
+      const hash = await sha256Hex(t);
+      $("jsHash").textContent = hash;
+      setBadge($("jsBadge"), "ok");
+      showLog(log, "[/app.js] status="+r.status+"\nbytes="+t.length+"\nhash="+hash);
+    }catch(e){
+      $("jsHash").textContent = "Erreur";
+      setBadge($("jsBadge"), "ko");
+      showLog(log, "Erreur /app.js → " + (e && e.message ? e.message : e));
+    }
+  }
+  $("btnRefetch").addEventListener("click", refetchJS);
 
-      // 3) localStorage helpers
-      function refreshStore(){
-        try{
-          const raw = localStorage.getItem("be_notes");
-          $("storeState").textContent = raw ? (raw.length + " octets") : "(vide)";
-          setBadge($("storeBadge"), true);
-        }catch(e){
-          $("storeState").textContent = "Erreur: " + e.message;
-          setBadge($("storeBadge"), false);
-        }
-      }
+  // 2) API tests
+  async function testHealth(){
+    const log = $("apiLog");
+    try{
+      const r = await fetch("/api/health", { cache:"no-store" });
+      const j = await r.json();
+      const ok = j && j.ok === true && j.env && j.env.hasOpenAIKey;
+      $("healthStatus").innerHTML = ok ? '<span class="badge ok">OK</span>' : '<span class="badge ko">KO</span>';
+      showLog(log, "[/api/health] "+JSON.stringify(j,null,2));
+      return ok;
+    }catch(e){
+      $("healthStatus").innerHTML = '<span class="badge ko">KO</span>';
+      showLog(log, "[/api/health] ERREUR → " + (e && e.message ? e.message : e));
+      return false;
+    }
+  }
+
+  async function testChat(){
+    const log = $("apiLog");
+    const S=(id,v)=>($(id).textContent = (v==null?"—":v));
+    try{
+      const r = await fetch("/api/chat", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        cache:"no-store",
+        body: JSON.stringify({ book:"Genèse", chapter:1, version:"LSG" })
+      });
+      const j = await r.json();
+      const ok = j && j.ok === true && j.data && Array.isArray(j.data.sections);
+      $("chatStatus").innerHTML = ok ? '<span class="badge ok">OK</span>' : '<span class="badge ko">KO</span>';
+      S("chatSections", ok? j.data.sections.length : "—");
+      S("chatSource", j && j.source || "—");
+      S("chatWarn", j && j.warn || "—");
+      showLog(log, "[/api/chat] "+JSON.stringify(j,null,2));
+      // badge global API
+      setBadge($("apiBadge"), (ok && j.data.sections.length===28) ? "ok" : "ko");
+      return ok;
+    }catch(e){
+      $("chatStatus").innerHTML = '<span class="badge ko">KO</span>';
+      setBadge($("apiBadge"), "ko");
+      showLog(log, "[/api/chat] ERREUR → " + (e && e.message ? e.message : e));
+      return false;
+    }
+  }
+  $("btnHealth").addEventListener("click", testHealth);
+  $("btnChat").addEventListener("click", testChat);
+
+  // 3) localStorage
+  function refreshStore(){
+    try{
+      const raw = localStorage.getItem("be_notes");
+      $("storeState").textContent = raw ? (raw.length + " octets") : "(vide)";
+      setBadge($("storeBadge"), "ok");
+    }catch(e){
+      $("storeState").textContent = "Erreur: " + e.message;
+      setBadge($("storeBadge"), "ko");
+    }
+  }
+  $("btnFill").addEventListener("click", ()=>{
+    try{
+      const notes={}; for(let i=0;i<28;i++){ notes[i]=`Contenu de test #${i+1}\n\n(Diagnostic)`; }
+      localStorage.setItem("be_notes", JSON.stringify(notes));
       refreshStore();
+      alert("OK : 28 rubriques injectées dans be_notes. Retourne sur l’app et clique « Générer ».");
+    }catch(e){ alert("Échec localStorage : "+e.message); }
+  });
+  $("btnClear").addEventListener("click", ()=>{
+    try{ localStorage.removeItem("be_notes"); refreshStore(); alert("be_notes vidé."); }
+    catch(e){ alert("Échec : "+e.message); }
+  });
 
-      $("btnFill").addEventListener("click", ()=>{
-        try{
-          const notes = {};
-          for(let i=0;i<28;i++){ notes[i] = `Contenu de test #${i+1}\n\n(Diagnostic)`; }
-          localStorage.setItem("be_notes", JSON.stringify(notes));
-          refreshStore();
-          alert("OK : 28 rubriques injectées dans be_notes. Retourne sur l’app et clique « Générer ».");
-        }catch(e){
-          alert("Échec localStorage : " + e.message);
-        }
-      });
-      $("btnClear").addEventListener("click", ()=>{
-        try{
-          localStorage.removeItem("be_notes");
-          refreshStore();
-          alert("be_notes vidé.");
-        }catch(e){
-          alert("Échec : " + e.message);
-        }
-      });
-    })();
-  </script>
+  // lancer automatiquement
+  refreshStore();
+  refetchJS();
+  testHealth().then(()=>testChat());
+})();
+</script>
 </body>
 </html>
