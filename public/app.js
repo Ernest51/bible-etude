@@ -1,4 +1,4 @@
-// public/app.js — FRONT COMPLET (28 rubriques, JSON ou Markdown)
+// public/app.js — FRONT COMPLET (28 rubriques, JSON ou Markdown) — LSG par défaut + liens BG robustes
 (function () {
   // ---------- helpers UI ----------
   const $ = (id) => document.getElementById(id);
@@ -8,7 +8,6 @@
     if (!progressBar) return;
     progressBar.style.width = Math.max(0, Math.min(100, p)) + "%";
   };
-
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const busy = (el, on) => {
     if (!el) return;
@@ -27,7 +26,6 @@
     dpanel.textContent += (dpanel.textContent ? "\n" : "") + line;
     console.log(line);
   };
-
   const setMini = (dot, ok) => {
     if (!dot) return;
     dot.classList.remove("ok", "ko");
@@ -109,11 +107,64 @@
       verseSelect.appendChild(o);
     }
   }
+
+  // ---------- mappage versions (BibleGateway) ----------
+  // clé = value des <option> du sélecteur version; valeur = code BibleGateway
+  const VERSION_CODES = {
+    // Français
+    LSG: "LSG",        // Louis Segond
+    LSG1910: "LSG",    // alias possible
+    LSG1975: "LSG",
+    PDV: "PDV",        // Parole de Vie
+    BDS: "BDS",        // Bible du Semeur
+    NEG79: "NEG1979",  // Nouvelle Édition de Genève 1979
+    NEG1979: "NEG1979",
+    // Anglais (au cas où)
+    NIV: "NIV",
+    ESV: "ESV",
+    KJV: "KJV"
+  };
+
+  function mapVersionToBGCode(v) {
+    const code = VERSION_CODES[(v || "").toUpperCase()];
+    // fallback dur → LSG
+    return code || "LSG";
+  }
+
+  // liens de secours YouVersion (FR)
+  function youVersionLink(book, chap, code = "93") { // 93 = LSG
+    const map = {
+      "Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT",
+      "1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR",
+      "Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des cantiques":"SNG",
+      "Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN","Osée":"HOS","Joël":"JOL","Amos":"AMO",
+      "Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahoum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC",
+      "Malachie":"MAL","Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO",
+      "2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH",
+      "2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS",
+      "1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"
+    };
+    const b = map[book];
+    return b ? `https://www.bible.com/fr/bible/${code}/${b}.${chap}.LSG` : "";
+  }
+
   function updateReadLink() {
     if (!readLink || !bookSelect || !chapterSelect || !verseSelect || !versionSelect) return;
-    const ref = `${bookSelect.value} ${chapterSelect.value}:${verseSelect.value}`;
-    const ver = versionSelect.value;
-    readLink.href = "https://www.biblegateway.com/passage/?search=" + encodeURIComponent(ref) + "&version=" + encodeURIComponent(ver);
+    // force LSG par défaut
+    const selected = (versionSelect.value || "LSG").toUpperCase();
+    const bgCode = mapVersionToBGCode(selected);
+
+    const refPlain = `${bookSelect.value} ${chapterSelect.value}:${verseSelect.value}`;
+    const hrefBG =
+      "https://www.biblegateway.com/passage/?" +
+      "search=" + encodeURIComponent(refPlain) +
+      "&version=" + encodeURIComponent(bgCode);
+
+    readLink.href = hrefBG;
+
+    // sauvegarde d'un lien secours (data attribute) si jamais BG renvoie une page inattendue
+    const yv = youVersionLink(bookSelect.value, chapterSelect.value, bgCode === "LSG" ? "93" : "93");
+    readLink.dataset.alt = yv || "";
   }
 
   // ---------- rubriques fixes ----------
@@ -257,7 +308,7 @@
 
   // ---------- fetch /api/chat ----------
   async function getStudy(ref) {
-    const ver = versionSelect ? versionSelect.value : "LSG";
+    const ver = (versionSelect ? versionSelect.value : "LSG") || "LSG";
     const cached = loadCache(ref, ver);
     if (cached?.data) return { from: "local", data: cached.data };
 
@@ -269,7 +320,6 @@
       throw new Error(txt || `HTTP ${r.status}`);
     }
 
-    // 1) JSON { ok, data:{ sections:[{id,title,content}...] } }
     if (/application\/json/i.test(ct)) {
       const j = await r.json().catch(() => ({}));
       if (!j || (j.ok === false)) throw new Error(j?.error || "Réponse JSON invalide");
@@ -277,7 +327,6 @@
       return { from: "api", data: j.data };
     }
 
-    // 2) Markdown => on parse en 28 sections
     const text = await r.text();
     const sections = parseMarkdownToSections(text);
     const data = { reference: ref, sections };
@@ -290,7 +339,6 @@
     const result = [];
     if (!md || typeof md !== "string") return result;
 
-    // On cherche les lignes commençant par "1."..."28."
     const lines = md.split(/\r?\n/);
     let cur = null;
     const startRe = /^(\d{1,2})\.\s+/;
@@ -305,13 +353,10 @@
           continue;
         }
       }
-      if (cur) {
-        cur.content += (cur.content ? "\n" : "") + line;
-      }
+      if (cur) cur.content += (cur.content ? "\n" : "") + line;
     }
     if (cur) result.push(cur);
 
-    // Si on n'a pas trouvé 28, on tente un autre découpage (titres "##" ou "###")
     if (result.length < 10) {
       const mdBlocks = md.split(/\n(?=\d{1,2}\.\s)/g);
       const alt = [];
@@ -344,7 +389,7 @@
       setProgress(55);
 
       const { data } = await getStudy(ref);
-      // data.sections attendu : [{id,title,content}, ...]
+
       notes = {};
       const secs = Array.isArray(data.sections) ? data.sections : [];
       secs.forEach((s) => {
@@ -352,7 +397,6 @@
         if (i >= 0 && i < N) notes[i] = String(s.content || "").trim();
       });
 
-      // Garde-fous
       notes[0] = defaultPrayerOpen(data.reference || ref);
       if (!notes[1]) {
         const idx = bookSelect ? bookSelect.selectedIndex : 0;
@@ -367,9 +411,8 @@
 
       dlog(`[GEN] sections=${secs.length}, filled=${Object.keys(notes).length}`);
 
-      // Mémoire “dernier”
       try {
-        const book = bookSelect?.value, chap = chapterSelect?.value, vers = verseSelect?.value, ver = versionSelect?.value;
+        const book = bookSelect?.value, chap = chapterSelect?.value, vers = verseSelect?.value, ver = versionSelect?.value || "LSG";
         lastStudy && (lastStudy.textContent = `Dernier : ${data.reference || `${book} ${chap}`} (${ver})`);
         localStorage.setItem("be_last", JSON.stringify({ book, chapter: chap, verse: vers, version: ver }));
       } catch { }
@@ -387,7 +430,15 @@
   }
 
   // ---------- init ----------
-  renderBooks(); renderChapters(); renderVerses(); updateReadLink();
+  renderBooks(); renderChapters(); renderVerses();
+
+  // impose la version LSG par défaut si le <select> est vide ou inconnu
+  if (versionSelect) {
+    const v = (versionSelect.value || "").toUpperCase();
+    if (!VERSION_CODES[v]) versionSelect.value = "LSG";
+  }
+  updateReadLink();
+
   renderSidebar(); select(0);
 
   // recherche intelligente
@@ -404,15 +455,18 @@
     });
   }
 
-  // Valider => BibleGateway + mémoire rapide
+  // Valider => BibleGateway + fallback YouVersion si BG renvoie une page inattendue
   validateBtn && validateBtn.addEventListener("click", () => {
     updateReadLink();
     try {
-      const book = bookSelect?.value, chap = chapterSelect?.value, vers = verseSelect?.value, ver = versionSelect?.value;
+      const book = bookSelect?.value, chap = chapterSelect?.value, vers = verseSelect?.value, ver = (versionSelect?.value || "LSG");
       localStorage.setItem("be_last", JSON.stringify({ book, chapter: chap, verse: vers, version: ver }));
       lastStudy && (lastStudy.textContent = `Dernier : ${book} ${chap || 1} (${ver})`);
     } catch { }
-    readLink && window.open(readLink.href, "_blank", "noopener");
+    if (!readLink) return;
+    const win = window.open(readLink.href, "_blank", "noopener");
+    // sécurité : si le nouvel onglet n'a pas pu s'ouvrir, essaye YouVersion
+    if (!win && readLink.dataset.alt) window.open(readLink.dataset.alt, "_blank", "noopener");
   });
 
   // Générer => /api/chat
