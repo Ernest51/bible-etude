@@ -1,5 +1,6 @@
 // public/app.js — FRONT-ONLY (no imports)
-// Version adaptée : génération Markdown via /api/chat + téléchargement + parsing 28 sections
+// Version robuste : accepte Markdown OU JSON depuis /api/chat, reconstruit un .md si besoin.
+// Télécharge automatiquement le .md et remplit l’UI 28 points.
 (function () {
   // ---------- utils / ui ----------
   const $ = (id) => document.getElementById(id);
@@ -115,10 +116,24 @@
   }
   function buildReference(){ const typed=(searchRef&&searchRef.value||'').trim(); if(typed) return typed; if(!bookSelect||!chapterSelect) return ''; const b=bookSelect.value, c=chapterSelect.value; return c?`${b} ${c}`:b; }
 
-  // ---------- cache navigateur ----------
+  // ---------- cache Markdown ----------
   function cacheKey(ref, ver){ return `be_cache_md:${ref}::${ver||'LSG'}`; }
   function loadCache(ref, ver){ try{ return localStorage.getItem(cacheKey(ref,ver)); }catch{ return null; } }
   function saveCache(ref, ver, md){ try{ localStorage.setItem(cacheKey(ref,ver), md); }catch{} }
+
+  // ---------- helpers Markdown <-> JSON ----------
+  function mdEscape(s){ return String(s||"").replace(/\r?\n/g, "\n"); }
+  function buildMdFromSections(title, sections){
+    // sections: [{id,title,content}] ou [{idx,title,content}]
+    let md = "# " + title + "\n\n";
+    for (let i=0;i<28;i++){
+      const s = sections.find(x => (x.id||x.idx) === (i+1)) || sections[i] || {};
+      const header = s.title ? s.title : `${i+1}.`;
+      const body = mdEscape(s.content||"—");
+      md += header + "\n\n" + body + "\n\n";
+    }
+    return md.trim() + "\n";
+  }
 
   // ---------- téléchargement fichier ----------
   function download(text, filename) {
@@ -133,62 +148,74 @@
     URL.revokeObjectURL(url);
   }
 
-  // ---------- RÉCUPÉRATION MARKDOWN depuis /api/chat ----------
+  // ---------- RÉCUPÉRATION depuis /api/chat ----------
+  async function rawFetchChat_POST(book, chapter, version){
+    const r = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ book, chapter, version })
+    });
+    const ct = r.headers.get("content-type") || "";
+    const text = await r.text().catch(()=> "");
+    return { ok:r.ok, status:r.status, ct, text };
+  }
+  async function rawFetchChat_GET(q){
+    const r = await fetch(`/api/chat?q=${encodeURIComponent(q)}`);
+    const ct = r.headers.get("content-type") || "";
+    const text = await r.text().catch(()=> "");
+    return { ok:r.ok, status:r.status, ct, text };
+  }
+
+  function tryParseJson(text){
+    try { return JSON.parse(text); } catch { return null; }
+  }
+
+  function extractMarkdownOrBuild(refTitle, payload, contentType){
+    // 1) Si c'est déjà du Markdown (heuristique simple)
+    if (typeof payload === "string") {
+      const txt = payload.trim();
+      if (txt) return txt; // on accepte tout (plus de contrainte "^#")
+    }
+    // 2) JSON (formats possibles)
+    const j = typeof payload === "string" ? tryParseJson(payload) : payload;
+    if (j && j.ok && j.data) {
+      // format ancien: { ok:true, data:{ reference, sections:[{id,title,content}]} }
+      const title = j.data.reference || refTitle || "Étude";
+      const sections = Array.isArray(j.data.sections) ? j.data.sections : [];
+      return buildMdFromSections(title, sections);
+    }
+    // 3) JSON direct sections
+    if (j && Array.isArray(j.sections)) {
+      const title = j.reference || refTitle || "Étude";
+      return buildMdFromSections(title, j.sections);
+    }
+    // 4) Rien d’exploitable
+    return null;
+  }
+
   async function fetchMarkdown({ book, chapter, version="LSG" }) {
     // 1) POST (préféré)
     try {
-      const r = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ book, chapter, version })
-      });
-      const txt = await r.text();
-      if (r.ok && /^#\s*/.test(txt)) return txt;
-      // si 422 ou autre: on laisse tenter GET
-    } catch {}
+      const post = await rawFetchChat_POST(book, chapter, version);
+      dlog(`POST /api/chat → ${post.status} (${post.ct})`);
+      const md1 = extractMarkdownOrBuild(`${book} ${chapter}`, post.text, post.ct);
+      if (post.ok && md1) return md1;
+    } catch (e) {
+      dlog(`POST /api/chat ERROR: ${e && e.message}`);
+    }
 
     // 2) Fallback GET ?q=
     try {
-      const q = encodeURIComponent(`${book} ${chapter}`);
-      const r2 = await fetch(`/api/chat?q=${q}`);
-      const txt2 = await r2.text();
-      if (r2.ok && /^#\s*/.test(txt2)) return txt2;
-      throw new Error(`Chat GET failed: ${r2.status}`);
-    } catch (e) {
-      throw new Error("Impossible de récupérer le Markdown.");
+      const getR = await rawFetchChat_GET(`${book} ${chapter}`);
+      dlog(`GET /api/chat?q=… → ${getR.status} (${getR.ct})`);
+      const md2 = extractMarkdownOrBuild(`${book} ${chapter}`, getR.text, getR.ct);
+      if (getR.ok && md2) return md2;
+      // remonte une erreur avec extrait de la réponse
+      const sample = (getR.text||"").slice(0,220).replace(/\s+/g,' ').trim();
+      throw new Error(`GET /api/chat a échoué (${getR.status}). Extrait: ${sample || "—"}`);
+    } catch (e2) {
+      throw e2;
     }
-  }
-
-  // ---------- PARSING MARKDOWN → 28 sections ----------
-  // On s’attend à un titre "# Livre Chapitre" puis "1. ...", "2. ...", ..., "28. ..."
-  function parseMarkdownToSections(md) {
-    const lines = md.split(/\r?\n/);
-    const sections = []; // [{title, content}]
-    let current = null;
-
-    for (let i=0;i<lines.length;i++){
-      const line = lines[i];
-
-      const m = line.match(/^\s*(\d{1,2})\.\s+(.*)$/); // "1. Ouverture en prière"
-      if (m) {
-        // on ferme la précédente
-        if (current) sections.push(current);
-        current = { idx: parseInt(m[1],10), title: m[0].trim(), buf: [] };
-        continue;
-      }
-      if (!current) continue; // ignore le header H1 etc jusqu'à la 1ère section
-      current.buf.push(line);
-    }
-    if (current) sections.push(current);
-
-    // On veut exactement 28 (si moins, on complète par « — »)
-    const arr = new Array(28).fill(null).map((_,i)=>({idx:i+1,title:`${i+1}.`,content:"—"}));
-    sections.forEach(s=>{
-      const i = Math.max(1, Math.min(28, s.idx)) - 1;
-      const content = s.buf.join("\n").trim();
-      arr[i] = { idx: i+1, title: s.title, content: content || "—" };
-    });
-    return arr;
   }
 
   // ---------- post-traitements sûrs ----------
@@ -210,9 +237,10 @@
   async function generateStudy(){
     if(inFlight) return; inFlight = true;
     try{
-      const b = bookSelect?.value, c = Number(chapterSelect?.value||1), v = versionSelect?.value || "LSG";
-      const ref = b && c ? `${b} ${c}` : buildReference();
-      if(!ref){ alert("Choisis un Livre + Chapitre (ou saisis une référence ex: Marc 5:1-20)"); inFlight=false; return; }
+      const b = bookSelect?.value || "Genèse";
+      const c = Number(chapterSelect?.value||1);
+      const v = versionSelect?.value || "LSG";
+      const ref = `${b} ${c}`;
 
       await fakePrep();
 
@@ -220,23 +248,22 @@
       const cached = loadCache(ref, v);
       let md = cached;
       if (!md) {
-        md = await fetchMarkdown({ book: b || ref.split(" ")[0], chapter: c || Number(ref.split(" ")[1]||1), version: v });
+        md = await fetchMarkdown({ book: b, chapter: c, version: v });
+        if (!md) throw new Error("Réponse de l'API non exploitable.");
         saveCache(ref, v, md);
       }
 
       // Téléchargement automatique .md
-      download(md, `${b ? b.replace(/[^\w\-]+/g,"_") : "Etude"}-${c||1}.md`);
+      const safeName = b.replace(/[^\w\-]+/g,"_");
+      download(md, `${safeName}-${c}.md`);
 
-      // Parsing → remplir l'UI (28 notes)
-      const parsed = parseMarkdownToSections(md); // [{idx,title,content}] x28
+      // Parsing simple: "1. ...", ..., "28. ..."
+      const parsed = parseMarkdownToSections(md);
       notes = {};
-      parsed.forEach((s,i)=>{
-        if (i < N) notes[i] = String(s.content||'').trim();
-      });
+      parsed.forEach((s,i)=>{ if (i < N) notes[i] = String(s.content||'').trim(); });
 
       // Renforts locales
       notes[0]  = defaultPrayerOpen(ref);
-      // Canon et testament basique si vide
       if(!notes[1]){
         const idx=bookSelect?bookSelect.selectedIndex:0;
         const testament = idx < NT_START_INDEX ? "Ancien Testament" : "Nouveau Testament";
@@ -248,7 +275,7 @@
       notes[8]  = ensureKeyVerse(notes[8], ref);
       notes[27] = defaultPrayerClose(ref);
 
-      dlog(`[GEN] markdown parsed → 28 sections (${parsed.length})`);
+      dlog(`[GEN] OK → fichier téléchargé + UI alimentée`);
 
       // mémoire “dernier”
       try{
@@ -260,10 +287,38 @@
       renderSidebar(); select(0);
     } catch(e){
       console.error(e);
-      alert(String(e&&e.message||e));
+      dlog(`ERROR generateStudy: ${e && e.message}`);
+      alert(`La génération a échoué.\n${e && e.message ? e.message : e}`);
     } finally {
       inFlight = false;
     }
+  }
+
+  // ---------- parsing Markdown → sections ----------
+  function parseMarkdownToSections(md) {
+    const lines = String(md||"").split(/\r?\n/);
+    const sections = [];
+    let current = null;
+    for (let i=0;i<lines.length;i++){
+      const line = lines[i];
+      const m = line.match(/^\s*(\d{1,2})\.\s+(.*)$/);
+      if (m) {
+        if (current) sections.push(current);
+        current = { idx: parseInt(m[1],10), title: m[0].trim(), buf: [] };
+        continue;
+      }
+      if (!current) continue;
+      current.buf.push(line);
+    }
+    if (current) sections.push(current);
+
+    const arr = new Array(28).fill(null).map((_,i)=>({idx:i+1,title:`${i+1}.`,content:"—"}));
+    sections.forEach(s=>{
+      const i = Math.max(1, Math.min(28, s.idx)) - 1;
+      const content = s.buf.join("\n").trim();
+      arr[i] = { idx: i+1, title: s.title, content: content || "—" };
+    });
+    return arr;
   }
 
   // ---------- init ----------
@@ -287,7 +342,7 @@
     readLink && window.open(readLink.href, '_blank', 'noopener');
   });
 
-  // Générer => /api/chat (Markdown)
+  // Générer => /api/chat
   generateBtn && generateBtn.addEventListener('click', generateStudy);
 
   // auto-génération si pas de texte saisi
@@ -302,7 +357,7 @@
   // autosave
   noteArea && noteArea.addEventListener('input',()=>{ clearTimeout(autosaveTimer); autosaveTimer=setTimeout(()=>{ notes[current]=noteArea.value; saveStorage(); },2000); });
 
-  // debug footer (adapte les probes pour éviter 500 inutiles)
+  // debug footer (probes)
   btnDbg && btnDbg.addEventListener('click',()=>{
     const open=panel.style.display==='block';
     panel.style.display=open?'none':'block';
@@ -312,9 +367,10 @@
       (async()=>{
         try{ const r1=await fetch('/api/health'); setMini(dotHealth,r1.ok); dlog(`health → ${r1.status}`);}catch{ setMini(dotHealth,false); }
         try{
-          // ping Markdown GET sur un passage court (ne casse rien côté quota)
           const r2=await fetch('/api/chat?q=Gen%C3%A8se%201');
-          setMini(dotChat,r2.ok); dlog(`chat(GET) → ${r2.status}`);
+          const txt = await r2.text();
+          setMini(dotChat,r2.ok);
+          dlog(`chat(GET) → ${r2.status}; head="${(txt||"").slice(0,60).replace(/\s+/g,' ')}"`);
         }catch{ setMini(dotChat,false); }
         try{ const r3=await fetch('/api/ping'); setMini(dotPing,r3.ok); dlog(`ping → ${r3.status}`);}catch{ setMini(dotPing,false); }
       })();
