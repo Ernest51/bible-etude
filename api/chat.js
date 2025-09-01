@@ -1,133 +1,157 @@
-// api/chat.js — Version sans import top-level (évite crash si 'openai' absent)
+// api/chat.js — Gabarit strict synchronisé avec l’UI (28 rubriques)
+// - Titres EXACTS comme dans ta colonne de gauche
+// - Import OpenAI dynamique (pas de crash si absent)
+// - Fallback Markdown propre si pas de clé ou erreur
+// - GET ?q="Genèse 1" ou POST {book,chapter,version}; ?probe=1 pour test
 
+// ---------- Titres EXACTS (UI) ----------
 const TITLES = [
-  "1. Ouverture en prière","2. Contexte historique","3. Contexte littéraire","4. Structure du passage",
-  "5. Analyse exégétique et lexicale","6. Personnages principaux","7. Résumé du chapitre",
-  "8. Thème théologique central","9. Vérité spirituelle principale","10. Verset-clé doctrinal",
-  "11. Verset à mémoriser","12. Références croisées","13. Liens avec le reste de la Bible",
-  "14. Jésus-Christ dans ce passage","15. Questions de réflexion","16. Applications pratiques",
-  "17. Illustration","18. Objections courantes","19. Réponses","20. Promesse de Dieu",
-  "21. Commandement de Dieu","22. Application communautaire","23. Hymne ou chant suggéré",
-  "24. Prière finale","25. Pensée clé du jour","26. Plan de lecture associé",
-  "27. Limites et exceptions","28. Conclusion"
+  "1. Prière d’ouverture",
+  "2. Canon et testament",
+  "3. Questions du chapitre précédent",
+  "4. Titre du chapitre",
+  "5. Contexte historique",
+  "6. Structure littéraire",
+  "7. Genre littéraire",
+  "8. Auteur et généalogie",
+  "9. Verset-clé doctrinal",
+  "10. Analyse exégétique",
+  "11. Analyse lexicale",
+  "12. Références croisées",
+  "13. Fondements théologiques",
+  "14. Thème doctrinal",
+  "15. Fruits spirituels",
+  "16. Types bibliques",
+  "17. Appui doctrinal",
+  "18. Comparaison entre versets",
+  "19. Comparaison avec Actes 2",
+  "20. Verset à mémoriser",
+  "21. Enseignement pour l’Église",
+  "22. Enseignement pour la famille",
+  "23. Enseignement pour enfants",
+  "24. Application missionnaire",
+  "25. Application pastorale",
+  "26. Application personnelle",
+  "27. Versets à retenir",
+  "28. Prière de fin",
 ];
 
+// ---------- Gabarit Markdown ----------
 const TEMPLATE = `# {{BOOK}} {{CHAP}}
 
-1. Ouverture en prière
+1. Prière d’ouverture
 
 {{S1}}
 
-2. Contexte historique
+2. Canon et testament
 
 {{S2}}
 
-3. Contexte littéraire
+3. Questions du chapitre précédent
 
 {{S3}}
 
-4. Structure du passage
+4. Titre du chapitre
 
 {{S4}}
 
-5. Analyse exégétique et lexicale
+5. Contexte historique
 
 {{S5}}
 
-6. Personnages principaux
+6. Structure littéraire
 
 {{S6}}
 
-7. Résumé du chapitre
+7. Genre littéraire
 
 {{S7}}
 
-8. Thème théologique central
+8. Auteur et généalogie
 
 {{S8}}
 
-9. Vérité spirituelle principale
+9. Verset-clé doctrinal
 
 {{S9}}
 
-10. Verset-clé doctrinal
+10. Analyse exégétique
 
-{{S10REF}}
 {{S10}}
 
-11. Verset à mémoriser
+11. Analyse lexicale
 
-{{S11REF}}
 {{S11}}
 
 12. Références croisées
 
 {{S12}}
 
-13. Liens avec le reste de la Bible
+13. Fondements théologiques
 
 {{S13}}
 
-14. Jésus-Christ dans ce passage
+14. Thème doctrinal
 
 {{S14}}
 
-15. Questions de réflexion
+15. Fruits spirituels
 
 {{S15}}
 
-16. Applications pratiques
+16. Types bibliques
 
 {{S16}}
 
-17. Illustration
+17. Appui doctrinal
 
 {{S17}}
 
-18. Objections courantes
+18. Comparaison entre versets
 
 {{S18}}
 
-19. Réponses
+19. Comparaison avec Actes 2
 
 {{S19}}
 
-20. Promesse de Dieu
+20. Verset à mémoriser
 
 {{S20}}
 
-21. Commandement de Dieu
+21. Enseignement pour l’Église
 
 {{S21}}
 
-22. Application communautaire
+22. Enseignement pour la famille
 
 {{S22}}
 
-23. Hymne ou chant suggéré
+23. Enseignement pour enfants
 
 {{S23}}
 
-24. Prière finale
+24. Application missionnaire
 
 {{S24}}
 
-25. Pensée clé du jour
+25. Application pastorale
 
 {{S25}}
 
-26. Plan de lecture associé
+26. Application personnelle
 
 {{S26}}
 
-27. Limites et exceptions
+27. Versets à retenir
 
 {{S27}}
 
-28. Conclusion
+28. Prière de fin
 
 {{S28}}`.trim();
 
+// ---------- Utils ----------
 function parseQ(q) {
   if (!q) return { book: "", chapter: NaN };
   const m = String(q).match(/^(.+?)\s+(\d+)\s*$/);
@@ -160,36 +184,34 @@ function fallbackMarkdown(book, chapter) {
   const link = youVersionLink(book, chapter) || "—";
   const md = TEMPLATE
     .replace("{{BOOK}}", book).replace("{{CHAP}}", String(chapter))
-    .replace("{{S1}}", `Seigneur Tout-Puissant, éclaire ma lecture de ${ref}. Amen.`)
-    .replace("{{S2}}", "Contexte historique synthétique à compléter.")
-    .replace("{{S3}}", "Contexte littéraire (structure, répétitions, genre).")
-    .replace("{{S4}}", "Repère les unités du passage et leurs versets.")
-    .replace("{{S5}}", "Termes clés (hébreu/grec), portée doctrinale.")
-    .replace("{{S6}}", "Dieu, personnages, destinataires.")
-    .replace("{{S7}}", "Résumé bref et fidèle du chapitre.")
-    .replace("{{S8}}", "Idée théologique dominante.")
-    .replace("{{S9}}", "Application identitaire/espérance/adoration.")
-    .replace("{{S10REF}}", `${book} ${chapter}:1`)
-    .replace("{{S10}}", "« … » (LSG)")
-    .replace("{{S11REF}}", `${book} ${chapter}:1`)
-    .replace("{{S11}}", "« … » (LSG)")
-    .replace("{{S12}}", `YouVersion : ${link}`)
-    .replace("{{S13}}", "Fils rouges de la Bible reliés au passage.")
-    .replace("{{S14}}", "Christ comme Parole/Créateur/Rédempteur (selon passage).")
-    .replace("{{S15}}", "Deux ou trois questions concrètes.")
-    .replace("{{S16}}", "Pistes personnelles, familiales, église, mission.")
-    .replace("{{S17}}", "Petite image/analogie mémorable.")
-    .replace("{{S18}}", "Objection fréquente 1 / 2.")
-    .replace("{{S19}}", "Réponse brève, honnête, biblique.")
-    .replace("{{S20}}", "Promesse explicite/implicite du texte.")
-    .replace("{{S21}}", "Commandement/appel du texte.")
-    .replace("{{S22}}", "Action communautaire/écologie biblique/etc.")
-    .replace("{{S23}}", "🎵 Chant/hymne suggéré.")
-    .replace("{{S24}}", "Prière de clôture.")
-    .replace("{{S25}}", "Formule courte mémorisable.")
-    .replace("{{S26}}", "Lecture associée (p.ex. Jean 1).")
-    .replace("{{S27}}", "Ce que le texte ne traite pas (cadre, limites).")
-    .replace("{{S28}}", "Synthèse finale.");
+    .replace("{{S1}}", `Père céleste, éclaire notre lecture de ${ref} par ton Esprit. Amen.`)
+    .replace("{{S2}}", `Le livre de ${book} dans le canon biblique (AT/NT) et sa place théologique.`)
+    .replace("{{S3}}", `(Préparer au moins 5 questions de révision sur le chapitre précédent.)`)
+    .replace("{{S4}}", `Résumé doctrinal synthétique du chapitre (1–3 phrases).`)
+    .replace("{{S5}}", `Période, contexte géopolitique et culturel. Carte si possible.`)
+    .replace("{{S6}}", `Séquençage narratif et composition interne du chapitre.`)
+    .replace("{{S7}}", `Nature du texte (narratif/poétique/prophétique…).`)
+    .replace("{{S8}}", `Auteur probable et liens généalogiques utiles.`)
+    .replace("{{S9}}", `Référence + citation LSG. Ajouter: YouVersion : ${link}`)
+    .replace("{{S10}}", `Commentaire mot-à-mot (mots clés, structures).`)
+    .replace("{{S11}}", `Mots originaux (hébreu/grec), champ sémantique, portée doctrinale.`)
+    .replace("{{S12}}", `Passages parallèles ou complémentaires (3–6).`)
+    .replace("{{S13}}", `Doctrines majeures dégagées du chapitre (création, alliance, etc.).`)
+    .replace("{{S14}}", `Lien avec les 22 grands thèmes doctrinaux (le(s)quel(s) ?).`)
+    .replace("{{S15}}", `Vertus et attitudes à cultiver (gratitude, foi, obéissance…).`)
+    .replace("{{S16}}", `Symboles/Figures typologiques et leur sens.`)
+    .replace("{{S17}}", `Autres textes qui renforcent l’enseignement.`)
+    .replace("{{S18}}", `Comparer des versets du chapitre pour mise en relief.`)
+    .replace("{{S19}}", `Parallèles pertinents avec Actes 2 (Esprit, communauté…).`)
+    .replace("{{S20}}", `Verset à retenir (référence + LSG).`)
+    .replace("{{S21}}", `Implications ecclésiales concrètes.`)
+    .replace("{{S22}}", `Valeurs et pratiques à transmettre en famille.`)
+    .replace("{{S23}}", `Approche adaptée aux enfants (histoires, visuels).`)
+    .replace("{{S24}}", `Application missionnaire (annonce, service, espérance).`)
+    .replace("{{S25}}", `Conseils pour pasteurs/enseignants.`)
+    .replace("{{S26}}", `Examen de conscience et engagements personnels.`)
+    .replace("{{S27}}", `Liste de versets incontournables pour la prédication.`)
+    .replace("{{S28}}", `Prière de reconnaissance et de consécration.`);
   return md;
 }
 
@@ -198,6 +220,7 @@ function ok28(md, book, chapter) {
   return TITLES.every(t => md.includes(t));
 }
 
+// ---------- Handler ----------
 export default async function handler(req, res) {
   try {
     const method = req.method || "GET";
@@ -206,9 +229,7 @@ export default async function handler(req, res) {
       body = await new Promise((resolve) => {
         let b = "";
         req.on("data", (c) => (b += c));
-        req.on("end", () => {
-          try { resolve(JSON.parse(b || "{}")); } catch { resolve({}); }
-        });
+        req.on("end", () => { try { resolve(JSON.parse(b || "{}")); } catch { resolve({}); }});
       });
     }
     const url = new URL(req.url, `http://${req.headers.host}`);
@@ -233,7 +254,7 @@ export default async function handler(req, res) {
       return res.status(200).send(md);
     }
 
-    // Si pas de clé → fallback propre
+    // Pas de clé → fallback propre
     if (!process.env.OPENAI_API_KEY) {
       const md = fallbackMarkdown(b, c);
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
@@ -241,12 +262,11 @@ export default async function handler(req, res) {
       return res.status(200).send(md);
     }
 
-    // Import dynamique d'openai (évite crash si module absent)
+    // Import dynamique d'openai
     let OpenAI;
     try {
       ({ default: OpenAI } = await import("openai"));
-    } catch (e) {
-      // Module non installé → fallback propre
+    } catch {
       const md = fallbackMarkdown(b, c);
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
       res.setHeader("X-Note", "openai module missing, served fallback");
@@ -256,23 +276,20 @@ export default async function handler(req, res) {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const SYSTEM = `
-Tu produis des études bibliques **strictement** en Markdown, 28 rubriques numérotées.
+Tu produis des études bibliques **strictement** en Markdown avec 28 rubriques.
 Contraintes:
 - Utilise EXACTEMENT ces titres et cet ordre: ${TITLES.join(" | ")}.
-- Pas de texte hors canevas.
-- Version biblique: Louis Segond 1910 (LSG).
-- 3–6 phrases par rubrique, style pastoral et précis.
-`.trim();
+- Pas de texte hors canevas, pas d'en-tête ou footer additionnels.
+- Citations bibliques en Louis Segond 1910 (LSG).
+- Style clair, pastoral et rigoureux (3–6 phrases par rubrique).`.trim();
 
     const link = youVersionLink(b, c) || "—";
-
     const USER = `
-Remplis le gabarit suivant pour Livre="${b}", Chapitre="${c}" (LSG).
-Ajoute si pertinent "YouVersion : ${link}" dans la rubrique adéquate.
+Remplis le gabarit pour Livre="${b}", Chapitre="${c}" (LSG).
+Ajoute la ligne "YouVersion : ${link}" dans la rubrique la plus pertinente (9, 12, 20, 27 ou 26).
 
 GABARIT:
-${TEMPLATE}
-`.trim();
+${TEMPLATE}`.trim();
 
     let md = "";
     try {
@@ -304,14 +321,10 @@ ${TEMPLATE}
     res.setHeader("Content-Disposition", `inline; filename="${b}-${c}.md"`);
     return res.status(200).send(md);
   } catch (e) {
-    // Dernier filet: jamais de 500 opaque
     try {
       const url = new URL(req.url, `http://${req.headers.host}`);
-      const q = url.searchParams.get("q") || "";
-      const p = parseQ(q);
-      const b = p.book || "Genèse";
-      const c = p.chapter || 1;
-      const md = fallbackMarkdown(b, c);
+      const p = parseQ(url.searchParams.get("q") || "");
+      const md = fallbackMarkdown(p.book || "Genèse", p.chapter || 1);
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
       res.setHeader("X-Last-Error", String(e?.message || e));
       return res.status(200).send(md);
