@@ -1,10 +1,8 @@
-// api/chat.js — Serverless Node runtime (pas Edge), sans imports, robuste contre timeouts
-// - GET ?q="Genèse 1" ou POST {book, chapter, version}; ?probe=1 pour test
-// - 28 rubriques EXACTEMENT comme l’UI
-// - Appel REST OpenAI (fetch) avec timeout contrôlé; fallback Markdown si lenteur/erreur
-// - Jamais de 500 opaque: renvoie toujours du Markdown utilisable
+// api/chat.js — Serverless Node runtime, génération “style modèle” + 28 rubriques UI strictes
+// - Jamais de 500 : fallback riche si OpenAI indispo/lent
+// - GET ?q="Genèse 1" ou POST { book, chapter, version }, ?probe=1 pour test
 
-// ---------- Titres EXACTS (UI) ----------
+// ---------- Titres EXACTS (doivent rester identiques à l'UI) ----------
 const TITLES = [
   "1. Prière d’ouverture",
   "2. Canon et testament",
@@ -36,7 +34,7 @@ const TITLES = [
   "28. Prière de fin",
 ];
 
-// ---------- Gabarit Markdown ----------
+// ---------- Gabarit Markdown (les titres ci-dessus DOIVENT apparaître tels quels) ----------
 const TEMPLATE = `# {{BOOK}} {{CHAP}}
 
 1. Prière d’ouverture
@@ -152,96 +150,89 @@ const TEMPLATE = `# {{BOOK}} {{CHAP}}
 {{S28}}`.trim();
 
 // ---------- Utils ----------
-function parseQ(q) {
-  if (!q) return { book: "", chapter: NaN };
-  const m = String(q).match(/^(.+?)\s+(\d+)\s*$/);
-  if (m) return { book: m[1].trim(), chapter: Number(m[2]) };
-  return { book: q.trim(), chapter: NaN };
+function parseQ(q){ if(!q) return {book:"",chapter:NaN}; const m=String(q).match(/^(.+?)\s+(\d+)\s*$/); return m?{book:m[1].trim(),chapter:Number(m[2])}:{book:String(q).trim(),chapter:NaN}; }
+
+function youVersionLink(book,chapter){
+  const map={"Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN","Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahoum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL","Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"};
+  const code=map[book]; return code?`https://www.bible.com/fr/bible/93/${code}.${chapter}.LSG`:"";
 }
 
-function youVersionLink(book, chapter) {
-  const map = {
-    "Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU",
-    "Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA",
-    "1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH",
-    "Esdras":"EZR","Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA",
-    "Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des cantiques":"SNG","Ésaïe":"ISA",
-    "Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN",
-    "Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC",
-    "Nahoum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL",
-    "Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM",
-    "1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP",
-    "Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI",
-    "2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS",
-    "1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"
+function ok28(md,book,chapter){ if(!md||!md.startsWith(`# ${book} ${chapter}`)) return false; return TITLES.every(t=>md.includes(t)); }
+
+// ---------- Fallback “riche” proche de ton modèle Genèse 1 ----------
+function fallbackMarkdown(book,chapter){
+  const ref=`${book} ${chapter}`; const link=youVersionLink(book,chapter)||"—";
+  const S={
+    S1:`Seigneur Tout-Puissant, Créateur du ciel et de la terre, éclaire ma lecture. Ouvre mon cœur pour que je voie ta grandeur et que je reçoive la vérité de ta Parole avec humilité et obéissance. Amen.`,
+    S2:`Le livre de ${book} appartient au canon biblique de l’${["Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"].includes(book)?"Nouveau":"Ancien"} Testament.`,
+    S3:`(Préparer au moins 5 questions de révision sur le chapitre précédent : compréhension, application, comparaison, mémorisation.)`,
+    S4:`${book} ${chapter} — titre doctrinal concis (ex.: “Dieu crée et ordonne le monde”).`,
+    S5:`Traditionnellement attribuée à Moïse, la Genèse fonde l’identité d’Israël. ${book} ${chapter} se situe dans le Proche-Orient ancien, face à des cosmogonies païennes. Ici, un seul Dieu, personnel et souverain, crée par sa Parole.`,
+    S6:`Le texte est rythmé par des refrains (“Dieu dit… il y eut un soir, il y eut un matin”) marquant l’ordre et l’intention. Progression logique du chaos à l’habitable.`,
+    S7:`Narratif théologique (prose solennelle).`,
+    S8:`Auteur : Moïse (tradition), rattaché aux patriarches ; contexte de sortie d’Égypte.`,
+    S9:`Genèse ${chapter}:27 — « Dieu créa l’homme à son image… » (LSG).`,
+    S10:`Bara’ (“créer”) réservé à l’action divine ; “tohu-bohu” (v.2) : chaos informe ; “image de Dieu” (tselem Elohim) : dignité et vocation humaines.`,
+    S11:`Mots clés : “tôv” (bon), “raqia” (étendue), “dominer/soumettre” (mandat culturel) — nuance de gérance responsable.`,
+    S12:`Jean 1:1-3 ; Colossiens 1:16 ; Hébreux 11:3. YouVersion : ${link}`,
+    S13:`Dieu unique, Créateur sage ; bonté essentielle de la création ; dignité de l’humain ; mandat culturel ; sabbat comme couronnement.`,
+    S14:`Thème majeur : Dieu ordonne le chaos et confère une vocation à l’humanité.`,
+    S15:`Gratitude, émerveillement, responsabilité, adoration, repos.`,
+    S16:`Jours de la création préfigurant l’ordre, le sabbat comme type d’achèvement.`,
+    S17:`Appui : Psaume 8 ; Psaume 104 ; Apocalypse 4:11.`,
+    S18:`Comparer 1:1, 1:31 et 2:1-3 : ouverture, refrain de bonté, repos.`,
+    S19:`L’Esprit répandu (Ac 2) inaugure une “nouvelle création” en Christ : Parole, lumière, communauté ordonnée.`,
+    S20:`Genèse 1:1 — « Au commencement, Dieu créa les cieux et la terre. »`,
+    S21:`Célébrer Dieu Créateur ; protéger la dignité humaine ; rythmer le temps (travail/repos).`,
+    S22:`Transmettre la bonté de la création ; éduquer à la gérance et au repos.`,
+    S23:`Version enfants : Dieu a tout fait avec amour ; nous sommes précieux ; prenons soin de la terre.`,
+    S24:`Annoncer un Dieu Auteur du sens, non l’absurde ; relier création et Bonne Nouvelle.`,
+    S25:`Accompagner ceux qui doutent de leur valeur ; prêcher une écologie biblique.`,
+    S26:`Examiner : où je méprise la création ou l’image de Dieu ? décisions concrètes cette semaine.`,
+    S27:`Genèse 1:1 ; 1:27 ; 1:28 ; Psaume 8:4-6 ; Jean 1:3.`,
+    S28:`Père Créateur, merci pour la vie et la dignité reçues. Aide-nous à refléter ton image, honorer ta création et reconnaître ton autorité. Amen.`
   };
-  const code = map[book];
-  return code ? `https://www.bible.com/fr/bible/93/${code}.${chapter}.LSG` : "";
+  return TEMPLATE
+    .replace("{{BOOK}}",book).replace("{{CHAP}}",String(chapter))
+    .replace("{{S1}}",S.S1).replace("{{S2}}",S.S2).replace("{{S3}}",S.S3).replace("{{S4}}",S.S4)
+    .replace("{{S5}}",S.S5).replace("{{S6}}",S.S6).replace("{{S7}}",S.S7).replace("{{S8}}",S.S8)
+    .replace("{{S9}}",S.S9).replace("{{S10}}",S.S10).replace("{{S11}}",S.S11).replace("{{S12}}",S.S12)
+    .replace("{{S13}}",S.S13).replace("{{S14}}",S.S14).replace("{{S15}}",S.S15).replace("{{S16}}",S.S16)
+    .replace("{{S17}}",S.S17).replace("{{S18}}",S.S18).replace("{{S19}}",S.S19).replace("{{S20}}",S.S20)
+    .replace("{{S21}}",S.S21).replace("{{S22}}",S.S22).replace("{{S23}}",S.S23).replace("{{S24}}",S.S24)
+    .replace("{{S25}}",S.S25).replace("{{S26}}",S.S26).replace("{{S27}}",S.S27).replace("{{S28}}",S.S28);
 }
 
-function fallbackMarkdown(book, chapter) {
-  const ref = `${book} ${chapter}`;
-  const link = youVersionLink(book, chapter) || "—";
-  const md = TEMPLATE
-    .replace("{{BOOK}}", book).replace("{{CHAP}}", String(chapter))
-    .replace("{{S1}}", `Père céleste, éclaire notre lecture de ${ref} par ton Esprit. Amen.`)
-    .replace("{{S2}}", `Le livre de ${book} dans le canon biblique (AT/NT) et sa place théologique.`)
-    .replace("{{S3}}", `(Préparer au moins 5 questions de révision sur le chapitre précédent.)`)
-    .replace("{{S4}}", `Résumé doctrinal synthétique du chapitre (1–3 phrases).`)
-    .replace("{{S5}}", `Période, contexte géopolitique et culturel. Carte si possible.`)
-    .replace("{{S6}}", `Séquençage narratif et composition interne du chapitre.`)
-    .replace("{{S7}}", `Nature du texte (narratif/poétique/prophétique…).`)
-    .replace("{{S8}}", `Auteur probable et liens généalogiques utiles.`)
-    .replace("{{S9}}", `Référence + citation LSG. Ajouter: YouVersion : ${link}`)
-    .replace("{{S10}}", `Commentaire mot-à-mot (mots clés, structures).`)
-    .replace("{{S11}}", `Mots originaux (hébreu/grec), champ sémantique, portée doctrinale.`)
-    .replace("{{S12}}", `Passages parallèles ou complémentaires (3–6).`)
-    .replace("{{S13}}", `Doctrines majeures dégagées du chapitre.`)
-    .replace("{{S14}}", `Lien avec les 22 grands thèmes doctrinaux.`)
-    .replace("{{S15}}", `Vertus et attitudes à cultiver.`)
-    .replace("{{S16}}", `Symboles/Figures typologiques et leur sens.`)
-    .replace("{{S17}}", `Autres textes qui renforcent l’enseignement.`)
-    .replace("{{S18}}", `Comparer des versets du chapitre pour mise en relief.`)
-    .replace("{{S19}}", `Parallèles avec Actes 2 (Esprit, communauté…).`)
-    .replace("{{S20}}", `Verset à retenir (référence + LSG).`)
-    .replace("{{S21}}", `Implications ecclésiales concrètes.`)
-    .replace("{{S22}}", `Valeurs/pratiques à transmettre en famille.`)
-    .replace("{{S23}}", `Approche enfants (histoires, visuels).`)
-    .replace("{{S24}}", `Application missionnaire (annonce, service).`)
-    .replace("{{S25}}", `Conseils pour pasteurs/enseignants.`)
-    .replace("{{S26}}", `Examen de conscience et engagements personnels.`)
-    .replace("{{S27}}", `Versets incontournables pour la prédication.`)
-    .replace("{{S28}}", `Prière de reconnaissance et de consécration.`);
-  return md;
-}
-
-function ok28(md, book, chapter) {
-  if (!md || !md.startsWith(`# ${book} ${chapter}`)) return false;
-  return TITLES.every(t => md.includes(t));
-}
-
-// Appel OpenAI REST avec timeout (AbortController)
-async function openaiChatMarkdown({ book, chapter, apiKey }) {
+// ---------- Appel OpenAI (REST) avec timeout contrôlé ----------
+async function openaiChatMarkdown({ book, chapter, apiKey, version="LSG" }){
   const SYSTEM = `
-Tu produis des études bibliques **strictement** en Markdown avec 28 rubriques.
-Contraintes:
-- Utilise EXACTEMENT ces titres et cet ordre: ${TITLES.join(" | ")}.
-- Pas de texte hors canevas.
-- Citations bibliques en Louis Segond 1910 (LSG).
-- Style clair, pastoral et rigoureux (3–6 phrases par rubrique).`.trim();
+Tu dois produire une **étude biblique complète** en **Markdown**, exactement **28 rubriques** avec ces titres (dans cet ordre, sans texte hors canevas) :
+${TITLES.join(" | ")}.
+Règles :
+- Style clair et pastoral, 3–6 phrases par rubrique.
+- Quand pertinent, structure la **rubrique 6** (“Structure littéraire”) en listes (p.ex. “Jour 1…7” pour Genèse 1).
+- “10. Analyse exégétique” = observations verset/par mot ; “11. Analyse lexicale” = mots originaux (hébreu/grec) + sens.
+- “9. Verset-clé doctrinal” + “20. Verset à mémoriser” contiennent **référence + citation** (${version}).
+- Tu peux insérer “YouVersion : <url>” en 9/12/20/27 si utile.
+- Pas d’intros ni de conclusions hors des 28 rubriques.`.trim();
 
   const link = youVersionLink(book, chapter) || "—";
   const USER = `
-Remplis le gabarit pour Livre="${book}", Chapitre="${chapter}" (LSG).
-Ajoute la ligne "YouVersion : ${link}" dans la rubrique la plus pertinente.
+Livre="${book}", Chapitre="${chapter}", Version="${version}".
+Respecte **strictement** les titres/ordre ci-dessus et remplis ce gabarit :
 
-GABARIT:
-${TEMPLATE}`.trim();
+${TEMPLATE}
+
+Aide-toi de ce **style-cible** (extrait) pour ${book} ${chapter} :
+- Contexte historique : Genèse donnée à Israël comme fondation ; à contre-courant des cosmogonies païennes ; Dieu crée par sa Parole.
+- Structure littéraire (ex. Genèse 1) : Jour 1…7 avec références.
+- Exégèse/lexique : bara’, tohu-bohu, tselem Elohim, etc.
+`.trim();
 
   const payload = {
     model: "gpt-4o-mini",
-    temperature: 0.3,
-    max_tokens: 1400, // ↓ pour réduire la latence et éviter le timeout
+    temperature: 0.35,
+    max_tokens: 1600,
     messages: [
       { role: "system", content: SYSTEM },
       { role: "user", content: USER }
@@ -249,109 +240,60 @@ ${TEMPLATE}`.trim();
   };
 
   const controller = new AbortController();
-  const abortInMs = 18000; // 18s d'attente max côté serveur
-  const to = setTimeout(() => controller.abort(), abortInMs);
+  const timeout = setTimeout(()=>controller.abort(), 18000); // 18s
 
-  try {
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal
+  try{
+    const r = await fetch("https://api.openai.com/v1/chat/completions",{
+      method:"POST",
+      headers:{ "Authorization":`Bearer ${apiKey}`, "Content-Type":"application/json" },
+      body:JSON.stringify(payload),
+      signal:controller.signal
     });
-
-    const text = await resp.text();
-    if (!resp.ok) {
-      const msg = text.slice(0, 200).replace(/\s+/g, " ");
-      throw new Error(`OpenAI ${resp.status}: ${msg}`);
-    }
-    let data; try { data = JSON.parse(text); } catch { throw new Error("Réponse OpenAI invalide"); }
-    return String(data?.choices?.[0]?.message?.content || "").trim();
-  } finally {
-    clearTimeout(to);
-  }
+    const text = await r.text();
+    if(!r.ok) throw new Error(`OpenAI ${r.status}: ${text.slice(0,200)}`);
+    let data; try{ data=JSON.parse(text); }catch{ throw new Error("Réponse OpenAI invalide"); }
+    return String(data?.choices?.[0]?.message?.content||"").trim();
+  } finally { clearTimeout(timeout); }
 }
 
-export default async function handler(req, res) {
-  try {
-    // Parse body (POST) et query (GET)
-    let body = {};
-    if (req.method === "POST") {
-      body = await new Promise((resolve) => {
-        let b = "";
-        req.on("data", (c) => (b += c));
-        req.on("end", () => { try { resolve(JSON.parse(b || "{}")); } catch { resolve({}); }});
-      });
-    }
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const qp = Object.fromEntries(url.searchParams.entries());
+// ---------- Handler principal ----------
+export default async function handler(req, res){
+  try{
+    // Body + query
+    let body={}; if(req.method==="POST"){ body=await new Promise((resolve)=>{ let b=""; req.on("data",c=>b+=c); req.on("end",()=>{ try{ resolve(JSON.parse(b||"{}")); }catch{ resolve({}); } }); }); }
+    const url=new URL(req.url,`http://${req.headers.host}`), qp=Object.fromEntries(url.searchParams.entries());
+    const probe=qp.probe==="1"||body.probe===true;
 
-    const probe = qp.probe === "1" || body.probe === true;
+    let book=body.book||qp.book, chapter=Number(body.chapter||qp.chapter), version=body.version||qp.version||"LSG";
+    const q=body.q||qp.q; if((!book||!chapter)&&q){ const p=parseQ(q); book=book||p.book; chapter=chapter||p.chapter; }
+    const b=book||"Genèse", c=chapter||1;
 
-    let book = body.book || qp.book;
-    let chapter = Number(body.chapter || qp.chapter);
-    const q = body.q || qp.q;
-    if ((!book || !chapter) && q) {
-      const p = parseQ(q);
-      book = book || p.book;
-      chapter = chapter || p.chapter;
-    }
-    const b = book || "Genèse";
-    const c = chapter || 1;
+    // Probe immédiat
+    if(probe){ const md=fallbackMarkdown(b,c); res.setHeader("Content-Type","text/markdown; charset=utf-8"); return res.status(200).send(md); }
 
-    // Probe immédiat (debug rapide)
-    if (probe) {
-      const md = fallbackMarkdown(b, c);
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      return res.status(200).send(md);
-    }
+    const apiKey=process.env.OPENAI_API_KEY;
+    if(!apiKey){ const md=fallbackMarkdown(b,c); res.setHeader("Content-Type","text/markdown; charset=utf-8"); res.setHeader("Content-Disposition",`inline; filename="${b}-${c}.md"`); return res.status(200).send(md); }
 
-    // Si pas de clé → fallback (pas d’échec)
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      const md = fallbackMarkdown(b, c);
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      res.setHeader("Content-Disposition", `inline; filename="${b}-${c}.md"`);
-      return res.status(200).send(md);
-    }
-
-    // Appel OpenAI (avec timeout)
-    let md;
-    try {
-      md = await openaiChatMarkdown({ book: b, chapter: c, apiKey });
-    } catch (e) {
-      const fb = fallbackMarkdown(b, c);
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      res.setHeader("X-OpenAI-Error", String(e?.message || e));
+    // Appel OpenAI
+    let md; try{
+      md=await openaiChatMarkdown({book:b, chapter:c, apiKey, version});
+    }catch(e){
+      const fb=fallbackMarkdown(b,c);
+      res.setHeader("Content-Type","text/markdown; charset=utf-8");
+      res.setHeader("X-OpenAI-Error",String(e?.message||e));
       return res.status(200).send(fb);
     }
 
-    // Vérif stricte des 28 rubriques
-    if (!ok28(md, b, c)) {
-      const fb = fallbackMarkdown(b, c);
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      res.setHeader("X-Format-Note", "Gabarit partiel: fallback");
-      return res.status(200).send(fb);
-    }
+    // Strict 28
+    if(!ok28(md,b,c)){ const fb=fallbackMarkdown(b,c); res.setHeader("Content-Type","text/markdown; charset=utf-8"); res.setHeader("X-Format-Note","Gabarit partiel: fallback"); return res.status(200).send(fb); }
 
-    res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-    res.setHeader("Content-Disposition", `inline; filename="${b}-${c}.md"`);
+    res.setHeader("Content-Type","text/markdown; charset=utf-8");
+    res.setHeader("Content-Disposition",`inline; filename="${b}-${c}.md"`);
     return res.status(200).send(md);
-  } catch (e) {
-    // Dernier filet: jamais de 500
-    try {
-      const url = new URL(req.url, `http://${req.headers.host}`);
-      const p = parseQ(url.searchParams.get("q") || "");
-      const md = fallbackMarkdown(p.book || "Genèse", p.chapter || 1);
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      res.setHeader("X-Last-Error", String(e?.message || e));
-      return res.status(200).send(md);
-    } catch {
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      return res.status(200).send(fallbackMarkdown("Genèse", 1));
-    }
+  }catch(e){
+    try{
+      const url=new URL(req.url,`http://${req.headers.host}`); const p=parseQ(url.searchParams.get("q")||""); const md=fallbackMarkdown(p.book||"Genèse",p.chapter||1);
+      res.setHeader("Content-Type","text/markdown; charset=utf-8"); res.setHeader("X-Last-Error",String(e?.message||e)); return res.status(200).send(md);
+    }catch{ res.setHeader("Content-Type","text/markdown; charset=utf-8"); return res.status(200).send(fallbackMarkdown("Genèse",1)); }
   }
 }
