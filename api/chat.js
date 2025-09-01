@@ -1,8 +1,9 @@
-// api/chat.js — Version REST (sans dépendance "openai"), zéro import, Node 20 compatible
-// - GET ?q="Genèse 1" ou POST {book, chapter, version}; ?probe=1 pour test
-// - Génère du Markdown 28 rubriques exactement comme l’UI
-// - Utilise fetch() vers l’API OpenAI si OPENAI_API_KEY est présent
-// - Jamais de 500 opaque: toujours une réponse Markdown valide
+// api/chat.js — Edge Runtime, zéro import, robuste (fin des 500)
+// - GET ?q="Genèse 1" ou POST {book, chapter, version}; ?probe=1 pour test rapide
+// - 28 rubriques EXACTEMENT comme l’UI
+// - Appel REST OpenAI si OPENAI_API_KEY, sinon fallback propre (jamais de 500)
+
+export const config = { runtime: "edge" }; // ← Edge Runtime
 
 // ---------- Titres EXACTS (UI) ----------
 const TITLES = [
@@ -220,16 +221,14 @@ function ok28(md, book, chapter) {
   return TITLES.every(t => md.includes(t));
 }
 
-// ---------- OpenAI REST helper ----------
-async function openaiChatMarkdown({ book, chapter }) {
+async function openaiChatMarkdown({ book, chapter, apiKey }) {
   const SYSTEM = `
 Tu produis des études bibliques **strictement** en Markdown avec 28 rubriques.
 Contraintes:
 - Utilise EXACTEMENT ces titres et cet ordre: ${TITLES.join(" | ")}.
-- Pas de texte hors canevas, pas d'en-tête/footers annexes.
+- Pas de texte hors canevas.
 - Citations bibliques en Louis Segond 1910 (LSG).
-- Style clair, pastoral et rigoureux (3–6 phrases par rubrique).
-`.trim();
+- Style clair, pastoral et rigoureux (3–6 phrases par rubrique).`.trim();
 
   const link = youVersionLink(book, chapter) || "—";
   const USER = `
@@ -237,11 +236,8 @@ Remplis le gabarit pour Livre="${book}", Chapitre="${chapter}" (LSG).
 Ajoute la ligne "YouVersion : ${link}" dans la rubrique la plus pertinente.
 
 GABARIT:
-${TEMPLATE}
-`.trim();
+${TEMPLATE}`.trim();
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  const url = "https://api.openai.com/v1/chat/completions";
   const payload = {
     model: "gpt-4o-mini",
     temperature: 0.4,
@@ -252,7 +248,7 @@ ${TEMPLATE}
     ]
   };
 
-  const resp = await fetch(url, {
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
@@ -262,38 +258,26 @@ ${TEMPLATE}
   });
 
   const text = await resp.text();
-  if (!resp.ok) {
-    // On renvoie l'erreur pour basculer en fallback propre
-    const msg = text.slice(0, 300).replace(/\s+/g, " ");
-    throw new Error(`OpenAI HTTP ${resp.status}: ${msg}`);
-  }
-
-  let data;
-  try { data = JSON.parse(text); } catch { throw new Error("Réponse OpenAI invalide"); }
-  const content = data?.choices?.[0]?.message?.content || "";
-  return String(content).trim();
+  if (!resp.ok) throw new Error(`OpenAI ${resp.status} ${text.slice(0,200)}`);
+  let data; try { data = JSON.parse(text); } catch { throw new Error("Réponse OpenAI invalide"); }
+  return String(data?.choices?.[0]?.message?.content || "").trim();
 }
 
-// ---------- Handler ----------
-export default async function handler(req, res) {
+export default async function handler(req) {
   try {
+    const { searchParams } = new URL(req.url);
     const method = req.method || "GET";
+
     let body = {};
     if (method === "POST") {
-      body = await new Promise((resolve) => {
-        let b = "";
-        req.on("data", (c) => (b += c));
-        req.on("end", () => { try { resolve(JSON.parse(b || "{}")); } catch { resolve({}); }});
-      });
+      try { body = await req.json(); } catch { body = {}; }
     }
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const qp = Object.fromEntries(url.searchParams.entries());
 
-    const probe = qp.probe === "1" || body.probe === true;
+    const probe = searchParams.get("probe") === "1" || body.probe === true;
 
-    let book = body.book || qp.book;
-    let chapter = Number(body.chapter || qp.chapter);
-    const q = body.q || qp.q;
+    let book = body.book || searchParams.get("book");
+    let chapter = Number(body.chapter || searchParams.get("chapter"));
+    const q = body.q || searchParams.get("q");
     if ((!book || !chapter) && q) {
       const p = parseQ(q);
       book = book || p.book;
@@ -302,55 +286,77 @@ export default async function handler(req, res) {
     const b = book || "Genèse";
     const c = chapter || 1;
 
-    // Probe: réponse immédiate
     if (probe) {
       const md = fallbackMarkdown(b, c);
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      return res.status(200).send(md);
+      return new Response(md, {
+        status: 200,
+        headers: { "Content-Type": "text/markdown; charset=utf-8" }
+      });
     }
 
-    // Si pas de clé → fallback propre (aucun crash)
-    if (!process.env.OPENAI_API_KEY) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
       const md = fallbackMarkdown(b, c);
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      res.setHeader("Content-Disposition", `inline; filename="${b}-${c}.md"`);
-      return res.status(200).send(md);
+      return new Response(md, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/markdown; charset=utf-8",
+          "Content-Disposition": `inline; filename="${b}-${c}.md"`
+        }
+      });
     }
 
-    // Appel REST OpenAI
-    let md = "";
+    // Appel OpenAI REST
+    let md;
     try {
-      md = await openaiChatMarkdown({ book: b, chapter: c });
+      md = await openaiChatMarkdown({ book: b, chapter: c, apiKey });
     } catch (e) {
       const fb = fallbackMarkdown(b, c);
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      res.setHeader("X-OpenAI-Error", String(e?.message || e));
-      return res.status(200).send(fb);
+      return new Response(fb, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/markdown; charset=utf-8",
+          "X-OpenAI-Error": String(e?.message || e)
+        }
+      });
     }
 
-    // Vérif stricte 28 rubriques
     if (!ok28(md, b, c)) {
       const fb = fallbackMarkdown(b, c);
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      res.setHeader("X-Format-Note", "Gabarit partiel: fallback");
-      return res.status(200).send(fb);
+      return new Response(fb, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/markdown; charset=utf-8",
+          "X-Format-Note": "Gabarit partiel: fallback"
+        }
+      });
     }
 
-    res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-    res.setHeader("Content-Disposition", `inline; filename="${b}-${c}.md"`);
-    return res.status(200).send(md);
+    return new Response(md, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/markdown; charset=utf-8",
+        "Content-Disposition": `inline; filename="${b}-${c}.md"`
+      }
+    });
   } catch (e) {
-    // Dernier filet: toujours renvoyer quelque chose d’utilisable
+    // Dernier filet: jamais de 500
     try {
-      const url = new URL(req.url, `http://${req.headers.host}`);
-      const p = parseQ(url.searchParams.get("q") || "");
+      const { searchParams } = new URL(req.url);
+      const p = parseQ(searchParams.get("q") || "");
       const md = fallbackMarkdown(p.book || "Genèse", p.chapter || 1);
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      res.setHeader("X-Last-Error", String(e?.message || e));
-      return res.status(200).send(md);
+      return new Response(md, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/markdown; charset=utf-8",
+          "X-Last-Error": String(e?.message || e)
+        }
+      });
     } catch {
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      return res.status(200).send(fallbackMarkdown("Genèse", 1));
+      return new Response(fallbackMarkdown("Genèse", 1), {
+        status: 200,
+        headers: { "Content-Type": "text/markdown; charset=utf-8" }
+      });
     }
   }
 }
