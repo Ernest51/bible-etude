@@ -1,28 +1,48 @@
-// public/app.js — FRONT-ONLY (no imports / drop-in)
-// Version robuste : binding du bouton Générer + traces réseau + 28 rubriques garanties
-
+// public/app.js — FRONT COMPLET (28 rubriques, JSON ou Markdown)
 (function () {
-  // ---------- utils / ui ----------
+  // ---------- helpers UI ----------
   const $ = (id) => document.getElementById(id);
   const progressBar = $("progressBar");
-  const setProgress = (p) =>
-    progressBar && (progressBar.style.width = Math.max(0, Math.min(100, p)) + "%");
-  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-  const fakePrep = async () => {
-    setProgress(15);
-    await wait(120);
-    setProgress(55);
-    await wait(120);
-    setProgress(100);
-    setTimeout(() => setProgress(0), 260);
+
+  const setProgress = (p) => {
+    if (!progressBar) return;
+    progressBar.style.width = Math.max(0, Math.min(100, p)) + "%";
   };
 
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const busy = (el, on) => {
+    if (!el) return;
+    el.disabled = !!on;
+    el.classList.toggle("opacity-60", !!on);
+    el.textContent = on ? "Génération..." : el.dataset.label || el.textContent;
+  };
+
+  const dpanel = $("debugPanel");
+  const dbtn = $("debugBtn");
+  const dlog = (msg) => {
+    if (!dpanel) return;
+    dpanel.style.display = "block";
+    dbtn && (dbtn.textContent = "Fermer Debug");
+    const line = `[${new Date().toISOString()}] ${msg}`;
+    dpanel.textContent += (dpanel.textContent ? "\n" : "") + line;
+    console.log(line);
+  };
+
+  const setMini = (dot, ok) => {
+    if (!dot) return;
+    dot.classList.remove("ok", "ko");
+    if (ok === true) dot.classList.add("ok");
+    else if (ok === false) dot.classList.add("ko");
+  };
+
+  // ---------- sélecteurs ----------
   const searchRef = $("searchRef"),
     bookSelect = $("bookSelect"),
     chapterSelect = $("chapterSelect"),
     verseSelect = $("verseSelect"),
     versionSelect = $("versionSelect"),
     validateBtn = $("validate"),
+    generateBtn = $("generateBtn"),
     readLink = $("readLink"),
     lastStudy = $("lastStudy"),
     pointsList = $("pointsList"),
@@ -31,29 +51,13 @@
     prevBtn = $("prev"),
     nextBtn = $("next"),
     metaInfo = $("metaInfo"),
-    btnDbg = $("debugBtn"),
-    panel = $("debugPanel"),
     dotHealth = $("dot-health"),
     dotChat = $("dot-chat"),
     dotPing = $("dot-ping");
 
   $("y") && ($("y").textContent = new Date().getFullYear());
-  const setMini = (dot, ok) => {
-    if (!dot) return;
-    dot.classList.remove("ok", "ko");
-    if (ok === true) dot.classList.add("ok");
-    else if (ok === false) dot.classList.add("ko");
-  };
-  const dlog = (msg) => {
-    if (!panel) return;
-    panel.style.display = "block";
-    if (btnDbg) btnDbg.textContent = "Fermer Debug";
-    const line = "[" + new Date().toISOString() + "] " + msg;
-    panel.textContent += (panel.textContent ? "\n" : "") + line;
-    console.log(line);
-  };
 
-  // ---------- livres ----------
+  // ---------- livres / chapitres ----------
   const BOOKS = [
     ["Genèse", 50], ["Exode", 40], ["Lévitique", 27], ["Nombres", 36], ["Deutéronome", 34],
     ["Josué", 24], ["Juges", 21], ["Ruth", 4], ["1 Samuel", 31], ["2 Samuel", 24],
@@ -86,9 +90,7 @@
   function renderChapters() {
     if (!chapterSelect || !bookSelect) return;
     chapterSelect.innerHTML = "";
-    const ch = bookSelect.selectedOptions[0]
-      ? +bookSelect.selectedOptions[0].dataset.ch
-      : 1;
+    const ch = bookSelect.selectedOptions[0] ? +bookSelect.selectedOptions[0].dataset.ch : 1;
     for (let i = 1; i <= ch; i++) {
       const o = document.createElement("option");
       o.value = String(i);
@@ -108,15 +110,10 @@
     }
   }
   function updateReadLink() {
-    if (!readLink || !bookSelect || !chapterSelect || !verseSelect || !versionSelect)
-      return;
+    if (!readLink || !bookSelect || !chapterSelect || !verseSelect || !versionSelect) return;
     const ref = `${bookSelect.value} ${chapterSelect.value}:${verseSelect.value}`;
     const ver = versionSelect.value;
-    readLink.href =
-      "https://www.biblegateway.com/passage/?search=" +
-      encodeURIComponent(ref) +
-      "&version=" +
-      encodeURIComponent(ver);
+    readLink.href = "https://www.biblegateway.com/passage/?search=" + encodeURIComponent(ref) + "&version=" + encodeURIComponent(ver);
   }
 
   // ---------- rubriques fixes ----------
@@ -153,11 +150,7 @@
   const N = FIXED_POINTS.length;
 
   // ---------- état ----------
-  let current = 0,
-    notes = {},
-    autosaveTimer = null,
-    autoTimer = null,
-    inFlight = false;
+  let current = 0, notes = {}, autosaveTimer = null, autoTimer = null, inFlight = false;
 
   function renderSidebar() {
     if (!pointsList) return;
@@ -166,19 +159,17 @@
       const row = document.createElement("div");
       row.className = "item" + (i === current ? " active" : "");
       row.dataset.idx = i;
-      row.innerHTML = `<span class="idx">${i + 1}</span>
-      <div><div>${r.t}</div><span class="desc">${r.d || ""}</span></div>
-      <span class="dot ${notes[i] && notes[i].trim() ? "ok" : ""}"></span>`;
-      row.addEventListener("click", () => {
-        if (current !== i) select(i);
-      });
+      row.innerHTML = `
+        <span class="idx">${i + 1}</span>
+        <div><div>${r.t}</div><span class="desc">${r.d || ""}</span></div>
+        <span class="dot ${notes[i] && notes[i].trim() ? "ok" : ""}"></span>`;
+      row.addEventListener("click", () => { if (current !== i) select(i); });
       pointsList.appendChild(row);
     });
   }
   function renderSidebarDots() {
     document.querySelectorAll(".list .item").forEach((el) => {
-      const i = +el.dataset.idx,
-        dot = el.querySelector(".dot");
+      const i = +el.dataset.idx, dot = el.querySelector(".dot");
       if (!dot) return;
       if (notes[i] && notes[i].trim()) dot.classList.add("ok");
       else dot.classList.remove("ok");
@@ -188,9 +179,7 @@
     if (noteArea) notes[current] = noteArea.value;
     saveStorage();
     current = i;
-    document
-      .querySelectorAll(".list .item")
-      .forEach((el) => el.classList.toggle("active", +el.dataset.idx === current));
+    document.querySelectorAll(".list .item").forEach((el) => el.classList.toggle("active", +el.dataset.idx === current));
     if (edTitle) edTitle.textContent = `${i + 1}. ${FIXED_POINTS[i].t}`;
     if (noteArea) noteArea.value = notes[i] || "";
     if (metaInfo) metaInfo.textContent = `Point ${i + 1} / ${N}`;
@@ -200,18 +189,15 @@
     try {
       localStorage.setItem("be_notes", JSON.stringify(notes));
       renderSidebarDots();
-    } catch {}
+    } catch { }
   }
 
-  // ---------- saisie / sélection ----------
-  const norm = (s) =>
-    String(s || "")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9: ]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+  // ---------- parse saisie ----------
+  const norm = (s) => String(s || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9: ]+/g, " ")
+    .replace(/\s+/g, " ").trim();
+
   function parseSearch(q) {
     q = (q || "").trim();
     const m = q.match(/^([\d]?\s*[A-Za-zÀ-ÿ'’\.\s]+)\s+(\d+)(?::(\d+))?/);
@@ -219,10 +205,7 @@
     const title = norm(m[1]);
     let book = null;
     for (const [name] of BOOKS) {
-      if (norm(name) === title) {
-        book = name;
-        break;
-      }
+      if (norm(name) === title) { book = name; break; }
     }
     if (!book) {
       const cand = BOOKS.find(([name]) => norm(name).startsWith(title));
@@ -236,9 +219,7 @@
     const idx = BOOKS.findIndex(([n]) => n === sel.book);
     if (idx >= 0) bookSelect.selectedIndex = idx;
     renderChapters();
-    const chMax = bookSelect.selectedOptions[0]
-      ? +bookSelect.selectedOptions[0].dataset.ch
-      : 1;
+    const chMax = bookSelect.selectedOptions[0] ? +bookSelect.selectedOptions[0].dataset.ch : 1;
     const chap = Math.max(1, Math.min(chMax, sel.chap || 1));
     if (chapterSelect) chapterSelect.value = String(chap);
     renderVerses(sel.book === "Psaumes" ? 200 : 60);
@@ -246,62 +227,19 @@
     updateReadLink();
   }
   function buildReference() {
-    const typed = (searchRef && searchRef.value) || "";
-    if (typed.trim()) return typed.trim();
+    const typed = (searchRef && searchRef.value || "").trim();
+    if (typed) return typed;
     if (!bookSelect || !chapterSelect) return "";
-    const b = bookSelect.value,
-      c = chapterSelect.value;
+    const b = bookSelect.value, c = chapterSelect.value;
     return c ? `${b} ${c}` : b;
   }
 
   // ---------- cache navigateur ----------
-  function cacheKey(ref, ver) {
-    return `be_cache:${ref}::${ver || "LSG"}`;
-  }
-  function loadCache(ref, ver) {
-    try {
-      return JSON.parse(localStorage.getItem(cacheKey(ref, ver)) || "null");
-    } catch {
-      return null;
-    }
-  }
-  function saveCache(ref, ver, data) {
-    try {
-      localStorage.setItem(
-        cacheKey(ref, ver),
-        JSON.stringify({ at: Date.now(), data })
-      );
-    } catch {}
-  }
+  const cacheKey = (ref, ver) => `be_cache:${ref}::${ver || "LSG"}`;
+  const loadCache = (ref, ver) => { try { return JSON.parse(localStorage.getItem(cacheKey(ref, ver)) || "null"); } catch { return null; } };
+  const saveCache = (ref, ver, data) => { try { localStorage.setItem(cacheKey(ref, ver), JSON.stringify({ at: Date.now(), data })); } catch { } };
 
-  async function getStudy(ref) {
-    const ver = versionSelect ? versionSelect.value : "LSG";
-    const cached = loadCache(ref, ver);
-    if (cached?.data) return { from: "local", data: cached.data };
-
-    const url = `/api/chat?q=${encodeURIComponent(ref)}&templateId=v28-standard`;
-    console.log("[GEN] Appel API →", url);
-
-    const r = await fetch(url, { method: "GET" });
-    const bodyText = await r.text();
-    console.log("[GEN] HTTP", r.status, "extrait:", bodyText.slice(0, 200));
-    let j = {};
-    try {
-      j = JSON.parse(bodyText);
-    } catch {
-      // l’API renvoie parfois du Markdown : on enveloppe
-      j = { ok: r.ok, data: { reference: ref, sections: [] }, raw: bodyText };
-    }
-
-    if (!r.ok || !j?.ok) {
-      // si l’API a renvoyé du MD simple, on le garde brut pour fallback texte
-      throw new Error(j?.error || `HTTP ${r.status}`);
-    }
-    saveCache(ref, ver, j.data);
-    return { from: "api", data: j.data };
-  }
-
-  // ---------- post-traitements sûrs ----------
+  // ---------- garde-fous ----------
   function defaultPrayerOpen(reference) {
     return `Père céleste, nous venons devant toi pour lire ${reference}. Ouvre nos cœurs par ton Saint-Esprit, éclaire notre intelligence et conduis-nous dans la vérité. Au nom de Jésus, amen.`;
   }
@@ -310,246 +248,209 @@
   }
   function ensureKeyVerse(body, reference) {
     const txt = String(body || "");
-    const hasRef =
-      /\b\d+:\d+\b/.test(txt) || /[A-Za-zÀ-ÿ]+\s+\d+:\d+/.test(txt);
+    const hasRef = /\b\d+:\d+\b/.test(txt) || /[A-Za-zÀ-ÿ]+\s+\d+:\d+/.test(txt);
     if (hasRef) return txt;
     const ref = reference || buildReference();
     const chap = (ref.match(/\b(\d+)\b/) || [])[1] || "1";
     return `Verset-clé proposé : ${ref.split(" ")[0]} ${chap}:1 — ${txt}`.trim();
   }
 
+  // ---------- fetch /api/chat ----------
+  async function getStudy(ref) {
+    const ver = versionSelect ? versionSelect.value : "LSG";
+    const cached = loadCache(ref, ver);
+    if (cached?.data) return { from: "local", data: cached.data };
+
+    const url = `/api/chat?q=${encodeURIComponent(ref)}`;
+    const r = await fetch(url, { method: "GET" });
+    const ct = r.headers.get("Content-Type") || "";
+    if (!r.ok) {
+      const txt = await r.text().catch(() => "");
+      throw new Error(txt || `HTTP ${r.status}`);
+    }
+
+    // 1) JSON { ok, data:{ sections:[{id,title,content}...] } }
+    if (/application\/json/i.test(ct)) {
+      const j = await r.json().catch(() => ({}));
+      if (!j || (j.ok === false)) throw new Error(j?.error || "Réponse JSON invalide");
+      saveCache(ref, ver, j.data);
+      return { from: "api", data: j.data };
+    }
+
+    // 2) Markdown => on parse en 28 sections
+    const text = await r.text();
+    const sections = parseMarkdownToSections(text);
+    const data = { reference: ref, sections };
+    saveCache(ref, ver, data);
+    return { from: "api-md", data };
+  }
+
+  // ---------- parser Markdown (titres numérotés) ----------
+  function parseMarkdownToSections(md) {
+    const result = [];
+    if (!md || typeof md !== "string") return result;
+
+    // On cherche les lignes commençant par "1."..."28."
+    const lines = md.split(/\r?\n/);
+    let cur = null;
+    const startRe = /^(\d{1,2})\.\s+/;
+
+    for (const line of lines) {
+      const m = line.match(startRe);
+      if (m) {
+        const id = parseInt(m[1], 10);
+        if (id >= 1 && id <= 28) {
+          if (cur) result.push(cur);
+          cur = { id, title: line.replace(startRe, "").trim(), content: "" };
+          continue;
+        }
+      }
+      if (cur) {
+        cur.content += (cur.content ? "\n" : "") + line;
+      }
+    }
+    if (cur) result.push(cur);
+
+    // Si on n'a pas trouvé 28, on tente un autre découpage (titres "##" ou "###")
+    if (result.length < 10) {
+      const mdBlocks = md.split(/\n(?=\d{1,2}\.\s)/g);
+      const alt = [];
+      mdBlocks.forEach((blk) => {
+        const m2 = blk.match(/^(\d{1,2})\.\s+(.*?)(?:\n|$)/);
+        if (m2) {
+          const id = +m2[1];
+          let body = blk.slice(m2[0].length);
+          alt.push({ id, title: m2[2].trim(), content: body.trim() });
+        }
+      });
+      if (alt.length) return alt;
+    }
+
+    return result;
+  }
+
   // ---------- génération ----------
   async function generateStudy() {
     if (inFlight) return;
+    const ref = buildReference();
+    if (!ref) { alert("Choisis un Livre + Chapitre (ou saisis une référence ex: Marc 5:1-20)"); return; }
+
     inFlight = true;
+    const btn = generateBtn;
+    btn && (btn.dataset.label = btn.dataset.label || btn.textContent);
+    busy(btn, true);
     try {
-      const ref = buildReference();
-      if (!ref) {
-        alert(
-          "Choisis un Livre + Chapitre (ou saisis une référence ex: Marc 5:1-20)"
-        );
-        return;
-      }
-      await fakePrep();
+      setProgress(15); await wait(80);
+      setProgress(55);
 
       const { data } = await getStudy(ref);
-
-      // sections (serveur) -> notes locales
+      // data.sections attendu : [{id,title,content}, ...]
       notes = {};
       const secs = Array.isArray(data.sections) ? data.sections : [];
       secs.forEach((s) => {
         const i = (s.id | 0) - 1;
-        if (i >= 0 && i < N) {
-          notes[i] = String(s.content || "").trim();
-        }
+        if (i >= 0 && i < N) notes[i] = String(s.content || "").trim();
       });
 
-      // Garde-fous : toujours 28 points ;
-      // 1: prière d'ouverture
+      // Garde-fous
       notes[0] = defaultPrayerOpen(data.reference || ref);
-      // 2: canon & testament si vide
       if (!notes[1]) {
         const idx = bookSelect ? bookSelect.selectedIndex : 0;
         const testament = idx < NT_START_INDEX ? "Ancien Testament" : "Nouveau Testament";
         notes[1] = `Le livre de ${bookSelect ? bookSelect.value : "—"} appartient à l’${testament}.`;
       }
-      // 3: questions
       if (!notes[2]) {
-        notes[2] =
-          "À compléter par l’animateur : préparer au moins 5 questions de révision sur le chapitre précédent (comprendre, appliquer, comparer, retenir).";
+        notes[2] = "À compléter par l’animateur : préparer au moins 5 questions de révision sur le chapitre précédent (comprendre, appliquer, comparer, retenir).";
       }
-      // 9: verset-clé — garanti
       notes[8] = ensureKeyVerse(notes[8], data.reference || ref);
-      // 28: prière de fin — garanti
       notes[27] = defaultPrayerClose(data.reference || ref);
 
       dlog(`[GEN] sections=${secs.length}, filled=${Object.keys(notes).length}`);
 
-      // mémoire “dernier”
+      // Mémoire “dernier”
       try {
-        const book = bookSelect?.value,
-          chap = chapterSelect?.value,
-          vers = verseSelect?.value,
-          ver = versionSelect?.value;
-        lastStudy &&
-          (lastStudy.textContent = `Dernier : ${data.reference || `${book} ${chap}`} (${ver})`);
-        localStorage.setItem(
-          "be_last",
-          JSON.stringify({ book, chapter: chap, verse: vers, version: ver })
-        );
-      } catch {}
+        const book = bookSelect?.value, chap = chapterSelect?.value, vers = verseSelect?.value, ver = versionSelect?.value;
+        lastStudy && (lastStudy.textContent = `Dernier : ${data.reference || `${book} ${chap}`} (${ver})`);
+        localStorage.setItem("be_last", JSON.stringify({ book, chapter: chap, verse: vers, version: ver }));
+      } catch { }
 
-      renderSidebar();
-      select(0);
+      renderSidebar(); select(0);
+      setProgress(100); setTimeout(() => setProgress(0), 300);
+      dlog("[GEN] OK → étude générée");
     } catch (e) {
       console.error(e);
       alert(String((e && e.message) || e));
     } finally {
+      busy(btn, false);
       inFlight = false;
     }
   }
 
   // ---------- init ----------
-  renderBooks();
-  renderChapters();
-  renderVerses();
-  updateReadLink();
-  renderSidebar();
-  select(0);
+  renderBooks(); renderChapters(); renderVerses(); updateReadLink();
+  renderSidebar(); select(0);
 
   // recherche intelligente
   if (searchRef) {
     searchRef.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         const sel = parseSearch(searchRef.value);
-        if (sel) {
-          applySelection(sel);
-          autoGenerate();
-        }
+        if (sel) { applySelection(sel); autoGenerate(); }
       }
     });
     searchRef.addEventListener("blur", () => {
       const sel = parseSearch(searchRef.value);
-      if (sel) {
-        applySelection(sel);
-        autoGenerate();
-      }
+      if (sel) { applySelection(sel); autoGenerate(); }
     });
   }
 
-  // Valider => BibleGateway
-  validateBtn &&
-    validateBtn.addEventListener("click", () => {
-      updateReadLink();
-      try {
-        const book = bookSelect?.value,
-          chap = chapterSelect?.value,
-          vers = verseSelect?.value,
-          ver = versionSelect?.value;
-        localStorage.setItem(
-          "be_last",
-          JSON.stringify({ book, chapter: chap, verse: vers, version: ver })
-        );
-        lastStudy &&
-          (lastStudy.textContent = `Dernier : ${book} ${chap || 1} (${ver})`);
-      } catch {}
-      readLink && window.open(readLink.href, "_blank", "noopener");
-    });
+  // Valider => BibleGateway + mémoire rapide
+  validateBtn && validateBtn.addEventListener("click", () => {
+    updateReadLink();
+    try {
+      const book = bookSelect?.value, chap = chapterSelect?.value, vers = verseSelect?.value, ver = versionSelect?.value;
+      localStorage.setItem("be_last", JSON.stringify({ book, chapter: chap, verse: vers, version: ver }));
+      lastStudy && (lastStudy.textContent = `Dernier : ${book} ${chap || 1} (${ver})`);
+    } catch { }
+    readLink && window.open(readLink.href, "_blank", "noopener");
+  });
 
-  // ---------- binding ROBUSTE du bouton Générer ----------
-  function bindGenerate() {
-    const candidates = [
-      document.getElementById("generateBtn"),
-      document.getElementById("generate"),
-      document.querySelector('button#generateBtn'),
-      document.querySelector('button#generate'),
-      document.querySelector('button[data-role="generate"]'),
-      document.querySelector('button.btn-generate'),
-    ].filter(Boolean);
-
-    if (candidates.length === 0) {
-      console.warn(
-        '[GEN] Aucun bouton "Générer" trouvé. Donne-lui id="generateBtn" ou data-role="generate".'
-      );
-      return;
-    }
-
-    const onClick = async (e) => {
-      e.preventDefault();
-      console.log("[GEN] click → démarrage generateStudy()");
-      try {
-        await generateStudy();
-        console.log("[GEN] OK → étude générée");
-      } catch (err) {
-        console.error("[GEN] ERREUR generateStudy():", err);
-        alert("La génération a échoué : " + (err?.message || err));
-      }
-    };
-
-    candidates.forEach((btn) => {
-      if (!btn.__genBound) {
-        btn.addEventListener("click", onClick);
-        btn.__genBound = true;
-      }
-    });
-    console.log(`[GEN] Bouton(s) Générer lié(s) : ${candidates.length}`);
-  }
-  bindGenerate();
+  // Générer => /api/chat
+  generateBtn && generateBtn.addEventListener("click", generateStudy);
 
   // auto-génération si pas de texte saisi
   function autoGenerate() {
     clearTimeout(autoTimer);
     autoTimer = setTimeout(() => {
-      if (
-        bookSelect?.value &&
-        chapterSelect?.value &&
-        !(searchRef?.value || "").trim()
-      )
-        generateStudy();
-    }, 300);
+      if (bookSelect?.value && chapterSelect?.value && !(searchRef?.value || "").trim()) generateStudy();
+    }, 250);
   }
-  bookSelect &&
-    bookSelect.addEventListener("change", () => {
-      renderChapters();
-      renderVerses(bookSelect.value === "Psaumes" ? 200 : 60);
-      updateReadLink();
-      autoGenerate();
-    });
-  chapterSelect &&
-    chapterSelect.addEventListener("change", () => {
-      updateReadLink();
-      autoGenerate();
-    });
-  verseSelect &&
-    verseSelect.addEventListener("change", () => {
-      updateReadLink();
-    });
+  bookSelect && bookSelect.addEventListener("change", () => { renderChapters(); renderVerses(bookSelect.value === "Psaumes" ? 200 : 60); updateReadLink(); autoGenerate(); });
+  chapterSelect && chapterSelect.addEventListener("change", () => { updateReadLink(); autoGenerate(); });
+  verseSelect && verseSelect.addEventListener("change", () => { updateReadLink(); });
 
   // autosave
-  noteArea &&
-    noteArea.addEventListener("input", () => {
-      clearTimeout(autosaveTimer);
-      autosaveTimer = setTimeout(() => {
-        notes[current] = noteArea.value;
-        saveStorage();
-      }, 2000);
-    });
+  noteArea && noteArea.addEventListener("input", () => {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(() => { notes[current] = noteArea.value; saveStorage(); }, 700);
+  });
 
-  // debug footer
-  btnDbg &&
-    btnDbg.addEventListener("click", () => {
-      const open = panel.style.display === "block";
-      panel.style.display = open ? "none" : "block";
-      btnDbg.textContent = open ? "Debug" : "Fermer Debug";
-      if (!open) {
-        panel.textContent = "[Debug démarré…]";
-        (async () => {
-          try {
-            const r1 = await fetch("/api/health");
-            setMini(dotHealth, r1.ok);
-            dlog(`health → ${r1.status}`);
-          } catch {
-            setMini(dotHealth, false);
-          }
-          try {
-            const r2 = await fetch("/api/chat", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ probe: true }),
-            });
-            setMini(dotChat, r2.ok);
-            dlog(`chat(POST) → ${r2.status}`);
-          } catch {
-            setMini(dotChat, false);
-          }
-          try {
-            const r3 = await fetch("/api/ping");
-            setMini(dotPing, r3.ok);
-            dlog(`ping → ${r3.status}`);
-          } catch {
-            setMini(dotPing, false);
-          }
-        })();
-      }
-    });
+  // navigation simple
+  prevBtn && prevBtn.addEventListener("click", () => { if (current > 0) select(current - 1); });
+  nextBtn && nextBtn.addEventListener("click", () => { if (current < N - 1) select(current + 1); });
+
+  // bouton debug (optionnel)
+  dbtn && dbtn.addEventListener("click", () => {
+    const open = dpanel.style.display === "block";
+    dpanel.style.display = open ? "none" : "block";
+    dbtn.textContent = open ? "Debug" : "Fermer Debug";
+    if (!open) {
+      dpanel.textContent = "[Debug démarré…]";
+      (async () => {
+        try { const r1 = await fetch("/api/health"); setMini(dotHealth, r1.ok); dlog(`health → ${r1.status}`); } catch { setMini(dotHealth, false); }
+        try { const r2 = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ probe: true }) }); setMini(dotChat, r2.ok); dlog(`chat(POST) → ${r2.status}`); } catch { setMini(dotChat, false); }
+        try { const r3 = await fetch("/api/ping"); setMini(dotPing, r3.ok); dlog(`ping → ${r3.status}`); } catch { setMini(dotPing, false); }
+      })();
+    }
+  });
 })();
