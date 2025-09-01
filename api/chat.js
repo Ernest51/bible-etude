@@ -1,4 +1,14 @@
-// api/chat.js — 28 rubriques JSON -> Markdown + fallback riche + diagnostic
+// /api/chat.js — Version robuste (toujours un 200 avec fallback au pire)
+
+const TITLES = [
+  "1. Prière d’ouverture","2. Canon et testament","3. Questions du chapitre précédent","4. Titre du chapitre",
+  "5. Contexte historique","6. Structure littéraire","7. Genre littéraire","8. Auteur et généalogie",
+  "9. Verset-clé doctrinal","10. Analyse exégétique","11. Analyse lexicale","12. Références croisées",
+  "13. Fondements théologiques","14. Thème doctrinal","15. Fruits spirituels","16. Types bibliques",
+  "17. Appui doctrinal","18. Comparaison entre versets","19. Comparaison avec Actes 2","20. Verset à mémoriser",
+  "21. Enseignement pour l’Église","22. Enseignement pour la famille","23. Enseignement pour enfants","24. Application missionnaire",
+  "25. Application pastorale","26. Application personnelle","27. Versets à retenir","28. Prière de fin"
+];
 
 const TEMPLATE = `# {{BOOK}} {{CHAP}}
 
@@ -114,83 +124,98 @@ const TEMPLATE = `# {{BOOK}} {{CHAP}}
 
 {{S28}}`.trim();
 
-function parseQ(q){
-  if(!q) return {book:"",chapter:NaN};
-  const m=String(q).match(/^(.+?)\s+(\d+)\s*$/);
-  return m?{book:m[1].trim(),chapter:Number(m[2])}:{book:String(q).trim(),chapter:NaN};
+function youVersionLink(book, chapter) {
+  const map = {
+    "Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU",
+    "Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA",
+    "1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR",
+    "Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA","Proverbes":"PRO",
+    "Ecclésiaste":"ECC","Cantique des cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM",
+    "Ézéchiel":"EZK","Daniel":"DAN","Osée":"HOS","Joël":"JOL","Amos":"AMO",
+    "Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahoum":"NAM","Habacuc":"HAB",
+    "Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL",
+    "Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT",
+    "Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH",
+    "Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI",
+    "2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS",
+    "1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN",
+    "Jude":"JUD","Apocalypse":"REV"
+  };
+  const code = map[book];
+  return code ? `https://www.bible.com/fr/bible/93/${code}.${chapter}.LSG` : "";
 }
 
-function merge(book,chapter,obj){
-  let t=TEMPLATE.replace("{{BOOK}}",book).replace("{{CHAP}}",String(chapter));
-  for(let i=1;i<=28;i++){
-    t=t.replace(`{{S${i}}}`, String(obj[`S${i}`]||"—").trim());
+function mergeIntoTemplate(book, chapter, obj) {
+  let t = TEMPLATE.replace("{{BOOK}}", book).replace("{{CHAP}}", String(chapter));
+  for (let i = 1; i <= 28; i++) {
+    t = t.replace(`{{S${i}}}`, String(obj[`S${i}`] || "—").trim());
   }
   return t;
 }
 
-// ===== Fallback RICHE (style demandé pour Genèse 1) =====
-function fallbackRich(book,chapter){
-  // Si ce n’est PAS Genèse 1, on garde des textes sûrs et utiles
-  const isGen1 = book==="Genèse" && Number(chapter)===1;
-
-  if(isGen1){
-    const obj={
-      S1:`Seigneur Tout-Puissant, Créateur du ciel et de la terre, éclaire ma lecture. Ouvre mon cœur pour que je voie ta grandeur et que je reçoive la vérité de ta Parole avec humilité et obéissance. Amen.`,
-      S2:`La Genèse, traditionnellement attribuée à Moïse, a été donnée à Israël comme fondement de son identité et de sa foi. Genèse 1 se situe dans le Proche-Orient ancien, où de nombreux récits païens d’origine du monde circulaient. Ici, la différence est claire : un seul Dieu, souverain et personnel, crée par sa Parole.`,
-      S3:`Préparer au moins 5 questions de révision (comprendre, appliquer, comparer, retenir).`,
-      S4:`Prologue de la création : Dieu, Créateur souverain, ordonne le chaos et établit l’humanité à son image.`,
-      S5:`Contexte ANE : récits concurrents, mais Genèse 1 affirme un Dieu unique, bon et transcendant.`,
-      S6:`Jour 1 : Lumière/ ténèbres ; Jour 2 : Étendue ; Jour 3 : Terre/ végétation ; Jour 4 : Astres ; Jour 5 : Poissons/ oiseaux ; Jour 6 : Animaux/ homme ; Jour 7 : Repos (Gn 2:1-3).`,
-      S7:`Narratif théologique solennel, structuré par les refrains (“Dieu dit… Il y eut un soir, il y eut un matin”).`,
-      S8:`Auteur (tradition) : Moïse ; lien aux patriarches et à l’alliance.`,
-      S9:`Genèse 1:27 — « Dieu créa l’homme à son image, il le créa à l’image de Dieu, il créa l’homme et la femme. »`,
-      S10:`bara’ (créer) réservé à Dieu ; tohu-bohu (v.2) : chaos avant l’ordre ; tselem Elohim : dignité/ vocation.`,
-      S11:`mèlékha (œuvre), shabbat (repos) : rythme et finalité ; raqia (étendue).`,
-      S12:`Jean 1:1-3 ; Colossiens 1:16 ; Hébreux 11:3.`,
-      S13:`Dieu unique, bon et ordonnateur ; dignité humaine ; mandat culturel ; sabbat.`,
-      S14:`La création, œuvre d’un Dieu sage et bon, confère dignité et vocation à l’humanité.`,
-      S15:`Gratitude, adoration, responsabilité, espérance.`,
-      S16:`Repos du 7e jour, ordre/ lumière ; typologie de la nouvelle création.`,
-      S17:`Psaume 8 ; Psaume 104 ; Apocalypse 4:11.`,
-      S18:`Comparer 1:1 ; 1:31 ; 2:1-3 : ouverture/ “bon”/ repos.`,
-      S19:`Actes 2 : Parole et Esprit inaugurent une communauté nouvelle (nouvelle création).`,
-      S20:`Genèse 1:1 — « Au commencement, Dieu créa les cieux et la terre. »`,
-      S21:`Affirmer Dieu Créateur, protéger la dignité humaine, rythmer travail/ repos.`,
-      S22:`Transmettre aux enfants la bonté de la création, éduquer à la gérance.`,
-      S23:`Dieu a tout fait avec amour ; je suis précieux ; je prends soin de la terre.`,
-      S24:`Annoncer que le monde a un Auteur et un sens ; relier à Christ (Jn 1).`,
-      S25:`Accompagner ceux qui doutent de leur valeur ; écologie biblique responsable.`,
-      S26:`Examiner où je méprise la création/ l’image de Dieu ; prendre des décisions concrètes.`,
-      S27:`Genèse 1:1 ; 1:27 ; 1:28 ; Psaume 8 ; Jean 1:3.`,
-      S28:`Père Créateur, merci pour la vie et la dignité. Aide-nous à refléter ton image, honorer ta création et reconnaître ton autorité. Amen.`
-    };
-    return merge(book,chapter,obj);
-  }
-
-  // Fallback générique mais propre pour tous les autres chapitres
-  const obj={};
-  for(let i=1;i<=28;i++){
-    obj[`S${i}`]=`(À compléter pour ${book} ${chapter} — rubrique ${i})`;
-  }
-  // Quelques valeurs utiles par défaut
-  obj.S1 = `Père céleste, nous venons devant toi. Ouvre nos cœurs, éclaire notre intelligence et conduis-nous dans ta vérité. Au nom de Jésus, amen.`;
-  obj.S20 = `${book} ${chapter}:1 — verset de mémoire (à préciser).`;
-  obj.S28 = `Seigneur, merci pour ta Parole. Aide-nous à la mettre en pratique. Amen.`;
-  return merge(book,chapter,obj);
+function fallbackMarkdown(book, chapter) {
+  const nt = ["Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"];
+  const AT = !nt.includes(book);
+  const link = youVersionLink(book, chapter) || "—";
+  const obj = {
+    S1: `Père céleste, nous venons devant toi pour lire ${book} ${chapter}. Ouvre nos cœurs par ton Saint-Esprit, éclaire notre intelligence et conduis-nous dans la vérité. Au nom de Jésus, amen.`,
+    S2: `Le livre de ${book} appartient à l’${AT ? "Ancien" : "Nouveau"} Testament dans le canon biblique.`,
+    S3: `(À compléter par l’animateur : préparer au moins 5 questions de révision sur le chapitre précédent — comprendre, appliquer, comparer, retenir.)`,
+    S4: `${book} ${chapter} — Titre doctrinal synthétique.`,
+    S5: `Contexte : affirmation d’un Dieu unique, personnel et souverain. ${book} ${chapter} s’oppose aux récits païens en plaçant la Parole créatrice de Dieu au centre.`,
+    S6: `Structure indicative : jalons majeurs du chapitre pour guider la lecture et la discussion.`,
+    S7: `Genre : narratif théologique (prose solennelle).`,
+    S8: `Auteur (tradition) : Moïse ; rattaché aux patriarches.`,
+    S9: `${book} ${chapter}:1 — Verset de cadrage. (YouVersion : ${link})`,
+    S10: `Pistes exégétiques : termes clés, parallèles, progression du discours.`,
+    S11: `Mots-clés : liste courte et signification dans le passage.`,
+    S12: `Références croisées majeures ; YouVersion : ${link}`,
+    S13: `Dieu créateur souverain ; ordre / vocation ; dignité de l’homme.`,
+    S14: `Thème : Dieu met de l’ordre et appelle à la vie selon sa Parole.`,
+    S15: `Fruits : gratitude, adoration, responsabilité.`,
+    S16: `Types : repos / sabbat ; image de Dieu ; ordre de la création.`,
+    S17: `Appui : Psaume 8 ; Psaume 104 ; Apocalypse 4:11, etc.`,
+    S18: `Comparaisons internes : ouverture, refrain, conclusion.`,
+    S19: `Parallèle avec Actes 2 : Parole, lumière, communauté par l’Esprit.`,
+    S20: `${book} ${chapter}:1 — « Au commencement… »`,
+    S21: `Implications ecclésiales : célébrer Dieu Créateur, dignité humaine.`,
+    S22: `Famille : transmettre l’émerveillement devant la création ; gérance.`,
+    S23: `Enfants : Dieu a tout créé par amour ; je suis précieux.`,
+    S24: `Mission : annoncer que le monde a un Auteur et un sens.`,
+    S25: `Pastoral : accompagner les doutes sur la valeur / vocation.`,
+    S26: `Personnel : examen et décisions concrètes (gérance, repos, etc.).`,
+    S27: `À retenir : ${book} ${chapter}:1 ; ${book} ${chapter}:27 ; Ps 8:4–6 ; Jn 1:3.`,
+    S28: `Seigneur, merci pour ta Parole. Aide-nous à la mettre en pratique. Amen.`
+  };
+  return mergeIntoTemplate(book, chapter, obj);
 }
 
-// ===== OpenAI JSON =====
-async function askOpenAI_JSON({book,chapter,apiKey,version="LSG"}){
+function parseRef(q) {
+  if (!q) return { book: "Genèse", chapter: 1 };
+  const m = String(q).match(/^(.+?)\s+(\d+)\s*$/);
+  if (m) return { book: m[1].trim(), chapter: Number(m[2]) || 1 };
+  return { book: String(q).trim() || "Genèse", chapter: 1 };
+}
+
+async function askOpenAI_JSON({ book, chapter, version, apiKey }) {
+  const schema = {
+    type: "object",
+    properties: Object.fromEntries(Array.from({ length: 28 }, (_, i) => [`s${i + 1}`, { type: "string" }])),
+    required: Array.from({ length: 28 }, (_, i) => `s${i + 1}`),
+    additionalProperties: false
+  };
+
   const SYSTEM = `
-Tu DOIS répondre en **JSON strict** (aucun texte hors JSON), avec **28** clés "s1"..."s28".
-Chaque clé contient 3–6 phrases en français, style pastoral. Références selon ${version}.
-Correspondance exacte :
-s1=Prière d’ouverture, s2=Canon et testament, ... s28=Prière de fin.
+Tu dois répondre en JSON strict (aucun texte hors JSON), avec exactement 28 clés "s1"..."s28".
+Chaque clé contient 3–6 phrases en français, style pastoral, version ${version} pour citations.
+Correspondance stricte: s1=>"Prière d’ouverture", ..., s28=>"Prière de fin".
 `.trim();
 
+  const link = youVersionLink(book, chapter) || "—";
   const USER = `
 Livre="${book}", Chapitre="${chapter}", Version="${version}".
-Renvoie **uniquement** un JSON valide avec les clés s1..s28.
+Si utile, inclure "YouVersion : ${link}" dans s9/s12/s20/s27.
+Renvoie uniquement un JSON valide.
 `.trim();
 
   const payload = {
@@ -204,78 +229,84 @@ Renvoie **uniquement** un JSON valide avec les clés s1..s28.
     ]
   };
 
-  const r = await fetch("https://api.openai.com/v1/chat/completions",{
-    method:"POST",
-    headers:{
-      "Authorization":`Bearer ${apiKey}`,
-      "Content-Type":"application/json"
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
     },
     body: JSON.stringify(payload)
   });
 
   const text = await r.text();
-  if(!r.ok) throw new Error(`OpenAI ${r.status}: ${text.slice(0,200)}`);
+  if (!r.ok) throw new Error(`OpenAI ${r.status}: ${text.slice(0, 200)}`);
 
-  let data; try{ data=JSON.parse(text); }catch{ throw new Error("Réponse OpenAI invalide"); }
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error("Réponse OpenAI non JSON"); }
   const raw = data?.choices?.[0]?.message?.content || "";
-  let obj; try{ obj=JSON.parse(raw); }catch{ throw new Error("Contenu non-JSON renvoyé"); }
+  let obj;
+  try { obj = JSON.parse(raw); } catch { throw new Error("Contenu non JSON renvoyé"); }
 
   // Validation simple
-  for(let i=1;i<=28;i++){
-    if(typeof obj[`s${i}`] !== "string") throw new Error(`Champ manquant s${i}`);
+  for (let i = 1; i <= 28; i++) {
+    if (typeof obj[`s${i}`] !== "string") throw new Error(`Champ manquant s${i}`);
   }
-  const mapped = Object.fromEntries(Array.from({length:28},(_,i)=>[`S${i+1}`,obj[`s${i+1}`]]));
-  return mapped;
+
+  return Object.fromEntries(Array.from({ length: 28 }, (_, i) => [`S${i + 1}`, obj[`s${i + 1}`]]));
 }
 
-export default async function handler(req,res){
-  try{
-    // ---- DIAGNOSTIC ----
-    if(new URL(req.url, `http://${req.headers.host}`).searchParams.get("diag")==="1"){
-      return res.status(200).json({
-        hasKey: !!process.env.OPENAI_API_KEY,
-        project: process.env.VERCEL_URL || "local"
-      });
-    }
+export default async function handler(req, res) {
+  // Toujours capturer pour renvoyer un fallback 200
+  try {
+    // 1) Lire les query params de façon 100% compatible Node (pas de req.on ici)
+    const { searchParams } = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    const q = searchParams.get("q") || "";
+    const probe = searchParams.get("probe") === "1";
+    const version = searchParams.get("version") || "LSG";
 
-    // Lecture des params
-    let body={};
-    if(req.method==="POST"){
-      body = await new Promise(resolve=>{
-        let b=""; req.on("data",c=>b+=c);
-        req.on("end",()=>{ try{ resolve(JSON.parse(b||"{}")) } catch{ resolve({}) }});
-      });
-    }
-    const url=new URL(req.url,`http://${req.headers.host}`);
-    const qp=Object.fromEntries(url.searchParams.entries());
-    let book=body.book||qp.book, chapter=Number(body.chapter||qp.chapter), version=body.version||qp.version||"LSG";
-    const q=body.q||qp.q; if((!book||!chapter)&&q){ const p=parseQ(q); book=book||p.book; chapter=chapter||p.chapter; }
-    const b=book||"Genèse", c=chapter||1;
+    const { book, chapter } = parseRef(q || "Genèse 1");
 
-    // Si pas de clé -> fallback
-    const apiKey=process.env.OPENAI_API_KEY;
-    if(!apiKey){
-      const md=fallbackRich(b,c);
-      res.setHeader("Content-Type","text/markdown; charset=utf-8");
-      res.setHeader("Content-Disposition",`inline; filename="${b}-${c}.md"`);
+    // 2) Si probe => force le fallback pour vérifier la route
+    if (probe) {
+      const md = fallbackMarkdown(book, chapter);
+      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
       return res.status(200).send(md);
     }
 
-    // IA -> JSON -> Markdown
-    try{
-      const sections = await askOpenAI_JSON({book:b,chapter:c,apiKey,version});
-      const md = merge(b,c,sections);
-      res.setHeader("Content-Type","text/markdown; charset=utf-8");
-      res.setHeader("Content-Disposition",`inline; filename="${b}-${c}.md"`);
-      return res.status(200).send(md);
-    }catch(e){
-      const md=fallbackRich(b,c);
-      res.setHeader("Content-Type","text/markdown; charset=utf-8");
-      res.setHeader("X-OpenAI-Error", String(e?.message||e));
+    // 3) Sans clé OpenAI → fallback direct (aucun 500)
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      const md = fallbackMarkdown(book, chapter);
+      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+      res.setHeader("X-Note", "OPENAI_API_KEY absente → fallback");
       return res.status(200).send(md);
     }
-  }catch(e){
-    res.setHeader("Content-Type","text/markdown; charset=utf-8");
-    return res.status(200).send(fallbackRich("Genèse",1));
+
+    // 4) Essai OpenAI → sinon fallback
+    let sections;
+    try {
+      sections = await askOpenAI_JSON({ book, chapter, version, apiKey });
+    } catch (err) {
+      const md = fallbackMarkdown(book, chapter);
+      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+      res.setHeader("X-OpenAI-Error", String(err?.message || err));
+      return res.status(200).send(md);
+    }
+
+    const md = mergeIntoTemplate(book, chapter, sections);
+    res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+    return res.status(200).send(md);
+
+  } catch (e) {
+    // Dernier filet de sécurité : ne JAMAIS rendre un 500 au client
+    try {
+      const fallback = fallbackMarkdown("Genèse", 1);
+      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+      res.setHeader("X-Last-Error", String(e?.message || e));
+      return res.status(200).send(fallback);
+    } catch {
+      // Ultime secours
+      return res.status(200).send("# Genèse 1\n\nImpossible de générer, mais la route fonctionne.");
+    }
   }
 }
