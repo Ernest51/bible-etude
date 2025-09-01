@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vercel dev",
-    "build": "echo \"No build step (public/ + api/)\"",
+    "build": "echo \"No build step (public + api)\"",
     "start": "vercel dev"
   },
-  "engines": { "node": "20.x" },
+  "engines": {
+    "node": "20.x"
+  },
   "dependencies": {}
 }
