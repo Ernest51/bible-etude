@@ -1,8 +1,8 @@
-// api/chat.js — Gabarit strict synchronisé avec l’UI (28 rubriques)
-// - Titres EXACTS comme dans ta colonne de gauche
-// - Import OpenAI dynamique (pas de crash si absent)
-// - Fallback Markdown propre si pas de clé ou erreur
-// - GET ?q="Genèse 1" ou POST {book,chapter,version}; ?probe=1 pour test
+// api/chat.js — Version REST (sans dépendance "openai"), zéro import, Node 20 compatible
+// - GET ?q="Genèse 1" ou POST {book, chapter, version}; ?probe=1 pour test
+// - Génère du Markdown 28 rubriques exactement comme l’UI
+// - Utilise fetch() vers l’API OpenAI si OPENAI_API_KEY est présent
+// - Jamais de 500 opaque: toujours une réponse Markdown valide
 
 // ---------- Titres EXACTS (UI) ----------
 const TITLES = [
@@ -196,21 +196,21 @@ function fallbackMarkdown(book, chapter) {
     .replace("{{S10}}", `Commentaire mot-à-mot (mots clés, structures).`)
     .replace("{{S11}}", `Mots originaux (hébreu/grec), champ sémantique, portée doctrinale.`)
     .replace("{{S12}}", `Passages parallèles ou complémentaires (3–6).`)
-    .replace("{{S13}}", `Doctrines majeures dégagées du chapitre (création, alliance, etc.).`)
-    .replace("{{S14}}", `Lien avec les 22 grands thèmes doctrinaux (le(s)quel(s) ?).`)
-    .replace("{{S15}}", `Vertus et attitudes à cultiver (gratitude, foi, obéissance…).`)
+    .replace("{{S13}}", `Doctrines majeures dégagées du chapitre.`)
+    .replace("{{S14}}", `Lien avec les 22 grands thèmes doctrinaux.`)
+    .replace("{{S15}}", `Vertus et attitudes à cultiver.`)
     .replace("{{S16}}", `Symboles/Figures typologiques et leur sens.`)
     .replace("{{S17}}", `Autres textes qui renforcent l’enseignement.`)
     .replace("{{S18}}", `Comparer des versets du chapitre pour mise en relief.`)
-    .replace("{{S19}}", `Parallèles pertinents avec Actes 2 (Esprit, communauté…).`)
+    .replace("{{S19}}", `Parallèles avec Actes 2 (Esprit, communauté…).`)
     .replace("{{S20}}", `Verset à retenir (référence + LSG).`)
     .replace("{{S21}}", `Implications ecclésiales concrètes.`)
-    .replace("{{S22}}", `Valeurs et pratiques à transmettre en famille.`)
-    .replace("{{S23}}", `Approche adaptée aux enfants (histoires, visuels).`)
-    .replace("{{S24}}", `Application missionnaire (annonce, service, espérance).`)
+    .replace("{{S22}}", `Valeurs/pratiques à transmettre en famille.`)
+    .replace("{{S23}}", `Approche enfants (histoires, visuels).`)
+    .replace("{{S24}}", `Application missionnaire (annonce, service).`)
     .replace("{{S25}}", `Conseils pour pasteurs/enseignants.`)
     .replace("{{S26}}", `Examen de conscience et engagements personnels.`)
-    .replace("{{S27}}", `Liste de versets incontournables pour la prédication.`)
+    .replace("{{S27}}", `Versets incontournables pour la prédication.`)
     .replace("{{S28}}", `Prière de reconnaissance et de consécration.`);
   return md;
 }
@@ -218,6 +218,60 @@ function fallbackMarkdown(book, chapter) {
 function ok28(md, book, chapter) {
   if (!md || !md.startsWith(`# ${book} ${chapter}`)) return false;
   return TITLES.every(t => md.includes(t));
+}
+
+// ---------- OpenAI REST helper ----------
+async function openaiChatMarkdown({ book, chapter }) {
+  const SYSTEM = `
+Tu produis des études bibliques **strictement** en Markdown avec 28 rubriques.
+Contraintes:
+- Utilise EXACTEMENT ces titres et cet ordre: ${TITLES.join(" | ")}.
+- Pas de texte hors canevas, pas d'en-tête/footers annexes.
+- Citations bibliques en Louis Segond 1910 (LSG).
+- Style clair, pastoral et rigoureux (3–6 phrases par rubrique).
+`.trim();
+
+  const link = youVersionLink(book, chapter) || "—";
+  const USER = `
+Remplis le gabarit pour Livre="${book}", Chapitre="${chapter}" (LSG).
+Ajoute la ligne "YouVersion : ${link}" dans la rubrique la plus pertinente.
+
+GABARIT:
+${TEMPLATE}
+`.trim();
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  const url = "https://api.openai.com/v1/chat/completions";
+  const payload = {
+    model: "gpt-4o-mini",
+    temperature: 0.4,
+    max_tokens: 2200,
+    messages: [
+      { role: "system", content: SYSTEM },
+      { role: "user", content: USER }
+    ]
+  };
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const text = await resp.text();
+  if (!resp.ok) {
+    // On renvoie l'erreur pour basculer en fallback propre
+    const msg = text.slice(0, 300).replace(/\s+/g, " ");
+    throw new Error(`OpenAI HTTP ${resp.status}: ${msg}`);
+  }
+
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error("Réponse OpenAI invalide"); }
+  const content = data?.choices?.[0]?.message?.content || "";
+  return String(content).trim();
 }
 
 // ---------- Handler ----------
@@ -248,13 +302,14 @@ export default async function handler(req, res) {
     const b = book || "Genèse";
     const c = chapter || 1;
 
+    // Probe: réponse immédiate
     if (probe) {
       const md = fallbackMarkdown(b, c);
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
       return res.status(200).send(md);
     }
 
-    // Pas de clé → fallback propre
+    // Si pas de clé → fallback propre (aucun crash)
     if (!process.env.OPENAI_API_KEY) {
       const md = fallbackMarkdown(b, c);
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
@@ -262,47 +317,10 @@ export default async function handler(req, res) {
       return res.status(200).send(md);
     }
 
-    // Import dynamique d'openai
-    let OpenAI;
-    try {
-      ({ default: OpenAI } = await import("openai"));
-    } catch {
-      const md = fallbackMarkdown(b, c);
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      res.setHeader("X-Note", "openai module missing, served fallback");
-      return res.status(200).send(md);
-    }
-
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-    const SYSTEM = `
-Tu produis des études bibliques **strictement** en Markdown avec 28 rubriques.
-Contraintes:
-- Utilise EXACTEMENT ces titres et cet ordre: ${TITLES.join(" | ")}.
-- Pas de texte hors canevas, pas d'en-tête ou footer additionnels.
-- Citations bibliques en Louis Segond 1910 (LSG).
-- Style clair, pastoral et rigoureux (3–6 phrases par rubrique).`.trim();
-
-    const link = youVersionLink(b, c) || "—";
-    const USER = `
-Remplis le gabarit pour Livre="${b}", Chapitre="${c}" (LSG).
-Ajoute la ligne "YouVersion : ${link}" dans la rubrique la plus pertinente (9, 12, 20, 27 ou 26).
-
-GABARIT:
-${TEMPLATE}`.trim();
-
+    // Appel REST OpenAI
     let md = "";
     try {
-      const rsp = await client.chat.completions.create({
-        model: "gpt-4o-mini",
-        temperature: 0.4,
-        max_tokens: 2200,
-        messages: [
-          { role: "system", content: SYSTEM },
-          { role: "user", content: USER },
-        ],
-      });
-      md = (rsp?.choices?.[0]?.message?.content || "").trim();
+      md = await openaiChatMarkdown({ book: b, chapter: c });
     } catch (e) {
       const fb = fallbackMarkdown(b, c);
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
@@ -310,6 +328,7 @@ ${TEMPLATE}`.trim();
       return res.status(200).send(fb);
     }
 
+    // Vérif stricte 28 rubriques
     if (!ok28(md, b, c)) {
       const fb = fallbackMarkdown(b, c);
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
@@ -321,6 +340,7 @@ ${TEMPLATE}`.trim();
     res.setHeader("Content-Disposition", `inline; filename="${b}-${c}.md"`);
     return res.status(200).send(md);
   } catch (e) {
+    // Dernier filet: toujours renvoyer quelque chose d’utilisable
     try {
       const url = new URL(req.url, `http://${req.headers.host}`);
       const p = parseQ(url.searchParams.get("q") || "");
@@ -329,7 +349,7 @@ ${TEMPLATE}`.trim();
       res.setHeader("X-Last-Error", String(e?.message || e));
       return res.status(200).send(md);
     } catch {
-      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
       return res.status(200).send(fallbackMarkdown("Genèse", 1));
     }
   }
