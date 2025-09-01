@@ -1,20 +1,12 @@
-// api/chat.js
-// Remplacement complet — étape 1 : forcer un rendu Markdown strict 28 rubriques
+// api/chat.js — Version unifiée Markdown 28 rubriques
+// - Accepte { book, chapter, version } OU { q }
+// - Répond TOUJOURS en text/markdown (canevas 28 sections)
+// - Fallback déterministe si OPENAI_API_KEY absent (pas d'erreur 500)
 
 import OpenAI from "openai";
 
-/**
- * Attendu côté client (POST JSON):
- * {
- *   "book": "Genèse",
- *   "chapter": 1,
- *   "version": "LSG" // facultatif; par défaut LSG
- * }
- *
- * Réponse: texte/plain — Markdown strict prêt à sauvegarder dans GitHub.
- */
-
-const SECTION_ORDER = [
+// --- Constantes canevas ---
+const SECTION_TITLES = [
   "1. Ouverture en prière",
   "2. Contexte historique",
   "3. Contexte littéraire",
@@ -45,75 +37,74 @@ const SECTION_ORDER = [
   "28. Conclusion",
 ];
 
-// Gabarit de sortie OBLIGATOIRE — l’IA ne doit RIEN ajouter d’autre
 const HARD_TEMPLATE = String.raw`
-# {{LIVRE}} {{CHAPITRE}}
+# {{BOOK}} {{CHAPTER}}
 
 1. Ouverture en prière
 
-{{PRIERRE_OUVERTURE}}
+{{PRAYER_OPEN}}
 
 2. Contexte historique
 
-{{CONTEXTE_HISTORIQUE}}
+{{HIST_CONTEXT}}
 
 3. Contexte littéraire
 
-{{CONTEXTE_LITTERAIRE}}
+{{LIT_CONTEXT}}
 
 4. Structure du passage
 
-{{STRUCTURE_PASSAGE}}
+{{STRUCTURE}}
 
 5. Analyse exégétique et lexicale
 
-{{ANALYSE_LEXICALE}}
+{{LEX_ANALYSIS}}
 
 6. Personnages principaux
 
-{{PERSONNAGES}}
+{{PERSONS}}
 
 7. Résumé du chapitre
 
-{{RESUME}}
+{{SUMMARY}}
 
 8. Thème théologique central
 
-{{THEME_CENTRAL}}
+{{THEME}}
 
 9. Vérité spirituelle principale
 
-{{VERITE_SPIRITUELLE}}
+{{SPIRITUAL_TRUTH}}
 
 10. Verset-clé doctrinal
 
-{{REF_VERSET_CLE}}
-{{VERSET_CLE}}
+{{REF_KEY}}
+{{VERSE_KEY}}
 
 11. Verset à mémoriser
 
-{{REF_VERSET_MEMO}}
-{{VERSET_MEMO}}
+{{REF_MEMO}}
+{{VERSE_MEMO}}
 
 12. Références croisées
 
-{{REFERENCES_CROISEES}}
+{{CROSSREFS}}
 
 13. Liens avec le reste de la Bible
 
-{{LIENS_BIBLE}}
+{{BIBLE_LINKS}}
 
 14. Jésus-Christ dans ce passage
 
-{{CHRIST_PASSAGE}}
+{{CHRIST}}
 
 15. Questions de réflexion
 
-{{QUESTIONS_REFLEXION}}
+{{QUESTIONS}}
 
 16. Applications pratiques
 
-{{APPLICATIONS_PRATIQUES}}
+{{APPS}}
 
 17. Illustration
 
@@ -125,98 +116,104 @@ const HARD_TEMPLATE = String.raw`
 
 19. Réponses
 
-{{REPONSES}}
+{{ANSWERS}}
 
 20. Promesse de Dieu
 
-{{PROMESSE}}
+{{PROMISE}}
 
 21. Commandement de Dieu
 
-{{COMMANDEMENT}}
+{{COMMAND}}
 
 22. Application communautaire
 
-{{APPLICATION_COMMUNAUTAIRE}}
+{{COMMUNITY_APP}}
 
 23. Hymne ou chant suggéré
 
-{{CHANT_SUGGERE}}
+{{HYMN}}
 
 24. Prière finale
 
-{{PRIERE_FINALE}}
+{{PRAYER_CLOSE}}
 
 25. Pensée clé du jour
 
-{{PENSEE_CLE}}
+{{KEY_THOUGHT}}
 
 26. Plan de lecture associé
 
-{{PLAN_LECTURE}}
+{{READING}}
 
 27. Limites et exceptions
 
-{{LIMITES}}
+{{LIMITS}}
 
 28. Conclusion
 
 {{CONCLUSION}}
 `.trim();
 
-const SYSTEM = `
-Tu es un assistant théologique francophone chargé de produire des études bibliques
-**strictement** au format Markdown selon un canevas en 28 rubriques (numérotées 1→28).
-Contraintes non négociables:
-- La sortie doit être EXCLUSIVEMENT du Markdown conforme au gabarit fourni (HARD_TEMPLATE).
-- Pas de préambule, pas d'appendice, pas de commentaires hors canevas.
-- Chaque rubrique doit contenir du texte rédigé (phrases complètes), pas de puces vides.
-- Les versets cités doivent utiliser **Louis Segond 1910 (LSG)** par défaut.
-- Quand tu donnes un verset (rubriques 10 et 11), affiche d'abord la référence sur une ligne,
-  puis le verset sur la ligne suivante entre guillemets français « … », en LSG.
-- Si une information est incertaine, écris « — ».
-- Ajoute, lorsque pertinent, le lien YouVersion du chapitre sous forme
-  (ex. pour Genèse 1 en LSG: https://www.bible.com/fr/bible/93/GEN.1.LSG).
-- Tu respectes strictement l'ordre et les titres des 28 rubriques.
-- Style: clair, pastoral, pédagogique, synthétique (3–6 phrases par rubrique en moyenne),
-  avec précision doctrinale, sans polémiques inutiles.
-`;
-
-function youVersionLink(book, chapter) {
-  // Map minimal pour quelques livres. Tu pourras étendre selon ton besoin.
-  const map = {
-    "Genèse": "GEN",
-    "Exode": "EXO",
-    "Lévitique": "LEV",
-    "Nombres": "NUM",
-    "Deutéronome": "DEU",
-    // ...
-  };
-  const code = map[book] || "";
-  if (!code) return "";
-  // 93 = LSG sur YouVersion
-  return `https://www.bible.com/fr/bible/93/${code}.${chapter}.LSG`;
+// --- Utilitaires ---
+function parseQ(q) {
+  // "Genèse 1" -> { book:"Genèse", chapter:1 }
+  if (!q) return { book: "", chapter: NaN };
+  const m = q.match(/^(.+?)\s+(\d+)\s*$/);
+  if (m) return { book: m[1].trim(), chapter: Number(m[2]) };
+  return { book: q.trim(), chapter: NaN };
 }
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    res.status(405).send("Method Not Allowed");
-    return;
-  }
+function youVersionLink(book, chapter) {
+  const map = {
+    "Genèse": "GEN", "Exode": "EXO", "Lévitique": "LEV", "Nombres": "NUM", "Deutéronome": "DEU",
+    "Josué": "JOS", "Juges": "JDG", "Ruth": "RUT", "1 Samuel": "1SA", "2 Samuel": "2SA",
+    "1 Rois": "1KI", "2 Rois": "2KI", "1 Chroniques": "1CH", "2 Chroniques": "2CH",
+    "Esdras": "EZR", "Néhémie": "NEH", "Esther": "EST", "Job": "JOB", "Psaumes": "PSA",
+    "Proverbes": "PRO", "Ecclésiaste": "ECC", "Cantique des cantiques": "SNG", "Ésaïe": "ISA",
+    "Jérémie": "JER", "Lamentations": "LAM", "Ézéchiel": "EZK", "Daniel": "DAN",
+    "Osée": "HOS", "Joël": "JOL", "Amos": "AMO", "Abdias": "OBA", "Jonas": "JON",
+    "Michée": "MIC", "Nahoum": "NAM", "Habacuc": "HAB", "Sophonie": "ZEP",
+    "Aggée": "HAG", "Zacharie": "ZEC", "Malachie": "MAL",
+    // (Ajoute NT si besoin)
+  };
+  const code = map[book];
+  return code ? `https://www.bible.com/fr/bible/93/${code}.${chapter}.LSG` : "";
+}
 
-  try {
-    const { book, chapter, version = "LSG" } = req.body || {};
-    if (!book || !chapter) {
-      res.status(400).send("Requête invalide: 'book' et 'chapter' sont requis.");
-      return;
-    }
-
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-
-    const link = youVersionLink(String(book), Number(chapter));
-
-    // Message utilisateur ultra-spécifique et verrouillé sur notre gabarit
-    const USER = `
-Génère une étude **complète** pour
+function fallbackMarkdown(book, chapter) {
+  const ref = `${book} ${chapter}`;
+  const link = youVersionLink(book, chapter) || "—";
+  const md = HARD_TEMPLATE
+    .replace("{{BOOK}}", book)
+    .replace("{{CHAPTER}}", String(chapter))
+    .replace("{{PRAYER_OPEN}}", `Seigneur Tout-Puissant, éclaire ma lecture de ${ref}. Ouvre mon cœur à ta Parole et conduis-moi dans l’obéissance. Amen.`)
+    .replace("{{HIST_CONTEXT}}", `La ${book} s’inscrit dans l’histoire d’Israël. ${book} ${chapter} introduit des vérités fondatrices destinées au peuple de Dieu.`)
+    .replace("{{LIT_CONTEXT}}", `Le passage présente une structure soignée, marquée par des répétitions qui soulignent l’ordre et l’intention.`)
+    .replace("{{STRUCTURE}}", `—`)
+    .replace("{{LEX_ANALYSIS}}", `—`)
+    .replace("{{PERSONS}}", `—`)
+    .replace("{{SUMMARY}}", `—`)
+    .replace("{{THEME}}", `—`)
+    .replace("{{SPIRITUAL_TRUTH}}", `—`)
+    .replace("{{REF_KEY}}", `${book} ${chapter}:1`)
+    .replace("{{VERSE_KEY}}", `« … » (LSG)`)
+    .replace("{{REF_MEMO}}", `${book} ${chapter}:1`)
+    .replace("{{VERSE_MEMO}}", `« … » (LSG)`)
+    .replace("{{CROSSREFS}}", `YouVersion : ${link}`)
+    .replace("{{BIBLE_LINKS}}", `—`)
+    .replace("{{CHRIST}}", `—`)
+    .replace("{{QUESTIONS}}", `—`)
+    .replace("{{APPS}}", `—`)
+    .replace("{{ILLUSTRATION}}", `—`)
+    .replace("{{OBJECTIONS}}", `—`)
+    .replace("{{ANSWERS}}", `—`)
+    .replace("{{PROMISE}}", `—`)
+    .replace("{{COMMAND}}", `—`)
+    .replace("{{COMMUNITY_APP}}", `—`)
+    .replace("{{HYMN}}", `—`)
+    .replace("{{PRAYER_CLOSE}}", `Père, merci pour ta Parole. Donne-moi de la mettre en pratique et d’honorer le Christ en tout. Amen.`)
+    .replace("{{KEY_THOUGHT}}", `Tout commence par Dieu.`)
+    .replace("{{READING}}", `Lire ${book} ${chapter + 1 || chapter} ou Jean 1 pour prolonger.`)
+    .replace("{{LIMITS}}", `Le texte vise d’abord la révélation théologique, pas la description scientifique.`)
+    .replace("{{CONCLUSION}}", `${book} ${chapter} fonde notre
