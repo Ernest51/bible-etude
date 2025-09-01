@@ -1,5 +1,5 @@
-// public/app.js — FRONT-ONLY (no imports)
-// Version : Markdown → 28 sections
+// public/app.js — FRONT-ONLY (no imports / drop-in)
+// Version robuste : binding du bouton Générer + traces réseau + 28 rubriques garanties
 
 (function () {
   // ---------- utils / ui ----------
@@ -23,7 +23,6 @@
     verseSelect = $("verseSelect"),
     versionSelect = $("versionSelect"),
     validateBtn = $("validate"),
-    generateBtn = $("generateBtn"),
     readLink = $("readLink"),
     lastStudy = $("lastStudy"),
     pointsList = $("pointsList"),
@@ -69,7 +68,7 @@
     ["Philippiens", 4], ["Colossiens", 4], ["1 Thessaloniciens", 5], ["2 Thessaloniciens", 3], ["1 Timothée", 6],
     ["2 Timothée", 4], ["Tite", 3], ["Philémon", 1], ["Hébreux", 13], ["Jacques", 5],
     ["1 Pierre", 5], ["2 Pierre", 3], ["1 Jean", 5], ["2 Jean", 1], ["3 Jean", 1],
-    ["Jude", 1], ["Apocalypse", 22]
+    ["Jude", 1], ["Apocalypse", 22],
   ];
   const NT_START_INDEX = BOOKS.findIndex(([n]) => n === "Matthieu"); // 39 (0-based)
 
@@ -87,7 +86,9 @@
   function renderChapters() {
     if (!chapterSelect || !bookSelect) return;
     chapterSelect.innerHTML = "";
-    const ch = bookSelect.selectedOptions[0] ? +bookSelect.selectedOptions[0].dataset.ch : 1;
+    const ch = bookSelect.selectedOptions[0]
+      ? +bookSelect.selectedOptions[0].dataset.ch
+      : 1;
     for (let i = 1; i <= ch; i++) {
       const o = document.createElement("option");
       o.value = String(i);
@@ -107,7 +108,8 @@
     }
   }
   function updateReadLink() {
-    if (!readLink || !bookSelect || !chapterSelect || !verseSelect || !versionSelect) return;
+    if (!readLink || !bookSelect || !chapterSelect || !verseSelect || !versionSelect)
+      return;
     const ref = `${bookSelect.value} ${chapterSelect.value}:${verseSelect.value}`;
     const ver = versionSelect.value;
     readLink.href =
@@ -146,7 +148,7 @@
     { t: "Application pastorale", d: "Conseils pour ministres / enseignants." },
     { t: "Application personnelle", d: "Examen de conscience et engagement." },
     { t: "Versets à retenir", d: "Incontournables pour prédication pastorale." },
-    { t: "Prière de fin", d: "Clôture spirituelle avec reconnaissance." }
+    { t: "Prière de fin", d: "Clôture spirituelle avec reconnaissance." },
   ];
   const N = FIXED_POINTS.length;
 
@@ -227,14 +229,16 @@
       if (cand) book = cand[0];
     }
     if (!book) return null;
-    return { book, chap: +(m[2] || 1), vers: m[3] ? +m[3] : null };
+    return { book, chap: +m[2], vers: m[3] ? +m[3] : null };
   }
   function applySelection(sel) {
     if (!sel || !bookSelect) return;
     const idx = BOOKS.findIndex(([n]) => n === sel.book);
     if (idx >= 0) bookSelect.selectedIndex = idx;
     renderChapters();
-    const chMax = bookSelect.selectedOptions[0] ? +bookSelect.selectedOptions[0].dataset.ch : 1;
+    const chMax = bookSelect.selectedOptions[0]
+      ? +bookSelect.selectedOptions[0].dataset.ch
+      : 1;
     const chap = Math.max(1, Math.min(chMax, sel.chap || 1));
     if (chapterSelect) chapterSelect.value = String(chap);
     renderVerses(sel.book === "Psaumes" ? 200 : 60);
@@ -263,8 +267,38 @@
   }
   function saveCache(ref, ver, data) {
     try {
-      localStorage.setItem(cacheKey(ref, ver), JSON.stringify({ at: Date.now(), data }));
+      localStorage.setItem(
+        cacheKey(ref, ver),
+        JSON.stringify({ at: Date.now(), data })
+      );
     } catch {}
+  }
+
+  async function getStudy(ref) {
+    const ver = versionSelect ? versionSelect.value : "LSG";
+    const cached = loadCache(ref, ver);
+    if (cached?.data) return { from: "local", data: cached.data };
+
+    const url = `/api/chat?q=${encodeURIComponent(ref)}&templateId=v28-standard`;
+    console.log("[GEN] Appel API →", url);
+
+    const r = await fetch(url, { method: "GET" });
+    const bodyText = await r.text();
+    console.log("[GEN] HTTP", r.status, "extrait:", bodyText.slice(0, 200));
+    let j = {};
+    try {
+      j = JSON.parse(bodyText);
+    } catch {
+      // l’API renvoie parfois du Markdown : on enveloppe
+      j = { ok: r.ok, data: { reference: ref, sections: [] }, raw: bodyText };
+    }
+
+    if (!r.ok || !j?.ok) {
+      // si l’API a renvoyé du MD simple, on le garde brut pour fallback texte
+      throw new Error(j?.error || `HTTP ${r.status}`);
+    }
+    saveCache(ref, ver, j.data);
+    return { from: "api", data: j.data };
   }
 
   // ---------- post-traitements sûrs ----------
@@ -276,52 +310,12 @@
   }
   function ensureKeyVerse(body, reference) {
     const txt = String(body || "");
-    const hasRef = /\b\d+:\d+\b/.test(txt) || /[A-Za-zÀ-ÿ]+\s+\d+:\d+/.test(txt);
+    const hasRef =
+      /\b\d+:\d+\b/.test(txt) || /[A-Za-zÀ-ÿ]+\s+\d+:\d+/.test(txt);
     if (hasRef) return txt;
     const ref = reference || buildReference();
     const chap = (ref.match(/\b(\d+)\b/) || [])[1] || "1";
     return `Verset-clé proposé : ${ref.split(" ")[0]} ${chap}:1 — ${txt}`.trim();
-  }
-
-  // ---------- NOUVEAU : Markdown -> 28 sections ----------
-  function parseMarkdownToSections(md) {
-    // Découpe un Markdown en 28 sections basées sur les en-têtes "1. …" à "28. …"
-    const lines = String(md || "").split(/\r?\n/);
-    const slots = Array.from({ length: 29 }, () => ""); // 1..28
-    let cur = 0;
-    for (const raw of lines) {
-      const line = raw.replace(/\s+$/, "");
-      const m = line.match(/^\s*(\d{1,2})\.\s+/);
-      if (m) {
-        const n = parseInt(m[1], 10);
-        if (n >= 1 && n <= 28) cur = n;
-        else cur = 0;
-        continue;
-      }
-      if (cur > 0) {
-        slots[cur] += (slots[cur] ? "\n" : "") + line;
-      }
-    }
-    const out = [];
-    for (let i = 1; i <= 28; i++) out.push(slots[i].trim());
-    return out;
-  }
-
-  async function fetchStudyMarkdown(reference) {
-    const ver = versionSelect ? versionSelect.value : "LSG";
-    // Cache navigateur (clé = ref + version)
-    const cached = loadCache(reference, ver);
-    if (cached?.data) {
-      return cached.data; // data = md string
-    }
-    const url = `/api/chat?q=${encodeURIComponent(reference)}`;
-    const r = await fetch(url, { method: "GET" });
-    const text = await r.text();
-    if (!r.ok) {
-      throw new Error(text.slice(0, 300) || `HTTP ${r.status}`);
-    }
-    saveCache(reference, ver, text);
-    return text;
   }
 
   // ---------- génération ----------
@@ -331,48 +325,62 @@
     try {
       const ref = buildReference();
       if (!ref) {
-        alert("Choisis un Livre + Chapitre (ou saisis une référence ex: Marc 5:1-20)");
+        alert(
+          "Choisis un Livre + Chapitre (ou saisis une référence ex: Marc 5:1-20)"
+        );
         return;
       }
       await fakePrep();
 
-      // 1) Récupération du Markdown depuis l'API
-      const md = await fetchStudyMarkdown(ref);
+      const { data } = await getStudy(ref);
 
-      // 2) Découpage en 28 rubriques
-      const arr = parseMarkdownToSections(md);
-
-      // 3) Alimentation du modèle "notes"
+      // sections (serveur) -> notes locales
       notes = {};
-      for (let i = 0; i < N; i++) notes[i] = (arr[i] || "").trim();
+      const secs = Array.isArray(data.sections) ? data.sections : [];
+      secs.forEach((s) => {
+        const i = (s.id | 0) - 1;
+        if (i >= 0 && i < N) {
+          notes[i] = String(s.content || "").trim();
+        }
+      });
 
-      // 4) Garde-fous
-      notes[0] = notes[0] || defaultPrayerOpen(ref);
+      // Garde-fous : toujours 28 points ;
+      // 1: prière d'ouverture
+      notes[0] = defaultPrayerOpen(data.reference || ref);
+      // 2: canon & testament si vide
       if (!notes[1]) {
         const idx = bookSelect ? bookSelect.selectedIndex : 0;
         const testament = idx < NT_START_INDEX ? "Ancien Testament" : "Nouveau Testament";
         notes[1] = `Le livre de ${bookSelect ? bookSelect.value : "—"} appartient à l’${testament}.`;
       }
+      // 3: questions
       if (!notes[2]) {
         notes[2] =
           "À compléter par l’animateur : préparer au moins 5 questions de révision sur le chapitre précédent (comprendre, appliquer, comparer, retenir).";
       }
-      notes[8] = ensureKeyVerse(notes[8], ref);
-      notes[27] = notes[27] || defaultPrayerClose(ref);
+      // 9: verset-clé — garanti
+      notes[8] = ensureKeyVerse(notes[8], data.reference || ref);
+      // 28: prière de fin — garanti
+      notes[27] = defaultPrayerClose(data.reference || ref);
 
-      // 5) Mémoire “dernier”
+      dlog(`[GEN] sections=${secs.length}, filled=${Object.keys(notes).length}`);
+
+      // mémoire “dernier”
       try {
         const book = bookSelect?.value,
           chap = chapterSelect?.value,
           vers = verseSelect?.value,
           ver = versionSelect?.value;
-        lastStudy && (lastStudy.textContent = `Dernier : ${book} ${chap || 1} (${ver})`);
-        localStorage.setItem("be_last", JSON.stringify({ book, chapter: chap, verse: vers, version: ver }));
+        lastStudy &&
+          (lastStudy.textContent = `Dernier : ${data.reference || `${book} ${chap}`} (${ver})`);
+        localStorage.setItem(
+          "be_last",
+          JSON.stringify({ book, chapter: chap, verse: vers, version: ver })
+        );
       } catch {}
 
       renderSidebar();
       select(0);
-      dlog(`[GEN] OK → fichier téléchargé + UI alimentée`);
     } catch (e) {
       console.error(e);
       alert(String((e && e.message) || e));
@@ -418,20 +426,66 @@
           chap = chapterSelect?.value,
           vers = verseSelect?.value,
           ver = versionSelect?.value;
-        localStorage.setItem("be_last", JSON.stringify({ book, chapter: chap, verse: vers, version: ver }));
-        lastStudy && (lastStudy.textContent = `Dernier : ${book} ${chap || 1} (${ver})`);
+        localStorage.setItem(
+          "be_last",
+          JSON.stringify({ book, chapter: chap, verse: vers, version: ver })
+        );
+        lastStudy &&
+          (lastStudy.textContent = `Dernier : ${book} ${chap || 1} (${ver})`);
       } catch {}
       readLink && window.open(readLink.href, "_blank", "noopener");
     });
 
-  // Générer => /api/chat (Markdown)
-  generateBtn && generateBtn.addEventListener("click", generateStudy);
+  // ---------- binding ROBUSTE du bouton Générer ----------
+  function bindGenerate() {
+    const candidates = [
+      document.getElementById("generateBtn"),
+      document.getElementById("generate"),
+      document.querySelector('button#generateBtn'),
+      document.querySelector('button#generate'),
+      document.querySelector('button[data-role="generate"]'),
+      document.querySelector('button.btn-generate'),
+    ].filter(Boolean);
+
+    if (candidates.length === 0) {
+      console.warn(
+        '[GEN] Aucun bouton "Générer" trouvé. Donne-lui id="generateBtn" ou data-role="generate".'
+      );
+      return;
+    }
+
+    const onClick = async (e) => {
+      e.preventDefault();
+      console.log("[GEN] click → démarrage generateStudy()");
+      try {
+        await generateStudy();
+        console.log("[GEN] OK → étude générée");
+      } catch (err) {
+        console.error("[GEN] ERREUR generateStudy():", err);
+        alert("La génération a échoué : " + (err?.message || err));
+      }
+    };
+
+    candidates.forEach((btn) => {
+      if (!btn.__genBound) {
+        btn.addEventListener("click", onClick);
+        btn.__genBound = true;
+      }
+    });
+    console.log(`[GEN] Bouton(s) Générer lié(s) : ${candidates.length}`);
+  }
+  bindGenerate();
 
   // auto-génération si pas de texte saisi
   function autoGenerate() {
     clearTimeout(autoTimer);
     autoTimer = setTimeout(() => {
-      if (bookSelect?.value && chapterSelect?.value && !(searchRef?.value || "").trim()) generateStudy();
+      if (
+        bookSelect?.value &&
+        chapterSelect?.value &&
+        !(searchRef?.value || "").trim()
+      )
+        generateStudy();
     }, 300);
   }
   bookSelect &&
@@ -446,7 +500,10 @@
       updateReadLink();
       autoGenerate();
     });
-  verseSelect && verseSelect.addEventListener("change", () => updateReadLink());
+  verseSelect &&
+    verseSelect.addEventListener("change", () => {
+      updateReadLink();
+    });
 
   // autosave
   noteArea &&
@@ -475,10 +532,13 @@
             setMini(dotHealth, false);
           }
           try {
-            // simple ping GET (notre route existe)
-            const r2 = await fetch("/api/chat?q=Genèse 1");
+            const r2 = await fetch("/api/chat", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ probe: true }),
+            });
             setMini(dotChat, r2.ok);
-            dlog(`chat(GET) → ${r2.status}`);
+            dlog(`chat(POST) → ${r2.status}`);
           } catch {
             setMini(dotChat, false);
           }
