@@ -1,23 +1,21 @@
-// /api/health.js — petit endpoint de diagnostic
-export default function handler(req, res) {
+// /api/health.js — Simple health-check
+
+export default async function handler(req, res) {
+  res.setHeader("Cache-Control", "no-store, max-age=0, must-revalidate");
   res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("Expires", "0");
-  res.setHeader("CDN-Cache-Control", "no-store");
-  res.setHeader("Vercel-CDN-Cache-Control", "no-store");
-
-  const hasKey = !!(process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim());
-
-  res.status(200).end(
-    JSON.stringify({
-      ok: true,
+  try {
+    const ok = true;
+    const out = {
+      ok,
       env: {
-        hasOpenAIKey: hasKey,
-        node: process.version,
-        region: process.env.VERCEL_REGION || process.env.FLY_REGION || "unknown",
+        hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+        region: process.env.VERCEL_REGION || "local",
+        node: process.version
       },
-      time: new Date().toISOString(),
-    })
-  );
+      time: new Date().toISOString()
+    };
+    res.status(200).json(out);
+  } catch (e) {
+    res.status(200).json({ ok: false, error: String(e?.message || e) });
+  }
 }
