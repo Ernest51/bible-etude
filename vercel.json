@@ -1,24 +1,16 @@
 {
-  "regions": ["cdg1", "fra1"],
-
   "functions": {
-    "api/chat.js": {
+    "api/**/*.js": {
       "runtime": "nodejs20.x",
       "maxDuration": 30,
       "memory": 1536
-    },
-    "api/*.js": {
-      "runtime": "nodejs20.x",
-      "memory": 1024
     }
   },
-
   "headers": [
     {
       "source": "/api/chat",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-store" }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
     }
-  ]
+  ],
+  "regions": ["cdg1", "fra1"]
 }
