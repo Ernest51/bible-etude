@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Test API Chat</title>
+</head>
+<body>
+  <h1>Diagnostic API /api/chat</h1>
+  <pre id="out">Chargement…</pre>
+
+  <script>
+  async function run() {
+    try {
+      const r = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ book: "Genèse", chapter: 1, version: "LSG" })
+      });
+      const txt = await r.text();
+      document.getElementById("out").textContent = txt;
+    } catch (e) {
+      document.getElementById("out").textContent = "Erreur: " + e.message;
+    }
+  }
+  run();
+  </script>
+</body>
+</html>
