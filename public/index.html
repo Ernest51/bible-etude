@@ -22,12 +22,10 @@
       -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
     }
 
-    /* Progress */
     .progress-wrap{position:sticky;top:0;z-index:20;background:var(--bg)}
     .progress{height:4px;background:#e5e7eb}
     .progress>.bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--ok));transition:width .2s}
 
-    /* Header centré */
     header{background:#fff;border-bottom:1px solid var(--border);position:sticky;top:4px;z-index:10;padding:16px 18px}
     .brand{max-width:1200px;margin:0 auto;text-align:center}
     .brand h1{margin:0;font-size:28px;letter-spacing:.3px;font-weight:800}
@@ -35,13 +33,12 @@
 
     main{max-width:1200px;margin:14px auto;padding:0 14px}
 
-    /* Controls */
     .controls{display:grid;gap:10px;margin:12px 0;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto auto auto auto;align-items:center}
     .controls .wide{grid-column:auto}
     .controls .tog{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text);white-space:nowrap}
     .controls .tog small{color:var(--muted)}
     @media (max-width:1100px){
-      .controls{grid-template-columns:1fr 1fr 1r 1fr}
+      .controls{grid-template-columns:1fr 1fr 1fr 1fr}
       .controls .wide{grid-column:1/-1}
       .controls .actions{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
       .controls .statusline{grid-column:1/-1}
@@ -52,7 +49,6 @@
     .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
     .btn.warn{background:var(--warn)}
 
-    /* Layout */
     .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
     @media (max-width:1000px){.layout{grid-template-columns:1fr}}
 
@@ -63,7 +59,7 @@
     .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:#eef2ff}
     .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
     .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
-    .dot{width:8px;height:8px;border-radius:999px;background:#eab308;margin-left:auto}.dot.ok{background:var(--ok)}
+    .dot{width:8px;height:8px;border-radius:999px;background:#eab308;margin-left:auto}.dot.ok{background:#16a34a}
 
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
@@ -77,7 +73,6 @@
       font-family:"Merriweather", Georgia, serif; line-height:1.65; font-size:16px; background:#fff
     }
 
-    /* Aperçu enrichi */
     .previewWrap{display:flex;flex-direction:column;gap:8px}
     .previewHead{display:flex;align-items:center;justify-content:space-between}
     .previewHead .hint{color:var(--muted);font-size:12px}
@@ -92,6 +87,7 @@
     .preview em{font-style:italic}
     .preview ul,.preview ol{padding-left:1.2em;margin:.5em 0}
     .preview blockquote{border-left:4px solid var(--accent); padding:.4em .8em; margin:.8em 0; background:#f8fafc; color:#0f172a}
+    .preview a{color:#1d4ed8; text-decoration:underline}
     .theoBanner{display:none;background:#f5f7ff;border:1px dashed #c7d2fe;color:#334155;border-radius:8px;padding:8px 10px;font-size:13px}
     .theoBanner.show{display:block}
 
@@ -114,21 +110,18 @@
   </style>
 </head>
 <body>
-  <!-- Barre de progression -->
   <div class="progress-wrap">
     <div class="progress"><div id="progressBar" class="bar" style="width:0%"></div></div>
   </div>
 
-  <!-- En-tête centré -->
   <header>
     <div class="brand">
       <h1>Méditation</h1>
-      <div class="subtitle">Étude biblique structurée en 28 rubriques — lisible, aérée, et enrichissable</div>
+      <div class="subtitle">Étude biblique structurée en 28 rubriques — lisible, aérée, enrichie</div>
     </div>
   </header>
 
   <main>
-    <!-- Zone de contrôles -->
     <div class="controls">
       <input id="searchRef" class="wide" type="text" placeholder="Rechercher (ex : Marc 5:1, 1 Jean 2, Genèse 1:1-5)" />
 
@@ -143,26 +136,22 @@
         <option value="BFC">Français Courant (BFC)</option>
       </select>
 
-      <!-- Toggle mode enrichi (objectif ~ 2500 car.) -->
-      <label class="tog" title="Activer l’enrichissement (≈ 2 500 caractères, style théologique, mise en forme propre)">
+      <label class="tog" title="Aperçu aéré, liens cliquables, style théologique renforcé">
         <input type="checkbox" id="modeRich" />
-        Mode enrichi <small>(≈ 2 500 car.)</small>
+        Mode enrichi <small>(≈ 2 500 car. par point-clé)</small>
       </label>
 
-      <!-- Actions principales -->
       <div class="actions">
         <button id="validate" class="btn" type="button">Valider</button>
         <button id="generateBtn" class="btn warn" type="button">Générer</button>
         <a id="readLink" class="btn secondary" href="#" target="_blank" rel="noopener">Lire la Bible</a>
       </div>
 
-      <!-- Statut de la dernière génération -->
       <div class="statusline">
         <span id="lastStudy" class="small">Dernier : —</span>
       </div>
     </div>
 
-    <!-- Disposition principale -->
     <div class="layout">
       <aside class="sidebar">
         <div class="side-head">Rubriques (28)</div>
@@ -177,13 +166,11 @@
         </div>
 
         <div class="ed-body">
-          <!-- Édition -->
           <textarea id="noteArea" placeholder="Écris ici…"></textarea>
 
-          <!-- Aperçu enrichi : vrai gras, titres, listes… -->
           <div class="previewWrap">
             <div class="previewHead">
-              <div class="hint">Aperçu enrichi (rendu en <strong>gras</strong>, <em>italique</em>, titres, listes — pas d’astérisques)</div>
+              <div class="hint">Aperçu enrichi (rendu en <strong>gras</strong>, <em>italique</em>, titres, listes, <u>liens cliquables</u>)</div>
               <div id="theoBanner" class="theoBanner">Rubrique 3 — répondre comme un bon théologien : structuré, référencé, pastoral.</div>
             </div>
             <div id="preview" class="preview" aria-live="polite"></div>
@@ -209,125 +196,84 @@
     <div id="debugPanel">[init]</div>
   </footer>
 
-  <!-- Loader qui injecte app.js avec cache-buster -->
+  <!-- Loader cache-buster -->
   <script src="/app-loader.js" defer></script>
 
-  <!-- Script d’aperçu + enrichissement local (sans toucher app.js) -->
+  <!-- Aperçu enrichi : autorise <a> et sécurise les liens -->
   <script>
-    // 1) Rendu enrichi : autorise un sous-ensemble sûr de balises (strong, em, h1-3, ul/ol/li, p, br, blockquote)
     function mdSafeRender(input){
       if(!input) return "";
       let s = String(input);
 
-      // Whitelist : remplace temporairement les balises autorisées par des tokens
-      const allow = ["strong","em","h1","h2","h3","ul","ol","li","p","br","blockquote"];
+      // Autoriser un sous-ensemble de balises (y compris <a>)
+      const allow = ["strong","em","h1","h2","h3","ul","ol","li","p","br","blockquote","a"];
       const tokens = [];
-      s = s.replace(/<\/?(strong|em|h1|h2|h3|ul|ol|li|p|br|blockquote)\b[^>]*>/gi, (m) => {
+      s = s.replace(/<\/?(strong|em|h1|h2|h3|ul|ol|li|p|br|blockquote|a)([^>]*)>/gi, (m) => {
         const i = tokens.push(m) - 1;
         return `__ALLOWED_TAG_${i}__`;
       });
 
-      // Échapper tout le reste
+      // Échapper le reste
       s = s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 
       // Restaurer les balises autorisées
       s = s.replace(/__ALLOWED_TAG_(\d+)__/g, (_,i)=>tokens[Number(i)]);
 
-      // Titres markdown -> HTML (si l’API renvoie des #)
+      // Titres markdown
       s = s.replace(/^###\s?(.*)$/gm, "<h3>$1</h3>");
       s = s.replace(/^##\s?(.*)$/gm, "<h2>$1</h2>");
       s = s.replace(/^#\s?(.*)$/gm, "<h1>$1</h1>");
 
-      // Gras/italique markdown -> HTML
+      // Gras/italique markdown
       s = s.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>");
       s = s.replace(/\*(.+?)\*/g,"<em>$1</em>");
 
-      // Listes markdown -> <li>…</li> groupées
+      // Puces markdown -> li
       s = s.replace(/(^|\n)\s*-\s+(.*)/g, (__, br, item)=> `${br}<li>${item}</li>`);
       if (/<li>/.test(s)) s = s.replace(/(<li>[\s\S]*?<\/li>)+/g, m=>`<ul>${m}</ul>`);
 
-      // Paragraphes : split par doubles sauts
+      // Auto-link plain URLs
+      s = s.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+
+      // Paragraphes
       s = s.split(/\n{2,}/).map(block=>{
-        if (/^<(h[1-3]|ul|ol|blockquote)\b/i.test(block)) return block;
+        if (/^<(h[1-3]|ul|ol|blockquote|p|a)\b/i.test(block)) return block;
         if (block.trim()==="") return "";
         if (!/^<p>/.test(block)) block = `<p>${block.replace(/\n/g,"<br/>")}</p>`;
         return block;
       }).join("");
 
+      // Sécuriser les <a> : only http/https + target/rel
+      s = s.replace(/<a\b([^>]*)>(.*?)<\/a>/gi, (m,attrs,text)=>{
+        const hrefMatch = attrs.match(/href\s*=\s*"(.*?)"/i) || attrs.match(/href\s*=\s*'(.*?)'/i);
+        const href = hrefMatch ? hrefMatch[1] : "#";
+        if(!/^https?:\/\//i.test(href)) return text; // retire le lien si non http(s)
+        return `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
+      });
+
       return s;
     }
 
-    (function wirePreviewAndEnrich(){
+    (function wirePreview(){
       const area = document.getElementById("noteArea");
       const preview = document.getElementById("preview");
       const theoBanner = document.getElementById("theoBanner");
-      const modeRich = document.getElementById("modeRich");
       const edTitle = document.getElementById("edTitle");
-      const bookSelect = document.getElementById("bookSelect");
-      const chapterSelect = document.getElementById("chapterSelect");
+      const modeRich = document.getElementById("modeRich");
+      const y = document.getElementById("y");
+      y.textContent = new Date().getFullYear();
 
-      function refreshPreview(){ preview.innerHTML = mdSafeRender(area.value); }
-      area.addEventListener("input", refreshPreview);
+      function refresh(){ preview.innerHTML = mdSafeRender(area.value); }
+      area.addEventListener("input", refresh);
 
-      function makeOpeningPrayer(book, chap){
-        // prière d’ouverture contextuelle (sans astérisques, gras réel via balises)
-        return [
-          `<p><strong>Prière d’ouverture</strong></p>`,
-          `<p>Père éternel, nous nous approchons de toi pour méditer <strong>${book} ${chap}</strong>. Ouvre nos yeux sur ta sagesse créatrice et ton dessein de salut. Que ton Esprit éclaire notre intelligence, affermisse notre foi et oriente notre vie vers l’obéissance joyeuse. Au nom de Jésus-Christ, amen.</p>`
-        ].join("\n");
-      }
-
-      function enrichRubric3_Exode1(){
-        // Réponses théologiques aux 5 questions — ~2 500 caractères, aéré, en <strong> pour les en-têtes
-        return [
-          `<p><strong>Révision sur Exode 1 — 5 questions</strong></p>`,
-          `<p><strong>1) Observation.</strong> Le texte rapporte la croissance fulgurante d’Israël en Égypte après la génération de Joseph, l’apparition d’un pharaon “qui n’avait pas connu Joseph” et la mise en place d’une oppression systémique (travaux forcés, corvées, villes-entrepôts). Un décret vise même les nouveau-nés mâles hébreux. Le vocabulaire de la fécondité et de la prolifération (<em>ils furent féconds, se multiplièrent</em>) revient comme un refrain, contrastant avec les verbes de domination et d’avilissement (<em>réduire en servitude, rendre amère la vie</em>). L’ironie narrative est nette : plus on écrase le peuple, plus il grandit — signe d’une bénédiction qui dépasse les calculs du pouvoir.</p>`,
-          `<p><strong>2) Compréhension.</strong> Exode 1 dévoile un Dieu souverain dont la promesse abrahamique (postérité et multiplication) continue d’opérer dans l’adversité. L’homme, sans Dieu, érige des politiques de peur et de contrôle ; mais Dieu retourne ces stratégies contre elles-mêmes. La vocation du peuple (porter la bénédiction) n’est pas annulée par l’oppression ; elle s’affine : apprendre la dépendance, préserver la vie, craindre Dieu plus que les hommes (les sages-femmes). Côté limites humaines : le pouvoir politique n’est ni neutre ni ultime ; abandonné à l’angoisse, il devient idolâtrique.</p>`,
-          `<p><strong>3) Interprétation.</strong> Un verset-clef : « Plus on l’opprimait, plus il se multipliait et s’étendait » (Ex 1:12). Il condense le paradoxe de la bénédiction sous pression : l’oppression ne contredit pas la promesse, elle en devient — par providence — le théâtre. Ce verset articule le passage : il justifie l’échec des plans de Pharaon, prépare la scène de la délivrance et relie l’histoire à Genèse (croissance/multiplication) tout en annonçant Exode (libération, service rendu à Dieu).</p>`,
-          `<p><strong>4) Connexions bibliques.</strong> <em>Genèse 12:1-3</em> : la promesse d’une descendance et d’une bénédiction pour les nations sous-tend la prolifération d’Exode 1. <em>Psaume 105:23-25</em> relit l’exil en Égypte comme le cadre souverain de Dieu. Dans le NT, <em>Actes 7:17-19</em> (discours d’Étienne) interprète l’oppression comme prélude au salut, et <em>Apocalypse 12</em> reprend le motif du pouvoir qui veut détruire la descendance, avorté par la protection divine : Dieu garde sa lignée malgré la rage du dragon/pouvoir.</p>`,
-          `<p><strong>5) Application.</strong> <em>Personnel</em> : discerner les peurs qui nous conduisent à “contrôler” plutôt qu’à faire confiance, et cultiver la fidélité quotidienne (comme les sages-femmes). <em>Famille</em> : protéger la vie, éduquer au courage et à la crainte de Dieu plutôt qu’à la crainte des hommes. <em>Église</em> : résister aux logiques d’avilissement par la diaconie et la vérité, encourager les vocations qui préservent la vie, soutenir les faibles. Une pratique concrète : prier pour les autorités afin qu’elles servent la justice, et s’engager localement là où la vie est menacée.</p>`,
-          `<p><strong>Bonus — Verset à mémoriser et prière.</strong> Verset : « Plus on l’opprimait, plus il se multipliait et s’étendait » (Ex 1:12). Prière : « Seigneur, quand la peur gonfle les systèmes et que la force écrase, fais de nous un peuple fidèle ; accorde courage aux humbles, sagesse aux responsables et espérance aux opprimés. Que ta promesse triomphe. Amen. »</p>`
-        ].join("\n");
-      }
-
-      function enrichIfNeeded(){
-        // Si Mode enrichi est activé, injecte du contenu lorsque la rubrique est vide
-        const title = (edTitle.textContent || "").trim();
-        const isRich = !!(modeRich && modeRich.checked);
-        if (!isRich) { theoBanner.classList.remove("show"); return; }
-
-        // Affiche le bandeau d’aide pour la rubrique 3
-        if (/^\s*3\./.test(title)) theoBanner.classList.add("show");
+      const obs = new MutationObserver(()=>{
+        const t = (edTitle.textContent||"").trim();
+        if (/^\s*3\./.test(t) && modeRich && modeRich.checked) theoBanner.classList.add("show");
         else theoBanner.classList.remove("show");
+      });
+      obs.observe(edTitle,{childList:true,subtree:true});
 
-        const book = bookSelect?.value || "";
-        const chap = chapterSelect?.value || "";
-        const val = (area.value || "").trim();
-
-        // 1) Prière d’ouverture (rubrique 1) si vide
-        if (/^\s*1\./.test(title) && !val) {
-          area.value = makeOpeningPrayer(book, chap);
-          area.dispatchEvent(new Event("input", {bubbles:true}));
-        }
-
-        // 2) Rubrique 3 — Exode 1 : injecter des réponses complètes si vide
-        if (/^\s*3\./.test(title) && !val && book === "Exode" && String(chap) === "1") {
-          area.value = enrichRubric3_Exode1();
-          area.dispatchEvent(new Event("input", {bubbles:true}));
-        }
-      }
-
-      // Observe le changement de rubrique (titre éditeur)
-      const obs = new MutationObserver(enrichIfNeeded);
-      obs.observe(edTitle, {childList:true,subtree:true});
-
-      // Premier rendu/appariement
-      document.getElementById("y").textContent = new Date().getFullYear();
-      refreshPreview();
-      enrichIfNeeded();
-
-      // Si on clique/toggle Mode enrichi, réévaluer
-      modeRich && modeRich.addEventListener("change", enrichIfNeeded);
+      refresh();
     })();
   </script>
 </body>
