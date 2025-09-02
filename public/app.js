@@ -1,14 +1,34 @@
-// public/app.js — FRONT avec liens cliquables + thèmes (5) + gras auto dans l’aperçu
+// public/app.js — FRONT (28 rubriques) — version anti-doublons + prière auto + rubrique 3 riche
 (function () {
+  // ---------- helpers UI ----------
   const $ = (id) => document.getElementById(id);
   const progressBar = $("progressBar");
   const setProgress = (p) => { if (progressBar) progressBar.style.width = Math.max(0, Math.min(100, p)) + "%"; };
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-  const busy = (el, on) => { if (!el) return; el.disabled = !!on; el.classList.toggle("opacity-60", !!on); el.textContent = on ? "Génération..." : el.dataset.label || el.textContent; };
-  const dpanel = $("debugPanel"), dbtn = $("debugBtn");
-  const dlog = (m) => { if (!dpanel) return; dpanel.style.display = "block"; dbtn && (dbtn.textContent="Fermer Debug"); const line=`[${new Date().toISOString()}] ${m}`; dpanel.textContent += (dpanel.textContent? "\n":"")+line; console.log(line); };
-  const setMini = (dot, ok) => { if (!dot) return; dot.classList.remove("ok","ko"); if (ok===true) dot.classList.add("ok"); else if (ok===false) dot.classList.add("ko"); };
+  const busy = (el, on) => {
+    if (!el) return;
+    el.disabled = !!on;
+    el.classList.toggle("opacity-60", !!on);
+    el.textContent = on ? "Génération..." : el.dataset.label || el.textContent;
+  };
+  const dpanel = $("debugPanel");
+  const dbtn = $("debugBtn");
+  const dlog = (msg) => {
+    if (!dpanel) return;
+    dpanel.style.display = "block";
+    dbtn && (dbtn.textContent = "Fermer Debug");
+    const line = `[${new Date().toISOString()}] ${msg}`;
+    dpanel.textContent += (dpanel.textContent ? "\n" : "") + line;
+    console.log(line);
+  };
+  const setMini = (dot, ok) => {
+    if (!dot) return;
+    dot.classList.remove("ok", "ko");
+    if (ok === true) dot.classList.add("ok");
+    else if (ok === false) dot.classList.add("ko");
+  };
 
+  // ---------- sélecteurs ----------
   const searchRef = $("searchRef"),
     bookSelect = $("bookSelect"),
     chapterSelect = $("chapterSelect"),
@@ -21,35 +41,15 @@
     pointsList = $("pointsList"),
     edTitle = $("edTitle"),
     noteArea = $("noteArea"),
-    renderArea = $("renderArea"),
     prevBtn = $("prev"),
     nextBtn = $("next"),
     metaInfo = $("metaInfo"),
     dotHealth = $("dot-health"),
     dotChat = $("dot-chat"),
     dotPing = $("dot-ping"),
-    sourceInfo = $("sourceInfo"),
-    enrichedToggle = $("enrichedToggle"),
-    themeRange = $("themeRange");
+    enrichedToggle = $("enrichedToggle"); // (checkbox) mode enrichi si présent
 
   $("y") && ($("y").textContent = new Date().getFullYear());
-
-  // ---------- Thèmes (1..5) ----------
-  (function initTheme(){
-    try{
-      const saved = localStorage.getItem("be_theme");
-      const n = saved ? String(saved) : "1";
-      document.body.setAttribute("data-theme", n);
-      if (themeRange) themeRange.value = n;
-    }catch{}
-    if (themeRange){
-      themeRange.addEventListener("input", ()=>{
-        const v = String(themeRange.value || "1");
-        document.body.setAttribute("data-theme", v);
-        try{ localStorage.setItem("be_theme", v); }catch{}
-      });
-    }
-  })();
 
   // ---------- livres / chapitres ----------
   const BOOKS = [
@@ -68,12 +68,45 @@
     ["1 Pierre", 5], ["2 Pierre", 3], ["1 Jean", 5], ["2 Jean", 1], ["3 Jean", 1],
     ["Jude", 1], ["Apocalypse", 22],
   ];
-  function renderBooks(){ if(!bookSelect) return; bookSelect.innerHTML=""; BOOKS.forEach(([n,ch])=>{const o=document.createElement("option"); o.value=n; o.textContent=n; o.dataset.ch=ch; bookSelect.appendChild(o);}); }
-  function renderChapters(){ if(!chapterSelect||!bookSelect) return; chapterSelect.innerHTML=""; const ch=bookSelect.selectedOptions[0]? +bookSelect.selectedOptions[0].dataset.ch:1; for(let i=1;i<=ch;i++){const o=document.createElement("option"); o.value=String(i); o.textContent=String(i); chapterSelect.appendChild(o);} }
-  function renderVerses(max=60){ if(!verseSelect) return; verseSelect.innerHTML=""; const m=Math.max(1,Math.min(200,max)); for(let i=1;i<=m;i++){const o=document.createElement("option"); o.value=String(i); o.textContent=String(i); verseSelect.appendChild(o);} }
-  function updateReadLink(){ if(!readLink||!bookSelect||!chapterSelect||!verseSelect||!versionSelect) return; const ref=`${bookSelect.value} ${chapterSelect.value}:${verseSelect.value}`; const ver=versionSelect.value; readLink.href="https://www.biblegateway.com/passage/?search="+encodeURIComponent(ref)+"&version="+encodeURIComponent(ver); }
+  const NT_START_INDEX = BOOKS.findIndex(([n]) => n === "Matthieu"); // 39 (0-based)
 
-  // ---------- rubriques ----------
+  function renderBooks() {
+    if (!bookSelect) return;
+    bookSelect.innerHTML = "";
+    BOOKS.forEach(([n, ch]) => {
+      const o = document.createElement("option");
+      o.value = n; o.textContent = n; o.dataset.ch = ch;
+      bookSelect.appendChild(o);
+    });
+  }
+  function renderChapters() {
+    if (!chapterSelect || !bookSelect) return;
+    chapterSelect.innerHTML = "";
+    const ch = bookSelect.selectedOptions[0] ? +bookSelect.selectedOptions[0].dataset.ch : 1;
+    for (let i = 1; i <= ch; i++) {
+      const o = document.createElement("option");
+      o.value = String(i); o.textContent = String(i);
+      chapterSelect.appendChild(o);
+    }
+  }
+  function renderVerses(max = 60) {
+    if (!verseSelect) return;
+    verseSelect.innerHTML = "";
+    const m = Math.max(1, Math.min(200, max));
+    for (let i = 1; i <= m; i++) {
+      const o = document.createElement("option");
+      o.value = String(i); o.textContent = String(i);
+      verseSelect.appendChild(o);
+    }
+  }
+  function updateReadLink() {
+    if (!readLink || !bookSelect || !chapterSelect || !verseSelect || !versionSelect) return;
+    const ref = `${bookSelect.value} ${chapterSelect.value}:${verseSelect.value}`;
+    const ver = versionSelect.value;
+    readLink.href = "https://www.biblegateway.com/passage/?search=" + encodeURIComponent(ref) + "&version=" + encodeURIComponent(ver);
+  }
+
+  // ---------- rubriques fixes ----------
   const FIXED_POINTS = [
     { t: "Prière d’ouverture", d: "Invocation du Saint-Esprit pour éclairer l’étude." },
     { t: "Canon et testament", d: "Identification du livre selon le canon biblique." },
@@ -106,321 +139,441 @@
   ];
   const N = FIXED_POINTS.length;
 
-  let current=0, notes={}, autosaveTimer=null, autoTimer=null, inFlight=false;
+  // ---------- état ----------
+  let current = 0, notes = {}, autosaveTimer = null, autoTimer = null, inFlight = false;
 
-  function renderSidebar(){
-    if(!pointsList) return;
-    pointsList.innerHTML="";
-    FIXED_POINTS.forEach((r,i)=>{
-      const row=document.createElement("div");
-      row.className="item"+(i===current?" active":"");
-      row.dataset.idx=i;
-      row.innerHTML=`
-        <span class="idx">${i+1}</span>
-        <div><div>${r.t}</div><span class="desc">${r.d||""}</span></div>
-        <span class="dot ${notes[i]&&notes[i].trim()? "ok":""}"></span>`;
-      row.addEventListener("click", ()=>{ if(current!==i) select(i); });
+  function renderSidebar() {
+    if (!pointsList) return;
+    pointsList.innerHTML = "";
+    FIXED_POINTS.forEach((r, i) => {
+      const row = document.createElement("div");
+      row.className = "item" + (i === current ? " active" : "");
+      row.dataset.idx = i;
+      row.innerHTML = `
+        <span class="idx">${i + 1}</span>
+        <div><div>${r.t}</div><span class="desc">${r.d || ""}</span></div>
+        <span class="dot ${notes[i] && notes[i].trim() ? "ok" : ""}"></span>`;
+      row.addEventListener("click", () => { if (current !== i) select(i); });
       pointsList.appendChild(row);
     });
   }
-  function renderSidebarDots(){
-    document.querySelectorAll(".list .item").forEach((el)=>{
-      const i=+el.dataset.idx, dot=el.querySelector(".dot");
-      if(!dot) return;
-      if(notes[i] && notes[i].trim()) dot.classList.add("ok");
+  function renderSidebarDots() {
+    document.querySelectorAll(".list .item").forEach((el) => {
+      const i = +el.dataset.idx, dot = el.querySelector(".dot");
+      if (!dot) return;
+      if (notes[i] && notes[i].trim()) dot.classList.add("ok");
       else dot.classList.remove("ok");
     });
   }
-  function select(i){
-    if (noteArea) notes[current]=noteArea.value;
+  function select(i) {
+    if (noteArea) notes[current] = noteArea.value;
     saveStorage();
-    current=i;
-    document.querySelectorAll(".list .item").forEach((el)=>el.classList.toggle("active", +el.dataset.idx===current));
-    if (edTitle) edTitle.textContent=`${i+1}. ${FIXED_POINTS[i].t}`;
-    if (noteArea) noteArea.value=notes[i]||"";
-    if (metaInfo) metaInfo.textContent=`Point ${i+1} / ${N} • Sauvegarde auto (2s)`;
-    updateRender();
+    current = i;
+    document.querySelectorAll(".list .item").forEach((el) => el.classList.toggle("active", +el.dataset.idx === current));
+    if (edTitle) edTitle.textContent = `${i + 1}. ${FIXED_POINTS[i].t}`;
+    if (noteArea) noteArea.value = notes[i] || "";
+    if (metaInfo) metaInfo.textContent = `Point ${i + 1} / ${N}`;
     if (noteArea) noteArea.focus();
   }
-  function saveStorage(){ try{ localStorage.setItem("be_notes", JSON.stringify(notes)); renderSidebarDots(); }catch{} }
-
-  const stripStarsAndTags = (s)=> String(s||"")
-    .replace(/\*\*(.*?)\*\*/g,"$1")
-    .replace(/<\/?[^>]+>/g,"")
-    .replace(/\n{3,}/g,"\n\n")
-    .trim();
-
-  const gwUrl = (ref, ver)=> "https://www.biblegateway.com/passage/?search="+encodeURIComponent(ref)+"&version="+encodeURIComponent(ver||"LSG");
-
-  // --- Aperçu cliquable + titres en gras ---
-  function linkifyAndEmbolden(text){
-    if (!text) return "";
-    // échappe HTML
-    const esc = (s)=> s.replace(/[&<>"']/g, (c)=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
-    let html = esc(text);
-
-    // URL -> lien
-    const urlRe = /\bhttps?:\/\/[^\s)]+/gi;
-    html = html.replace(urlRe, (u)=>`<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
-
-    // Titres / mots-clés → gras
-    const heads = [
-      "Observation","Compréhension","Interprétation",
-      "Connexions bibliques","Application","Bonus",
-      "Développement","Prière","Prière d’ouverture","Prière de fin",
-      "Verset à mémoriser","Verset-clé","Verset clef"
-    ];
-    heads.forEach(h=>{
-      const re = new RegExp(`(^|\\n)(${h})\\s*:`, "gi");
-      html = html.replace(re, (_m, p1, p2)=> `${p1}<strong>${p2}</strong> :`);
-    });
-
-    // Listes simples : tirets → on laisse en texte ; retours de ligne
-    return html.replace(/\n/g,"<br>");
-  }
-  function updateRender(){
-    if (!renderArea) return;
-    const raw = noteArea ? noteArea.value : "";
-    renderArea.innerHTML = linkifyAndEmbolden(raw);
+  function saveStorage() {
+    try { localStorage.setItem("be_notes", JSON.stringify(notes)); renderSidebarDots(); } catch { }
   }
 
-  function enrichShort(text, book, chapter){
-    const MIN = 1400; // un peu plus de matière
-    let t = stripStarsAndTags(text);
-    if (t.length >= MIN || !enrichedToggle?.checked) return t;
-    const extra =
-`\n\nDéveloppement :
-Ce passage s’inscrit dans l’économie de la révélation : initiative divine, réponse humaine, effets communautaires.
-Pistes : relever les verbes d’action de Dieu, les marqueurs d’alliance, les contrastes (lumière/ténèbres ; foi/doute), et relier doctrine, éthique, espérance.`;
-    while ((t+extra).length < MIN) t += extra;
-    return t;
+  // ---------- parse / utilitaires texte ----------
+  const norm = (s) => String(s || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9: ]+/g, " ")
+    .replace(/\s+/g, " ").trim();
+
+  // supprime balises HTML visibles et markdown **gras**
+  function stripMarkup(s) {
+    if (!s) return "";
+    let t = String(s)
+      .replace(/<\/?[^>]+>/g, "")          // balises HTML visibles
+      .replace(/\*\*(.*?)\*\*/g, "$1")     // **gras** -> texte simple (textarea)
+      .replace(/__([^_]+)__/g, "$1");      // __gras__ -> texte simple
+    // nettoyer espaces
+    return t.replace(/\s+$/g, "").replace(/\n{3,}/g, "\n\n").trim();
   }
 
-  function defaultPrayerOpen(book, chapter){
-    return stripStarsAndTags(
-`Prière d’ouverture :
-Père céleste, nous venons devant toi pour lire ${book} ${chapter}.
-Ouvre nos cœurs par ton Esprit, donne-nous intelligence et obéissance.
-Que ta Parole éclaire nos choix, fortifie notre foi et forme en nous le caractère de Christ.
-Au nom de Jésus, amen.`
-    );
-  }
-  function defaultPrayerClose(book, chapter){
-    return stripStarsAndTags(
-`Prière de fin :
-Seigneur, merci pour la lumière reçue dans ${book} ${chapter}.
-Aide-nous à mettre en pratique ce que nous avons compris : dans l’Église, au foyer, et personnellement.
-Garde-nous dans ta paix et rends-nous utiles à ton œuvre. Amen.`
-    );
-  }
-
-  function buildRubrique3Answers(book, chapter, version){
-    const mainRef = `${book} ${chapter}`;
-    const mainUrl = gwUrl(mainRef, version);
-    const echo1 = `Psaume 19:1 — ${gwUrl("Psaume 19:1", version)}`;
-    const echo2 = `Jean 1:1-3 — ${gwUrl("Jean 1:1-3", version)}`;
-    const keyRef = `${book} ${chapter}:1`;
-    const keyUrl = gwUrl(keyRef, version);
-
-    return stripStarsAndTags(
-`Révision sur ${book} ${chapter} — réponses aux 5 questions
-
-Observation :
-- Passage étudié : ${mainRef} (${mainUrl})
-- Structure globale : initiative de Dieu, réponse humaine, effets communautaires.
-- Repères récurrents : verbes d’action divins, formules d’alliance, refrains, contrastes.
-- Personnages/voix : Dieu (parole/ordre), médiateurs, assemblée.
-
-Compréhension :
-Dieu est souverain, sage et fidèle ; il établit l’ordre, instruit et sauve.
-L’homme est appelé à écouter, croire et obéir au sein du peuple de Dieu, conscient de sa fragilité et de son besoin de grâce.
-
-Interprétation :
-Verset-clé proposé : ${keyRef} (${keyUrl})
-Ce verset concentre l’élan du passage et offre l’axe doctrinal : identité de Dieu, initiative de sa Parole, finalité pour le peuple.
-
-Connexions bibliques :
-- Écho 1 : ${echo1}
-- Écho 2 : ${echo2}
-Ces parallèles soulignent la cohérence de la révélation : création, Parole, et accomplissement christologique.
-
-Application (semaine) :
-- Personnel : temps régulier d’écoute, une obéissance concrète et mesurable.
-- Famille : partager ${mainRef}, prier un point d’obéissance commun.
-- Église : servir humblement, fortifier un frère/une sœur par une promesse adaptée.
-
-Bonus :
-Verset à mémoriser : ${keyRef} (${keyUrl})
-Prière :
-Seigneur, tu parles encore aujourd’hui. Donne-moi un cœur docile, unis-moi à ton peuple et rends-moi persévérant dans l’obéissance.
-Que Christ soit honoré par ma foi, mes paroles et mes choix. Amen.`
-    );
-  }
-
-  async function postJSON(url, payload, tries=3){
-    let lastErr;
-    for (let k=0;k<tries;k++){
-      try{
-        const r = await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify(payload)});
-        if (!r.ok){ const msg=await r.text().catch(()=> ""); throw new Error(msg || `HTTP ${r.status}`); }
-        return r;
-      }catch(e){ lastErr=e; await new Promise(res=>setTimeout(res,300*(k+1))); }
-    }
-    throw lastErr;
-  }
-  async function getStudy(){
-    const ver = versionSelect ? versionSelect.value : "LSG";
-    const book = bookSelect?.value || "Genèse";
-    const chapter = Number(chapterSelect?.value || 1);
-    const r = await postJSON("/api/chat",{ book, chapter, version: ver },3);
-    const ct = r.headers.get("Content-Type")||"";
-    if (/application\/json/i.test(ct)){
-      const j=await r.json().catch(()=> ({}));
-      if (!j || (j.ok===false)) throw new Error(j?.error || "Réponse JSON invalide");
-      window.__lastChatSource = j.source || "unknown";
-      window.__lastChatWarn = j.warn || "";
-      return { from: j.source || "api", data: j.data };
-    }
-    const text = await r.text();
-    return { from:"api-md", data:{ reference:"", sections:[] } };
-  }
-
-  async function generateStudy(){
-    if (inFlight) return;
-    const ref = buildReference();
-    if (!ref){ alert("Choisis un Livre + Chapitre (ou saisis une référence ex: Marc 5:1-20)"); return; }
-    inFlight = true;
-    const btn=generateBtn; btn && (btn.dataset.label = btn.dataset.label || btn.textContent); busy(btn,true);
-    try{
-      setProgress(12); await wait(60); setProgress(55);
-
-      const { data, from } = await getStudy();
-      const book = bookSelect?.value || "Genèse";
-      const chap = Number(chapterSelect?.value || 1);
-      const ver = versionSelect?.value || "LSG";
-
-      notes = {};
-      const secs = Array.isArray(data.sections) ? data.sections : [];
-      secs.forEach((s)=>{
-        const i=(s.id|0)-1;
-        if (i>=0 && i<N){
-          notes[i] = stripStarsAndTags(s.content||"");
-        }
-      });
-
-      // Forçages / enrichissements
-      notes[0]  = defaultPrayerOpen(book, chap);
-      notes[2]  = buildRubrique3Answers(book, chap, ver);
-      if (!notes[8] || notes[8].length<10){
-        const keyRef = `${book} ${chap}:1`;
-        notes[8] = `Verset-clé proposé : ${keyRef} (${gwUrl(keyRef, ver)})`;
+  // déduplique paragraphes/phrases identiques
+  function dedupeContent(s) {
+    if (!s) return "";
+    const lines = s.split(/\n{2,}/); // paragraphes
+    const seen = new Set();
+    const out = [];
+    const key = (x) => x.replace(/\s+/g, " ").replace(/[’'«»“”"().,;:!?]/g, "").toLowerCase().trim();
+    for (const p of lines) {
+      const k = key(p);
+      if (!k) continue;
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.push(p.trim());
       }
-      notes[27] = defaultPrayerClose(book, chap);
-
-      if (enrichedToggle?.checked){
-        for (let i=0;i<N;i++){ notes[i] = enrichShort(notes[i]||"", book, chap); }
-      }
-
-      try{
-        lastStudy && (lastStudy.textContent = `Dernier : ${book} ${chap} (${ver})`);
-        // plus d’affichage "source=..."
-        sourceInfo && (sourceInfo.style.display = "none");
-        localStorage.setItem("be_last", JSON.stringify({book, chapter: chap, verse: verseSelect?.value, version: ver}));
-      }catch{}
-
-      renderSidebar(); select(0);
-      setProgress(100); setTimeout(()=> setProgress(0), 300);
-      dlog(`[GEN] OK → étude générée`);
-    }catch(e){
-      console.error(e); alert(String((e && e.message)||e));
-    }finally{
-      busy(btn,false); inFlight=false;
     }
+    // supprimer répétitions courantes "Développement : ..." / "Pistes : ..."
+    const out2 = [];
+    let devDone = false, pistesDone = false;
+    for (const p of out) {
+      const pTrim = p.trim();
+      if (/^développement\s*:?/i.test(pTrim)) {
+        if (devDone) continue;
+        devDone = true;
+      }
+      if (/^pistes? \s*:?/i.test(pTrim)) {
+        if (pistesDone) continue;
+        pistesDone = true;
+      }
+      out2.push(pTrim);
+    }
+    return out2.join("\n\n").trim();
   }
 
-  const norm = (s)=> String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9: ]+/g," ").replace(/\s+/g," ").trim();
-  function parseSearch(q){
-    q=(q||"").trim();
-    const m=q.match(/^([\d]?\s*[A-Za-zÀ-ÿ'’\.\s]+)\s+(\d+)(?::(\d+))?/);
-    if(!m) return null;
-    const title = norm(m[1]); let book=null;
-    for(const [name] of BOOKS){ if (norm(name)===title){ book=name; break; } }
-    if(!book){ const cand=BOOKS.find(([name])=> norm(name).startsWith(title)); if (cand) book=cand[0]; }
-    if(!book) return null;
-    return { book, chap:+m[2], vers:m[3]? +m[3]:null };
+  function sanitizeAndDedupe(s) {
+    return dedupeContent(stripMarkup(s));
   }
-  function applySelection(sel){
+
+  // Markdown "Genèse 1:1 — Lien" -> on laisse en texte simple (textarea)
+  // (Les liens cliquables nécessitent un rendu HTML; on a supprimé l’aperçu à droite à ta demande.)
+
+  // ---------- Rubrique 3 : canevas enrichi et RÉPONSES automatiques ----------
+  function buildRubric3Answers(book, chap) {
+    // canevas rempli de vraies pistes, pas une simple liste de questions
+    // (texte non-markdown pour textarea ; ~ 2500 caractères quand mode enrichi activé)
+    const ref = `${book} ${chap}`;
+    const obs =
+`Observation — ${ref}
+1) Structure : ouverture, développement, conclusion ; repérer les répétitions, les inclusions, les refrains.
+2) Personnages & actions : qui parle ? qui agit ? quels verbes dominent (dire, créer, bénir, appeler…) ?
+3) Mots-clés : relever les termes récurrents (par ex. “Dieu dit…”, “il y eut un soir…”) et les progressions (séparation → bénédiction → repos).`;
+
+    const comp =
+`Compréhension — Dieu & l’homme
+• Dieu : initiative souveraine, Parole efficace, bénédiction qui ordonne et fait vivre.
+• L’homme : vocation reçue (image de Dieu, mandat de garder/servir), limites (créature dépendante), responsabilité morale.
+• Intention du texte : révéler un Dieu personnel, bon et sage, qui inscrit l’existence humaine dans une alliance.`;
+
+    const interp =
+`Interprétation — Verset-clé
+Sélectionner un verset qui concentre le message (ex. ${book} ${chap}:3, ${book} ${chap}:27, etc. selon le passage).
+Pourquoi ? Il articule l’initiative divine (“Dieu dit/Dieu bénit/Dieu sanctifie”) et la réponse humaine (recevoir, obéir, transmettre).
+Rôle dans le chapitre : ce verset commande la lecture des blocs voisins et éclaire le mouvement global (création/ordre/bénédiction/repos, ou appel/épreuve/formation).`;
+
+    const connex =
+`Connexions bibliques
+• AT : Psaume 8 ; Psaume 104 ; Exode 20:8-11 (sabbat) — échos de la création et du repos.
+• NT : Jean 1:1-3 (le Verbe créateur) ; Colossiens 1:15-17 (Christ, centre de la création) ; Hébreux 4:9-11 (repos en Christ).
+Lien : le canon entier confirme que Dieu crée, ordonne, bénit et conduit à un repos plus grand, accompli en Christ.`;
+
+    const appli =
+`Application (semaine)
+• Personnel : cultiver l’adoration avant l’action ; accueillir sa vocation reçue (travail, responsabilité, parole vraie).
+• Famille : enseigner la bonté de la création ; rythmer le temps (travail/repos) ; pratiquer la gratitude.
+• Église : liturgie qui raconte les œuvres de Dieu ; éthique de la création (dignité humaine, soin de la terre) ; mission comme “participation” à la Parole qui donne la vie.`;
+
+    const bonus =
+`Bonus
+• Verset à mémoriser : choisir un verset court et fondamental du chapitre (ex. ${book} ${chap}:1 ou ${book} ${chap}:31).
+• Prière : “Seigneur, Toi qui par Ta Parole ordonnes, bénis et donnes le repos, façonne en moi une obéissance joyeuse. Que ma vie reflète Ton image — dans le travail, la famille, l’Église — pour la gloire de Jésus-Christ. Amen.”`;
+
+    const blocks = [obs, comp, interp, connex, appli, bonus];
+    let out = blocks.join("\n\n");
+    // si mode enrichi coché, on développe légèrement (sans doublons)
+    if (enrichedToggle && enrichedToggle.checked) {
+      out += `
+
+Pistes d’étude approfondies
+• Lire deux fois ${ref} à voix haute en relevant les verbes d’action attribués à Dieu.
+• Noter les “contrastes pédagogiques” (lumière/ténèbres, ordre/chaos, parole/silence).
+• Formuler un “titre doctrinal” d’une ligne pour le chapitre, puis une prière de consécration.`;
+    }
+    return dedupeContent(out);
+  }
+
+  // ---------- Prière d’ouverture : créative selon livre/chapitre/verset ----------
+  function buildPrayerOpen(book, chap, verse) {
+    const ref = verse ? `${book} ${chap}:${verse}` : `${book} ${chap}`;
+    return (
+`Prière d’ouverture — ${ref}
+Dieu vivant, Créateur et Seigneur de l’histoire,
+Tu parles et tout vient à l’existence ; Tu appelles et l’homme reçoit sa vocation.
+En lisant ${ref}, accorde-nous un cœur humble, des yeux éclairés, et la joie d’obéir.
+Que Ta Parole ordonne notre semaine, console nos craintes et ouvre nos mains au service.
+Par Jésus-Christ, Parole faite chair. Amen.`
+    ).trim();
+  }
+
+  function buildPrayerEnd(book, chap) {
+    return (
+`Prière de fin
+Père, nous Te remercions pour la lumière reçue dans ${book} ${chap}.
+Scelle en nous ce que Tu as semé : vérité, repentance, espérance et mission.
+Apprends-nous à vivre de Ta Parole, pour la gloire de Ton Fils. Amen.`
+    ).trim();
+  }
+
+  // ---------- parse saisie intelligente ----------
+  function parseSearch(q) {
+    q = (q || "").trim();
+    const m = q.match(/^([\d]?\s*[A-Za-zÀ-ÿ'’\.\s]+)\s+(\d+)(?::(\d+))?/);
+    if (!m) return null;
+    const title = norm(m[1]);
+    let book = null;
+    for (const [name] of BOOKS) {
+      if (norm(name) === title) { book = name; break; }
+    }
+    if (!book) {
+      const cand = BOOKS.find(([name]) => norm(name).startsWith(title));
+      if (cand) book = cand[0];
+    }
+    if (!book) return null;
+    return { book, chap: +m[2], vers: m[3] ? +m[3] : null };
+  }
+  function applySelection(sel) {
     if (!sel || !bookSelect) return;
-    const idx=BOOKS.findIndex(([n])=> n===sel.book);
-    if (idx>=0) bookSelect.selectedIndex=idx;
+    const idx = BOOKS.findIndex(([n]) => n === sel.book);
+    if (idx >= 0) bookSelect.selectedIndex = idx;
     renderChapters();
-    const chMax=bookSelect.selectedOptions[0]? +bookSelect.selectedOptions[0].dataset.ch:1;
-    const chap=Math.max(1,Math.min(chMax, sel.chap||1));
-    if (chapterSelect) chapterSelect.value=String(chap);
-    renderVerses(sel.book==="Psaumes"? 200: 60);
-    if (sel.vers && verseSelect) verseSelect.value=String(sel.vers);
+    const chMax = bookSelect.selectedOptions[0] ? +bookSelect.selectedOptions[0].dataset.ch : 1;
+    const chap = Math.max(1, Math.min(chMax, sel.chap || 1));
+    if (chapterSelect) chapterSelect.value = String(chap);
+    renderVerses(sel.book === "Psaumes" ? 200 : 60);
+    if (sel.vers && verseSelect) verseSelect.value = String(sel.vers);
     updateReadLink();
   }
-  function buildReference(){
-    const typed=(searchRef&&searchRef.value||"").trim();
+  function buildReference() {
+    const typed = (searchRef && searchRef.value || "").trim();
     if (typed) return typed;
-    if (!bookSelect||!chapterSelect) return "";
-    const b=bookSelect.value, c=chapterSelect.value;
+    if (!bookSelect || !chapterSelect) return "";
+    const b = bookSelect.value, c = chapterSelect.value;
     return c ? `${b} ${c}` : b;
   }
 
+  // ---------- cache navigateur ----------
+  const cacheKey = (ref, ver) => `be_cache:${ref}::${ver || "LSG"}`;
+  const loadCache = (ref, ver) => { try { return JSON.parse(localStorage.getItem(cacheKey(ref, ver)) || "null"); } catch { return null; } };
+  const saveCacheRef = (ref, ver, data) => { try { localStorage.setItem(cacheKey(ref, ver), JSON.stringify({ at: Date.now(), data })); } catch { } };
+
+  // ---------- fetch /api/chat (POST, no-store) ----------
+  async function postJSON(url, payload, tries = 2) {
+    let lastErr;
+    for (let k = 0; k < tries; k++) {
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+          body: JSON.stringify(payload),
+        });
+        if (!r.ok) {
+          const msg = await r.text().catch(() => "");
+          throw new Error(msg || `HTTP ${r.status}`);
+        }
+        return r;
+      } catch (e) {
+        lastErr = e;
+        await wait(300 * (k + 1));
+      }
+    }
+    throw lastErr;
+  }
+
+  async function getStudy(ref) {
+    const ver = versionSelect ? versionSelect.value : "LSG";
+    const cached = loadCache(ref, ver);
+    if (cached?.data) return { from: "local", data: cached.data };
+
+    const book = bookSelect?.value || "Genèse";
+    const chapter = Number(chapterSelect?.value || 1);
+    const r = await postJSON("/api/chat", { book, chapter, version: ver }, 3);
+
+    const ct = r.headers.get("Content-Type") || "";
+    if (/application\/json/i.test(ct)) {
+      const j = await r.json().catch(() => ({}));
+      if (!j || (j.ok === false)) throw new Error(j?.error || "Réponse JSON invalide");
+      saveCacheRef(ref, ver, j.data);
+      return { from: j.source || "api", data: j.data };
+    }
+    // fallback text/markdown
+    const text = await r.text();
+    const sections = parseMarkdownToSections(text);
+    const data = { reference: ref, sections };
+    saveCacheRef(ref, ver, data);
+    return { from: "api-md", data };
+  }
+
+  // ---------- parser Markdown basique (titres numérotés) ----------
+  function parseMarkdownToSections(md) {
+    const result = [];
+    if (!md || typeof md !== "string") return result;
+    const lines = md.split(/\r?\n/);
+    let cur = null;
+    const startRe = /^(\d{1,2})\.\s+/;
+    for (const line of lines) {
+      const m = line.match(startRe);
+      if (m) {
+        const id = parseInt(m[1], 10);
+        if (id >= 1 && id <= 28) {
+          if (cur) result.push(cur);
+          cur = { id, title: line.replace(startRe, "").trim(), content: "" };
+          continue;
+        }
+      }
+      if (cur) cur.content += (cur.content ? "\n" : "") + line;
+    }
+    if (cur) result.push(cur);
+    return result;
+  }
+
+  // ---------- génération ----------
+  async function generateStudy() {
+    if (inFlight) return;
+    const ref = buildReference();
+    if (!ref) { alert("Choisis un Livre + Chapitre (ou saisis une référence ex: Marc 5:1-20)"); return; }
+
+    inFlight = true;
+    const btn = generateBtn;
+    btn && (btn.dataset.label = btn.dataset.label || btn.textContent);
+    busy(btn, true);
+    try {
+      setProgress(15); await wait(60);
+      setProgress(55);
+
+      const { data } = await getStudy(ref);
+      // data.sections attendu : [{id,title,content}, ...]
+      notes = {};
+      const secs = Array.isArray(data.sections) ? data.sections : [];
+
+      const book = bookSelect?.value || "Genèse";
+      const chapter = Number(chapterSelect?.value || 1);
+      const verse = Number(verseSelect?.value || 0) || null;
+
+      // Remplissage et nettoyage
+      secs.forEach((s) => {
+        const idx = (s.id | 0) - 1;
+        if (idx < 0 || idx >= N) return;
+        let content = String(s.content || "");
+
+        // 1) Nettoyage & anti-doublons
+        content = sanitizeAndDedupe(content);
+
+        // 2) Rubrique 3 : on impose le canevas enrichi avec RÉPONSES (pas seulement les questions)
+        if (idx === 2) {
+          content = buildRubric3Answers(book, chapter);
+        }
+
+        // 3) Si mode enrichi actif et contenu trop court, on étoffe légèrement (sans doublons)
+        if (enrichedToggle && enrichedToggle.checked && content.length < 900 && idx !== 2) {
+          const add = `\n\nPistes d’étude : relever les verbes d’action attribués à Dieu, les contrastes pédagogiques, et formuler un titre doctrinal d’une ligne.`;
+          content = dedupeContent(content + add);
+        }
+
+        notes[idx] = content;
+      });
+
+      // Prière d’ouverture : TOUJOURS générée (plus de pastille jaune)
+      notes[0] = buildPrayerOpen(book, chapter, verse);
+
+      // Canon par défaut si vide (rare)
+      if (!notes[1]) {
+        const testament = (bookSelect ? bookSelect.selectedIndex : 0) < NT_START_INDEX ? "Ancien Testament" : "Nouveau Testament";
+        notes[1] = `${book} appartient au canon biblique (${testament}). ${book} ${chapter} s’inscrit dans la grande narration du salut.`;
+      }
+
+      // Verset-clé : si vide, proposition minimale
+      if (!notes[8]) {
+        notes[8] = `Verset-clé proposé : ${book} ${chapter}:1 — à relire dans son contexte.`;
+      }
+
+      // Prière de fin
+      notes[27] = buildPrayerEnd(book, chapter);
+
+      dlog(`[GEN] source=${data.source || "canonical"} sections=${secs.length} filled=${Object.keys(notes).length}`);
+
+      // Mémoire “dernier”
+      try {
+        const b = bookSelect?.value, c = chapterSelect?.value, v = verseSelect?.value, ver = versionSelect?.value;
+        lastStudy && (lastStudy.textContent = `Dernier : ${b} ${c || 1} (${ver})`);
+        localStorage.setItem("be_last", JSON.stringify({ book: b, chapter: c, verse: v, version: ver }));
+      } catch { }
+
+      renderSidebar(); select(0);
+      setProgress(100); setTimeout(() => setProgress(0), 250);
+      dlog("[GEN] OK → étude générée");
+    } catch (e) {
+      console.error(e);
+      alert(String((e && e.message) || e));
+    } finally {
+      busy(btn, false);
+      inFlight = false;
+    }
+  }
+
+  // ---------- init ----------
   renderBooks(); renderChapters(); renderVerses(); updateReadLink();
   renderSidebar(); select(0);
 
-  if (searchRef){
-    searchRef.addEventListener("keydown",(e)=>{ if (e.key==="Enter"){ const sel=parseSearch(searchRef.value); if (sel){ applySelection(sel); autoGenerate(); } }});
-    searchRef.addEventListener("blur",()=>{ const sel=parseSearch(searchRef.value); if (sel){ applySelection(sel); autoGenerate(); }});
+  // recherche intelligente
+  if (searchRef) {
+    searchRef.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        const sel = parseSearch(searchRef.value);
+        if (sel) { applySelection(sel); autoGenerate(); }
+      }
+    });
+    searchRef.addEventListener("blur", () => {
+      const sel = parseSearch(searchRef.value);
+      if (sel) { applySelection(sel); autoGenerate(); }
+    });
   }
 
-  validateBtn && validateBtn.addEventListener("click", ()=>{
+  // Valider => BibleGateway + mémoire rapide
+  validateBtn && validateBtn.addEventListener("click", () => {
     updateReadLink();
-    try{
-      const book=bookSelect?.value, chap=chapterSelect?.value, vers=verseSelect?.value, ver=versionSelect?.value;
-      localStorage.setItem("be_last", JSON.stringify({book, chapter:chap, verse:vers, version:ver}));
-      lastStudy && (lastStudy.textContent = `Dernier : ${book} ${chap||1} (${ver})`);
-    }catch{}
-    readLink && window.open(readLink.href,"_blank","noopener");
+    try {
+      const book = bookSelect?.value, chap = chapterSelect?.value, vers = verseSelect?.value, ver = versionSelect?.value;
+      localStorage.setItem("be_last", JSON.stringify({ book, chapter: chap, verse: vers, version: ver }));
+      lastStudy && (lastStudy.textContent = `Dernier : ${book} ${chap || 1} (${ver})`);
+    } catch { }
+    readLink && window.open(readLink.href, "_blank", "noopener");
   });
 
+  // Générer => /api/chat
   generateBtn && generateBtn.addEventListener("click", generateStudy);
 
-  function autoGenerate(){
+  // auto-génération si pas de texte saisi
+  function autoGenerate() {
     clearTimeout(autoTimer);
-    autoTimer=setTimeout(()=>{
-      if (bookSelect?.value && chapterSelect?.value && !(searchRef?.value||"").trim()) generateStudy();
-    },250);
+    autoTimer = setTimeout(() => {
+      if (bookSelect?.value && chapterSelect?.value && !(searchRef?.value || "").trim()) generateStudy();
+    }, 220);
   }
-  bookSelect && bookSelect.addEventListener("change", ()=>{ renderChapters(); renderVerses(bookSelect.value==="Psaumes"?200:60); updateReadLink(); autoGenerate(); });
-  chapterSelect && chapterSelect.addEventListener("change", ()=>{ updateReadLink(); autoGenerate(); });
-  verseSelect && verseSelect.addEventListener("change", ()=>{ updateReadLink(); });
+  bookSelect && bookSelect.addEventListener("change", () => { renderChapters(); renderVerses(bookSelect.value === "Psaumes" ? 200 : 60); updateReadLink(); autoGenerate(); });
+  chapterSelect && chapterSelect.addEventListener("change", () => { updateReadLink(); autoGenerate(); });
+  verseSelect && verseSelect.addEventListener("change", () => { updateReadLink(); });
 
-  noteArea && noteArea.addEventListener("input", ()=>{
+  // autosave
+  noteArea && noteArea.addEventListener("input", () => {
     clearTimeout(autosaveTimer);
-    autosaveTimer=setTimeout(()=>{ notes[current]=noteArea.value; saveStorage(); },700);
-    updateRender();
+    autosaveTimer = setTimeout(() => { notes[current] = noteArea.value; saveStorage(); }, 700);
   });
 
-  prevBtn && prevBtn.addEventListener("click", ()=>{ if (current>0) select(current-1); });
-  nextBtn && nextBtn.addEventListener("click", ()=>{ if (current<N-1) select(current+1); });
+  // navigation simple
+  prevBtn && prevBtn.addEventListener("click", () => { if (current > 0) select(current - 1); });
+  nextBtn && nextBtn.addEventListener("click", () => { if (current < N - 1) select(current + 1); });
 
-  dbtn && dbtn.addEventListener("click", ()=>{
-    const open = dpanel.style.display==="block";
-    dpanel.style.display = open ? "none":"block";
-    dbtn.textContent = open ? "Debug":"Fermer Debug";
-    if (!open){
+  // bouton debug
+  dbtn && dbtn.addEventListener("click", () => {
+    const open = dpanel.style.display === "block";
+    dpanel.style.display = open ? "none" : "block";
+    dbtn.textContent = open ? "Debug" : "Fermer Debug";
+    if (!open) {
       dpanel.textContent = "[Debug démarré…]";
-      (async()=>{
-        try{ const r1=await fetch("/api/health"); setMini(dotHealth, r1.ok); dlog(`health → ${r1.status}`);}catch{ setMini(dotHealth,false); }
-        try{ const r2=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({probe:true})}); setMini(dotChat, r2.ok); dlog(`chat(POST) → ${r2.status}`);}catch{ setMini(dotChat,false); }
-        try{ const r3=await fetch("/api/ping"); setMini(dotPing, r3.ok); dlog(`ping → ${r3.status}`);}catch{ setMini(dotPing,false); }
+      (async () => {
+        try { const r1 = await fetch("/api/health"); setMini(dotHealth, r1.ok); dlog(`health → ${r1.status}`); } catch { setMini(dotHealth, false); }
+        try { const r2 = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ probe: true }) }); setMini(dotChat, r2.ok); dlog(`chat(POST) → ${r2.status}`); } catch { setMini(dotChat, false); }
+        try { const r3 = await fetch("/api/ping"); setMini(dotPing, r3.ok); dlog(`ping → ${r3.status}`); } catch { setMini(dotPing, false); }
       })();
     }
   });
-
-  updateRender();
 })();
