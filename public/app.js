@@ -1,122 +1,64 @@
-// public/app.js — FRONT COMPLET (28 rubriques, JSON ou Markdown)
+// public/app.js — FRONT complété et corrigé (liens cliquables + prière forcée + rubrique 3 canevas)
+
 (function () {
   // ---------- helpers UI ----------
   const $ = (id) => document.getElementById(id);
   const progressBar = $("progressBar");
-
-  const setProgress = (p) => {
-    if (!progressBar) return;
-    progressBar.style.width = Math.max(0, Math.min(100, p)) + "%";
-  };
-
+  const setProgress = (p) => { if (progressBar) progressBar.style.width = Math.max(0, Math.min(100, p)) + "%"; };
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-  const busy = (el, on) => {
-    if (!el) return;
-    el.disabled = !!on;
-    el.classList.toggle("opacity-60", !!on);
-    el.textContent = on ? "Génération..." : el.dataset.label || el.textContent;
-  };
+  const busy = (el, on) => { if (!el) return; el.disabled = !!on; el.classList.toggle("opacity-60", !!on); el.textContent = on ? "Génération..." : el.dataset.label || el.textContent; };
+  const dpanel = $("debugPanel"); const dbtn = $("debugBtn"); const dlog = (msg) => { if (!dpanel) return; dpanel.style.display = "block"; dbtn && (dbtn.textContent = "Fermer Debug"); const line = `[${new Date().toISOString()}] ${msg}`; dpanel.textContent += (dpanel.textContent ? "\n" : "") + line; console.log(line); };
+  const setMini = (dot, ok) => { if (!dot) return; dot.classList.remove("ok", "ko"); if (ok === true) dot.classList.add("ok"); else if (ok === false) dot.classList.add("ko"); };
 
-  const dpanel = $("debugPanel");
-  const dbtn = $("debugBtn");
-  const dlog = (msg) => {
-    if (!dpanel) return;
-    dpanel.style.display = "block";
-    dbtn && (dbtn.textContent = "Fermer Debug");
-    const line = `[${new Date().toISOString()}] ${msg}`;
-    dpanel.textContent += (dpanel.textContent ? "\n" : "") + line;
-    console.log(line);
-  };
+  const searchRef = $("searchRef"), bookSelect = $("bookSelect"), chapterSelect = $("chapterSelect"),
+        verseSelect = $("verseSelect"), versionSelect = $("versionSelect"),
+        validateBtn = $("validate"), generateBtn = $("generateBtn"),
+        pointsList = $("pointsList"), edTitle = $("edTitle"), noteArea = $("noteArea"),
+        prevBtn = $("prev"), nextBtn = $("next"),
+        metaInfo = $("metaInfo"), themeSelect = $("themeSelect"),
+        enrichToggle = $("enrichToggle"),
+        dotHealth = $("dot-health"), dotChat = $("dot-chat"), dotPing = $("dot-ping"),
+        linksPanel = $("linksPanel"), linksList = $("linksList");
 
-  const setMini = (dot, ok) => {
-    if (!dot) return;
-    dot.classList.remove("ok", "ko");
-    if (ok === true) dot.classList.add("ok");
-    else if (ok === false) dot.classList.add("ko");
-  };
-
-  // ---------- sélecteurs ----------
-  const searchRef = $("searchRef"),
-    bookSelect = $("bookSelect"),
-    chapterSelect = $("chapterSelect"),
-    verseSelect = $("verseSelect"),
-    versionSelect = $("versionSelect"),
-    validateBtn = $("validate"),
-    generateBtn = $("generateBtn"),
-    readLink = $("readLink"),
-    lastStudy = $("lastStudy"),
-    pointsList = $("pointsList"),
-    edTitle = $("edTitle"),
-    noteArea = $("noteArea"),
-    prevBtn = $("prev"),
-    nextBtn = $("next"),
-    metaInfo = $("metaInfo"),
-    dotHealth = $("dot-health"),
-    dotChat = $("dot-chat"),
-    dotPing = $("dot-ping");
-
-  $("y") && ($("y").textContent = new Date().getFullYear());
+  $("y").textContent = new Date().getFullYear();
 
   // ---------- livres / chapitres ----------
   const BOOKS = [
-    ["Genèse", 50], ["Exode", 40], ["Lévitique", 27], ["Nombres", 36], ["Deutéronome", 34],
-    ["Josué", 24], ["Juges", 21], ["Ruth", 4], ["1 Samuel", 31], ["2 Samuel", 24],
-    ["1 Rois", 22], ["2 Rois", 25], ["1 Chroniques", 29], ["2 Chroniques", 36], ["Esdras", 10],
-    ["Néhémie", 13], ["Esther", 10], ["Job", 42], ["Psaumes", 150], ["Proverbes", 31],
-    ["Ecclésiaste", 12], ["Cantique des cantiques", 8], ["Ésaïe", 66], ["Jérémie", 52], ["Lamentations", 5],
-    ["Ézéchiel", 48], ["Daniel", 12], ["Osée", 14], ["Joël", 3], ["Amos", 9],
-    ["Abdias", 1], ["Jonas", 4], ["Michée", 7], ["Nahoum", 3], ["Habacuc", 3],
-    ["Sophonie", 3], ["Aggée", 2], ["Zacharie", 14], ["Malachie", 4],
-    ["Matthieu", 28], ["Marc", 16], ["Luc", 24], ["Jean", 21], ["Actes", 28],
-    ["Romains", 16], ["1 Corinthiens", 16], ["2 Corinthiens", 13], ["Galates", 6], ["Éphésiens", 6],
-    ["Philippiens", 4], ["Colossiens", 4], ["1 Thessaloniciens", 5], ["2 Thessaloniciens", 3], ["1 Timothée", 6],
-    ["2 Timothée", 4], ["Tite", 3], ["Philémon", 1], ["Hébreux", 13], ["Jacques", 5],
-    ["1 Pierre", 5], ["2 Pierre", 3], ["1 Jean", 5], ["2 Jean", 1], ["3 Jean", 1],
-    ["Jude", 1], ["Apocalypse", 22],
+    ["Genèse", 50],["Exode", 40],["Lévitique", 27],["Nombres", 36],["Deutéronome", 34],
+    ["Josué", 24],["Juges", 21],["Ruth", 4],["1 Samuel", 31],["2 Samuel", 24],
+    ["1 Rois", 22],["2 Rois", 25],["1 Chroniques", 29],["2 Chroniques", 36],["Esdras", 10],
+    ["Néhémie", 13],["Esther", 10],["Job", 42],["Psaumes", 150],["Proverbes", 31],
+    ["Ecclésiaste", 12],["Cantique des cantiques", 8],["Ésaïe", 66],["Jérémie", 52],["Lamentations", 5],
+    ["Ézéchiel", 48],["Daniel", 12],["Osée", 14],["Joël", 3],["Amos", 9],
+    ["Abdias", 1],["Jonas", 4],["Michée", 7],["Nahoum", 3],["Habacuc", 3],
+    ["Sophonie", 3],["Aggée", 2],["Zacharie", 14],["Malachie", 4],
+    ["Matthieu", 28],["Marc", 16],["Luc", 24],["Jean", 21],["Actes", 28],
+    ["Romains", 16],["1 Corinthiens", 16],["2 Corinthiens", 13],["Galates", 6],["Éphésiens", 6],
+    ["Philippiens", 4],["Colossiens", 4],["1 Thessaloniciens", 5],["2 Thessaloniciens", 3],["1 Timothée", 6],
+    ["2 Timothée", 4],["Tite", 3],["Philémon", 1],["Hébreux", 13],["Jacques", 5],
+    ["1 Pierre", 5],["2 Pierre", 3],["1 Jean", 5],["2 Jean", 1],["3 Jean", 1],
+    ["Jude", 1],["Apocalypse", 22],
   ];
-  const NT_START_INDEX = BOOKS.findIndex(([n]) => n === "Matthieu"); // 39 (0-based)
+  const NT_START_INDEX = BOOKS.findIndex(([n]) => n === "Matthieu");
 
   function renderBooks() {
-    if (!bookSelect) return;
     bookSelect.innerHTML = "";
     BOOKS.forEach(([n, ch]) => {
-      const o = document.createElement("option");
-      o.value = n;
-      o.textContent = n;
-      o.dataset.ch = ch;
-      bookSelect.appendChild(o);
+      const o = document.createElement("option"); o.value = n; o.textContent = n; o.dataset.ch = ch; bookSelect.appendChild(o);
     });
   }
   function renderChapters() {
-    if (!chapterSelect || !bookSelect) return;
     chapterSelect.innerHTML = "";
     const ch = bookSelect.selectedOptions[0] ? +bookSelect.selectedOptions[0].dataset.ch : 1;
-    for (let i = 1; i <= ch; i++) {
-      const o = document.createElement("option");
-      o.value = String(i);
-      o.textContent = String(i);
-      chapterSelect.appendChild(o);
-    }
+    for (let i = 1; i <= ch; i++) { const o = document.createElement("option"); o.value = String(i); o.textContent = String(i); chapterSelect.appendChild(o); }
   }
   function renderVerses(max = 60) {
-    if (!verseSelect) return;
     verseSelect.innerHTML = "";
     const m = Math.max(1, Math.min(200, max));
-    for (let i = 1; i <= m; i++) {
-      const o = document.createElement("option");
-      o.value = String(i);
-      o.textContent = String(i);
-      verseSelect.appendChild(o);
-    }
-  }
-  function updateReadLink() {
-    if (!readLink || !bookSelect || !chapterSelect || !verseSelect || !versionSelect) return;
-    const ref = `${bookSelect.value} ${chapterSelect.value}:${verseSelect.value}`;
-    const ver = versionSelect.value;
-    readLink.href = "https://www.biblegateway.com/passage/?search=" + encodeURIComponent(ref) + "&version=" + encodeURIComponent(ver);
+    for (let i = 1; i <= m; i++) { const o = document.createElement("option"); o.value = String(i); o.textContent = String(i); verseSelect.appendChild(o); }
   }
 
-  // ---------- rubriques fixes ----------
+  // ---------- rubriques ----------
   const FIXED_POINTS = [
     { t: "Prière d’ouverture", d: "Invocation du Saint-Esprit pour éclairer l’étude." },
     { t: "Canon et testament", d: "Identification du livre selon le canon biblique." },
@@ -153,7 +95,6 @@
   let current = 0, notes = {}, autosaveTimer = null, autoTimer = null, inFlight = false;
 
   function renderSidebar() {
-    if (!pointsList) return;
     pointsList.innerHTML = "";
     FIXED_POINTS.forEach((r, i) => {
       const row = document.createElement("div");
@@ -183,16 +124,14 @@
     if (edTitle) edTitle.textContent = `${i + 1}. ${FIXED_POINTS[i].t}`;
     if (noteArea) noteArea.value = notes[i] || "";
     if (metaInfo) metaInfo.textContent = `Point ${i + 1} / ${N}`;
+    updateLinksPanel(); // MAJ liens à l'affichage
     if (noteArea) noteArea.focus();
   }
   function saveStorage() {
-    try {
-      localStorage.setItem("be_notes", JSON.stringify(notes));
-      renderSidebarDots();
-    } catch { }
+    try { localStorage.setItem("be_notes", JSON.stringify(notes)); renderSidebarDots(); } catch {}
   }
 
-  // ---------- parse saisie ----------
+  // ---------- util ----------
   const norm = (s) => String(s || "")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .toLowerCase().replace(/[^a-z0-9: ]+/g, " ")
@@ -204,27 +143,21 @@
     if (!m) return null;
     const title = norm(m[1]);
     let book = null;
-    for (const [name] of BOOKS) {
-      if (norm(name) === title) { book = name; break; }
-    }
-    if (!book) {
-      const cand = BOOKS.find(([name]) => norm(name).startsWith(title));
-      if (cand) book = cand[0];
-    }
+    for (const [name] of BOOKS) { if (norm(name) === title) { book = name; break; } }
+    if (!book) { const cand = BOOKS.find(([name]) => norm(name).startsWith(title)); if (cand) book = cand[0]; }
     if (!book) return null;
     return { book, chap: +m[2], vers: m[3] ? +m[3] : null };
   }
   function applySelection(sel) {
-    if (!sel || !bookSelect) return;
+    if (!sel) return;
     const idx = BOOKS.findIndex(([n]) => n === sel.book);
     if (idx >= 0) bookSelect.selectedIndex = idx;
     renderChapters();
     const chMax = bookSelect.selectedOptions[0] ? +bookSelect.selectedOptions[0].dataset.ch : 1;
     const chap = Math.max(1, Math.min(chMax, sel.chap || 1));
-    if (chapterSelect) chapterSelect.value = String(chap);
+    chapterSelect.value = String(chap);
     renderVerses(sel.book === "Psaumes" ? 200 : 60);
-    if (sel.vers && verseSelect) verseSelect.value = String(sel.vers);
-    updateReadLink();
+    if (sel.vers) verseSelect.value = String(sel.vers);
   }
   function buildReference() {
     const typed = (searchRef && searchRef.value || "").trim();
@@ -234,102 +167,113 @@
     return c ? `${b} ${c}` : b;
   }
 
+  // ---------- thème ----------
+  themeSelect.addEventListener("change", () => {
+    document.body.setAttribute("data-theme", themeSelect.value);
+  });
+
+  // ---------- garde-fous / gabarits ----------
+  const forcePrayerOpen = true;
+
+  function bgwLink(book, chap, vers, version) {
+    const ref = encodeURIComponent(`${book} ${chap}${vers ? ':'+vers : ''}`);
+    const v = encodeURIComponent(version || "LSG");
+    return `https://www.biblegateway.com/passage/?search=${ref}&version=${v}`;
+  }
+
+  function defaultPrayerOpen() {
+    const book = bookSelect.value, c = chapterSelect.value, v = verseSelect.value;
+    const ref = `${book} ${c}${v ? ':'+v : ''}`;
+    return `Père saint, nous nous approchons de toi pour méditer **${ref}**. Par ton Esprit, ouvre notre intelligence, purifie nos intentions, et fais naître en nous l’amour de ta volonté. Que ta Parole façonne notre pensée, notre prière et nos décisions. Au nom de Jésus, amen.`;
+  }
+  function defaultPrayerClose() {
+    const book = bookSelect.value, c = chapterSelect.value;
+    return `Dieu de grâce, merci pour la lumière reçue dans **${book} ${c}**. Fortifie notre foi, accorde-nous d’obéir avec joie et de servir avec humilité. Garde ton Église dans la paix du Christ. Amen.`;
+  }
+
+  // Canevas rempli pour la rubrique 3
+  function buildRevisionSection() {
+    const book = bookSelect.value, c = chapterSelect.value, v = versionSelect.value || "LSG";
+    const url = bgwLink(book, c, null, v);
+    return [
+      `Révision sur ${book} ${c} — **5 questions**`,
+      ``,
+      `1) **Observation** — Quels sont les 3 faits majeurs du texte ? Quels mots-clés ou refrains reviennent ?`,
+      `2) **Compréhension** — Que révèle ce chapitre sur Dieu (attributs, intentions) et sur l’humain (vocation, limites) ?`,
+      `3) **Interprétation** — Quel verset-clef structure le passage, et pourquoi ? Comment relie-t-il ouverture et conclusion ?`,
+      `4) **Connexions bibliques** — Citer 1–2 passages parallèles/échos et expliquer le lien (promesse, accomplissement, sagesse, évangile).`,
+      `5) **Application** — Décider une mise en pratique concrète (personnelle / famille / église) pour cette semaine.`,
+      ``,
+      `**Bonus** — Un verset à mémoriser du chapitre et une courte prière de réponse.`,
+      ``,
+      `➡ Lien de lecture : ${url}`
+    ].join("\n");
+  }
+
   // ---------- cache navigateur ----------
   const cacheKey = (ref, ver) => `be_cache:${ref}::${ver || "LSG"}`;
   const loadCache = (ref, ver) => { try { return JSON.parse(localStorage.getItem(cacheKey(ref, ver)) || "null"); } catch { return null; } };
-  const saveCache = (ref, ver, data) => { try { localStorage.setItem(cacheKey(ref, ver), JSON.stringify({ at: Date.now(), data })); } catch { } };
+  const saveCacheResp = (ref, ver, data) => { try { localStorage.setItem(cacheKey(ref, ver), JSON.stringify({ at: Date.now(), data })); } catch {} };
 
-  // ---------- garde-fous ----------
-  function defaultPrayerOpen(reference) {
-    return `Père céleste, nous venons devant toi pour lire ${reference}. Ouvre nos cœurs par ton Saint-Esprit, éclaire notre intelligence et conduis-nous dans la vérité. Au nom de Jésus, amen.`;
-  }
-  function defaultPrayerClose(reference) {
-    return `Seigneur, merci pour la lumière reçue dans ${reference}. Aide-nous à mettre ta Parole en pratique, à l’Église, en famille et personnellement. Garde-nous dans ta paix. Amen.`;
-  }
-  function ensureKeyVerse(body, reference) {
-    const txt = String(body || "");
-    const hasRef = /\b\d+:\d+\b/.test(txt) || /[A-Za-zÀ-ÿ]+\s+\d+:\d+/.test(txt);
-    if (hasRef) return txt;
-    const ref = reference || buildReference();
-    const chap = (ref.match(/\b(\d+)\b/) || [])[1] || "1";
-    return `Verset-clé proposé : ${ref.split(" ")[0]} ${chap}:1 — ${txt}`.trim();
-  }
-
-  // ---------- fetch /api/chat ----------
-  async function getStudy(ref) {
-    const ver = versionSelect ? versionSelect.value : "LSG";
-    const cached = loadCache(ref, ver);
-    if (cached?.data) return { from: "local", data: cached.data };
-
-    const url = `/api/chat?q=${encodeURIComponent(ref)}`;
-    const r = await fetch(url, { method: "GET" });
-    const ct = r.headers.get("Content-Type") || "";
-    if (!r.ok) {
-      const txt = await r.text().catch(() => "");
-      throw new Error(txt || `HTTP ${r.status}`);
+  // ---------- fetch /api/chat (POST uniquement) ----------
+  async function postJSON(url, payload, tries = 3) {
+    let lastErr;
+    for (let k = 0; k < tries; k++) {
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+          body: JSON.stringify(payload),
+        });
+        if (!r.ok) { const msg = await r.text().catch(() => ""); throw new Error(msg || `HTTP ${r.status}`); }
+        return r;
+      } catch (e) { lastErr = e; await wait(400 * (k + 1)); }
     }
+    throw lastErr;
+  }
 
-    // 1) JSON { ok, data:{ sections:[{id,title,content}...] } }
+  async function getStudy() {
+    const ver = versionSelect ? versionSelect.value : "LSG";
+    const book = bookSelect?.value || "Genèse";
+    const chapter = Number(chapterSelect?.value || 1);
+
+    const r = await postJSON("/api/chat", { book, chapter, version: ver }, 3);
+    const ct = r.headers.get("Content-Type") || "";
     if (/application\/json/i.test(ct)) {
       const j = await r.json().catch(() => ({}));
       if (!j || (j.ok === false)) throw new Error(j?.error || "Réponse JSON invalide");
-      saveCache(ref, ver, j.data);
-      return { from: "api", data: j.data };
+      window.__lastChatSource = j.source || "unknown";
+      window.__lastChatWarn = j.warn || "";
+      return { from: j.source || "api", data: j.data };
     }
-
-    // 2) Markdown => on parse en 28 sections
     const text = await r.text();
-    const sections = parseMarkdownToSections(text);
-    const data = { reference: ref, sections };
-    saveCache(ref, ver, data);
+    // fallback minimal : on répartit arbitrairement
+    const sections = [{id:2,title:"Canon et testament",content:text}];
+    const data = { reference: `${book} ${chapter}`, sections };
     return { from: "api-md", data };
   }
 
-  // ---------- parser Markdown (titres numérotés) ----------
-  function parseMarkdownToSections(md) {
-    const result = [];
-    if (!md || typeof md !== "string") return result;
-
-    // On cherche les lignes commençant par "1."..."28."
-    const lines = md.split(/\r?\n/);
-    let cur = null;
-    const startRe = /^(\d{1,2})\.\s+/;
-
-    for (const line of lines) {
-      const m = line.match(startRe);
-      if (m) {
-        const id = parseInt(m[1], 10);
-        if (id >= 1 && id <= 28) {
-          if (cur) result.push(cur);
-          cur = { id, title: line.replace(startRe, "").trim(), content: "" };
-          continue;
-        }
-      }
-      if (cur) {
-        cur.content += (cur.content ? "\n" : "") + line;
-      }
+  // ---------- génération ----------
+  function dedupeParagraphs(raw) {
+    // supprime des répétitions évidentes "Développement :" en rafale
+    const lines = String(raw || "").split(/\r?\n/);
+    const out = [];
+    let last = "";
+    for (const ln of lines) {
+      const lnTrim = ln.trim();
+      if (lnTrim && lnTrim === last) continue;
+      out.push(ln);
+      last = lnTrim;
     }
-    if (cur) result.push(cur);
-
-    // Si on n'a pas trouvé 28, on tente un autre découpage (titres "##" ou "###")
-    if (result.length < 10) {
-      const mdBlocks = md.split(/\n(?=\d{1,2}\.\s)/g);
-      const alt = [];
-      mdBlocks.forEach((blk) => {
-        const m2 = blk.match(/^(\d{1,2})\.\s+(.*?)(?:\n|$)/);
-        if (m2) {
-          const id = +m2[1];
-          let body = blk.slice(m2[0].length);
-          alt.push({ id, title: m2[2].trim(), content: body.trim() });
-        }
-      });
-      if (alt.length) return alt;
-    }
-
-    return result;
+    return out.join("\n");
   }
 
-  // ---------- génération ----------
+  function ensureLinksLineBreaks(txt) {
+    // met une ligne seule pour chaque lien https?://... qui suit du texte
+    return String(txt || "").replace(/(\S)(https?:\/\/[^\s)]+)(\S)?/g, (_, a, url, b) => `${a}\n${url}\n${b||""}`);
+  }
+
   async function generateStudy() {
     if (inFlight) return;
     const ref = buildReference();
@@ -340,43 +284,36 @@
     btn && (btn.dataset.label = btn.dataset.label || btn.textContent);
     busy(btn, true);
     try {
-      setProgress(15); await wait(80);
+      setProgress(15); await wait(60);
       setProgress(55);
 
-      const { data } = await getStudy(ref);
-      // data.sections attendu : [{id,title,content}, ...]
-      notes = {};
+      const { data } = await getStudy();
+      notes = {}; // reset
+
+      // Remplir selon les sections renvoyées
       const secs = Array.isArray(data.sections) ? data.sections : [];
       secs.forEach((s) => {
         const i = (s.id | 0) - 1;
         if (i >= 0 && i < N) notes[i] = String(s.content || "").trim();
       });
 
-      // Garde-fous
-      notes[0] = defaultPrayerOpen(data.reference || ref);
-      if (!notes[1]) {
-        const idx = bookSelect ? bookSelect.selectedIndex : 0;
-        const testament = idx < NT_START_INDEX ? "Ancien Testament" : "Nouveau Testament";
-        notes[1] = `Le livre de ${bookSelect ? bookSelect.value : "—"} appartient à l’${testament}.`;
-      }
-      if (!notes[2]) {
-        notes[2] = "À compléter par l’animateur : préparer au moins 5 questions de révision sur le chapitre précédent (comprendre, appliquer, comparer, retenir).";
-      }
-      notes[8] = ensureKeyVerse(notes[8], data.reference || ref);
-      notes[27] = defaultPrayerClose(data.reference || ref);
+      // 1) Prière d’ouverture forcée (non vide)
+      if (forcePrayerOpen) notes[0] = defaultPrayerOpen();
 
-      dlog(`[GEN] sections=${secs.length}, filled=${Object.keys(notes).length}`);
+      // 3) Rubrique révision : toujours un canevas rempli
+      if (!notes[2] || !notes[2].trim()) notes[2] = buildRevisionSection();
 
-      // Mémoire “dernier”
-      try {
-        const book = bookSelect?.value, chap = chapterSelect?.value, vers = verseSelect?.value, ver = versionSelect?.value;
-        lastStudy && (lastStudy.textContent = `Dernier : ${data.reference || `${book} ${chap}`} (${ver})`);
-        localStorage.setItem("be_last", JSON.stringify({ book, chapter: chap, verse: vers, version: ver }));
-      } catch { }
+      // 28) prière de fin par défaut
+      notes[27] = defaultPrayerClose();
+
+      // Nettoyage minimum : dédoublonner
+      for (const k of Object.keys(notes)) {
+        notes[k] = dedupeParagraphs(ensureLinksLineBreaks(notes[k]));
+      }
 
       renderSidebar(); select(0);
       setProgress(100); setTimeout(() => setProgress(0), 300);
-      dlog("[GEN] OK → étude générée");
+      dlog(`[GEN] source=${window.__lastChatSource} sections=${secs.length} filled=${Object.keys(notes).length} → étude générée`);
     } catch (e) {
       console.error(e);
       alert(String((e && e.message) || e));
@@ -386,28 +323,44 @@
     }
   }
 
+  // ---------- panneau liens cliquables ----------
+  function extractLinks(text) {
+    const links = [];
+    const raw = String(text || "");
+
+    // balises <a href="...">texte</a>
+    const aTagRe = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi;
+    let m;
+    while ((m = aTagRe.exec(raw))) { links.push({ url: m[1], label: m[2] || m[1] }); }
+
+    // urls nues
+    const urlRe = /https?:\/\/[^\s<>"'()]+/g;
+    let n;
+    while ((n = urlRe.exec(raw))) { const url = n[0]; if (!links.find(l => l.url === url)) links.push({ url, label: url }); }
+
+    return links;
+  }
+  function updateLinksPanel() {
+    const txt = noteArea.value || "";
+    const links = extractLinks(txt);
+    linksList.innerHTML = "";
+    if (!links.length) { linksPanel.classList.add("empty"); return; }
+    linksPanel.classList.remove("empty");
+    for (const l of links) {
+      const a = document.createElement("a");
+      a.href = l.url; a.target = "_blank"; a.rel = "noopener";
+      a.textContent = l.label;
+      const div = document.createElement("div");
+      div.appendChild(a);
+      linksList.appendChild(div);
+    }
+  }
+
   // ---------- init ----------
-  renderBooks(); renderChapters(); renderVerses(); updateReadLink();
+  renderBooks(); renderChapters(); renderVerses();
   renderSidebar(); select(0);
 
-  // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-  // AUTO-GÉNÉRATION AU DÉMARRAGE (si aucune note locale)
-  (function bootAutoGenerate() {
-    try {
-      const raw = localStorage.getItem("be_notes");
-      const hasNotes = !!raw && Object.keys(JSON.parse(raw) || {}).length > 0;
-      const b = bookSelect?.value;
-      const c = chapterSelect?.value;
-      if (!hasNotes && b && c) {
-        setTimeout(() => generateStudy(), 200);
-      }
-    } catch {
-      setTimeout(() => generateStudy(), 200);
-    }
-  })();
-  // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-  // recherche intelligente
+  // Recherche intelligente
   if (searchRef) {
     searchRef.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -421,42 +374,38 @@
     });
   }
 
-  // Valider => BibleGateway + mémoire rapide
-  validateBtn && validateBtn.addEventListener("click", () => {
-    updateReadLink();
-    try {
-      const book = bookSelect?.value, chap = chapterSelect?.value, vers = verseSelect?.value, ver = versionSelect?.value;
-      localStorage.setItem("be_last", JSON.stringify({ book, chapter: chap, verse: vers, version: ver }));
-      lastStudy && (lastStudy.textContent = `Dernier : ${book} ${chap || 1} (${ver})`);
-    } catch { }
-    readLink && window.open(readLink.href, "_blank", "noopener");
-  });
-
-  // Générer => /api/chat
+  // Générer
   generateBtn && generateBtn.addEventListener("click", generateStudy);
 
-  // auto-génération si pas de texte saisi
+  // Valider ⇒ ouvre BibleGateway sur la référence courante
+  validateBtn && validateBtn.addEventListener("click", () => {
+    const book = bookSelect.value, c = chapterSelect.value, v = verseSelect.value, ver = versionSelect.value;
+    const url = bgwLink(book, c, v, ver);
+    window.open(url, "_blank", "noopener");
+  });
+
+  // Auto-génération si sélection change
   function autoGenerate() {
     clearTimeout(autoTimer);
     autoTimer = setTimeout(() => {
       if (bookSelect?.value && chapterSelect?.value && !(searchRef?.value || "").trim()) generateStudy();
     }, 250);
   }
-  bookSelect && bookSelect.addEventListener("change", () => { renderChapters(); renderVerses(bookSelect.value === "Psaumes" ? 200 : 60); updateReadLink(); autoGenerate(); });
-  chapterSelect && chapterSelect.addEventListener("change", () => { updateReadLink(); autoGenerate(); });
-  verseSelect && verseSelect.addEventListener("change", () => { updateReadLink(); });
+  bookSelect.addEventListener("change", () => { renderChapters(); renderVerses(bookSelect.value === "Psaumes" ? 200 : 60); autoGenerate(); });
+  chapterSelect.addEventListener("change", autoGenerate);
+  verseSelect.addEventListener("change", () => { /* rien */ });
 
-  // autosave
-  noteArea && noteArea.addEventListener("input", () => {
+  // autosave + liens live
+  noteArea.addEventListener("input", () => {
     clearTimeout(autosaveTimer);
-    autosaveTimer = setTimeout(() => { notes[current] = noteArea.value; saveStorage(); }, 700);
+    autosaveTimer = setTimeout(() => { notes[current] = noteArea.value; saveStorage(); updateLinksPanel(); }, 700);
   });
 
   // navigation simple
-  prevBtn && prevBtn.addEventListener("click", () => { if (current > 0) select(current - 1); });
-  nextBtn && nextBtn.addEventListener("click", () => { if (current < N - 1) select(current + 1); });
+  prevBtn.addEventListener("click", () => { if (current > 0) select(current - 1); });
+  nextBtn.addEventListener("click", () => { if (current < N - 1) select(current + 1); });
 
-  // bouton debug (optionnel)
+  // debug panel (health + chat + ping)
   dbtn && dbtn.addEventListener("click", () => {
     const open = dpanel.style.display === "block";
     dpanel.style.display = open ? "none" : "block";
@@ -464,10 +413,15 @@
     if (!open) {
       dpanel.textContent = "[Debug démarré…]";
       (async () => {
-        try { const r1 = await fetch("/api/health"); setMini(dotHealth, r1.ok); dlog(`health → ${r1.status}`); } catch { setMini(dotHealth, false); }
-        try { const r2 = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ probe: true }) }); setMini(dotChat, r2.ok); dlog(`chat(POST) → ${r2.status}`); } catch { setMini(dotChat, false); }
-        try { const r3 = await fetch("/api/ping"); setMini(dotPing, r3.ok); dlog(`ping → ${r3.status}`); } catch { setMini(dotPing, false); }
+        try { const r1 = await fetch("/api/health", {cache:"no-store"}); setMini(dotHealth, r1.ok); dlog(`health → ${r1.status}`); } catch { setMini(dotHealth, false); }
+        try { const r2 = await fetch("/api/chat", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ probe: true }) }); setMini(dotChat, r2.ok); dlog(`chat(POST) → ${r2.status}`); } catch { setMini(dotChat, false); }
+        try { const r3 = await fetch("/api/ping", {cache:"no-store"}); setMini(dotPing, r3.ok); dlog(`ping → ${r3.status}`); } catch { setMini(dotPing, false); }
       })();
     }
   });
+
+  // remplir prière d’ouverture par défaut au chargement (point 1 non vide)
+  notes[0] = defaultPrayerOpen();
+  renderSidebarDots();
+
 })();
