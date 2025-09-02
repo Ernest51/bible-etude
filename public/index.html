@@ -12,11 +12,15 @@
       --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b;
       --accent:#0891b2; --accent-soft:#e0f2fe;
     }
-    [data-theme="cyan"]  { --accent:#0891b2; --accent-soft:#e0f2fe; }
-    [data-theme="violet"]{ --accent:#7c3aed; --accent-soft:#ede9fe; }
-    [data-theme="vert"]  { --accent:#059669; --accent-soft:#dcfce7; }
-    [data-theme="rouge"] { --accent:#dc2626; --accent-soft:#fee2e2; }
-    [data-theme="mauve"] { --accent:#a855f7; --accent-soft:#f3e8ff; }
+    /* Thèmes (couleur d'accent + léger fond assorti pour teinter toute la page) */
+    [data-theme="cyan"]  { --accent:#0891b2; --accent-soft:#e0f2fe; --bg:#f4f9fb; --panel:#ffffff; }
+    [data-theme="violet"]{ --accent:#7c3aed; --accent-soft:#ede9fe; --bg:#f7f3fe; --panel:#ffffff; }
+    [data-theme="vert"]  { --accent:#059669; --accent-soft:#dcfce7; --bg:#f3fbf6; --panel:#ffffff; }
+    [data-theme="rouge"] { --accent:#dc2626; --accent-soft:#fee2e2; --bg:#fef6f6; --panel:#ffffff; }
+    [data-theme="mauve"] { --accent:#a855f7; --accent-soft:#f3e8ff; --bg:#faf5ff; --panel:#ffffff; }
+    /* Nouveau thème : indigo */
+    [data-theme="indigo"]{ --accent:#4f46e5; --accent-soft:#e0e7ff; --bg:#f6f7ff; --panel:#ffffff; }
+
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
     .progress-wrap{position:sticky;top:0;z-index:20}
@@ -80,6 +84,7 @@
         <option value="vert">Thème : Vert</option>
         <option value="rouge">Thème : Rouge</option>
         <option value="mauve">Thème : Mauve</option>
+        <option value="indigo">Thème : Indigo</option>
       </select>
       <label style="display:flex;align-items:center;gap:8px;">
         <input id="enrichToggle" type="checkbox" checked />
@@ -101,7 +106,7 @@
         <div id="pointsList" class="list"></div>
       </aside>
 
-      <section class="editor">
+    <section class="editor">
         <div class="ed-head">
           <div class="ed-title" id="edTitle">—</div>
           <button id="prev" class="btn secondary" type="button">◀ Précédent</button>
@@ -138,10 +143,10 @@
   <!-- Front existant (inchangé) -->
   <script src="/app.js?v=2025-09-02-2" defer></script>
 
-  <!-- Ouvre BibleGateway pour Lire la Bible / Valider (si déjà en place côté site, on ne casse rien) -->
+  <!-- Ouvre BibleGateway pour Lire la Bible / Valider (si présent côté site) -->
   <script src="/bible-open.js" defer></script>
 
-  <!-- PROGRESSION Générer + SUPPRESSION DES BALISES dans #noteArea (non intrusif) -->
+  <!-- PROGRESSION Générer + SUPPRESSION DES BALISES + GESTION THÈME (sans casser le reste) -->
   <script>
     (function () {
       const bar = document.getElementById('progressBar');
@@ -174,63 +179,35 @@
       }
       if (genBtn) genBtn.addEventListener('click', startProgress);
 
-      /* -------- Conversion HTML -> Texte brut dans l'étude --------
-         - Supprime toutes les balises HTML renvoyées par l'IA
-         - Conserve la lisibilité (sauts de ligne, puces)
-         - N'interfère pas avec app.js : on agit seulement sur #noteArea.value
-      */
+      /* -------- Conversion HTML -> Texte brut dans l'étude -------- */
       function htmlToPlainText(html){
         if (!html) return "";
-        // Construire un DOM pour extraire le texte proprement
         const container = document.createElement('div');
         container.innerHTML = html;
-
         const blocks = new Set(['P','DIV','SECTION','ARTICLE','HEADER','FOOTER','H1','H2','H3','H4','H5','H6','LI','BR','HR','UL','OL','PRE','BLOCKQUOTE']);
-
         let out = "";
         function walk(node){
-          if (node.nodeType === 3){ // texte
-            out += node.nodeValue;
-            return;
-          }
-          if (node.nodeType !== 1) return; // pas un élément
+          if (node.nodeType === 3){ out += node.nodeValue; return; }
+          if (node.nodeType !== 1) return;
           const name = node.nodeName;
-
-          // Puces pour les LI
-          if (name === 'LI') out += (out.endsWith('\n') || out === '' ? '' : '\n') + '- ';
-
-          // Parcourir enfants
+          if (name === 'LI') out += (out.endsWith('\\n') || out === '' ? '' : '\\n') + '- ';
           const kids = node.childNodes;
           for (let i=0;i<kids.length;i++) walk(kids[i]);
-
-          // Sauts de ligne après les blocs
-          if (blocks.has(name)){
-            if (!out.endsWith('\n')) out += '\n';
-          }
+          if (blocks.has(name)){ if (!out.endsWith('\\n')) out += '\\n'; }
         }
         walk(container);
-
-        // Normaliser les lignes
-        out = out.replace(/\r/g,'')
-                 .replace(/\n{3,}/g, '\n\n')  // max deux sauts consécutifs
-                 .replace(/[ \t]+\n/g, '\n')  // espaces fin de ligne
-                 .trim();
-
+        out = out.replace(/\\r/g,'').replace(/\\n{3,}/g, '\\n\\n').replace(/[ \\t]+\\n/g, '\\n').trim();
         return out;
       }
-
-      // Nettoyage immédiat si du HTML arrive dans #noteArea
       function plainifyIfNeeded(){
         const v = note.value || '';
-        if (/[<][^>]+>/.test(v)){ // détecte des balises
+        if (/[<][^>]+>/.test(v)){
           const text = htmlToPlainText(v);
           if (text !== v){
             const selStart = note.selectionStart, selEnd = note.selectionEnd;
             note.value = text;
-            // délenche 'input' pour que app.js réagisse à la maj
             const ev = new Event('input', {bubbles:true});
             note.dispatchEvent(ev);
-            // restaure la sélection de manière prudente
             if (typeof selStart === 'number' && typeof selEnd === 'number'){
               const pos = Math.min(text.length, selStart);
               note.setSelectionRange(pos, pos);
@@ -238,17 +215,11 @@
           }
         }
       }
-
-      // Sur modifications utilisateur ET sur injections d'app.js
       note.addEventListener('input', () => {
-        const before = (note.value || '').length;
-        plainifyIfNeeded();
-        // Fin de progression si du contenu a été ajouté depuis Générer
         const grew = (note.value || '').length > startLen;
+        plainifyIfNeeded();
         if (grew) finish(true);
       });
-
-      // Filet : surveille les mises à jour silencieuses (app.js sans event)
       let lastHash = '';
       setInterval(()=>{
         const v = note.value || '';
@@ -257,11 +228,26 @@
           lastHash = h;
           const was = v;
           plainifyIfNeeded();
-          if (note.value !== was){ /* contenu transformé */ }
-          // si ça a poussé après Générer -> terminer
           if ((note.value || '').length > startLen) finish(true);
         }
       }, 350);
+
+      /* -------- Gestion du THÈME (ascenseur) -------- */
+      const themeSelect = document.getElementById('themeSelect');
+      function applyTheme(value){
+        if (!value) return;
+        document.body.setAttribute('data-theme', value);
+        try { localStorage.setItem('meditation:theme', value); } catch(e){}
+      }
+      // Charger thème mémorisé si présent
+      try {
+        const saved = localStorage.getItem('meditation:theme');
+        if (saved) {
+          const opt = Array.from(themeSelect.options).find(o => o.value === saved);
+          if (opt) { themeSelect.value = saved; applyTheme(saved); }
+        }
+      } catch(e){}
+      themeSelect.addEventListener('change', function(){ applyTheme(this.value); });
     })();
   </script>
 </body>
