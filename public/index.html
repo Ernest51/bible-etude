@@ -12,13 +12,12 @@
       --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b;
       --accent:#0891b2; --accent-soft:#e0f2fe;
     }
-    /* Thèmes (couleur d'accent + léger fond assorti pour teinter toute la page) */
+    /* Thèmes (accent + fond adouci) */
     [data-theme="cyan"]  { --accent:#0891b2; --accent-soft:#e0f2fe; --bg:#f4f9fb; --panel:#ffffff; }
     [data-theme="violet"]{ --accent:#7c3aed; --accent-soft:#ede9fe; --bg:#f7f3fe; --panel:#ffffff; }
     [data-theme="vert"]  { --accent:#059669; --accent-soft:#dcfce7; --bg:#f3fbf6; --panel:#ffffff; }
     [data-theme="rouge"] { --accent:#dc2626; --accent-soft:#fee2e2; --bg:#fef6f6; --panel:#ffffff; }
     [data-theme="mauve"] { --accent:#a855f7; --accent-soft:#f3e8ff; --bg:#faf5ff; --panel:#ffffff; }
-    /* Nouveau thème : indigo */
     [data-theme="indigo"]{ --accent:#4f46e5; --accent-soft:#e0e7ff; --bg:#f6f7ff; --panel:#ffffff; }
 
     *{box-sizing:border-box}
@@ -44,8 +43,9 @@
     .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
     .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
     .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
-    .dot{width:8px;height:8px;border-radius:999px;background:#eab308;margin-left:auto}
-    .dot.ok{background:var(--ok)}
+    .dot{width:8px;height:8px;border-radius:999px;background:#eab308;margin-left:auto} /* jaune par défaut */
+    .dot.ok{background:var(--ok)} /* vert quand OK */
+
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
     .ed-title{font-weight:800;flex:1}.ed-body{padding:12px}
@@ -106,7 +106,7 @@
         <div id="pointsList" class="list"></div>
       </aside>
 
-    <section class="editor">
+      <section class="editor">
         <div class="ed-head">
           <div class="ed-title" id="edTitle">—</div>
           <button id="prev" class="btn secondary" type="button">◀ Précédent</button>
@@ -146,18 +146,21 @@
   <!-- Ouvre BibleGateway pour Lire la Bible / Valider (si présent côté site) -->
   <script src="/bible-open.js" defer></script>
 
-  <!-- PROGRESSION Générer + SUPPRESSION DES BALISES + GESTION THÈME (sans casser le reste) -->
+  <!-- Progress Générer + Nettoyage balises + Thème + Correctif "dot ok" -->
   <script>
     (function () {
       const bar = document.getElementById('progressBar');
       const note = document.getElementById('noteArea');
       const genBtn = document.getElementById('generateBtn');
       const yearEl = document.getElementById('y');
+      const themeSelect = document.getElementById('themeSelect');
+      const pointsList = document.getElementById('pointsList');
+
       if (yearEl) yearEl.textContent = new Date().getFullYear();
 
       /* -------- Barre de progression (Générer) -------- */
       let ticking = false, iv = null, safetyTimer = null, startLen = 0;
-      function setWidth(p){ bar && (bar.style.width = Math.max(0, Math.min(100, p)) + '%'); }
+      function setWidth(p){ if (bar) bar.style.width = Math.max(0, Math.min(100, p)) + '%'; }
       function startProgress(){
         if (!bar || ticking) return;
         ticking = true; startLen = (note.value || '').length; setWidth(5);
@@ -179,7 +182,7 @@
       }
       if (genBtn) genBtn.addEventListener('click', startProgress);
 
-      /* -------- Conversion HTML -> Texte brut dans l'étude -------- */
+      /* -------- HTML -> texte brut (supprime les balises) -------- */
       function htmlToPlainText(html){
         if (!html) return "";
         const container = document.createElement('div');
@@ -190,13 +193,12 @@
           if (node.nodeType === 3){ out += node.nodeValue; return; }
           if (node.nodeType !== 1) return;
           const name = node.nodeName;
-          if (name === 'LI') out += (out.endsWith('\\n') || out === '' ? '' : '\\n') + '- ';
-          const kids = node.childNodes;
-          for (let i=0;i<kids.length;i++) walk(kids[i]);
-          if (blocks.has(name)){ if (!out.endsWith('\\n')) out += '\\n'; }
+          if (name === 'LI') out += (out.endsWith('\n') || out === '' ? '' : '\n') + '- ';
+          for (let i=0;i<node.childNodes.length;i++) walk(node.childNodes[i]);
+          if (blocks.has(name)){ if (!out.endsWith('\n')) out += '\n'; }
         }
         walk(container);
-        out = out.replace(/\\r/g,'').replace(/\\n{3,}/g, '\\n\\n').replace(/[ \\t]+\\n/g, '\\n').trim();
+        out = out.replace(/\r/g,'').replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n').trim();
         return out;
       }
       function plainifyIfNeeded(){
@@ -215,11 +217,24 @@
           }
         }
       }
+
+      /* -------- Correctif : passer le point de la rubrique active au VERT quand contenu -------- */
+      function setActiveDot(ok){
+        if (!pointsList) return;
+        const active = pointsList.querySelector('.item.active .dot');
+        if (!active) return;
+        if (ok) active.classList.add('ok'); else active.classList.remove('ok');
+      }
+
       note.addEventListener('input', () => {
         const grew = (note.value || '').length > startLen;
         plainifyIfNeeded();
+        const hasContent = (note.value || '').trim().length > 0;
+        setActiveDot(hasContent);     // <-- ici : on bascule le point en vert si du texte est présent
         if (grew) finish(true);
       });
+
+      // Si app.js injecte sans event, on surveille et on met à jour le point
       let lastHash = '';
       setInterval(()=>{
         const v = note.value || '';
@@ -228,26 +243,26 @@
           lastHash = h;
           const was = v;
           plainifyIfNeeded();
+          const hasContent = (note.value || '').trim().length > 0;
+          setActiveDot(hasContent);
           if ((note.value || '').length > startLen) finish(true);
         }
       }, 350);
 
-      /* -------- Gestion du THÈME (ascenseur) -------- */
-      const themeSelect = document.getElementById('themeSelect');
+      /* -------- Gestion du thème (avec indigo + mémoire locale) -------- */
       function applyTheme(value){
         if (!value) return;
         document.body.setAttribute('data-theme', value);
         try { localStorage.setItem('meditation:theme', value); } catch(e){}
       }
-      // Charger thème mémorisé si présent
       try {
         const saved = localStorage.getItem('meditation:theme');
-        if (saved) {
+        if (saved && themeSelect){ 
           const opt = Array.from(themeSelect.options).find(o => o.value === saved);
           if (opt) { themeSelect.value = saved; applyTheme(saved); }
         }
       } catch(e){}
-      themeSelect.addEventListener('change', function(){ applyTheme(this.value); });
+      if (themeSelect) themeSelect.addEventListener('change', function(){ applyTheme(this.value); });
     })();
   </script>
 </body>
