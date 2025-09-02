@@ -1,106 +1,330 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Bible Étude — Accueil</title>
-  <meta name="description" content="Prépare une étude biblique structurée : sélectionne un livre et un chapitre, puis génère ta fiche." />
+  <title>Méditation</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 
-  <!-- Styles de base (facultatif, sobre) -->
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+
   <style>
     :root{
-      --bg:#fafafa;--card:#fff;--fg:#111827;--muted:#6b7280;--border:#e5e7eb;
-      --accent:#0ea5e9;--accent-ink:#075985;--ring:#bae6fd;
+      --bg:#f6f8fb; --panel:#fff; --text:#0f172a; --muted:#667085; --border:#e5e7eb;
+      --brand:#0ea5e9; /* cyan par défaut */
+      --ok:#16a34a; --warn:#eab308; --danger:#ef4444;
+
+      /* Rich content */
+      --rich-font:"Source Serif 4", ui-serif, Georgia, "Times New Roman", serif;
+      --ui-font:"Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
+    /* Thèmes */
+    [data-theme="violet"]{ --brand:#8b5cf6; }
+    [data-theme="green"] { --brand:#22c55e; }
+    [data-theme="red"]   { --brand:#ef4444; }
+    [data-theme="mauve"] { --brand:#a855f7; }
+
     *{box-sizing:border-box}
-    html,body{height:100%}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial,"Noto Sans";
-      background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
-    .wrap{max-width:960px;margin:32px auto;padding:0 16px}
-    header h1{margin:0 0 6px;font-size:clamp(1.4rem,2vw+1rem,2rem)}
-    header p{margin:0 0 18px;color:var(--muted)}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px}
-    .row{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
-    label{display:block;font-weight:600;margin:8px 0 6px}
-    select,input,button{font:inherit}
-    select,input{
-      border:1px solid var(--border);border-radius:10px;padding:.6rem .8rem;background:#fff;min-width:160px
+    html,body{margin:0;padding:0;font-family:var(--ui-font);color:var(--text);background:var(--bg);}
+
+    .wrap{max-width:1200px;margin:0 auto;padding:18px 16px}
+
+    header{display:flex;justify-content:center;align-items:center;padding:18px 0}
+    h1{margin:0;font-size:32px;font-weight:800;letter-spacing:.2px}
+
+    /* Barre */
+    .controls{display:grid;grid-template-columns:1.5fr .9fr .7fr .9fr .9fr auto auto;gap:10px;margin:8px 0 16px}
+    @media (max-width:1024px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}}
+    .btn{background:#0b1220;color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
+    .btn.secondary{background:#fff;color:#0b1220;border:1px solid var(--border)}
+    .btn.warn{background:var(--brand)}
+    input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%;background:#fff}
+    .field-label{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+
+    /* Layout */
+    .layout{display:grid;grid-template-columns:310px 1fr;gap:14px}
+    @media (max-width:980px){.layout{grid-template-columns:1fr}}
+
+    .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700}
+    .list{max-height:70vh;overflow:auto}
+    .item{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
+    .item.active{background:#eef2ff}
+    .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
+    .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+    .dot{width:8px;height:8px;border-radius:999px;background:#d1d5db;margin-left:auto}
+    .dot.ok{background:var(--ok)}
+    .dot.warn{background:var(--warn)}
+
+    /* Éditeur (une seule zone) */
+    .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
+    .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+    .ed-title{font-weight:800;flex:1}
+    .ed-body{padding:12px;min-height:420px}
+    .navbtn{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 12px;cursor:pointer}
+
+    /* Zone enrichie visible */
+    #noteView{
+      min-height:58vh; outline:none; font-family:var(--rich-font);
+      font-size:18px; line-height:1.6; color:#111827;
     }
-    .actions{display:flex;gap:10px;flex-wrap:wrap}
-    .btn{
-      display:inline-flex;align-items:center;gap:.5rem;padding:.7rem 1rem;border-radius:12px;border:1px solid var(--border);
-      background:linear-gradient(#fff,#f9fafb);cursor:pointer;color:var(--accent-ink);text-decoration:none
-    }
-    .btn:hover{border-color:var(--ring);box-shadow:0 0 0 4px var(--ring)}
-    .btn:active{transform:translateY(1px)}
-    .hint{font-size:.92rem;color:var(--muted)}
-    /* Barre de progression (optionnelle, branchée par app.js si dispo) */
-    #progressBar{height:6px;background:linear-gradient(90deg,var(--accent),#60a5fa);border-radius:999px;width:0;transition:width .3s ease}
-    .progress-wrap{height:6px;background:#eef2f7;border-radius:999px;overflow:hidden;margin:14px 0}
-    @media (max-width:640px){ .row > *{flex:1 1 100%} }
+    #noteView h2,#noteView h3{font-family:var(--ui-font); margin:1rem 0 .4rem}
+    #noteView h3{font-size:20px}
+    #noteView p{margin:.7rem 0}
+    #noteView strong{font-weight:700}
+    #noteView em{font-style:italic}
+    #noteView ul, #noteView ol{padding-left:1.25rem}
+    #noteView a{color:var(--brand);text-decoration:underline;text-underline-offset:2px}
+
+    /* Cache le textarea technique (mais il reste dans le DOM pour app.js) */
+    #noteArea{display:none}
+
+    footer{max-width:1200px;margin:18px auto 28px;padding:0 16px;color:var(--muted);font-size:14px}
+    .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
+    .mini{width:8px;height:8px;border-radius:999px;background:#d97706}
+    .mini.ok{background:#16a34a}.mini.ko{background:#dc2626}
   </style>
 </head>
-<body>
-  <main class="wrap">
-    <header>
-      <h1>Bible Étude</h1>
-      <p>Sélectionne un livre et un chapitre, puis lance l’étude ou ouvre le texte biblique en ligne.</p>
-    </header>
+<body data-theme="cyan">
+  <div class="wrap">
+    <header><h1>Méditation</h1></header>
 
-    <section class="card" aria-labelledby="form-titre">
-      <h2 id="form-titre" style="margin:0 0 12px;font-size:1.1rem">Préparer l’étude</h2>
+    <!-- Barre -->
+    <div class="controls">
+      <input id="searchRef" type="text" placeholder="Rechercher (ex : Marc 5:1, 1 Jean 2, Genèse 1:1-5)" />
+      <select id="bookSelect" title="Livre"></select>
+      <select id="chapterSelect" title="Chapitre"></select>
+      <select id="verseSelect" title="Verset"></select>
+      <select id="versionSelect" title="Version">
+        <option value="LSG" selected>Louis Segond 1910 (LSG)</option>
+        <option value="PDV">Parole de Vie (PDV)</option>
+        <option value="S21">Segond 21 (S21)</option>
+        <option value="BFC">Français Courant (BFC)</option>
+      </select>
 
-      <!-- Sélecteurs robustes : garde des IDs parlants, avec fallbacks pris en charge par bible-buttons.js -->
-      <div class="row" style="margin-bottom:12px">
-        <div>
-          <label for="book">Livre</label>
-          <select id="book" name="book">
-            <!-- Quelques exemples; complète si tu as déjà la liste dans app.js (il pourra surcharger) -->
-            <option value="Genèse">Genèse</option>
-            <option value="Exode">Exode</option>
-            <option value="Psaumes">Psaumes</option>
-            <option value="Matthieu">Matthieu</option>
-            <option value="Jean">Jean</option>
-            <option value="Romains">Romains</option>
-          </select>
+      <!-- Thème (5 palettes) -->
+      <label class="field-label">
+        Thème
+        <select id="themePicker" title="Thème">
+          <option value="cyan" selected>Cyan</option>
+          <option value="violet">Violet</option>
+          <option value="green">Vert</option>
+          <option value="red">Rouge</option>
+          <option value="mauve">Mauve</option>
+        </select>
+      </label>
+
+      <button id="validate" class="btn" type="button">Valider</button>
+      <button id="generateBtn" class="btn warn" type="button">Générer</button>
+    </div>
+
+    <!-- Layout -->
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="side-head">Rubriques (28)</div>
+        <div id="pointsList" class="list"></div>
+      </aside>
+
+      <section class="editor">
+        <div class="ed-head">
+          <div class="ed-title" id="edTitle">—</div>
+          <button id="prev" class="navbtn" type="button">◀ Précédent</button>
+          <button id="next" class="navbtn" type="button">Suivant ▶</button>
         </div>
-
-        <div>
-          <label for="chapter">Chapitre</label>
-          <input id="chapter" name="chapter" type="number" inputmode="numeric" min="1" step="1" placeholder="1" value="1" />
-          <p class="hint">Ex. 1, 2, 3…</p>
+        <div class="ed-body">
+          <!-- Zone enrichie visible -->
+          <div id="noteView" contenteditable="true" spellcheck="false" aria-label="Contenu enrichi"></div>
+          <!-- Zone technique (conservée pour app.js) -->
+          <textarea id="noteArea" placeholder="Écris ici…"></textarea>
         </div>
-      </div>
+        <div class="ed-foot" style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center">
+          <span class="small" id="metaInfo">Point — / 28</span>
+          <span class="small">Sauvegarde auto (2s) après saisie.</span>
+        </div>
+      </section>
+    </div>
+  </div>
 
-      <div class="actions" style="margin:10px 0 12px">
-        <!-- Bouton Valider = ouvre BibleGateway selon le livre & chapitre -->
-        <button id="validateBtn" class="btn" type="button">Valider</button>
+  <footer>
+    © <span id="y"></span> — Méditation
+    <div class="badges" aria-label="Statut API">
+      <span class="badge"><span id="dot-health" class="mini"></span> health</span>
+      <span class="badge"><span id="dot-chat" class="mini"></span> chat(POST)</span>
+      <span class="badge"><span id="dot-ping" class="mini"></span> ping</span>
+      <button id="debugBtn" class="btn secondary" style="padding:6px 10px;font-size:12px">Debug</button>
+    </div>
+    <div id="debugPanel" style="display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:240px;overflow:auto;white-space:pre-wrap;font-size:12px">[init]</div>
+  </footer>
 
-        <!-- Nouveau bouton Lire la Bible (ouvre aussi la même référence) -->
-        <button id="readBtn" class="btn" type="button">Lire la Bible</button>
+  <!-- Ton app frontend d’origine (inchangé) -->
+  <script src="/app.js" defer></script>
 
-        <!-- Ancre cachée pour compatibilité avec l’ancien code qui cherchait #readLink -->
-        <a id="readLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Lire</a>
-      </div>
+  <!-- Pont noteView <-> noteArea + auto-liens + dédoublonnage + thème -->
+  <script>
+    (function(){
+      const $ = (id)=>document.getElementById(id);
+      $("y").textContent = new Date().getFullYear();
 
-      <!-- Barre de progression désormais présente si ton JS en fait usage -->
-      <div class="progress-wrap" aria-hidden="true">
-        <div id="progressBar"></div>
-      </div>
+      /* ---- THÈME ---- */
+      const themePicker = $("themePicker");
+      function applyTheme(v){ document.body.setAttribute("data-theme", v || "cyan"); }
+      themePicker.addEventListener("change", ()=>applyTheme(themePicker.value));
+      applyTheme(themePicker.value);
 
-      <p class="hint">Astuce : “Valider” ou “Lire la Bible” ouvrent le chapitre directement sur BibleGateway (LSG).</p>
-    </section>
+      /* ---- PONT ENRICHI ----
+         - noteArea (textarea) reste pour app.js (sauvegarde, navigation…)
+         - noteView (contenteditable) est la seule zone visible pour l’utilisateur
+         On synchronise dans les deux sens + on déclenche un 'input' sur noteArea
+         pour que ton autosave et tes dots continuent à fonctionner. */
+      const view = $("noteView");
+      const area = $("noteArea");
 
-    <!-- Section résultat/diagnostic si ton app.js l’utilise -->
-    <section id="result" class="card" style="margin-top:16px;display:none">
-      <h2 style="margin:0 0 12px;font-size:1.1rem">Résultat</h2>
-      <div id="output"></div>
-    </section>
-  </main>
+      /** Nettoyage léger et rendu : on conserve p/h3/strong/em/ul/ol/li/a, on escape le reste */
+      function sanitizeHtml(s){
+        if(!s) return "";
+        // 1) convertir les & < > de base
+        let out = s
+          .replace(/&(?![#a-z0-9]+;)/gi, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
 
-  <!-- Charge le loader qui ajoute ?v=timestamp à app.js pour casser le cache -->
-  <script src="/app-loader.js" defer></script>
-  <!-- Petit module pour brancher les boutons sans toucher à ton app.js -->
-  <script src="/bible-buttons.js" defer></script>
+        // 2) restaurer les balises autorisées (venues de l'IA ou de tes canevas)
+        const allow = ["p","h2","h3","strong","em","ul","ol","li","a","br"];
+        allow.forEach(tag=>{
+          const open  = new RegExp("&lt;"+tag+"(\\s+[^&]+)?&gt;", "gi");
+          const close = new RegExp("&lt;/"+tag+"&gt;", "gi");
+          out = out.replace(open, "<"+tag+"$1>").replace(close, "</"+tag+">");
+        });
+        // 3) sécuriser les liens (a href)
+        out = out.replace(/<a([^>]*?)>/gi, (m,attrs)=>{
+          if(!/href=/i.test(attrs)) return "<a>";
+          return `<a ${attrs} target="_blank" rel="noopener">`;
+        });
+        return out;
+      }
+
+      /** Dédoublonnage doux de paragraphes strictement identiques (évite X fois "Développement : …") */
+      function dedupeParagraphs(html){
+        // coupe grossière par paragraphes <p>…</p>
+        const parts = html.split(/(<\/p>)/i);
+        const out = [];
+        const seen = new Set();
+        for(let i=0;i<parts.length;i++){
+          let block = parts[i];
+          if(!block) continue;
+          if(block.toLowerCase().includes("<p")){
+            let paragraph = block + (parts[i+1] || "");
+            const key = paragraph.replace(/\s+/g," ").trim().toLowerCase();
+            if(!seen.has(key)){ out.push(paragraph); seen.add(key); }
+            i++; // sauter le </p> qu'on a concaténé
+          } else {
+            out.push(block);
+          }
+        }
+        return out.join("");
+      }
+
+      /** Liens BibleGateway : remplace "Genèse 1:3" par un <a href=…> */
+      const BOOKS = [
+        "Genèse","Exode","Lévitique","Nombres","Deutéronome",
+        "Josué","Juges","Ruth","1 Samuel","2 Samuel","1 Rois","2 Rois",
+        "1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther","Job",
+        "Psaumes","Proverbes","Ecclésiaste","Cantique des cantiques","Ésaïe","Jérémie",
+        "Lamentations","Ézéchiel","Daniel","Osée","Joël","Amos","Abdias","Jonas",
+        "Michée","Nahoum","Habacuc","Sophonie","Aggée","Zacharie","Malachie",
+        "Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens",
+        "2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens",
+        "1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite",
+        "Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean",
+        "3 Jean","Jude","Apocalypse"
+      ];
+      const bookRegex = new RegExp("(?:\\b|^)(" + BOOKS.map(b=>b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join("|") + ")\\s+(\\d+)(?::(\\d+))?","gi");
+
+      function toGatewayURL(book, chap, vers, version){
+        const ref = `${book} ${chap}${vers?":"+vers:""}`;
+        return "https://www.biblegateway.com/passage/?search="+encodeURIComponent(ref)+"&version="+encodeURIComponent(version||"LSG");
+      }
+      function autoLinkBible(html){
+        const version = $("versionSelect")?.value || "LSG";
+        return html.replace(bookRegex, (m, b, c, v)=>{
+          const url = toGatewayURL(b, c, v, version);
+          return `<a href="${url}" target="_blank" rel="noopener">${b} ${c}${v?":"+v:""}</a>`;
+        });
+      }
+
+      /** Rendu complet dans la vue enrichie */
+      function renderViewFromArea(){
+        let raw = area.value || "";
+        // 1) si l'IA a renvoyé des balises : on les rend (sanitisation)
+        let html = sanitizeHtml(raw);
+        // 2) dédoublonnage simple
+        html = dedupeParagraphs(html);
+        // 3) auto-lien Bible
+        html = autoLinkBible(html);
+        view.innerHTML = html || "<p style='color:#9aa2b1'>Écris ici…</p>";
+      }
+
+      /** Quand on tape dans la vue enrichie → noteArea + input (pour autosave/app.js) */
+      function syncAreaFromView(){
+        // on prend l'HTML, on garde p/strong/em/ul/ol/li/a…
+        const value = view.innerHTML;
+        area.value = value;
+        // simuler une saisie pour tes handlers autosave/app.js
+        const ev = new Event("input", {bubbles:true});
+        area.dispatchEvent(ev);
+      }
+
+      // Écoute des changements (utilisateur)
+      view.addEventListener("input", syncAreaFromView);
+
+      // Écoute des changements (venant d'app.js qui met .value = …)
+      area.addEventListener("input", renderViewFromArea);
+
+      // Surveillance périodique au cas où app.js change .value sans event
+      let lastHash = "";
+      setInterval(()=>{
+        const now = area.value;
+        const h = now.length + ":" + now.slice(0,64);
+        if(h !== lastHash){ lastHash = h; renderViewFromArea(); }
+      }, 400);
+
+      // première passe
+      renderViewFromArea();
+    })();
+  </script>
 </body>
 </html>
+public/app-loader.js
+// public/app-loader.js — charge /app.js avec une version pour casser le cache
+(function () {
+  // ⚠️ incrémente à chaque déploiement
+  const APP_VERSION = "2025-09-01-2";
+
+  // Expose au footer/diag (index affichera build: loader:…)
+  window.APP_BUILD = "loader:" + APP_VERSION;
+
+  // Affiche la version dans le footer si présent
+  function paintStamp() {
+    try {
+      const el = document.getElementById("buildStamp");
+      if (el) el.textContent = window.APP_BUILD;
+      const dbg = document.getElementById("debugPanel");
+      if (dbg) dbg.textContent += `\n[loader] build=${window.APP_BUILD}`;
+    } catch {}
+  }
+  paintStamp();
+
+  // Injecte app.js avec cache-buster
+  const s = document.createElement("script");
+  s.src = "/app.js?v=" + encodeURIComponent(APP_VERSION);
+  s.defer = true;
+  s.onload = () => { console.log("[app-loader] app.js chargé avec version =", APP_VERSION); paintStamp(); };
+  s.onerror = (e) => {
+    console.error("[app-loader] échec de chargement app.js", e);
+    const dbg = document.getElementById("debugPanel");
+    if (dbg) dbg.textContent += `\n[loader] ERREUR: app.js introuvable`;
+  };
+  document.head.appendChild(s);
+})();
