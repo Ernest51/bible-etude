@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Pastilles (28 points)</title>
+  <style>
+    body {
+      font-family: Inter, sans-serif;
+      margin: 20px;
+      background: #f9fafb;
+      color: #111;
+    }
+    h1 { font-size: 20px; margin-bottom: 12px; }
+    .actions { margin-bottom: 16px; }
+    button {
+      margin-right: 8px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+      background: #111827;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .list { border:1px solid #ddd; border-radius:8px; overflow:hidden; max-width:480px;}
+    .item {
+      display:flex;align-items:center;gap:8px;
+      padding:8px 12px;
+      border-bottom:1px solid #e5e7eb;
+    }
+    .item:last-child { border-bottom:0; }
+    .idx {
+      min-width:22px;height:22px;border-radius:50%;
+      border:1px solid #ccc;background:#fff;
+      display:flex;align-items:center;justify-content:center;
+      font-size:12px;
+    }
+    .title { flex:1; }
+    .dot {
+      width:10px;height:10px;border-radius:50%;
+      background:#f59e0b; /* jaune par défaut */
+    }
+    .dot.ok { background:#16a34a; } /* vert rempli */
+  </style>
+</head>
+<body>
+  <h1>Test Pastilles (28 rubriques)</h1>
+  <div class="actions">
+    <button onclick="setAll(true)">Tout en vert</button>
+    <button onclick="setAll(false)">Tout en jaune</button>
+  </div>
+
+  <div id="pointsList" class="list"></div>
+
+  <script>
+    const list = document.getElementById('pointsList');
+    // Génère 28 lignes
+    for (let i=0;i<28;i++){
+      const div = document.createElement('div');
+      div.className = 'item';
+      div.innerHTML = `
+        <span class="idx">${i+1}</span>
+        <span class="title">Rubrique ${i+1}</span>
+        <span class="dot"></span>
+      `;
+      list.appendChild(div);
+    }
+
+    function setAll(ok){
+      document.querySelectorAll('.dot').forEach(dot=>{
+        if (ok) dot.classList.add('ok'); else dot.classList.remove('ok');
+      });
+    }
+  </script>
+</body>
+</html>
