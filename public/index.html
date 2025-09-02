@@ -13,18 +13,31 @@
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
     .progress-wrap{position:sticky;top:0;z-index:20;background:var(--bg)} .progress{height:4px;background:#e5e7eb}.progress>.bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--ok));transition:width .2s}
+
+    /* Titre centré (seule ligne) */
     header{background:#fff;border-bottom:1px solid var(--border);position:sticky;top:4px;z-index:10;padding:16px 18px}
     .brand{max-width:1200px;margin:0 auto;text-align:center}
     .brand h1{margin:0;font-size:28px;letter-spacing:.3px;font-weight:800}
+
     main{max-width:1200px;margin:14px auto;padding:0 14px}
+
     .controls{display:grid;gap:10px;margin:12px 0;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto auto auto auto;align-items:center}
     .controls .tog{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text);white-space:nowrap}
     .controls .tog small{color:var(--muted)}
-    @media (max-width:1100px){.controls{grid-template-columns:1fr 1fr 1fr 1fr}.controls .wide{grid-column:1/-1}.controls .actions{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}.controls .statusline{grid-column:1/-1}}
+    @media (max-width:1100px){
+      .controls{grid-template-columns:1fr 1fr 1fr 1fr}
+      .controls .wide{grid-column:1/-1}
+      .controls .actions{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
+      .controls .statusline{grid-column:1/-1}
+    }
+
     input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%;background:#fff}
     .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer;white-space:nowrap}
     .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)} .btn.warn{background:var(--warn)}
-    .layout{display:grid;grid-template-columns:320px 1fr;gap:12px} @media (max-width:1000px){.layout{grid-template-columns:1fr}}
+
+    .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
+    @media (max-width:1000px){.layout{grid-template-columns:1fr}}
+
     .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
     .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700}
     .list{max-height:70vh;overflow:auto}
@@ -32,44 +45,31 @@
     .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:#eef2ff}
     .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
     .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
-    .dot{width:8px;height:8px;border-radius:999px;background:#eab308;margin-left:auto}.dot.ok{background:var(--ok)}
+    .dot{width:8px;height:8px;border-radius:999px;background:#eab308;margin-left:auto}.dot.ok{background:#16a34a}
+
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
     .ed-title{font-weight:700;flex:1}
-    .ed-body{padding:12px;display:grid;grid-template-columns:1fr;gap:12px}
-    @media (min-width:1100px){ .ed-body{grid-template-columns:1fr 1fr} }
-    textarea{width:100%;min-height:420px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:"Merriweather", Georgia, serif;line-height:1.65;font-size:16px;background:#fff}
-    .previewWrap{display:flex;flex-direction:column;gap:8px}
-    .previewHead{display:flex;align-items:center;justify-content:space-between}
-    .previewHead .hint{color:var(--muted);font-size:12px}
-    .preview{border:1px solid var(--border);border-radius:10px;background:#fff;padding:16px;font-family:"Merriweather", Georgia, serif;line-height:1.75;font-size:16px}
-    .preview h1,.preview h2,.preview h3{margin:.4em 0 .2em;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif}
-    .preview h1{font-size:1.5rem} .preview h2{font-size:1.25rem} .preview h3{font-size:1.1rem}
-    .preview p{margin:.6em 0}
-    .preview strong{font-weight:700}
-    .preview em{font-style:italic}
-    .preview a{color:var(--accent);text-decoration:underline}
-    .preview ul,.preview ol{padding-left:1.2em;margin:.5em 0}
-    .preview blockquote{border-left:4px solid var(--accent);padding:.4em .8em;margin:.8em 0;background:#f8fafc;color:#0f172a}
-    .theoBanner{display:none;background:#f5f7ff;border:1px dashed #c7d2fe;color:#334155;border-radius:8px;padding:8px 10px;font-size:13px}
-    .theoBanner.show{display:block}
+    .ed-body{padding:12px}
+    textarea{width:100%;min-height:520px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:"Merriweather", Georgia, serif;line-height:1.65;font-size:16px;background:#fff}
+
     .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center}
     .navbtn{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 12px;cursor:pointer}
+
     footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:var(--muted);font-size:14px}
     #debugBtn{margin-top:8px;background:#111827;color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
     #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:240px;overflow:auto;white-space:pre-wrap;font-size:12px}
     .status-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
     .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
     .mini{width:8px;height:8px;border-radius:999px;background:#d97706}.mini.ok{background:#16a34a}.mini.ko{background:#dc2626}
-    @media print{.progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row,#debugPanel,.previewHead{display:none!important}textarea{min-height:unset}.preview{border:none}}
+
+    @media print{.progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row,#debugPanel{display:none!important}textarea{min-height:unset}}
   </style>
 </head>
 <body>
   <div class="progress-wrap"><div class="progress"><div id="progressBar" class="bar" style="width:0%"></div></div></div>
   <header>
-    <div class="brand">
-      <h1>Méditation</h1>
-    </div>
+    <div class="brand"><h1>Méditation</h1></div>
   </header>
 
   <main>
@@ -84,7 +84,7 @@
         <option value="S21">Segond 21 (S21)</option>
         <option value="BFC">Français Courant (BFC)</option>
       </select>
-      <label class="tog" title="Activer l’enrichissement (≈ 2 500 caractères, style théologique, mise en forme propre)">
+      <label class="tog" title="Activer l’enrichissement (≈ 2 500 caractères)">
         <input type="checkbox" id="modeRich" />
         Mode enrichi <small>(≈ 2 500 car.)</small>
       </label>
@@ -112,13 +112,6 @@
         </div>
         <div class="ed-body">
           <textarea id="noteArea" placeholder="Écris ici…"></textarea>
-          <div class="previewWrap">
-            <div class="previewHead">
-              <div class="hint">Aperçu enrichi (rendu en <strong>gras</strong>, <em>italique</em>, titres, listes, <a href="#">liens</a>)</div>
-              <div id="theoBanner" class="theoBanner">Rubrique 3 — réponses complètes (théologie, références, application).</div>
-            </div>
-            <div id="preview" class="preview" aria-live="polite"></div>
-          </div>
         </div>
         <div class="ed-foot">
           <span class="small" id="metaInfo">Point — / 28</span>
@@ -139,99 +132,51 @@
     <div id="debugPanel">[init]</div>
   </footer>
 
-  <!-- Charge ton app avec cache-buster automatique -->
+  <!-- conserve le cache-buster automatique pour app.js -->
   <script src="/app-loader.js" defer></script>
 
-  <!-- Rendu aperçu + suppression des balises visibles dans l’éditeur -->
+  <!-- Nettoyage non intrusif : enlève balises HTML + markdown (**, *, titres, [lien](url)) dans la zone -->
   <script>
-    // --- utilitaires DOM
     const $ = (id)=>document.getElementById(id);
-    document.getElementById("y").textContent = new Date().getFullYear();
+    $("y").textContent = new Date().getFullYear();
 
-    // --- rendu "markdown minimal" + autoriser <a> dans l'aperçu
-    function mdSafeRender(input){
-      if(!input) return "";
-      let s = String(input);
-      const tokens = [];
-      // Autoriser quelques balises sûres (dont <a>)
-      s = s.replace(/<\/?(strong|em|h1|h2|h3|ul|ol|li|p|br|blockquote|a)(\s+[^>]*)?>/gi,(m)=>{
-        const i=tokens.push(m)-1; return `__ALLOWED_TAG_${i}__`;
-      });
-      s = s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-      s = s.replace(/__ALLOWED_TAG_(\d+)__/g,(_,i)=>tokens[+i]);
-
-      // Titres style markdown
-      s = s.replace(/^###\s?(.*)$/gm,"<h3>$1</h3>")
-           .replace(/^##\s?(.*)$/gm,"<h2>$1</h2>")
-           .replace(/^#\s?(.*)$/gm,"<h1>$1</h1>");
-
-      // Gras/italique en ** / *
-      s = s.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
-           .replace(/\*(.+?)\*/g,"<em>$1</em>");
-
-      // Listes
-      s = s.replace(/(^|\n)\s*-\s+(.*)/g,(__,br,item)=>`${br}<li>${item}</li>`);
-      if(/<li>/.test(s)) s=s.replace(/(<li>[\s\S]*?<\/li>)+/g,m=>`<ul>${m}</ul>`);
-
-      // Paragraphes
-      s = s.split(/\n{2,}/).map(b=>{
-        if(/^<(h[1-3]|ul|ol|blockquote|p|a)\b/i.test(b)) return b;
-        if(b.trim()==="") return "";
-        if(!/^<p>/.test(b)) b = `<p>${b.replace(/\n/g,"<br/>")}</p>`;
-        return b;
-      }).join("");
-
-      return s;
-    }
-
-    // --- SUPPRESSION DES BALISES VISIBLES dans la zone d'édition
-    // On garde l’aperçu riche à droite, mais on nettoie le textarea à chaque fois
     const area = $("noteArea");
-    const preview = $("preview");
-    const edTitle = $("edTitle");
-    const theoBanner = $("theoBanner");
 
-    function stripTagsKeepText(html){
-      if(!html) return "";
-      // Convertir <a href="...">texte</a> -> texte (lien)
-      html = html.replace(/<a\s+[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi, (m,href,text)=> `${text} (${href})`);
-      // Supprimer toutes les autres balises
-      return html.replace(/<\/?[^>]+>/g,"").replace(/\s+\n/g,"\n").trim();
+    function cleanVisibleSyntax(s){
+      if(!s) return "";
+      let t = String(s);
+
+      // 1) liens markdown [texte](url) -> texte (url)
+      t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/gi, "$1 ($2)");
+
+      // 2) balises <a href="...">texte</a> -> texte (url)
+      t = t.replace(/<a\s+[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi, (m,href,text)=> `${text} (${href})`);
+
+      // 3) supprimer toute autre balise HTML
+      t = t.replace(/<\/?[^>]+>/g,"");
+
+      // 4) supprimer gras/italique markdown et les titres #
+      t = t.replace(/\*\*(.+?)\*\*/g, "$1")      // **gras** -> gras
+           .replace(/\*(.+?)\*/g, "$1")          // *italique* -> italique
+           .replace(/^\s*#{1,6}\s?/gm, "");      // #, ##, ### en début de ligne
+
+      // 5) normaliser espaces
+      t = t.replace(/[ \t]+\n/g, "\n").trim();
+
+      return t;
     }
 
-    function refreshPreview(){
-      preview.innerHTML = mdSafeRender(area.value);
-    }
-
-    // Nettoyage sur saisie manuelle
-    area.addEventListener("input", ()=>{
-      // rien à faire si l'utilisateur tape du texte simple
-      refreshPreview();
-    });
-
-    // Observateur : si du HTML est injecté par l'app (génération API),
-    // on enlève les balises dans le textarea sans toucher à l'aperçu (qui rendra depuis le texte)
+    // observe le contenu et nettoie si l’API renvoie des balises ou des **
     setInterval(()=>{
       const v = area.value;
-      if(v && /<[^>]+>/.test(v)){
-        const plain = stripTagsKeepText(v);
-        // Conserver la position du curseur tant que possible
+      if(!v) return;
+      if (/<[^>]+>/.test(v) || /\*\*|^\s*#|\[[^\]]+\]\(https?:/mi.test(v)) {
         const start = area.selectionStart, end = area.selectionEnd;
-        area.value = plain;
-        try{ area.setSelectionRange(start, Math.min(end, plain.length)); }catch{}
-        refreshPreview();
+        const cleaned = cleanVisibleSyntax(v);
+        area.value = cleaned;
+        try{ area.setSelectionRange(start, Math.min(end, cleaned.length)); }catch{}
       }
     }, 300);
-
-    // Bandeau théologie pour la rubrique 3
-    new MutationObserver(()=>{
-      const t = (edTitle.textContent||"");
-      if(/^\s*3\./.test(t)) theoBanner.classList.add("show");
-      else theoBanner.classList.remove("show");
-    }).observe(edTitle,{childList:true,subtree:true});
-
-    // Premier rendu
-    refreshPreview();
   </script>
 </body>
 </html>
