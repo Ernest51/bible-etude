@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Méditation</title>
-  <meta name="description" content="Étude biblique — 28 rubriques, une zone de saisie, liens cliquables automatiques." />
+  <meta name="description" content="Étude biblique — 28 rubriques, une zone de saisie, texte brut sans balises HTML." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   <style>
@@ -45,7 +45,7 @@
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
     .ed-title{font-weight:800;flex:1}.ed-body{padding:12px}
-    textarea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6}
+    textarea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;white-space:pre-wrap}
     .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
     .mini{width:8px;height:8px;border-radius:999px;background:#d97706}.mini.ok{background:#16a34a}.mini.ko{background:#dc2626}
     .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
@@ -86,12 +86,11 @@
         <span>Mode enrichi</span>
       </label>
 
-      <!-- Ordre final : Lire la Bible (gauche) + Valider (droite) côte à côte, puis Générer -->
+      <!-- Ordre final : Lire la Bible + Valider + Générer -->
       <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
       <button id="validate" class="btn" type="button">Valider</button>
       <button id="generateBtn" class="btn warn" type="button">Générer</button>
 
-      <!-- Ancre cachée pour compat éventuelle -->
       <a id="readLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Lire</a>
     </div>
 
@@ -109,6 +108,7 @@
         </div>
 
         <div class="ed-body">
+          <!-- Zone brute : plus de balises affichées, juste le texte -->
           <textarea id="noteArea" placeholder="Écris ici…"></textarea>
           <div id="linksPanel" class="links-panel empty">
             <b>Liens détectés :</b>
@@ -135,10 +135,8 @@
     <div id="debugPanel">[init]</div>
   </footer>
 
-  <!-- Ton app frontend (inchangé) -->
+  <!-- App.js (inchangé) -->
   <script src="/app.js?v=2025-09-02-2" defer></script>
-
-  <!-- Ouvre BibleGateway pour “Lire la Bible” et “Valider” (inchangé si déjà présent) -->
   <script src="/bible-open.js" defer></script>
 </body>
 </html>
