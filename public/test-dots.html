@@ -48,6 +48,7 @@
   <div class="actions">
     <button onclick="setAll(true)">Tout en vert</button>
     <button onclick="setAll(false)">Tout en jaune</button>
+    <button onclick="randomFill()">Remplissage aléatoire</button>
   </div>
 
   <div id="pointsList" class="list"></div>
@@ -69,6 +70,12 @@
     function setAll(ok){
       document.querySelectorAll('.dot').forEach(dot=>{
         if (ok) dot.classList.add('ok'); else dot.classList.remove('ok');
+      });
+    }
+
+    function randomFill(){
+      document.querySelectorAll('.dot').forEach(dot=>{
+        if (Math.random()>0.5) dot.classList.add('ok'); else dot.classList.remove('ok');
       });
     }
   </script>
