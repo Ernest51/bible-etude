@@ -1,4 +1,5 @@
 // public/app.js — FRONT complété et corrigé (liens cliquables + prière forcée + rubrique 3 canevas)
+// + HOOKS d'événements pour mise à jour fiable des pastilles & intégrations UI
 
 (function () {
   // ---------- helpers UI ----------
@@ -10,9 +11,9 @@
   const dpanel = $("debugPanel"); const dbtn = $("debugBtn"); const dlog = (msg) => { if (!dpanel) return; dpanel.style.display = "block"; dbtn && (dbtn.textContent = "Fermer Debug"); const line = `[${new Date().toISOString()}] ${msg}`; dpanel.textContent += (dpanel.textContent ? "\n" : "") + line; console.log(line); };
   const setMini = (dot, ok) => { if (!dot) return; dot.classList.remove("ok", "ko"); if (ok === true) dot.classList.add("ok"); else if (ok === false) dot.classList.add("ko"); };
 
-  // --- petit système de hooks (non intrusif)
-  const emit = (name, detail) => {
-    try { document.dispatchEvent(new CustomEvent(`be:${name}`, { detail })); } catch {}
+  // ---------- HOOK dispatcher ----------
+  const HOOK = (name, detail) => {
+    try { window.dispatchEvent(new CustomEvent(name, { detail })); } catch (e) { /* no-op */ }
   };
 
   const searchRef = $("searchRef"), bookSelect = $("bookSelect"), chapterSelect = $("chapterSelect"),
@@ -112,7 +113,10 @@
       row.addEventListener("click", () => { if (current !== i) select(i); });
       pointsList.appendChild(row);
     });
-    emit('sidebar-rendered');
+    HOOK('be:sidebar-rendered', {
+      current,
+      filled: Object.keys(notes).filter(k => (notes[k] || "").trim()).map(k => +k)
+    });
   }
   function renderSidebarDots() {
     document.querySelectorAll(".list .item").forEach((el) => {
@@ -121,7 +125,9 @@
       if (notes[i] && notes[i].trim()) dot.classList.add("ok");
       else dot.classList.remove("ok");
     });
-    emit('dots-updated');
+    HOOK('be:sidebar-dots', {
+      filled: Object.keys(notes).filter(k => (notes[k] || "").trim()).map(k => +k)
+    });
   }
   function select(i) {
     if (noteArea) notes[current] = noteArea.value;
@@ -132,11 +138,11 @@
     if (noteArea) noteArea.value = notes[i] || "";
     if (metaInfo) metaInfo.textContent = `Point ${i + 1} / ${N}`;
     updateLinksPanel(); // MAJ liens à l'affichage
-    renderSidebarDots(); // <-- rafraîchit visuel tout de suite
     if (noteArea) noteArea.focus();
+    HOOK('be:point-selected', { index: i, hasContent: !!(notes[i] && notes[i].trim()) });
   }
   function saveStorage() {
-    try { localStorage.setItem("be_notes", JSON.stringify(notes)); renderSidebarDots(); emit('notes-updated', { notes }); } catch {}
+    try { localStorage.setItem("be_notes", JSON.stringify(notes)); renderSidebarDots(); } catch {}
   }
 
   // ---------- util ----------
@@ -297,7 +303,6 @@
 
       const { data } = await getStudy();
       notes = {}; // reset
-      emit('notes-will-apply');
 
       // Remplir selon les sections renvoyées
       const secs = Array.isArray(data.sections) ? data.sections : [];
@@ -321,12 +326,17 @@
       }
 
       renderSidebar();
-      renderSidebarDots();            // <-- refresh dots immédiatement
-      select(0);                      // (réaffiche aussi dots)
+      select(0);
+      renderSidebarDots(); // s'assurer que l'état visuel colle aux notes
+
+      HOOK('be:study-generated', {
+        reference: data.reference || ref,
+        filled: Object.keys(notes).filter(k => (notes[k] || "").trim()).map(k => +k),
+        notes // attention : structure potentiellement volumineuse
+      });
+
       setProgress(100); setTimeout(() => setProgress(0), 300);
       dlog(`[GEN] source=${window.__lastChatSource} sections=${secs.length} filled=${Object.keys(notes).length} → étude générée`);
-
-      emit('study-generated', { notes }); // <-- hook externe
     } catch (e) {
       console.error(e);
       alert(String((e && e.message) || e));
@@ -371,7 +381,7 @@
 
   // ---------- init ----------
   renderBooks(); renderChapters(); renderVerses();
-  renderSidebar(); renderSidebarDots(); select(0);
+  renderSidebar(); select(0);
 
   // Recherche intelligente
   if (searchRef) {
@@ -411,7 +421,12 @@
   // autosave + liens live
   noteArea.addEventListener("input", () => {
     clearTimeout(autosaveTimer);
-    autosaveTimer = setTimeout(() => { notes[current] = noteArea.value; saveStorage(); updateLinksPanel(); }, 700);
+    autosaveTimer = setTimeout(() => {
+      notes[current] = noteArea.value; 
+      saveStorage(); 
+      updateLinksPanel();
+      HOOK('be:note-changed', { index: current, value: noteArea.value, hasContent: !!(noteArea.value || '').trim() });
+    }, 700);
   });
 
   // navigation simple
@@ -437,14 +452,11 @@
   notes[0] = defaultPrayerOpen();
   renderSidebarDots();
 
-  /* ---- Fallback interne sur hook : quand l'étude est générée,
-     on reconcilie visuel <-> notes pour être CERTAIN que tous
-     les points avec contenu sont marqués en vert. */
-  document.addEventListener('be:study-generated', () => {
-    renderSidebarDots();
+  // HOOK init
+  HOOK('be:init', {
+    current,
+    total: N,
+    filled: Object.keys(notes).filter(k => (notes[k] || "").trim()).map(k => +k)
   });
-
-  // Expose un utilitaire externe au besoin (pour scripts tiers)
-  window.beUpdateAllDots = function(){ renderSidebarDots(); };
 
 })();
