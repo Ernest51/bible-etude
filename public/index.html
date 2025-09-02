@@ -56,7 +56,7 @@
     .links-panel{background:#fafafa;border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
     .links-panel b{color:var(--accent)} .links-panel a{color:var(--accent);text-decoration:underline}
     .links-panel.empty{display:none}
-    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:var(--muted);font-size:14px}
+    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:#64748b;font-size:14px}
     #debugBtn{margin-left:6px;background:var(--dark);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
     #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;font-size:12px}
     @media print{.progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row,#debugPanel{display:none!important} textarea{min-height:unset}}
@@ -146,15 +146,16 @@
   <!-- Ouvre BibleGateway pour Lire la Bible / Valider (si présent côté site) -->
   <script src="/bible-open.js" defer></script>
 
-  <!-- Progress Générer + Nettoyage balises + Thème + Correctif "dot ok" -->
+  <!-- Progress Générer + Nettoyage balises + Thème + Correctif "dot ok" (robuste) -->
   <script>
     (function () {
-      const bar = document.getElementById('progressBar');
-      const note = document.getElementById('noteArea');
-      const genBtn = document.getElementById('generateBtn');
-      const yearEl = document.getElementById('y');
+      const bar   = document.getElementById('progressBar');
+      const note  = document.getElementById('noteArea');
+      const genBtn= document.getElementById('generateBtn');
+      const yearEl= document.getElementById('y');
       const themeSelect = document.getElementById('themeSelect');
-      const pointsList = document.getElementById('pointsList');
+      const pointsList  = document.getElementById('pointsList');
+      const edTitle     = document.getElementById('edTitle');
 
       if (yearEl) yearEl.textContent = new Date().getFullYear();
 
@@ -218,33 +219,52 @@
         }
       }
 
-      /* -------- Correctif : passer le point de la rubrique active au VERT quand contenu -------- */
-      function setActiveDot(ok){
+      /* -------- MARQUAGE AU VERT (robuste) -------- */
+      function markActivePointOk() {
         if (!pointsList) return;
-        const active = pointsList.querySelector('.item.active .dot');
-        if (!active) return;
-        if (ok) active.classList.add('ok'); else active.classList.remove('ok');
+
+        // 1) Essai direct : l'élément actif
+        let dot = pointsList.querySelector('.item.active .dot');
+
+        // 2) Si pas trouvé, on identifie par titre (texte de la colonne droite)
+        if (!dot && edTitle) {
+          const title = (edTitle.textContent || '').trim().toLowerCase();
+          if (title) {
+            const items = pointsList.querySelectorAll('.item');
+            for (const it of items) {
+              const text = (it.textContent || '').trim().toLowerCase();
+              // tolérant : on cherche le titre au début ou inclus (certains items ont une description sous le titre)
+              if (text.startsWith(title) || text.includes('\n'+title) || text.includes(title)) {
+                dot = it.querySelector('.dot');
+                if (dot) break;
+              }
+            }
+          }
+        }
+
+        if (dot) {
+          dot.classList.add('ok');      // -> vert
+          dot.classList.remove('warn'); // au cas où
+        }
       }
 
       note.addEventListener('input', () => {
         const grew = (note.value || '').length > startLen;
         plainifyIfNeeded();
-        const hasContent = (note.value || '').trim().length > 0;
-        setActiveDot(hasContent);     // <-- ici : on bascule le point en vert si du texte est présent
+        if ((note.value || '').trim().length > 0) markActivePointOk();
         if (grew) finish(true);
       });
 
-      // Si app.js injecte sans event, on surveille et on met à jour le point
+      // Si app.js injecte sans event, on surveille et on marque aussi
       let lastHash = '';
       setInterval(()=>{
         const v = note.value || '';
         const h = v.length + ':' + v.slice(0,64);
         if (h !== lastHash){
           lastHash = h;
-          const was = v;
+          const before = note.value;
           plainifyIfNeeded();
-          const hasContent = (note.value || '').trim().length > 0;
-          setActiveDot(hasContent);
+          if ((note.value || '').trim().length > 0) markActivePointOk();
           if ((note.value || '').length > startLen) finish(true);
         }
       }, 350);
@@ -257,7 +277,7 @@
       }
       try {
         const saved = localStorage.getItem('meditation:theme');
-        if (saved && themeSelect){ 
+        if (saved && themeSelect){
           const opt = Array.from(themeSelect.options).find(o => o.value === saved);
           if (opt) { themeSelect.value = saved; applyTheme(saved); }
         }
