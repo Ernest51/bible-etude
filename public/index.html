@@ -4,72 +4,77 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Méditation</title>
-  <meta name="description" content="Méditation biblique — 28 rubriques, recherche livre/chapitre, sauvegarde locale." />
+  <meta name="description" content="Méditation biblique — 28 rubriques, mode enrichi, étude lisible." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <!-- Inter font -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+
   <style>
-    :root{--bg:#f6f7fb;--panel:#fff;--text:#0f172a;--muted:#6b7280;--border:#e5e7eb;--dark:#111827;--warn:#f59e0b;--ok:#16a34a;--accent:#2563eb;}
-    *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
-    .progress-wrap{position:sticky;top:0;z-index:20;background:var(--bg)} .progress{height:4px;background:#e5e7eb}.progress>.bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--ok));transition:width .2s}
-
-    /* Titre centré (seule ligne) */
-    header{background:#fff;border-bottom:1px solid var(--border);position:sticky;top:4px;z-index:10;padding:16px 18px}
-    .brand{max-width:1200px;margin:0 auto;text-align:center}
-    .brand h1{margin:0;font-size:28px;letter-spacing:.3px;font-weight:800}
-
-    main{max-width:1200px;margin:14px auto;padding:0 14px}
-
-    .controls{display:grid;gap:10px;margin:12px 0;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto auto auto auto;align-items:center}
-    .controls .tog{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text);white-space:nowrap}
-    .controls .tog small{color:var(--muted)}
-    @media (max-width:1100px){
-      .controls{grid-template-columns:1fr 1fr 1fr 1fr}
-      .controls .wide{grid-column:1/-1}
-      .controls .actions{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
-      .controls .statusline{grid-column:1/-1}
+    :root{
+      --bg:#f6f7fb; --panel:#ffffff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827;
+      --brand:#1f2937; --accent:#0f766e; --warn:#f59e0b; --ok:#16a34a
     }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
 
+    /* Bar de progression */
+    .progress-wrap{position:sticky;top:0;z-index:20}
+    .progress{height:4px;background:#e5e7eb}
+    .progress>.bar{height:100%;width:0;background:linear-gradient(90deg,#2563eb,#16a34a);transition:width .2s}
+
+    /* Header minimal, centré */
+    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:18px 16px;position:sticky;top:4px;z-index:10}
+    .title{margin:0;font-weight:800;text-align:center;letter-spacing:.2px;color:var(--brand)}
+    .subtitle{margin:6px 0 0;text-align:center;color:var(--muted);font-size:13px}
+
+    main{max-width:1200px;margin:18px auto;padding:0 14px}
+
+    /* Barre de contrôle */
+    .controls{display:grid;grid-template-columns:2fr repeat(4,1fr) auto auto auto;gap:10px;margin:12px 0}
+    @media (max-width:1100px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr}.controls .wide{grid-column:1/-1}}
     input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%;background:#fff}
-    .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer;white-space:nowrap}
-    .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)} .btn.warn{background:var(--warn)}
 
-    .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
+    .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer;white-space:nowrap}
+    .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
+    .btn.warn{background:var(--warn)}
+    .toggle{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--brand)}
+
+    /* Layout sans panneau d’aperçu */
+    .layout{display:grid;grid-template-columns:320px 1fr;gap:14px}
     @media (max-width:1000px){.layout{grid-template-columns:1fr}}
 
     .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700}
+    .side-head{padding:12px 14px;border-bottom:1px solid var(--border);font-weight:700}
     .list{max-height:70vh;overflow:auto}
     .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
     .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:#eef2ff}
     .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
     .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
-    .dot{width:8px;height:8px;border-radius:999px;background:#eab308;margin-left:auto}.dot.ok{background:#16a34a}
+    .dot{width:8px;height:8px;border-radius:999px;background:#eab308;margin-left:auto}.dot.ok{background:var(--ok)}
 
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
     .ed-title{font-weight:700;flex:1}
     .ed-body{padding:12px}
-    textarea{width:100%;min-height:520px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:"Merriweather", Georgia, serif;line-height:1.65;font-size:16px;background:#fff}
+    textarea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;line-height:1.5}
 
-    .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center}
+    .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px}
     .navbtn{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 12px;cursor:pointer}
 
     footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:var(--muted);font-size:14px}
-    #debugBtn{margin-top:8px;background:#111827;color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
-    #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:240px;overflow:auto;white-space:pre-wrap;font-size:12px}
     .status-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
     .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
     .mini{width:8px;height:8px;border-radius:999px;background:#d97706}.mini.ok{background:#16a34a}.mini.ko{background:#dc2626}
 
-    @media print{.progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row,#debugPanel{display:none!important}textarea{min-height:unset}}
+    @media print{.progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row{display:none!important} textarea{min-height:unset}}
   </style>
 </head>
 <body>
   <div class="progress-wrap"><div class="progress"><div id="progressBar" class="bar" style="width:0%"></div></div></div>
+
   <header>
-    <div class="brand"><h1>Méditation</h1></div>
+    <h1 class="title">Méditation</h1>
   </header>
 
   <main>
@@ -84,18 +89,16 @@
         <option value="S21">Segond 21 (S21)</option>
         <option value="BFC">Français Courant (BFC)</option>
       </select>
-      <label class="tog" title="Activer l’enrichissement (≈ 2 500 caractères)">
-        <input type="checkbox" id="modeRich" />
-        Mode enrichi <small>(≈ 2 500 car.)</small>
+
+      <label class="toggle">
+        <input id="enrichedToggle" type="checkbox" checked />
+        Mode enrichi (matière +)
       </label>
-      <div class="actions">
-        <button id="validate" class="btn" type="button">Valider</button>
-        <button id="generateBtn" class="btn warn" type="button">Générer</button>
-        <a id="readLink" class="btn secondary" href="#" target="_blank" rel="noopener">Lire la Bible</a>
-      </div>
-      <div class="statusline">
-        <span id="lastStudy" class="small">Dernier : —</span>
-      </div>
+
+      <button id="validate" class="btn" type="button">Valider</button>
+      <button id="generateBtn" class="btn warn" type="button">Générer</button>
+      <a id="readLink" class="btn secondary" href="#" target="_blank" rel="noopener">Lire la Bible</a>
+      <span id="lastStudy" class="small">Dernier : —</span>
     </div>
 
     <div class="layout">
@@ -114,69 +117,25 @@
           <textarea id="noteArea" placeholder="Écris ici…"></textarea>
         </div>
         <div class="ed-foot">
-          <span class="small" id="metaInfo">Point — / 28</span>
-          <span class="small">Sauvegarde auto (2s) après saisie.</span>
+          <span id="metaInfo">Point — / 28 • Sauvegarde auto (2s)</span>
+          <span id="sourceInfo" title="Source de la dernière génération"></span>
         </div>
       </section>
     </div>
   </main>
 
   <footer>
-    © <span id="y"></span> Méditation
+    © <span id="y"></span> — Méditation
     <div class="status-row" aria-label="Statut API">
       <span class="badge"><span id="dot-health" class="mini" aria-hidden="true"></span> health</span>
       <span class="badge"><span id="dot-chat" class="mini" aria-hidden="true"></span> chat(POST)</span>
       <span class="badge"><span id="dot-ping" class="mini" aria-hidden="true"></span> ping</span>
       <button id="debugBtn" title="Ouvrir le panneau de debug" type="button">Debug</button>
     </div>
-    <div id="debugPanel">[init]</div>
+    <div id="debugPanel" style="display:none;">[init]</div>
   </footer>
 
-  <!-- conserve le cache-buster automatique pour app.js -->
-  <script src="/app-loader.js" defer></script>
-
-  <!-- Nettoyage non intrusif : enlève balises HTML + markdown (**, *, titres, [lien](url)) dans la zone -->
-  <script>
-    const $ = (id)=>document.getElementById(id);
-    $("y").textContent = new Date().getFullYear();
-
-    const area = $("noteArea");
-
-    function cleanVisibleSyntax(s){
-      if(!s) return "";
-      let t = String(s);
-
-      // 1) liens markdown [texte](url) -> texte (url)
-      t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/gi, "$1 ($2)");
-
-      // 2) balises <a href="...">texte</a> -> texte (url)
-      t = t.replace(/<a\s+[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi, (m,href,text)=> `${text} (${href})`);
-
-      // 3) supprimer toute autre balise HTML
-      t = t.replace(/<\/?[^>]+>/g,"");
-
-      // 4) supprimer gras/italique markdown et les titres #
-      t = t.replace(/\*\*(.+?)\*\*/g, "$1")      // **gras** -> gras
-           .replace(/\*(.+?)\*/g, "$1")          // *italique* -> italique
-           .replace(/^\s*#{1,6}\s?/gm, "");      // #, ##, ### en début de ligne
-
-      // 5) normaliser espaces
-      t = t.replace(/[ \t]+\n/g, "\n").trim();
-
-      return t;
-    }
-
-    // observe le contenu et nettoie si l’API renvoie des balises ou des **
-    setInterval(()=>{
-      const v = area.value;
-      if(!v) return;
-      if (/<[^>]+>/.test(v) || /\*\*|^\s*#|\[[^\]]+\]\(https?:/mi.test(v)) {
-        const start = area.selectionStart, end = area.selectionEnd;
-        const cleaned = cleanVisibleSyntax(v);
-        area.value = cleaned;
-        try{ area.setSelectionRange(start, Math.min(end, cleaned.length)); }catch{}
-      }
-    }, 300);
-  </script>
+  <!-- IMPORTANT : garde le loader pour le cache-busting si tu l’utilises. Sinon charge /app.js directement -->
+  <script src="/app.js?v=2025-09-02-1" defer></script>
 </body>
 </html>
