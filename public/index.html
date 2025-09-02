@@ -6,41 +6,49 @@
   <title>Méditation</title>
   <meta name="description" content="Méditation biblique — 28 rubriques, mode enrichi, étude lisible." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  <!-- Inter font -->
+
+  <!-- Manrope (élégante, très lisible) -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
 
   <style>
     :root{
+      /* Thème par défaut */
       --bg:#f6f7fb; --panel:#ffffff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827;
-      --brand:#1f2937; --accent:#0f766e; --warn:#f59e0b; --ok:#16a34a
+      --brand:#1f2937; --accent:#0f766e; --warn:#f59e0b; --ok:#16a34a; --link:#1d4ed8;
     }
-    *{box-sizing:border-box}
-    html,body{margin:0;padding:0;font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    /* Thèmes (5) : clair, forêt, océan, sépia, nuit */
+    [data-theme="1"]{ --bg:#f6f7fb; --panel:#ffffff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --brand:#1f2937; --accent:#0f766e; --link:#1d4ed8}
+    [data-theme="2"]{ --bg:#f3f7f5; --panel:#ffffff; --text:#0c1a15; --muted:#4b6b60; --border:#dfe8e4; --brand:#0c1a15; --accent:#0b7b6b; --link:#0b7285}
+    [data-theme="3"]{ --bg:#f4f8fb; --panel:#ffffff; --text:#0a1520; --muted:#5b7186; --border:#dfe6ee; --brand:#0a1520; --accent:#0e7490; --link:#0369a1}
+    [data-theme="4"]{ --bg:#f7f3ea; --panel:#fffaf0; --text:#1c1917; --muted:#7c6f65; --border:#e9dcc7; --brand:#1c1917; --accent:#936639; --link:#8a5a2b}
+    [data-theme="5"]{ --bg:#0b1020; --panel:#0f172a; --text:#e5e7eb; --muted:#94a3b8; --border:#1f2937; --brand:#e5e7eb; --accent:#14b8a6; --link:#60a5fa}
 
-    /* Bar de progression */
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;font-family:"Manrope",system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+
     .progress-wrap{position:sticky;top:0;z-index:20}
     .progress{height:4px;background:#e5e7eb}
     .progress>.bar{height:100%;width:0;background:linear-gradient(90deg,#2563eb,#16a34a);transition:width .2s}
 
-    /* Header minimal, centré */
-    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:18px 16px;position:sticky;top:4px;z-index:10}
+    header{background:var(--panel);border-bottom:1px solid var(--border);padding:18px 16px;position:sticky;top:4px;z-index:10}
     .title{margin:0;font-weight:800;text-align:center;letter-spacing:.2px;color:var(--brand)}
-    .subtitle{margin:6px 0 0;text-align:center;color:var(--muted);font-size:13px}
-
     main{max-width:1200px;margin:18px auto;padding:0 14px}
 
-    /* Barre de contrôle */
-    .controls{display:grid;grid-template-columns:2fr repeat(4,1fr) auto auto auto;gap:10px;margin:12px 0}
-    @media (max-width:1100px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr}.controls .wide{grid-column:1/-1}}
-    input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%;background:#fff}
-
+    .controls{display:grid;grid-template-columns:2fr repeat(4,1fr) auto auto auto auto;gap:10px;margin:12px 0}
+    @media (max-width:1100px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr}.controls .wide{grid-column:1/-1}}
+    input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%;background:var(--panel);color:var(--text)}
     .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer;white-space:nowrap}
-    .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
-    .btn.warn{background:var(--warn)}
-    .toggle{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--brand)}
+    .btn.secondary{background:transparent;color:var(--text);border:1px solid var(--border)}
+    .btn.warn{background:var(--warn);color:#1c1917}
 
-    /* Layout sans panneau d’aperçu */
+    /* Ascenseur thème */
+    .theme-wrap{display:flex;align-items:center;gap:8px}
+    .theme-wrap label{font-size:12px;color:var(--muted)}
+    .theme-range{width:120px}
+    .theme-range::-webkit-slider-thumb{appearance:none;width:18px;height:18px;background:var(--accent);border-radius:50%}
+    .theme-range::-moz-range-thumb{width:18px;height:18px;background:var(--accent);border:none;border-radius:50%}
+
     .layout{display:grid;grid-template-columns:320px 1fr;gap:14px}
     @media (max-width:1000px){.layout{grid-template-columns:1fr}}
 
@@ -48,29 +56,33 @@
     .side-head{padding:12px 14px;border-bottom:1px solid var(--border);font-weight:700}
     .list{max-height:70vh;overflow:auto}
     .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
-    .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:#eef2ff}
-    .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
+    .item:last-child{border-bottom:0}.item:hover{background:rgba(2,132,199,.06)}.item.active{background:rgba(99,102,241,.08)}
+    .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:var(--panel)}
     .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
     .dot{width:8px;height:8px;border-radius:999px;background:#eab308;margin-left:auto}.dot.ok{background:var(--ok)}
 
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
     .ed-title{font-weight:700;flex:1}
-    .ed-body{padding:12px}
-    textarea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;line-height:1.5}
+    .ed-body{padding:12px;display:flex;flex-direction:column;gap:12px}
+    textarea{width:100%;min-height:360px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;line-height:1.6;background:var(--panel);color:var(--text)}
+
+    /* Aperçu cliquable sous la zone de saisie */
+    .render{border:1px dashed var(--border);border-radius:10px;padding:12px;line-height:1.6;background:var(--panel)}
+    .render a{color:var(--link);text-decoration:underline}
 
     .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px}
-    .navbtn{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 12px;cursor:pointer}
+    .navbtn{background:transparent;border:1px solid var(--border);border-radius:10px;padding:8px 12px;cursor:pointer;color:var(--text)}
 
     footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:var(--muted);font-size:14px}
     .status-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
-    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
+    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--panel);border-radius:999px;padding:4px 8px;font-size:12px;color:var(--text)}
     .mini{width:8px;height:8px;border-radius:999px;background:#d97706}.mini.ok{background:#16a34a}.mini.ko{background:#dc2626}
 
     @media print{.progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row{display:none!important} textarea{min-height:unset}}
   </style>
 </head>
-<body>
+<body data-theme="1">
   <div class="progress-wrap"><div class="progress"><div id="progressBar" class="bar" style="width:0%"></div></div></div>
 
   <header>
@@ -90,9 +102,15 @@
         <option value="BFC">Français Courant (BFC)</option>
       </select>
 
+      <!-- Ascenseur thème (1→5) -->
+      <div class="theme-wrap">
+        <label for="themeRange">Thème</label>
+        <input id="themeRange" class="theme-range" type="range" min="1" max="5" step="1" value="1" />
+      </div>
+
       <label class="toggle">
         <input id="enrichedToggle" type="checkbox" checked />
-        Mode enrichi (matière +)
+        Mode enrichi
       </label>
 
       <button id="validate" class="btn" type="button">Valider</button>
@@ -115,6 +133,9 @@
         </div>
         <div class="ed-body">
           <textarea id="noteArea" placeholder="Écris ici…"></textarea>
+
+          <!-- Aperçu cliquable (URLs → <a>) -->
+          <div id="renderArea" class="render"></div>
         </div>
         <div class="ed-foot">
           <span id="metaInfo">Point — / 28 • Sauvegarde auto (2s)</span>
@@ -135,7 +156,7 @@
     <div id="debugPanel" style="display:none;">[init]</div>
   </footer>
 
-  <!-- IMPORTANT : garde le loader pour le cache-busting si tu l’utilises. Sinon charge /app.js directement -->
-  <script src="/app.js?v=2025-09-02-1" defer></script>
+  <!-- On garde la même version d’app.js ; juste une nouvelle version string pour vider le cache -->
+  <script src="/app.js?v=2025-09-02-2" defer></script>
 </body>
 </html>
