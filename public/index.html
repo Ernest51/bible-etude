@@ -7,7 +7,7 @@
   <meta name="description" content="Méditation biblique — 28 rubriques, mode enrichi, étude lisible." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 
-  <!-- UI : Manrope (propre) | Contenu : Merriweather (lecture) -->
+  <!-- UI : Manrope | Contenu : Merriweather -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&family=Merriweather:wght@300;400;700&display=swap" rel="stylesheet">
 
@@ -41,7 +41,6 @@
     .btn.secondary{background:transparent;color:var(--text);border:1px solid var(--border)}
     .btn.warn{background:var(--accent);color:#fff}
 
-    /* Ascenseur de thème (slider) avec fond coloré segmenté */
     .theme-wrap{display:flex;align-items:center;gap:8px}
     .theme-wrap label{font-size:12px;color:var(--muted)}
     .theme-range{width:140px;height:8px;border-radius:12px;appearance:none;background:
@@ -71,13 +70,8 @@
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
     .ed-title{font-weight:700;flex:1}
-    .ed-body{padding:12px;display:flex;flex-direction:column;gap:12px}
-    /* Contenu : police de lecture */
-    textarea{width:100%;min-height:360px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;line-height:1.7;background:var(--panel);color:var(--text);font-family:"Merriweather", Georgia, serif;font-size:16px}
-
-    .render{border:1px dashed var(--border);border-radius:10px;padding:12px;line-height:1.7;background:var(--panel);font-family:"Merriweather", Georgia, serif;font-size:16px}
-    .render a{color:var(--link);text-decoration:underline}
-    .render strong{font-weight:700}
+    .ed-body{padding:12px;display:block}
+    textarea{width:100%;min-height:520px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;line-height:1.7;background:var(--panel);color:var(--text);font-family:"Merriweather", Georgia, serif;font-size:16px}
 
     .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px}
     .navbtn{background:transparent;border:1px solid var(--border);border-radius:10px;padding:8px 12px;cursor:pointer;color:var(--text)}
@@ -110,7 +104,6 @@
         <option value="BFC">Français Courant (BFC)</option>
       </select>
 
-      <!-- Ascenseur thème (1→5) -->
       <div class="theme-wrap" title="Changer de palette (Cyan, Violet, Vert, Rouge, Mauve)">
         <label for="themeRange">Thème</label>
         <input id="themeRange" class="theme-range" type="range" min="1" max="5" step="1" value="1" />
@@ -140,13 +133,11 @@
           <button id="next" class="navbtn" type="button">Suivant ▶</button>
         </div>
         <div class="ed-body">
+          <!-- UNE SEULE ZONE : le textarea -->
           <textarea id="noteArea" placeholder="Écris ici…"></textarea>
-          <!-- Aperçu cliquable (URLs → <a> + titres en gras) -->
-          <div id="renderArea" class="render"></div>
         </div>
         <div class="ed-foot">
           <span id="metaInfo">Point — / 28 • Sauvegarde auto (2s)</span>
-          <!-- plus de ‘source=canonical’ -->
           <span id="sourceInfo" style="display:none"></span>
         </div>
       </section>
@@ -165,6 +156,6 @@
   </footer>
 
   <!-- même app.js, nouvelle version pour vider le cache -->
-  <script src="/app.js?v=2025-09-02-3" defer></script>
+  <script src="/app.js?v=2025-09-02-4" defer></script>
 </body>
 </html>
