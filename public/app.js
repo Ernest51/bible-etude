@@ -129,8 +129,10 @@
       filled: Object.keys(notes).filter(k => (notes[k] || "").trim()).map(k => +k)
     });
   }
+
   function select(i) {
-    if (noteArea) notes[current] = noteArea.value;
+    // --- FIX: ne pas écraser la note si on reste sur la même rubrique
+    if (noteArea && i !== current) notes[current] = noteArea.value;
     saveStorage();
     current = i;
     document.querySelectorAll(".list .item").forEach((el) => el.classList.toggle("active", +el.dataset.idx === current));
@@ -141,6 +143,7 @@
     if (noteArea) noteArea.focus();
     HOOK('be:point-selected', { index: i, hasContent: !!(notes[i] && notes[i].trim()) });
   }
+
   function saveStorage() {
     try { localStorage.setItem("be_notes", JSON.stringify(notes)); renderSidebarDots(); } catch {}
   }
@@ -326,8 +329,8 @@
       }
 
       renderSidebar();
-      select(0);
-      renderSidebarDots(); // s'assurer que l'état visuel colle aux notes
+      select(0);            // <-- grâce au FIX, notes[0] n'est plus écrasé ici
+      renderSidebarDots();  // s'assurer que l'état visuel colle aux notes
 
       HOOK('be:study-generated', {
         reference: data.reference || ref,
