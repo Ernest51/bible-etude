@@ -1,5 +1,4 @@
-// public/app.js — FRONT COMPLET (28 rubriques, JSON ou Markdown)
-// ➜ v=2025-09-01-ENR-1  (rubrique 3 corrigée + support optionnel "mode enrichi")
+// public/app.js — FRONT COMPLET (28 rubriques, enrichissement et R3 auto-réponses)
 (function () {
   // ---------- helpers UI ----------
   const $ = (id) => document.getElementById(id);
@@ -55,8 +54,8 @@
     dotHealth = $("dot-health"),
     dotChat = $("dot-chat"),
     dotPing = $("dot-ping"),
-    // peut ne pas exister : on supporte aussi ?mode=enrichi
-    modeRich = document.getElementById("modeRich");
+    sourceInfo = $("sourceInfo"),
+    enrichedToggle = $("enrichedToggle");
 
   $("y") && ($("y").textContent = new Date().getFullYear());
 
@@ -77,7 +76,7 @@
     ["1 Pierre", 5], ["2 Pierre", 3], ["1 Jean", 5], ["2 Jean", 1], ["3 Jean", 1],
     ["Jude", 1], ["Apocalypse", 22],
   ];
-  const NT_START_INDEX = BOOKS.findIndex(([n]) => n === "Matthieu"); // 39 (0-based)
+  const NT_START_INDEX = BOOKS.findIndex(([n]) => n === "Matthieu");
 
   function renderBooks() {
     if (!bookSelect) return;
@@ -185,7 +184,7 @@
     document.querySelectorAll(".list .item").forEach((el) => el.classList.toggle("active", +el.dataset.idx === current));
     if (edTitle) edTitle.textContent = `${i + 1}. ${FIXED_POINTS[i].t}`;
     if (noteArea) noteArea.value = notes[i] || "";
-    if (metaInfo) metaInfo.textContent = `Point ${i + 1} / ${N}`;
+    if (metaInfo) metaInfo.textContent = `Point ${i + 1} / ${N} • Sauvegarde auto (2s)`;
     if (noteArea) noteArea.focus();
   }
   function saveStorage() {
@@ -195,7 +194,226 @@
     } catch { }
   }
 
-  // ---------- parse saisie ----------
+  // ---------- utils contenu ----------
+  const stripStarsAndTags = (s) =>
+    String(s || "")
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/<\/?[^>]+>/g, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+
+  const gwUrl = (ref, ver) =>
+    "https://www.biblegateway.com/passage/?search=" + encodeURIComponent(ref) + "&version=" + encodeURIComponent(ver || "LSG");
+
+  function enrichShort(text, book, chapter) {
+    // Ajoute de la matière pédagogique si trop court
+    const MIN = 1200; // cible de densité
+    let t = stripStarsAndTags(text);
+    if (t.length >= MIN || !enrichedToggle?.checked) return t;
+
+    const extra =
+`\n\nDéveloppement : 
+Ce passage s’inscrit dans l’économie globale de la révélation. Il dévoile l’initiative de Dieu, la réponse humaine, et les effets sur la communauté. 
+Pour progresser : 1) relever les verbes d’action attribués à Dieu ; 2) observer les marqueurs d’alliance (promesse, signe, mémoire) ; 
+3) repérer les contrastes (lumière/ténèbres, foi/peur, obéissance/résistance) ; 4) articuler doctrine, éthique, espérance ; 
+5) faire un « pont » vers l’Évangile : Christ accomplit, purifie et envoie.`;
+
+    // répéter au besoin
+    while ((t + extra).length < MIN) t += extra;
+    return t;
+  }
+
+  function defaultPrayerOpen(book, chapter) {
+    return stripStarsAndTags(
+`Prière d’ouverture :
+Père céleste, nous venons devant toi pour lire ${book} ${chapter}. 
+Ouvre nos cœurs par ton Esprit, donne-nous intelligence et obéissance. 
+Que ta Parole éclaire nos choix, fortifie notre foi et forme en nous le caractère de Christ. 
+Au nom de Jésus, amen.`
+    );
+  }
+  function defaultPrayerClose(book, chapter) {
+    return stripStarsAndTags(
+`Prière de fin :
+Seigneur, merci pour la lumière reçue dans ${book} ${chapter}. 
+Aide-nous à mettre en pratique ce que nous avons compris : dans l’Église, au foyer, et personnellement. 
+Garde-nous dans ta paix et rends-nous utiles à ton œuvre. Amen.`
+    );
+  }
+
+  function buildRubrique3Answers(book, chapter, version) {
+    const mainRef = `${book} ${chapter}`;
+    const mainUrl = gwUrl(mainRef, version);
+    // Quelques échos transversaux toujours pertinents
+    const echo1 = `Psaume 19:1 — ${gwUrl("Psaume 19:1", version)}`;
+    const echo2 = `Jean 1:1-3 — ${gwUrl("Jean 1:1-3", version)}`;
+
+    // Verset-clef : par défaut v.1 (l’utilisateur peut ajuster)
+    const keyRef = `${book} ${chapter}:1`;
+    const keyUrl = gwUrl(keyRef, version);
+
+    return stripStarsAndTags(
+`Révision sur ${book} ${chapter} — réponses aux 5 questions
+
+1) Observation :
+- Passage étudié : ${mainRef} (${mainUrl})
+- Structure globale : initiative de Dieu, réponse humaine, effets communautaires.
+- Repères récurrents : verbes d’action divins, formules d’alliance, refrains théologiques, contrastes (foi/incrédulité, ordre/chaos, grâce/exigence).
+- Personnages/voix : Dieu (parole/ordre), médiateurs (prophète/prêtre/roi/apôtres), assemblée/disciples.
+- Enjeu narratif : Dieu révèle, appelle, forme et conduit son peuple.
+
+2) Compréhension :
+Ce chapitre révèle un Dieu souverain, sage et fidèle à ses promesses ; il agit pour établir l’ordre, instruire et sauver. 
+L’homme est appelé à écouter, croire et obéir, dans une vocation communautaire (servir Dieu avec d’autres) et dans ses limites (fragilité, besoin de grâce). 
+La pédagogie divine passe souvent par l’alternance rappel/commande/promesse/jugement.
+
+3) Interprétation :
+Verset-clef proposé : ${keyRef} (${keyUrl})
+Ce verset concentre l’élan du passage : il donne l’angle d’entrée (qui parle ? à qui ? pour quoi faire ?). 
+Toute la dynamique du chapitre s’articule autour de ce point focal : identité de Dieu, initiative de sa Parole, finalité pour le peuple.
+
+4) Connexions bibliques :
+- Écho 1 : ${echo1}
+- Écho 2 : ${echo2}
+Ces parallèles éclairent la cohérence de la révélation : 
+la création et la Parole (Psaume 19), et le Verbe éternel (Jean 1) qui fonde et accomplit l’œuvre divine.
+
+5) Application (cette semaine) :
+- Personnel : établir un temps régulier d’écoute de la Parole (lecture/prière), identifier une obéissance concrète et mesurable.
+- Famille : partager ${mainRef} ensemble, prier autour d’un point d’obéissance commun.
+- Église : servir humblement dans l’ordre et la charité, fortifier un frère/une sœur par une promesse adaptée.
+
+Bonus :
+- Verset à mémoriser : ${keyRef} (${keyUrl})
+- Prière de réponse :
+Seigneur, tu parles encore aujourd’hui. Donne-moi un cœur docile, 
+unis-moi à ton peuple et rends-moi persévérant dans l’obéissance. 
+Que Christ soit honoré par ma foi, mes paroles et mes choix. Amen.`
+    );
+  }
+
+  // ---------- fetch /api/chat ----------
+  async function postJSON(url, payload, tries = 3) {
+    let lastErr;
+    for (let k = 0; k < tries; k++) {
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+          body: JSON.stringify(payload),
+        });
+        if (!r.ok) {
+          const msg = await r.text().catch(() => "");
+          throw new Error(msg || `HTTP ${r.status}`);
+        }
+        return r;
+      } catch (e) {
+        lastErr = e;
+        await new Promise(res => setTimeout(res, 300 * (k + 1)));
+      }
+    }
+    throw lastErr;
+  }
+
+  async function getStudy(ref) {
+    const ver = versionSelect ? versionSelect.value : "LSG";
+    const book = bookSelect?.value || "Genèse";
+    const chapter = Number(chapterSelect?.value || 1);
+
+    const r = await postJSON("/api/chat", { book, chapter, version: ver }, 3);
+    const ct = r.headers.get("Content-Type") || "";
+
+    if (/application\/json/i.test(ct)) {
+      const j = await r.json().catch(() => ({}));
+      if (!j || (j.ok === false)) throw new Error(j?.error || "Réponse JSON invalide");
+      // mémoriser la source
+      window.__lastChatSource = j.source || "unknown";
+      window.__lastChatWarn = j.warn || "";
+      return { from: j.source || "api", data: j.data };
+    }
+
+    const text = await r.text();
+    // fallback très rare
+    return { from: "api-md", data: { reference: ref, sections: [] } };
+  }
+
+  // ---------- génération ----------
+  async function generateStudy() {
+    if (inFlight) return;
+    const ref = buildReference();
+    if (!ref) { alert("Choisis un Livre + Chapitre (ou saisis une référence ex: Marc 5:1-20)"); return; }
+
+    inFlight = true;
+    const btn = generateBtn;
+    btn && (btn.dataset.label = btn.dataset.label || btn.textContent);
+    busy(btn, true);
+    try {
+      setProgress(10); await wait(60);
+      setProgress(55);
+
+      const { data, from } = await getStudy(ref);
+      const book = bookSelect?.value || "Genèse";
+      const chap = Number(chapterSelect?.value || 1);
+      const ver = versionSelect?.value || "LSG";
+
+      notes = {};
+      const secs = Array.isArray(data.sections) ? data.sections : [];
+
+      // Déversement brut
+      secs.forEach((s) => {
+        const i = (s.id | 0) - 1;
+        if (i >= 0 && i < N) {
+          let body = stripStarsAndTags(s.content || "");
+          notes[i] = body;
+        }
+      });
+
+      // Garde-fous + enrichissements
+      // Prière d’ouverture (1)
+      notes[0] = defaultPrayerOpen(book, chap);
+
+      // Rubrique 3 (réponses systématiques)
+      notes[2] = buildRubrique3Answers(book, chap, ver);
+
+      // Verset-clé (9) : s’assurer qu’un lien apparaît
+      if (!notes[8] || notes[8].length < 10) {
+        const keyRef = `${book} ${chap}:1`;
+        notes[8] = `Verset-clé proposé : ${keyRef} (${gwUrl(keyRef, ver)})`;
+      }
+
+      // Prière de fin (28)
+      notes[27] = defaultPrayerClose(book, chap);
+
+      // Mode enrichi : densifier chaque rubrique trop courte
+      if (enrichedToggle?.checked) {
+        for (let i = 0; i < N; i++) {
+          notes[i] = enrichShort(notes[i] || "", book, chap);
+        }
+      }
+
+      // Mémoire “dernier”
+      try {
+        lastStudy && (lastStudy.textContent = `Dernier : ${book} ${chap} (${ver}) • source=${from}`);
+        sourceInfo && (sourceInfo.textContent = `source=${from}`);
+        localStorage.setItem("be_last", JSON.stringify({
+          book, chapter: chap, verse: verseSelect?.value, version: ver
+        }));
+      } catch { }
+
+      renderSidebar(); select(0);
+      setProgress(100); setTimeout(() => setProgress(0), 300);
+      dlog(`[GEN] source=${from} sections=${secs.length} filled=${Object.keys(notes).length}`);
+    } catch (e) {
+      console.error(e);
+      alert(String((e && e.message) || e));
+    } finally {
+      busy(btn, false);
+      inFlight = false;
+    }
+  }
+
+  // ---------- parse / recherche ----------
   const norm = (s) => String(s || "")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .toLowerCase().replace(/[^a-z0-9: ]+/g, " ")
@@ -237,217 +455,11 @@
     return c ? `${b} ${c}` : b;
   }
 
-  // ---------- cache navigateur ----------
-  const cacheKey = (ref, ver) => `be_cache:${ref}::${ver || "LSG"}`;
-  const loadCache = (ref, ver) => { try { return JSON.parse(localStorage.getItem(cacheKey(ref, ver)) || "null"); } catch { return null; } };
-  const saveCache = (ref, ver, data) => { try { localStorage.setItem(cacheKey(ref, ver), JSON.stringify({ at: Date.now(), data })); } catch { } };
-
-  // ---------- garde-fous ----------
-  function defaultPrayerOpen(reference) {
-    return `Père céleste, nous venons devant toi pour lire ${reference}. Ouvre nos cœurs par ton Saint-Esprit, éclaire notre intelligence et conduis-nous dans la vérité. Au nom de Jésus, amen.`;
-  }
-  function defaultPrayerClose(reference) {
-    return `Seigneur, merci pour la lumière reçue dans ${reference}. Aide-nous à mettre ta Parole en pratique, à l’Église, en famille et personnellement. Garde-nous dans ta paix. Amen.`;
-  }
-  function ensureKeyVerse(body, reference) {
-    const txt = String(body || "");
-    const hasRef = /\b\d+:\d+\b/.test(txt) || /[A-Za-zÀ-ÿ]+\s+\d+:\d+/.test(txt);
-    if (hasRef) return txt;
-    const ref = reference || buildReference();
-    const chap = (ref.match(/\b(\d+)\b/) || [])[1] || "1";
-    return `Verset-clé proposé : ${ref.split(" ")[0]} ${chap}:1 — ${txt}`.trim();
-  }
-
-  // ✅ rubrique 3 enrichie (5 questions prêtes)
-  function makePrevChapterQuestions(reference) {
-    const ref = String(reference || "").trim() || "le chapitre précédent";
-    return [
-      `**Révision sur ${ref} — 5 questions**`,
-      "",
-      `1) **Observation :** Quels sont les 3 faits ou événements principaux du texte ? Quelles expressions reviennent (refrains, mots-clés) ?`,
-      `2) **Compréhension :** Que révèle ce chapitre sur Dieu (attributs, intentions) et sur l’homme (vocation, limites) ?`,
-      `3) **Interprétation :** Quel est le verset-clef du chapitre et pourquoi ? Comment s’articule-t-il avec le reste du passage ?`,
-      `4) **Connexions bibliques :** Citez un ou deux passages parallèles/échos (dans l’AT ou le NT) et expliquez le lien.`,
-      `5) **Application :** Quelle mise en pratique concrète cette semaine (personnelle, famille, église) découle de ce chapitre ?`,
-      "",
-      `*(Bonus)* : Un verset à **mémoriser** du chapitre et une courte **prière** de réponse.`
-    ].join("\n");
-  }
-
-  // ---------- fetch /api/chat ----------
-  // POST avec no-store + retries (stable)
-  async function postJSON(url, payload, tries = 2) {
-    let lastErr;
-    for (let k = 0; k < tries; k++) {
-      try {
-        const r = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          cache: "no-store",
-          body: JSON.stringify(payload),
-        });
-        if (!r.ok) {
-          const msg = await r.text().catch(() => "");
-          throw new Error(msg || `HTTP ${r.status}`);
-        }
-        return r;
-      } catch (e) {
-        lastErr = e;
-        await new Promise(res => setTimeout(res, 400 * (k + 1)));
-      }
-    }
-    throw lastErr;
-  }
-
-  async function getStudy(ref) {
-    const ver = versionSelect ? versionSelect.value : "LSG";
-
-    // Déduire livre/chapitre
-    let book = bookSelect?.value || "Genèse";
-    let chapter = Number(chapterSelect?.value || 1);
-
-    // Support du mode enrichi : case à cocher OU ?mode=enrichi
-    const urlParams = new URLSearchParams(location.search);
-    const urlMode = urlParams.get("mode");
-    const enriched = (modeRich && modeRich.checked) || urlMode === "enrichi";
-
-    const r = await postJSON(
-      "/api/chat",
-      { book, chapter, version: ver, mode: enriched ? "openai-rich" : "canonical" },
-      3
-    );
-
-    const ct = r.headers.get("Content-Type") || "";
-
-    if (/application\/json/i.test(ct)) {
-      const j = await r.json().catch(() => ({}));
-      if (!j || (j.ok === false)) throw new Error(j?.error || "Réponse JSON invalide");
-
-      // debug meta (affiche la source en UI)
-      try {
-        if (lastStudy) {
-          const src = String(j.source || "").toLowerCase();
-          const lbl = src ? ` • source=${src}` : "";
-          lastStudy.textContent = `${lastStudy.textContent || ""}`.replace(/ • source=.*$/, "") + lbl;
-        }
-        window.__lastChatSource = j.source || "unknown";
-        window.__lastChatWarn = j.warn || "";
-      } catch {}
-
-      return { from: j.source || "api", data: j.data };
-    }
-
-    // fallback improbable
-    const text = await r.text();
-    const sections = parseMarkdownToSections(text);
-    const data = { reference: ref, sections };
-    return { from: "api-md", data };
-  }
-
-  // ---------- parser Markdown (titres numérotés) ----------
-  function parseMarkdownToSections(md) {
-    const result = [];
-    if (!md || typeof md !== "string") return result;
-
-    const lines = md.split(/\r?\n/);
-    let cur = null;
-    const startRe = /^(\d{1,2})\.\s+/;
-
-    for (const line of lines) {
-      const m = line.match(startRe);
-      if (m) {
-        const id = parseInt(m[1], 10);
-        if (id >= 1 && id <= 28) {
-          if (cur) result.push(cur);
-          cur = { id, title: line.replace(startRe, "").trim(), content: "" };
-          continue;
-        }
-      }
-      if (cur) {
-        cur.content += (cur.content ? "\n" : "") + line;
-      }
-    }
-    if (cur) result.push(cur);
-
-    if (result.length < 10) {
-      const mdBlocks = md.split(/\n(?=\d{1,2}\.\s)/g);
-      const alt = [];
-      mdBlocks.forEach((blk) => {
-        const m2 = blk.match(/^(\d{1,2})\.\s+(.*?)(?:\n|$)/);
-        if (m2) {
-          const id = +m2[1];
-          let body = blk.slice(m2[0].length);
-          alt.push({ id, title: m2[2].trim(), content: body.trim() });
-        }
-      });
-      if (alt.length) return alt;
-    }
-
-    return result;
-  }
-
-  // ---------- génération ----------
-  async function generateStudy() {
-    if (inFlight) return;
-    const ref = buildReference();
-    if (!ref) { alert("Choisis un Livre + Chapitre (ou saisis une référence ex: Marc 5:1-20)"); return; }
-
-    inFlight = true;
-    const btn = generateBtn;
-    btn && (btn.dataset.label = btn.dataset.label || btn.textContent);
-    busy(btn, true);
-    try {
-      setProgress(15); await wait(80);
-      setProgress(55);
-
-      const { data } = await getStudy(ref);
-      // data.sections attendu : [{id,title,content}, ...]
-      notes = {};
-      const secs = Array.isArray(data.sections) ? data.sections : [];
-      secs.forEach((s) => {
-        const i = (s.id | 0) - 1;
-        if (i >= 0 && i < N) notes[i] = String(s.content || "").trim();
-      });
-
-      // Garde-fous
-      notes[0] = defaultPrayerOpen(data.reference || ref);
-      if (!notes[1]) {
-        const idx = bookSelect ? bookSelect.selectedIndex : 0;
-        const testament = idx < NT_START_INDEX ? "Ancien Testament" : "Nouveau Testament";
-        notes[1] = `Le livre de ${bookSelect ? bookSelect.value : "—"} appartient à l’${testament}.`;
-      }
-
-      // ✅ rubrique 3 corrigée, toujours remplie proprement
-      notes[2] = makePrevChapterQuestions(data.reference || ref);
-
-      notes[8]  = ensureKeyVerse(notes[8],  data.reference || ref);
-      notes[27] = defaultPrayerClose(data.reference || ref);
-
-      dlog(`[GEN] source=${(window.__lastChatSource||'')} sections=${secs.length} filled=${Object.keys(notes).length}`);
-
-      // Mémoire “dernier”
-      try {
-        const book = bookSelect?.value, chap = chapterSelect?.value, vers = verseSelect?.value, ver = versionSelect?.value;
-        lastStudy && (lastStudy.textContent = `Dernier : ${data.reference || `${book} ${chap}`} (${ver})`);
-        localStorage.setItem("be_last", JSON.stringify({ book, chapter: chap, verse: vers, version: ver }));
-      } catch { }
-
-      renderSidebar(); select(0);
-      setProgress(100); setTimeout(() => setProgress(0), 300);
-      dlog("[GEN] OK → étude générée");
-    } catch (e) {
-      console.error(e);
-      alert(String((e && e.message) || e));
-    } finally {
-      busy(btn, false);
-      inFlight = false;
-    }
-  }
-
   // ---------- init ----------
   renderBooks(); renderChapters(); renderVerses(); updateReadLink();
   renderSidebar(); select(0);
 
+  // recherche intelligente
   if (searchRef) {
     searchRef.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -461,6 +473,7 @@
     });
   }
 
+  // Valider => BibleGateway + mémoire rapide
   validateBtn && validateBtn.addEventListener("click", () => {
     updateReadLink();
     try {
@@ -471,8 +484,10 @@
     readLink && window.open(readLink.href, "_blank", "noopener");
   });
 
+  // Générer => /api/chat
   generateBtn && generateBtn.addEventListener("click", generateStudy);
 
+  // auto-génération si pas de texte saisi
   function autoGenerate() {
     clearTimeout(autoTimer);
     autoTimer = setTimeout(() => {
@@ -482,16 +497,18 @@
   bookSelect && bookSelect.addEventListener("change", () => { renderChapters(); renderVerses(bookSelect.value === "Psaumes" ? 200 : 60); updateReadLink(); autoGenerate(); });
   chapterSelect && chapterSelect.addEventListener("change", () => { updateReadLink(); autoGenerate(); });
   verseSelect && verseSelect.addEventListener("change", () => { updateReadLink(); });
-  modeRich && modeRich.addEventListener("change", () => { /* pas d’auto, juste un flag */ });
 
+  // autosave
   noteArea && noteArea.addEventListener("input", () => {
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(() => { notes[current] = noteArea.value; saveStorage(); }, 700);
   });
 
+  // navigation simple
   prevBtn && prevBtn.addEventListener("click", () => { if (current > 0) select(current - 1); });
   nextBtn && nextBtn.addEventListener("click", () => { if (current < N - 1) select(current + 1); });
 
+  // bouton debug (optionnel)
   dbtn && dbtn.addEventListener("click", () => {
     const open = dpanel.style.display === "block";
     dpanel.style.display = open ? "none" : "block";
@@ -500,10 +517,7 @@
       dpanel.textContent = "[Debug démarré…]";
       (async () => {
         try { const r1 = await fetch("/api/health"); setMini(dotHealth, r1.ok); dlog(`health → ${r1.status}`); } catch { setMini(dotHealth, false); }
-        try {
-          const r2 = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ probe: true }) });
-          setMini(dotChat, r2.ok); dlog(`chat(POST) → ${r2.status}`);
-        } catch { setMini(dotChat, false); }
+        try { const r2 = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ probe: true }) }); setMini(dotChat, r2.ok); dlog(`chat(POST) → ${r2.status}`); } catch { setMini(dotChat, false); }
         try { const r3 = await fetch("/api/ping"); setMini(dotPing, r3.ok); dlog(`ping → ${r3.status}`); } catch { setMini(dotPing, false); }
       })();
     }
