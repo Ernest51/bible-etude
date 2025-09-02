@@ -86,11 +86,12 @@
         <span>Mode enrichi</span>
       </label>
 
-      <!-- Boutons : GÉNÉRER à la place de "Lire la Bible", puis VALIDER -->
-      <button id="generateBtn" class="btn warn" type="button">Générer</button>
+      <!-- Ordre final : Lire la Bible (gauche) + Valider (droite) côte à côte, puis Générer -->
+      <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
       <button id="validate" class="btn" type="button">Valider</button>
+      <button id="generateBtn" class="btn warn" type="button">Générer</button>
 
-      <!-- Ancre cachée conservée (compat éventuelle avec d'autres scripts) -->
+      <!-- Ancre cachée pour compat éventuelle -->
       <a id="readLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Lire</a>
     </div>
 
@@ -137,73 +138,7 @@
   <!-- Ton app frontend (inchangé) -->
   <script src="/app.js?v=2025-09-02-2" defer></script>
 
-  <!-- Ouvre BibleGateway quand on clique sur "Valider" (script existant si tu l'utilises) -->
+  <!-- Ouvre BibleGateway pour “Lire la Bible” et “Valider” (inchangé si déjà présent) -->
   <script src="/bible-open.js" defer></script>
-
-  <!-- Barre de progression pour la génération (sans toucher à app.js) -->
-  <script>
-    (function () {
-      const bar = document.getElementById('progressBar');
-      const note = document.getElementById('noteArea');
-      const genBtn = document.getElementById('generateBtn');
-      if (!bar || !note || !genBtn) return;
-
-      let ticking = false;
-      let iv = null;
-      let safetyTimer = null;
-      let startLen = 0;
-
-      function setWidth(pct){
-        bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
-      }
-      function startProgress(){
-        if (ticking) return;
-        ticking = true;
-        startLen = (note.value || '').length;
-        setWidth(5);
-        let w = 5;
-
-        // Monte progressivement jusqu'à 90% en attendant le retour
-        iv = setInterval(()=>{
-          // accélération douce, plafonnée
-          w = w + Math.max(0.4, (90 - w) * 0.03);
-          if (w > 90) w = 90;
-          setWidth(w);
-        }, 180);
-
-        // filet de sécurité : si rien ne change, reset au bout de 45s
-        safetyTimer = setTimeout(()=>finish(false), 45000);
-      }
-      function finish(success){
-        if (!ticking) return;
-        ticking = false;
-        clearInterval(iv); iv = null;
-        clearTimeout(safetyTimer); safetyTimer = null;
-        if (success){
-          setWidth(100);
-          setTimeout(()=>setWidth(0), 600);
-        } else {
-          // Échec/timeout : on rembobine en douceur
-          let w = parseFloat(bar.style.width) || 0;
-          const step = () => {
-            w = w - Math.max(2, w * 0.12);
-            if (w <= 0){ setWidth(0); return; }
-            setWidth(w); requestAnimationFrame(step);
-          };
-          requestAnimationFrame(step);
-        }
-      }
-
-      // Démarre quand on clique sur "Générer"
-      genBtn.addEventListener('click', startProgress, { capture:false });
-
-      // Considère que c'est bon quand #noteArea change (app.js y écrit la sortie)
-      note.addEventListener('input', () => {
-        // si la taille du contenu a augmenté depuis le clic => succès
-        const grew = (note.value || '').length > startLen;
-        finish(grew);
-      });
-    })();
-  </script>
 </body>
 </html>
