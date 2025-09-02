@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Méditation</title>
-  <meta name="description" content="Étude biblique — 28 rubriques, une zone de saisie, texte brut sans balises HTML." />
+  <meta name="description" content="Étude biblique — 28 rubriques, une zone de saisie, liens cliquables automatiques." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   <style>
@@ -86,11 +86,12 @@
         <span>Mode enrichi</span>
       </label>
 
-      <!-- Ordre final : Lire la Bible + Valider + Générer -->
+      <!-- Ordre : Lire la Bible (gauche) + Valider + Générer -->
       <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
       <button id="validate" class="btn" type="button">Valider</button>
       <button id="generateBtn" class="btn warn" type="button">Générer</button>
 
+      <!-- Compat éventuelle -->
       <a id="readLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Lire</a>
     </div>
 
@@ -108,7 +109,6 @@
         </div>
 
         <div class="ed-body">
-          <!-- Zone brute : plus de balises affichées, juste le texte -->
           <textarea id="noteArea" placeholder="Écris ici…"></textarea>
           <div id="linksPanel" class="links-panel empty">
             <b>Liens détectés :</b>
@@ -135,8 +135,134 @@
     <div id="debugPanel">[init]</div>
   </footer>
 
-  <!-- App.js (inchangé) -->
+  <!-- Front existant (inchangé) -->
   <script src="/app.js?v=2025-09-02-2" defer></script>
+
+  <!-- Ouvre BibleGateway pour Lire la Bible / Valider (si déjà en place côté site, on ne casse rien) -->
   <script src="/bible-open.js" defer></script>
+
+  <!-- PROGRESSION Générer + SUPPRESSION DES BALISES dans #noteArea (non intrusif) -->
+  <script>
+    (function () {
+      const bar = document.getElementById('progressBar');
+      const note = document.getElementById('noteArea');
+      const genBtn = document.getElementById('generateBtn');
+      const yearEl = document.getElementById('y');
+      if (yearEl) yearEl.textContent = new Date().getFullYear();
+
+      /* -------- Barre de progression (Générer) -------- */
+      let ticking = false, iv = null, safetyTimer = null, startLen = 0;
+      function setWidth(p){ bar && (bar.style.width = Math.max(0, Math.min(100, p)) + '%'); }
+      function startProgress(){
+        if (!bar || ticking) return;
+        ticking = true; startLen = (note.value || '').length; setWidth(5);
+        let w = 5;
+        iv = setInterval(()=>{ w = Math.min(90, w + Math.max(0.4, (90 - w) * 0.03)); setWidth(w); }, 180);
+        safetyTimer = setTimeout(()=>finish(false), 45000);
+      }
+      function finish(ok){
+        if (!ticking) return;
+        ticking = false;
+        clearInterval(iv); iv = null;
+        clearTimeout(safetyTimer); safetyTimer = null;
+        if (ok){ setWidth(100); setTimeout(()=>setWidth(0), 600); }
+        else {
+          let w = parseFloat(bar.style.width) || 0;
+          const step = ()=>{ w = w - Math.max(2, w * 0.12); if (w <= 0){ setWidth(0); return; } setWidth(w); requestAnimationFrame(step); };
+          requestAnimationFrame(step);
+        }
+      }
+      if (genBtn) genBtn.addEventListener('click', startProgress);
+
+      /* -------- Conversion HTML -> Texte brut dans l'étude --------
+         - Supprime toutes les balises HTML renvoyées par l'IA
+         - Conserve la lisibilité (sauts de ligne, puces)
+         - N'interfère pas avec app.js : on agit seulement sur #noteArea.value
+      */
+      function htmlToPlainText(html){
+        if (!html) return "";
+        // Construire un DOM pour extraire le texte proprement
+        const container = document.createElement('div');
+        container.innerHTML = html;
+
+        const blocks = new Set(['P','DIV','SECTION','ARTICLE','HEADER','FOOTER','H1','H2','H3','H4','H5','H6','LI','BR','HR','UL','OL','PRE','BLOCKQUOTE']);
+
+        let out = "";
+        function walk(node){
+          if (node.nodeType === 3){ // texte
+            out += node.nodeValue;
+            return;
+          }
+          if (node.nodeType !== 1) return; // pas un élément
+          const name = node.nodeName;
+
+          // Puces pour les LI
+          if (name === 'LI') out += (out.endsWith('\n') || out === '' ? '' : '\n') + '- ';
+
+          // Parcourir enfants
+          const kids = node.childNodes;
+          for (let i=0;i<kids.length;i++) walk(kids[i]);
+
+          // Sauts de ligne après les blocs
+          if (blocks.has(name)){
+            if (!out.endsWith('\n')) out += '\n';
+          }
+        }
+        walk(container);
+
+        // Normaliser les lignes
+        out = out.replace(/\r/g,'')
+                 .replace(/\n{3,}/g, '\n\n')  // max deux sauts consécutifs
+                 .replace(/[ \t]+\n/g, '\n')  // espaces fin de ligne
+                 .trim();
+
+        return out;
+      }
+
+      // Nettoyage immédiat si du HTML arrive dans #noteArea
+      function plainifyIfNeeded(){
+        const v = note.value || '';
+        if (/[<][^>]+>/.test(v)){ // détecte des balises
+          const text = htmlToPlainText(v);
+          if (text !== v){
+            const selStart = note.selectionStart, selEnd = note.selectionEnd;
+            note.value = text;
+            // délenche 'input' pour que app.js réagisse à la maj
+            const ev = new Event('input', {bubbles:true});
+            note.dispatchEvent(ev);
+            // restaure la sélection de manière prudente
+            if (typeof selStart === 'number' && typeof selEnd === 'number'){
+              const pos = Math.min(text.length, selStart);
+              note.setSelectionRange(pos, pos);
+            }
+          }
+        }
+      }
+
+      // Sur modifications utilisateur ET sur injections d'app.js
+      note.addEventListener('input', () => {
+        const before = (note.value || '').length;
+        plainifyIfNeeded();
+        // Fin de progression si du contenu a été ajouté depuis Générer
+        const grew = (note.value || '').length > startLen;
+        if (grew) finish(true);
+      });
+
+      // Filet : surveille les mises à jour silencieuses (app.js sans event)
+      let lastHash = '';
+      setInterval(()=>{
+        const v = note.value || '';
+        const h = v.length + ':' + v.slice(0,64);
+        if (h !== lastHash){
+          lastHash = h;
+          const was = v;
+          plainifyIfNeeded();
+          if (note.value !== was){ /* contenu transformé */ }
+          // si ça a poussé après Générer -> terminer
+          if ((note.value || '').length > startLen) finish(true);
+        }
+      }, 350);
+    })();
+  </script>
 </body>
 </html>
