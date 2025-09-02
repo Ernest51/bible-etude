@@ -10,6 +10,11 @@
   const dpanel = $("debugPanel"); const dbtn = $("debugBtn"); const dlog = (msg) => { if (!dpanel) return; dpanel.style.display = "block"; dbtn && (dbtn.textContent = "Fermer Debug"); const line = `[${new Date().toISOString()}] ${msg}`; dpanel.textContent += (dpanel.textContent ? "\n" : "") + line; console.log(line); };
   const setMini = (dot, ok) => { if (!dot) return; dot.classList.remove("ok", "ko"); if (ok === true) dot.classList.add("ok"); else if (ok === false) dot.classList.add("ko"); };
 
+  // --- petit système de hooks (non intrusif)
+  const emit = (name, detail) => {
+    try { document.dispatchEvent(new CustomEvent(`be:${name}`, { detail })); } catch {}
+  };
+
   const searchRef = $("searchRef"), bookSelect = $("bookSelect"), chapterSelect = $("chapterSelect"),
         verseSelect = $("verseSelect"), versionSelect = $("versionSelect"),
         validateBtn = $("validate"), generateBtn = $("generateBtn"),
@@ -107,6 +112,7 @@
       row.addEventListener("click", () => { if (current !== i) select(i); });
       pointsList.appendChild(row);
     });
+    emit('sidebar-rendered');
   }
   function renderSidebarDots() {
     document.querySelectorAll(".list .item").forEach((el) => {
@@ -115,6 +121,7 @@
       if (notes[i] && notes[i].trim()) dot.classList.add("ok");
       else dot.classList.remove("ok");
     });
+    emit('dots-updated');
   }
   function select(i) {
     if (noteArea) notes[current] = noteArea.value;
@@ -125,10 +132,11 @@
     if (noteArea) noteArea.value = notes[i] || "";
     if (metaInfo) metaInfo.textContent = `Point ${i + 1} / ${N}`;
     updateLinksPanel(); // MAJ liens à l'affichage
+    renderSidebarDots(); // <-- rafraîchit visuel tout de suite
     if (noteArea) noteArea.focus();
   }
   function saveStorage() {
-    try { localStorage.setItem("be_notes", JSON.stringify(notes)); renderSidebarDots(); } catch {}
+    try { localStorage.setItem("be_notes", JSON.stringify(notes)); renderSidebarDots(); emit('notes-updated', { notes }); } catch {}
   }
 
   // ---------- util ----------
@@ -289,6 +297,7 @@
 
       const { data } = await getStudy();
       notes = {}; // reset
+      emit('notes-will-apply');
 
       // Remplir selon les sections renvoyées
       const secs = Array.isArray(data.sections) ? data.sections : [];
@@ -311,9 +320,13 @@
         notes[k] = dedupeParagraphs(ensureLinksLineBreaks(notes[k]));
       }
 
-      renderSidebar(); select(0);
+      renderSidebar();
+      renderSidebarDots();            // <-- refresh dots immédiatement
+      select(0);                      // (réaffiche aussi dots)
       setProgress(100); setTimeout(() => setProgress(0), 300);
       dlog(`[GEN] source=${window.__lastChatSource} sections=${secs.length} filled=${Object.keys(notes).length} → étude générée`);
+
+      emit('study-generated', { notes }); // <-- hook externe
     } catch (e) {
       console.error(e);
       alert(String((e && e.message) || e));
@@ -358,7 +371,7 @@
 
   // ---------- init ----------
   renderBooks(); renderChapters(); renderVerses();
-  renderSidebar(); select(0);
+  renderSidebar(); renderSidebarDots(); select(0);
 
   // Recherche intelligente
   if (searchRef) {
@@ -423,5 +436,15 @@
   // remplir prière d’ouverture par défaut au chargement (point 1 non vide)
   notes[0] = defaultPrayerOpen();
   renderSidebarDots();
+
+  /* ---- Fallback interne sur hook : quand l'étude est générée,
+     on reconcilie visuel <-> notes pour être CERTAIN que tous
+     les points avec contenu sont marqués en vert. */
+  document.addEventListener('be:study-generated', () => {
+    renderSidebarDots();
+  });
+
+  // Expose un utilitaire externe au besoin (pour scripts tiers)
+  window.beUpdateAllDots = function(){ renderSidebarDots(); };
 
 })();
