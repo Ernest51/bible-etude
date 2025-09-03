@@ -1,8 +1,8 @@
 // pages/api/chat.js
 // Next.js API Route (Pages Router)
 // POST JSON: { book, chapter, verse?, version?, directives? }
-// Renvoie 28 rubriques adaptées au Testament (OT/NT) et au genre (narratif/poétique/prophétique/épistolaire).
-// Prière d’ouverture spécifique au passage avec gabarits OT/NT + genre. Fallback varié si IA indisponible.
+// 28 rubriques adaptées au Testament (OT/NT) et au genre (narratif/poétique/prophétique/épistolaire).
+// Prière d’ouverture spécifique + rubriques 3,6,9,20,27 dynamiques, avec appels à /api/verse quand utile.
 
 export const config = { runtime: "nodejs" };
 
@@ -31,6 +31,7 @@ const pickMany = (arr, k, seed, salt=0) => {
   }
   return a.slice(0, Math.max(1, Math.min(k, a.length)));
 };
+const esc = (s) => String(s||"").replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
 
 /* ────────────────────── Canon / Testament / Genre ────────────────────── */
 
@@ -46,17 +47,15 @@ const BOOK_GROUPS = {
   EPISTLES: ["Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude"],
   APOCALYPSE: ["Apocalypse"]
 };
+const ALL_AT = [...BOOK_GROUPS.TORAH, ...BOOK_GROUPS.HIST, ...BOOK_GROUPS.POETIC, ...BOOK_GROUPS.PROPHETIC];
+const ALL_NT = [...BOOK_GROUPS.GOSPELS, ...BOOK_GROUPS.ACTS, ...BOOK_GROUPS.EPISTLES, ...BOOK_GROUPS.APOCALYPSE];
 
 function inGroup(book, group){ return BOOK_GROUPS[group].includes(book); }
-
 function classifyTestament(book) {
-  const AT = [...BOOK_GROUPS.TORAH, ...BOOK_GROUPS.HIST, ...BOOK_GROUPS.POETIC, ...BOOK_GROUPS.PROPHETIC];
-  const NT = [...BOOK_GROUPS.GOSPELS, ...BOOK_GROUPS.ACTS, ...BOOK_GROUPS.EPISTLES, ...BOOK_GROUPS.APOCALYPSE];
-  if (AT.includes(book)) return "AT";
-  if (NT.includes(book)) return "NT";
-  return "AT"; // défaut conservateur
+  if (ALL_AT.includes(book)) return "AT";
+  if (ALL_NT.includes(book)) return "NT";
+  return "AT";
 }
-
 function classifyGenre(book) {
   if (inGroup(book, "TORAH") || inGroup(book, "HIST") || inGroup(book, "GOSPELS") || inGroup(book, "ACTS")) return "narratif";
   if (inGroup(book, "POETIC")) return "poétique";
@@ -72,7 +71,6 @@ function guessMotifs(book, chapter, verse) {
   const ch = Number(chapter || 1);
   const v  = verse ? Number(String(verse).split(/[–-]/)[0]) : null;
 
-  // Exemple plus fin pour Genèse 1
   if ((b === "genèse" || b === "genese") && ch === 1) {
     if (!v)  return ["création","Parole qui ordonne","lumière et ténèbres","séparations","vie naissante","image de Dieu"];
     if (v === 1)  return ["cieux et terre","commencement","Parole créatrice"];
@@ -85,7 +83,6 @@ function guessMotifs(book, chapter, verse) {
     if (v <= 31)  return ["animaux terrestres","homme et femme","image de Dieu","domination responsable"];
   }
 
-  // Catégories génériques par testament/genre
   const testament = classifyTestament(cap(book));
   const genre = classifyGenre(cap(book));
   if (testament === "AT" && genre === "narratif") return ["alliance","appel","épreuves","promesse","fidélité de Dieu"];
@@ -115,8 +112,6 @@ const CONCLUSIONS = [
   "Par ton Esprit Saint, amen.",
   "À toi la gloire, maintenant et toujours, amen."
 ];
-
-// modèles de phrase « centrale » par genre
 const MIDDLES_BY_GENRE = {
   narratif: [
     (m2,m3)=>`Par ta Parole qui éclaire, apprends-nous à discerner ton œuvre au cœur de ${m2}, et à marcher dans tes voies.`,
@@ -125,7 +120,7 @@ const MIDDLES_BY_GENRE = {
     (m2,m3)=>`Que le souvenir de tes actes en ${m3} affermisse notre foi et oriente nos décisions présentes.`
   ],
   poétique: [
-    (m2,m3)=>`Ouvre en nous un chant vrai: que ${m2} devient louange et prière, afin que notre cœur s’accorde à ta sagesse.`,
+    (m2,m3)=>`Ouvre en nous un chant vrai: que ${m2} devienne louange et prière, afin que notre cœur s’accorde à ta sagesse.`,
     (m2,m3)=>`Dissipe nos illusions, affine notre regard, et fais de ${m3} une source de paix et de discernement.`,
     (m2,m3)=>`Apprends-nous à nommer nos joies et nos peines; que ${m2} nous éduque à la confiance et à l’espérance.`,
     (m2,m3)=>`Que le rythme de ta Parole, à travers ${m3}, nous apprenne la droiture, l’humilité et la gratitude.`
@@ -143,8 +138,6 @@ const MIDDLES_BY_GENRE = {
     (m2,m3)=>`Que l’enseignement reçu en ${m3} renouvelle notre manière de vivre, dans la sainteté et la douceur.`
   ]
 };
-
-// interdictions (évite les redites connues)
 const FORBIDDEN_PHRASES = [
   "nous nous approchons de toi pour méditer",
   "ouvre notre intelligence",
@@ -160,85 +153,167 @@ function buildOpeningPrayerFallback(book, chapter, verse, version) {
   const ref = refString(book, chapter, verse);
   const motifs = guessMotifs(book, chapter, verse);
   const seed = simpleHash(`${ref}|${version||"LSG"}|${motifs.join("|")}`);
-
   const testament = classifyTestament(cap(book));
   const genre = classifyGenre(cap(book));
-
   const head = pick(INVOCATIONS[testament] || INVOCATIONS.AT, seed);
   const attr = pick(ATTRS[genre] || ATTRS.narratif, seed, 3);
   const end  = pick(CONCLUSIONS, seed, 5);
-
   const m2 = pickMany(motifs, 2, seed, 7).join(", ");
   const m3 = pickMany(motifs, 3, seed, 11).join(", ");
-
-  const middles = MIDDLES_BY_GENRE[genre] || MIDDLES_BY_GENRE.narratif;
-  const midTpl = pick(middles, seed, 13);
+  const midTpl = pick(MIDDLES_BY_GENRE[genre] || MIDDLES_BY_GENRE.narratif, seed, 13);
   const middle = midTpl(m2, m3);
-
-  return [
-    `<p><strong>${head}</strong>, ${attr}, nous venons à toi devant <strong>${ref}</strong>. `,
-    `${middle} `,
-    `${end}</p>`
-  ].join("");
+  return [`<p><strong>${head}</strong>, ${attr}, nous venons à toi devant <strong>${ref}</strong>. `, `${middle} `, `${end}</p>`].join("");
 }
 
-/* ─────────────────────────── Rubrique 3 adaptée ───────────────────────── */
+/* ─────────────────────── /api/verse helper (serveur) ─────────────────── */
+
+function buildApiBase(req){
+  // Permet d'appeler /api/verse côté serveur sans casser en prod/préprod
+  const host = req?.headers?.host || "localhost:3000";
+  const proto = host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https";
+  return `${proto}://${host}`;
+}
+
+async function fetchVerseText(req, { book, chapter, verse, version="LSG" }, timeoutMs=3500){
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), timeoutMs);
+  try{
+    const url = `${buildApiBase(req)}/api/verse`;
+    const r = await fetch(url, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ book, chapter, verse, version }),
+      signal: ctrl.signal
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json();
+    if (j && j.ok && j.text) return j.text;
+    throw new Error("bad-payload");
+  }catch(e){
+    return null; // fallback côté appelant
+  }finally{
+    clearTimeout(t);
+  }
+}
+
+/* ───────────────────────── Rubrique 3 (révision) ─────────────────────── */
 
 function buildRubrique3(book, chapter) {
   const ref = refString(book, chapter);
   const genre = classifyGenre(cap(book));
   const blocks = {
     narratif: [
-      `<h3>Révision sur ${ref} — 5 questions (genre: narratif)</h3>`,
+      `<h3>Révision sur ${esc(ref)} — 5 questions (genre: narratif)</h3>`,
       `<p><strong>1) Observation.</strong> Acteurs, lieux, succession d’actions, formules récurrentes.</p>`,
-      `<p><strong>2) Compréhension.</strong> Que révèle le récit de Dieu et de l’humain ? intention du passage ?</p>`,
+      `<p><strong>2) Compréhension.</strong> Que révèle le récit de Dieu et de l’humain ? Intention du passage ?</p>`,
       `<p><strong>3) Interprétation.</strong> Verset-charnière, logique du récit, accents théologiques.</p>`,
       `<p><strong>4) Connexions.</strong> Parallèles dans le canon (Torah/Histoire/Évangiles/Actes).</p>`,
       `<p><strong>5) Application.</strong> Décision concrète (quoi/quand/comment) en cohérence avec le récit.</p>`
     ],
     poétique: [
-      `<h3>Révision sur ${ref} — 5 questions (genre: poétique)</h3>`,
-      `<p><strong>1) Observation.</strong> Images, parallélismes, champs lexicaux, tonalité (louange/lam.)</p>`,
+      `<h3>Révision sur ${esc(ref)} — 5 questions (genre: poétique)</h3>`,
+      `<p><strong>1) Observation.</strong> Images, parallélismes, champs lexicaux, tonalité (louange/lam.).</p>`,
       `<p><strong>2) Compréhension.</strong> Quelle vision de Dieu et de la vie est donnée ?</p>`,
       `<p><strong>3) Interprétation.</strong> Fonction de la poésie: former l’âme, affiner le désir.</p>`,
       `<p><strong>4) Connexions.</strong> Échos sapientiaux et liturgiques.</p>`,
       `<p><strong>5) Application.</strong> Prière-réponse, mémoire d’un verset, transformation du regard.</p>`
     ],
     prophétique: [
-      `<h3>Révision sur ${ref} — 5 questions (genre: prophétique)</h3>`,
+      `<h3>Révision sur ${esc(ref)} — 5 questions (genre: prophétique)</h3>`,
       `<p><strong>1) Observation.</strong> Oracle, destinataires, raisons, promesse/jugement.</p>`,
       `<p><strong>2) Compréhension.</strong> Exigence de Dieu, diagnostic spirituel, horizon d’espérance.</p>`,
       `<p><strong>3) Interprétation.</strong> Place dans l’Alliance, continuité/rupture, accomplissements.</p>`,
       `<p><strong>4) Connexions.</strong> Échos prophétiques/évangéliques/apocalyptiques.</p>`,
-      `<p><strong>5) Application.</strong> Pas de retour concret, justice, miséricorde, fidélité.</p>`
+      `<p><strong>5) Application.</strong> Retour concret: justice, miséricorde, fidélité.</p>`
     ],
     épistolaire: [
-      `<h3>Révision sur ${ref} — 5 questions (genre: épistolaire)</h3>`,
+      `<h3>Révision sur ${esc(ref)} — 5 questions (genre: épistolaire)</h3>`,
       `<p><strong>1) Observation.</strong> Structure argumentaire, indicatifs/impératifs, destinataires.</p>`,
       `<p><strong>2) Compréhension.</strong> Évangile central, enjeux de sainteté/communauté.</p>`,
       `<p><strong>3) Interprétation.</strong> Théologie de l’auteur, logique de l’exhortation.</p>`,
       `<p><strong>4) Connexions.</strong> Parallèles paulinien/pétrinien/johannique.</p>`,
-      `<p><strong>5) Application.</strong> Règle de vie simple, charité, espérance, persévérance.</p>`
+      `<p><strong>5) Application.</strong> Règle de vie: charité, espérance, persévérance.</p>`
     ]
   };
   return blocks[genre].join("\n");
 }
 
-/* ─────────────────────── 28 rubriques adaptées ───────────────────────── */
+/* ───────────────────────── Rubrique 6 (structure) ────────────────────── */
 
-function canonicalStudy(book, chapter, verse, version) {
+function buildRubrique6(book, chapter){
+  const ref = refString(book, chapter);
+  const genre = classifyGenre(cap(book));
+  if (genre === "narratif") {
+    return [
+      `<h3>Structure littéraire — ${esc(ref)} (narratif)</h3>`,
+      `<p><strong>Ouverture.</strong> Mise en place (situation, acteurs, enjeu initial).</p>`,
+      `<p><strong>Déroulement.</strong> Actions et réponses, tournants, répétitions structurantes.</p>`,
+      `<p><strong>Clôture.</strong> Signe, bénédiction ou jugement qui oriente la suite du récit.</p>`
+    ].join("\n");
+  }
+  if (genre === "poétique") {
+    return [
+      `<h3>Structure littéraire — ${esc(ref)} (poétique)</h3>`,
+      `<p><strong>Parallélismes.</strong> Synonymiques/antithétiques/synthétiques qui scandent le propos.</p>`,
+      `<p><strong>Progression.</strong> Du cri à la confiance, de la plainte à la louange, ou sagesse en trois temps.</p>`,
+      `<p><strong>Clôture.</strong> Formule de louange, vœu, silence habité, ou maxime de sagesse.</p>`
+    ].join("\n");
+  }
+  if (genre === "prophétique") {
+    return [
+      `<h3>Structure littéraire — ${esc(ref)} (prophétique)</h3>`,
+      `<p><strong>Diagnostic.</strong> Griefs précis (infidélité, injustice, idolâtrie).</p>`,
+      `<p><strong>Oracle.</strong> Jugement annoncé et/ou promesse de restauration.</p>`,
+      `<p><strong>Appel.</strong> Revenir à l’Alliance: écoute, justice, miséricorde, humilité.</p>`
+    ].join("\n");
+  }
+  // épistolaire
+  return [
+    `<h3>Structure littéraire — ${esc(ref)} (épistolaire)</h3>`,
+    `<p><strong>Indicatifs.</strong> Ce que Dieu a fait en Christ (identité nouvelle, grâce).</p>`,
+    `<p><strong>Impératifs.</strong> Appels concrets qui découlent de l’Évangile.</p>`,
+    `<p><strong>Applications.</strong> Vie communautaire: unité, charité, persévérance, mission.</p>`
+  ].join("\n");
+}
+
+/* ─────────── Choix heuristique des versets (9, 20, 27) ─────────── */
+
+function chooseKeyVerse({ book, chapter }) {
+  const B = (book||"").toLowerCase();
+  const ch = Number(chapter||1);
+  // Petites heuristiques utiles
+  if (B==="genèse"||B==="genese"){
+    if (ch===1) return 1; // 1:1 pivot théologique
+  }
+  if (B==="jean" && ch===1) return 14; // le Verbe fait chair
+  if (B==="psaumes") return 1; // Psaume 1:1 par défaut (sapiential)
+  return 1; // défaut pivot
+}
+function chooseMemoryVerse({ book, chapter, keyVerse }){
+  const B = (book||"").toLowerCase();
+  const ch = Number(chapter||1);
+  if (B==="genèse"||B==="genese"){
+    if (ch===1) return 27; // à mémoriser différent du v.1
+  }
+  if (B==="psaumes") return 2;
+  return keyVerse !== 2 ? 2 : 3;
+}
+function chooseRetainVerses({ book, chapter, keyVerse }){
+  const picks = new Set([1, keyVerse,  // début + pivot
+    2,  // souvent utile
+    5   // marque une progression (narratif)
+  ]);
+  // Nettoyage & tri
+  return Array.from(picks).filter(v=>v>0).slice(0,5).sort((a,b)=>a-b);
+}
+
+/* ─────────────────────── 28 rubriques (base) ───────────────────────── */
+
+function canonicalSkeleton(book, chapter, verse, version){
   const B = cap(book);
   const ref = refString(book, chapter, verse);
   const testament = classifyTestament(B);
   const genre = classifyGenre(B);
-
-  const bulletsStructure = {
-    narratif: `<ul><li>Ouverture: situation et appel</li><li>Déroulement: actions et réponses</li><li>Clôture: signe, bénédiction ou jugement</li></ul>`,
-    poétique: `<ul><li>Parallélismes et images</li><li>Progression affective et sapientiale</li><li>Clôture: louange, confiance ou silence</li></ul>`,
-    prophétique: `<ul><li>Diagnostic spirituel</li><li>Oracle: jugement et/ou promesse</li><li>Appel à revenir</li></ul>`,
-    épistolaire: `<ul><li>Indicatifs de l’Évangile</li><li>Impératifs de la vie nouvelle</li><li>Applications communautaires</li></ul>`
-  };
-
   const genreLine = {
     narratif: "Genre: narratif (récit théologique qui forme par l’histoire).",
     poétique: "Genre: poétique/sapiential (forme le cœur et le regard).",
@@ -252,7 +327,7 @@ function canonicalStudy(book, chapter, verse, version) {
     id: 2, title: "Canon et testament",
     content: shortPara(`${B} se situe dans le ${testament === "AT" ? "Premier" : "Nouveau"} Testament. ${genreLine}`)
   });
-  data.push({ id: 3, title: "Questions du chapitre précédent", content: buildRubrique3(book, chapter) });
+  data.push({ id: 3, title: "Révision (5 questions)", content: buildRubrique3(book, chapter) });
   data.push({
     id: 4, title: "Titre du chapitre",
     content: shortPara(`${ref} — <strong>Lecture orientée par ${genre === "poétique" ? "la sagesse" : genre === "prophétique" ? "l'appel de Dieu" : genre === "épistolaire" ? "l'Évangile" : "les actes de Dieu"}</strong>.`)
@@ -261,96 +336,98 @@ function canonicalStudy(book, chapter, verse, version) {
     id: 5, title: "Contexte historique",
     content: shortPara(`Situer le passage dans l’histoire du salut (datation, peuple, contexte). ${testament === "AT" ? "Promesses en germe" : "Accomplissement en Christ"} et implications.`)
   });
-  data.push({ id: 6, title: "Structure littéraire", content: bulletsStructure[genre] || bulletsStructure.narratif });
-  data.push({
-    id: 7, title: "Genre littéraire",
-    content: shortPara(genreLine)
-  });
+  data.push({ id: 6, title: "Structure littéraire", content: buildRubrique6(book, chapter) });
+  data.push({ id: 7, title: "Genre littéraire", content: shortPara(genreLine) });
   data.push({
     id: 8, title: "Auteur et généalogie",
     content: shortPara(`Auteur/tradition, destinataires et enracinement canonique. ${testament==="AT"?"Lien aux pères et à l’Alliance":"Lien à l’Église apostolique et à la mission"}.`)
   });
-  data.push({
-    id: 9, title: "Verset-clé doctrinal",
-    content: shortPara(`Identifier un pivot qui condense l’intention du passage; expliquer ce qu’il révèle de Dieu et ce qu’il appelle chez l’humain.`)
-  });
-  data.push({
-    id:10, title: "Analyse exégétique",
-    content: shortPara(`Marqueurs du texte (répétitions, inclusions, formules). Qui agit ? Dans quel ordre ? Quels effets ?`)
-  });
-  data.push({
-    id:11, title: "Analyse lexicale",
-    content: shortPara(`Éclairer 1–2 termes décisifs pour le sens (justice, alliance, foi, sagesse, esprit, etc.).`)
-  });
-  data.push({
-    id:12, title: "Références croisées",
-    content: shortPara(`${testament==="AT"?"Échos dans la Torah/Prophètes/Sagesse":"Échos dans l’enseignement de Jésus/Épîtres/Apocalypse"}; unité du dessein de Dieu.`)
-  });
-  data.push({
-    id:13, title: "Fondements théologiques",
-    content: shortPara(`Dieu ${testament==="AT"?"crée, élit, appelle, juge, promet":"révèle en Christ, sauve, sanctifie, envoie"}; l’homme ${testament==="AT"?"répond par l’obéissance de la foi":"marche par l’Esprit, dans la charité"}.`)
-  });
-  data.push({
-    id:14, title: "Thème doctrinal",
-    content: shortPara(`Axe: ${genre==="prophétique"?"appel à revenir/espérance": genre==="poétique"?"sagesse/louange": genre==="épistolaire"?"Évangile/sainteté": "actes de Dieu et réponse humaine"}.`)
-  });
-  data.push({
-    id:15, title: "Fruits spirituels",
-    content: shortPara(`Gratitude, discernement, persévérance, justice, charité, espérance.`)
-  });
-  data.push({
-    id:16, title: "Types bibliques",
-    content: shortPara(`Préfigurations et figures (motifs, lieux, personnes) qui convergent vers le Christ.`)
-  });
-  data.push({
-    id:17, title: "Appui doctrinal",
-    content: shortPara(`Autres passages qui consolident la lecture: ${testament==="AT"?"Psaumes/Prophètes":"Épîtres/Évangiles"}.`)
-  });
-  data.push({
-    id:18, title: "Comparaison entre versets",
-    content: shortPara(`Comparer ouverture/charnière/conclusion pour clarifier la ligne théologique du passage.`)
-  });
-  data.push({
-    id:19, title: "Comparaison avec Actes 2",
-    content: shortPara(`Parallèle: Parole–Esprit–Communauté; pertinence pour aujourd’hui.`)
-  });
-  data.push({
-    id:20, title: "Verset à mémoriser",
-    content: shortPara(`Choisir un verset; rédiger une phrase-mémo et une prière-réponse.`)
-  });
-  data.push({
-    id:21, title: "Enseignement pour l’Église",
-    content: shortPara(`Annonce, édification, discipline, mission: impact communautaire du passage.`)
-  });
-  data.push({
-    id:22, title: "Enseignement pour la famille",
-    content: shortPara(`Transmettre: lecture, prière, service, pardon, bénédiction.`)
-  });
-  data.push({
-    id:23, title: "Enseignement pour enfants",
-    content: shortPara(`Approche simple et visuelle: raconter, prier, mémoriser, agir.`)
-  });
-  data.push({
-    id:24, title: "Application missionnaire",
-    content: shortPara(`Témoignage humble et cohérent; parole claire; amour concret.`)
-  });
-  data.push({
-    id:25, title: "Application pastorale",
-    content: shortPara(`Accompagnement: prière, consolation, conseil, persévérance.`)
-  });
-  data.push({
-    id:26, title: "Application personnelle",
-    content: shortPara(`Nommer 1–2 décisions concrètes (quoi/quand/comment) pour la semaine.`)
-  });
-  data.push({
-    id:27, title: "Versets à retenir",
-    content: shortPara(`Lister 3–5 versets; noter une clé de compréhension pour chacun.`)
-  });
-  data.push({
-    id:28, title: "Prière de fin",
-    content: shortPara(`Que ta Parole devienne en nous foi, prière, obéissance; et que notre vie te glorifie. Amen.`)
-  });
-  return data;
+  // 9, 20, 27 seront enrichies plus bas
+  data.push({ id: 9,  title: "Verset-clé doctrinal", content: shortPara(`Identifier un pivot qui condense l’intention du passage (texte inséré si disponible).`) });
+  data.push({ id:10, title: "Analyse exégétique", content: shortPara(`Marqueurs du texte (répétitions, inclusions, formules). Qui agit ? Dans quel ordre ? Quels effets ?`) });
+  data.push({ id:11, title: "Analyse lexicale", content: shortPara(`Éclairer 1–2 termes décisifs (justice, alliance, foi, sagesse, esprit, etc.).`) });
+  data.push({ id:12, title: "Références croisées", content: shortPara(`${testament==="AT"?"Échos dans la Torah/Prophètes/Sagesse":"Échos dans l’enseignement de Jésus/Épîtres/Apocalypse"}; unité du dessein de Dieu.`) });
+  data.push({ id:13, title: "Fondements théologiques", content: shortPara(`Dieu ${testament==="AT"?"crée, élit, appelle, juge, promet":"révèle en Christ, sauve, sanctifie, envoie"}; l’homme ${testament==="AT"?"répond par l’obéissance de la foi":"marche par l’Esprit, dans la charité"}.`) });
+  data.push({ id:14, title: "Thème doctrinal", content: shortPara(`Axe: ${genre==="prophétique"?"appel à revenir/espérance": genre==="poétique"?"sagesse/louange": genre==="épistolaire"?"Évangile/sainteté": "actes de Dieu et réponse humaine"}.`) });
+  data.push({ id:15, title: "Fruits spirituels", content: shortPara(`Gratitude, discernement, persévérance, justice, charité, espérance.`) });
+  data.push({ id:16, title: "Types bibliques", content: shortPara(`Préfigurations et figures (motifs, lieux, personnes) qui convergent vers le Christ.`) });
+  data.push({ id:17, title: "Appui doctrinal", content: shortPara(`Autres passages qui consolident la lecture: ${testament==="AT"?"Psaumes/Prophètes":"Épîtres/Évangiles"}.`) });
+  data.push({ id:18, title: "Comparaison entre versets", content: shortPara(`Comparer ouverture/charnière/conclusion pour clarifier la ligne théologique du passage.`) });
+  data.push({ id:19, title: "Comparaison avec Actes 2", content: shortPara(`Parallèle: Parole–Esprit–Communauté; pertinence pour aujourd’hui.`) });
+  data.push({ id:20, title: "Verset à mémoriser", content: shortPara(`Choisir un verset (texte inséré si disponible) + courte prière-mémo.`) });
+  data.push({ id:21, title: "Enseignement pour l’Église", content: shortPara(`Annonce, édification, discipline, mission: impact communautaire.`) });
+  data.push({ id:22, title: "Enseignement pour la famille", content: shortPara(`Transmettre: lecture, prière, service, pardon, bénédiction.`) });
+  data.push({ id:23, title: "Enseignement pour enfants", content: shortPara(`Approche simple et visuelle: raconter, prier, mémoriser, agir.`) });
+  data.push({ id:24, title: "Application missionnaire", content: shortPara(`Témoignage humble et cohérent; parole claire; amour concret.`) });
+  data.push({ id:25, title: "Application pastorale", content: shortPara(`Accompagnement: prière, consolation, conseil, persévérance.`) });
+  data.push({ id:26, title: "Application personnelle", content: shortPara(`Nommer 1–2 décisions concrètes (quoi/quand/comment) pour la semaine.`) });
+  data.push({ id:27, title: "Versets à retenir", content: shortPara(`Lister 3–5 versets (textes insérés si disponibles) + clé de lecture succincte.`) });
+  data.push({ id:28, title: "Prière de fin", content: shortPara(`Que ta Parole devienne en nous foi, prière, obéissance; et que notre vie te glorifie. Amen.`) });
+  return { data, genre, testament, ref };
+}
+
+/* ─────────────────────── Enrichissements dynamiques ──────────────────── */
+
+async function enrichKeyAndMemoryVerses(req, sections, { book, chapter, version }){
+  const keyV = chooseKeyVerse({ book, chapter });
+  const memV = chooseMemoryVerse({ book, chapter, keyVerse: keyV });
+  const keyText = await fetchVerseText(req, { book, chapter, verse: keyV, version });
+  const memText = keyV !== memV ? await fetchVerseText(req, { book, chapter, verse: memV, version }) : null;
+
+  // Rubrique 9 — Verset-clé doctrinal
+  const i9 = sections.findIndex(s=>s.id===9);
+  if (i9>=0){
+    if (keyText){
+      sections[i9].content = [
+        `<h3>Verset-clé doctrinal — ${esc(refString(book, chapter, keyV))}</h3>`,
+        `<blockquote>${esc(keyText)}</blockquote>`,
+        `<p><em>Pourquoi clé ?</em> Il condense l’intention du passage et éclaire son axe théologique.</p>`
+      ].join("\n");
+    } else {
+      sections[i9].content = sections[i9].content + ` <em>(Verset ${keyV} indisponible — affichage du gabarit.)</em>`;
+    }
+  }
+
+  // Rubrique 20 — Verset à mémoriser
+  const i20 = sections.findIndex(s=>s.id===20);
+  if (i20>=0){
+    const t = memText || keyText; // fallback sur key si mem indispo
+    const v = memText ? memV : keyV;
+    if (t){
+      sections[i20].content = [
+        `<h3>Verset à mémoriser — ${esc(refString(book, chapter, v))}</h3>`,
+        `<blockquote>${esc(t)}</blockquote>`,
+        `<p><em>Astuce mémoire :</em> répéter 3× dans la journée et prier une phrase-réponse.</p>`
+      ].join("\n");
+    } else {
+      sections[i20].content = sections[i20].content + ` <em>(Verset ${v} indisponible — affichage du gabarit.)</em>`;
+    }
+  }
+
+  return { keyV, memV };
+}
+
+async function enrichRetainVerses(req, sections, { book, chapter, version }, keyV){
+  const ids = chooseRetainVerses({ book, chapter, keyVerse: keyV });
+  const items = [];
+  for (const v of ids){
+    const t = await fetchVerseText(req, { book, chapter, verse: v, version });
+    if (t) items.push({ v, t });
+  }
+  const i27 = sections.findIndex(s=>s.id===27);
+  if (i27>=0){
+    if (items.length){
+      sections[i27].content = [
+        `<h3>Versets à retenir — ${esc(refString(book, chapter))}</h3>`,
+        `<ul>`,
+        ...items.map(it=>`<li><strong>${esc(refString(book, chapter, it.v))}</strong> — ${esc(it.t)}</li>`),
+        `</ul>`,
+        `<p><em>Clé de lecture :</em> chaque verset met en relief une facette de l’axe du passage.</p>`
+      ].join("\n");
+    } else {
+      sections[i27].content = sections[i27].content + ` <em>(Versets indisponibles — affichage du gabarit.)</em>`;
+    }
+  }
 }
 
 /* ───────────────────────── OpenAI helpers ────────────────────────────── */
@@ -367,7 +444,6 @@ async function callOpenAI({ system, user, model = "gpt-4o-mini", temperature = 0
   const j = await r.json();
   return j.choices?.[0]?.message?.content || "";
 }
-
 function buildMotifsPrompt(ref, version, custom=""){
   return {
     system: "Tu es un bibliste rigoureux. Réponds uniquement en JSON valide.",
@@ -379,7 +455,6 @@ ${custom ? `Note: ${custom}` : ""}`.trim()
   };
 }
 const safeParseJSON = (s)=>{ try{ return JSON.parse(s); }catch{ return null; } };
-
 function buildPrayerPrompt(ref, version, motifs, attrs, testament, genre, custom="", seed=0){
   return {
     system: "Tu es un bibliste pastoral. HTML autorisé: <p>, <strong>, <em> uniquement.",
@@ -410,16 +485,21 @@ export default async function handler(req, res) {
     const { book="Genèse", chapter=1, verse="", version="LSG", directives={} } = req.body || {};
     const reference = refString(book, chapter, verse);
 
-    // Étude canonique adaptée (toutes les rubriques)
-    let sections = canonicalStudy(book, chapter, verse, version);
+    // 1) Squelette de 28 rubriques (déjà adaptées testament/genre)
+    const { data: sections, genre, testament } = canonicalSkeleton(book, chapter, verse, version);
+
+    // 2) Rubriques versets dynamiques (9, 20, 27) via /api/verse
+    let keyV = 1;
+    try {
+      const r = await enrichKeyAndMemoryVerses(req, sections, { book, chapter, version });
+      keyV = r.keyV;
+      await enrichRetainVerses(req, sections, { book, chapter, version }, keyV);
+    } catch {/* on laisse les gabarits si échec */}
+
+    // 3) Prière d’ouverture
     let source   = "canonical";
     let warn     = "";
-
-    // Prière d’ouverture
-    let opening = "";
-
-    const testament = classifyTestament(cap(book));
-    const genre = classifyGenre(cap(book));
+    let opening  = "";
 
     if (OPENAI_API_KEY) {
       try {
@@ -459,15 +539,16 @@ export default async function handler(req, res) {
     }
 
     // Injection rubrique 1
-    if (sections && sections[0]) sections[0].content = opening;
+    const i1 = sections.findIndex(s=>s.id===1);
+    if (i1>=0) sections[i1].content = opening;
 
-    res.status(200).json({
+    return res.status(200).json({
       ok: true,
       source,
       warn,
       data: { reference, version: (version || "LSG"), sections }
     });
   } catch (e) {
-    res.status(500).json({ ok:false, error: String(e?.message || e) });
+    return res.status(500).json({ ok:false, error: String(e?.message || e) });
   }
 }
