@@ -29,7 +29,7 @@
         linksPanel = $("linksPanel"), linksList = $("linksList");
   $("y").textContent = new Date().getFullYear();
 
-  /* ======= AJOUT: badges footer source/warn ======= */
+  /* ======= badges source/warn (footer) ======= */
   (function setupGenBadges(){
     const footerRow = document.querySelector('footer .status-row');
     if (!footerRow) return;
@@ -58,7 +58,6 @@
       else { wb.style.display = 'none'; }
     }
   }
-  /* ======= fin ajout badges ======= */
 
   // ---------- livres / chapitres ----------
   const BOOKS = [
@@ -170,9 +169,9 @@
     document.querySelectorAll(".list .item").forEach((el) => el.classList.toggle("active", +el.dataset.idx === current));
     if (edTitle) edTitle.textContent = `${i + 1}. ${FIXED_POINTS[i].t}`;
     if (noteArea) noteArea.value = notes[i] || "";
-    if (metaInfo) metaInfo.textContent = `Point ${i + 1} / ${N}`;          // ✅ MetaInfo conforme
-    renderViewFromArea();       // MAJ vue enrichie
-    updateLinksPanel();         // MAJ panneau liens
+    if (metaInfo) metaInfo.textContent = `Point ${i + 1} / ${N}`;
+    renderViewFromArea();
+    updateLinksPanel();
     if (enrichToggle && enrichToggle.checked) { noteView && noteView.focus(); } else { noteArea && noteArea.focus(); }
     HOOK('be:point-selected', { index: i, hasContent: !!(notes[i] && notes[i].trim()) });
   }
@@ -219,7 +218,6 @@
 
   // ---------- thème ----------
   themeSelect.addEventListener("change", () => {
-    // propagation intégrale via [data-theme], déjà stylée en CSS
     document.body.setAttribute("data-theme", themeSelect.value);
   });
 
@@ -227,7 +225,6 @@
   function escapeRegExp(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
   const BOOK_TITLES = BOOKS.map(([n]) => n);
   const bookAlt = BOOK_TITLES.map(escapeRegExp).join("|");
-  // chap obligatoire, :vers[–-fin] optionnel, ou range de chapitres
   const refRe = new RegExp(`\\b(${bookAlt})\\s+(\\d+)(?::(\\d+(?:[–-]\\d+)?))?(?:[–-](\\d+))?`, "gi");
 
   function bgwUrl(search, version){
@@ -240,7 +237,7 @@
     return bgwUrl(`${book} ${chap}`, version);
   }
 
-  // ---------- pré-sanitisation / anti-commentaires ----------
+  // ---------- pré-sanitisation ----------
   function stripHtmlComments(raw){
     return String(raw||"").replace(/<!--[\s\S]*?-->/g, "");
   }
@@ -248,37 +245,33 @@
     return String(raw||"").replace(/&nbsp;/g, " ").replace(/\s{2,}/g, " ");
   }
 
-  // ---------- rendu enrichi (inline links soulignés) ----------
+  // ---------- rendu enrichi ----------
   function sanitizeBasic(text){
-    // On retire d’abord commentaires &nbsp; puis on échappe
     text = stripNbsp(stripHtmlComments(text));
     return String(text||"")
       .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   }
   function mdLite(html){
-    // **gras** -> <strong>, *italique* -> <em>
-    return html
-      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+    // **gras** -> <strong>, *italique* -> <em> | non-gourmand
+    html = html.replace(/\*\*([^*]+?)\*\*/g, "<strong>$1</strong>");
+    html = html.replace(/\*([^*]+?)\*/g, "<em>$1</em>");
+    return html;
   }
-  // (NOUVEAU) Sépare des références bibliques collées sans séparateur visible.
-  // Ex: "Jean 1:1-3Hébreux 11:3" -> "Jean 1:1-3 · Hébreux 11:3"
+  // Sépare "Jean 1:1-3Hébreux 11:3" -> "Jean 1:1-3 · Hébreux 11:3"
   function fixAdjacentRefs(htmlEscaped){
-    // on travaille sur texte échappé (pas de balises), uniquement insertion de " · "
-    // Repère: fin de ref (…\d)(ou \d-\d) suivi immédiatement d’un nom de livre
     const bookUnion = BOOK_TITLES.map(escapeRegExp).join("|");
     const pattern = new RegExp(`((?:\\d|\\d[–-]\\d))(?:\\s*)(${bookUnion}\\s+\\d)`, "g");
     return htmlEscaped.replace(pattern, (_m, prev, next) => `${prev} · ${next}`);
   }
-  // URLs nues -> liens (travaille sur TEXTE ÉCHAPPÉ, aucun attribut présent à ce stade)
+  // URLs nues -> liens
   function autolinkURLs(html){
     return html.replace(/(\bhttps?:\/\/[^\s<>"'()]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
   }
-  // Références bibliques -> liens
+  // Références bibliques -> liens vers BibleGateway (classe dédiée pour style bleu)
   function autolinkBible(html){
     return html.replace(refRe, (m,bk,ch,vr,chEnd)=>{
       const url = makeBGWLink(bk, ch, vr||"", chEnd||"");
-      return `<a href="${url}" target="_blank" rel="noopener">${m}</a>`;
+      return `<a class="bible-ref" href="${url}" target="_blank" rel="noopener">${m}</a>`;
     });
   }
   function wrapParagraphs(html){
@@ -292,11 +285,11 @@
   function renderViewFromArea(){
     const raw = noteArea.value || "";
     let html = sanitizeBasic(raw);
-    html = fixAdjacentRefs(html); // ✅ nouveau : séparation des refs collées
-    html = mdLite(html);          // 1) **bold** / *italique*
-    html = autolinkURLs(html);    // 2) lier d'abord les URLs nues
-    html = autolinkBible(html);   // 3) puis lier les références bibliques
-    html = wrapParagraphs(html);  // 4) mise en <p> + <br>
+    html = fixAdjacentRefs(html);
+    html = mdLite(html);
+    html = autolinkURLs(html);
+    html = autolinkBible(html);
+    html = wrapParagraphs(html);
     noteView.innerHTML = html || "<p style='color:#9aa2b1'>Écris ici…</p>";
   }
   function syncAreaFromView(){
@@ -305,8 +298,8 @@
     html = html.replace(/<br\s*\/?>/gi, "\n");
     html = html.replace(/<\/p>/gi, "\n\n").replace(/<p[^>]*>/gi,"");
     html = html.replace(/<\/?strong>/gi, "**").replace(/<\/?em>/gi, "*");
-    html = html.replace(/<!--[\s\S]*?-->/g, ""); // ✅ retire commentaires si collés dans contenteditable
-    html = html.replace(/&nbsp;/g, " ");         // ✅ retire nappes
+    html = html.replace(/<!--[\s\S]*?-->/g, "");
+    html = html.replace(/&nbsp;/g, " ");
     html = html.replace(/<\/?[^>]+>/g,"");
     html = html.replace(/\n{3,}/g,"\n\n").trim();
     noteArea.value = html;
@@ -341,18 +334,18 @@
   // ---------- VERROU ANTI-BALISES pour contenus générés ----------
   function stripDangerousTags(html) {
     if (!html) return "";
-    html = html.replace(/<!--[\s\S]*?-->/g, ""); // ✅ enlève commentaires résiduels
+    html = html.replace(/<!--[\s\S]*?-->/g, "");
     html = html.replace(/&nbsp;/g, " ");
-    // 1) balises fortes -> markdown léger
+    // 1) balises fortes -> markdown
     html = html.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
     html = html.replace(/<b[^>]*>(.*?)<\/b>/gi, '**$1**');
     html = html.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
     html = html.replace(/<i[^>]*>(.*?)<\/i>/gi, '*$1*');
-    // 2) paragraphes / titres -> sauts de ligne
+    // 2) paragraphes / titres -> sauts
     html = html.replace(/<\/p>/gi, '\n\n');
     html = html.replace(/<\/h[1-6]>/gi, '\n\n');
     html = html.replace(/<br\s*\/?>/gi, '\n');
-    // 3) retire tout le reste
+    // 3) retire le reste (on retire <a>, ils seront recréés par autolinkBible/URLs)
     html = html.replace(/<\/?[^>]+>/g, '');
     // 4) normalisation
     html = html.replace(/\s{2,}/g, " ").replace(/\n{3,}/g, '\n\n').trim();
@@ -362,7 +355,7 @@
     return stripDangerousTags(String(raw || ""));
   }
 
-  // ---------- garde-fous / gabarits ----------
+  // ---------- gabarits ----------
   function bgwLink(book, chap, vers, version) {
     const core = `${book} ${chap}${vers ? ':'+vers : ''}`;
     return bgwUrl(core, version || (versionSelect && versionSelect.value) || "LSG");
@@ -371,11 +364,11 @@
   function defaultPrayerOpen() {
     const book = bookSelect.value, c = chapterSelect.value, v = verseSelect.value;
     const ref = `${book} ${c}${v ? ':'+v : ''}`;
-    return `Père saint, nous nous approchons de toi pour méditer **${ref}**. Par ton Esprit, ouvre notre intelligence, purifie nos intentions, et fais naître en nous l’amour de ta volonté. Que ta Parole façonne notre pensée, notre prière et nos décisions. Au nom de Jésus, amen.`;
+    return `**Seigneur de l’Alliance**, Créateur, nous venons à toi devant **${ref}**. Donne-nous un cœur docile et ouvre notre intelligence pour accueillir ta volonté. Conduis-nous dans ta sagesse; que ta Parole façonne notre prière, notre foi et notre obéissance. Dans la paix du Christ, amen.`;
   }
   function defaultPrayerClose() {
     const book = bookSelect.value, c = chapterSelect.value;
-    return `Dieu de grâce, merci pour la lumière reçue dans **${book} ${c}**. Fortifie notre foi, accorde-nous d’obéir avec joie et de servir avec humilité. Garde ton Église dans la paix du Christ. Amen.`;
+    return `Dieu de grâce, merci pour la lumière reçue dans **${book} ${c}**. Fortifie notre foi; accorde-nous d’obéir avec joie et de servir avec humilité. Garde ton Église dans la paix du Christ. Amen.`;
   }
 
   function buildRevisionSection() {
@@ -475,14 +468,13 @@
         }
       });
 
-      // ✅ N'UTILISER les textes par défaut qu'en ABSENCE de contenu API
+      // ✅ Defaults uniquement si vide
       if (!notes[0]  || !notes[0].trim())  notes[0]  = cleanGeneratedContent(defaultPrayerOpen());
       if (!notes[2]  || !notes[2].trim())  notes[2]  = cleanGeneratedContent(buildRevisionSection());
       if (!notes[27] || !notes[27].trim()) notes[27] = cleanGeneratedContent(defaultPrayerClose());
 
-      // Nettoyage soft complémentaire
+      // Nettoyage soft
       for (const k of Object.keys(notes)) {
-        // Sépare aussi d’éventuelles refs collées pour l’édition en brut
         notes[k] = dedupeParagraphs(ensureLinksLineBreaks(stripNbsp(stripHtmlComments(notes[k]))));
       }
 
@@ -505,7 +497,7 @@
     }
   }
 
-  // ---------- panneau liens cliquables (listing) ----------
+  // ---------- panneau liens cliquables ----------
   function extractLinks(text) {
     const links = [];
     const raw = String(text || "");
@@ -568,7 +560,7 @@
   // Générer
   generateBtn && generateBtn.addEventListener("click", generateStudy);
 
-  // Lire / Valider => BibleGateway sur la réf courante
+  // Lire / Valider
   readBtn && readBtn.addEventListener("click", () => {
     const b = bookSelect.value, c = chapterSelect.value, v = verseSelect.value, ver = versionSelect.value;
     window.open(bgwLink(b, c, v, ver), "_blank", "noopener");
@@ -609,7 +601,7 @@
   prevBtn.addEventListener("click", () => { if (current > 0) select(current - 1); });
   nextBtn.addEventListener("click", () => { if (current < N - 1) select(current + 1); });
 
-  // debug panel (health + chat + ping)
+  // debug panel
   dbtn && dbtn.addEventListener("click", () => {
     const open = dpanel.style.display === "block";
     dpanel.style.display = open ? "none" : "block";
