@@ -1,5 +1,5 @@
-// public/app.js — Auto-liens BibleGateway sûrs en mode enrichi (ordre de parsing corrigé)
-// Conserve : génération, progression, pastilles fixes, hooks, panneau de liens, thèmes, boutons.
+// public/app.js — Auto-liens BibleGateway sûrs + VERROU anti-balises pour les contenus générés
+// Conserve : génération, progression, pastilles fixes, hooks, panneau de liens, thèmes, boutons, vue enrichie.
 
 (function () {
   // ---------- helpers UI ----------
@@ -217,10 +217,9 @@
       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
       .replace(/\*([^*]+)\*/g, "<em>$1</em>");
   }
-  // URLs nues -> liens (fonctionne sur TEXTE ÉCHAPPÉ, donc pas d'attributs encore présents)
+  // URLs nues -> liens (travaille sur TEXTE ÉCHAPPÉ, aucun attribut présent à ce stade)
   function autolinkURLs(html){
-    // évite de matcher après href=" déjà présent (par précaution si la chaîne contenait des balises)
-    return html.replace(/(?<!href=")(\bhttps?:\/\/[^\s<>"'()]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+    return html.replace(/(\bhttps?:\/\/[^\s<>"'()]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
   }
   // Références bibliques -> liens
   function autolinkBible(html){
@@ -241,7 +240,7 @@
     const raw = noteArea.value || "";
     let html = sanitizeBasic(raw);
     html = mdLite(html);          // 1) **bold** / *italique*
-    html = autolinkURLs(html);    // 2) lier d'abord les URLs nues (AUCUN tag existant à ce stade)
+    html = autolinkURLs(html);    // 2) lier d'abord les URLs nues
     html = autolinkBible(html);   // 3) puis lier les références bibliques
     html = wrapParagraphs(html);  // 4) mise en <p> + <br>
     noteView.innerHTML = html || "<p style='color:#9aa2b1'>Écris ici…</p>";
@@ -283,9 +282,30 @@
   }
   if (enrichToggle){ enrichToggle.addEventListener("change", applyEnrichMode); }
 
-  // ---------- garde-fous / gabarits ----------
-  const forcePrayerOpen = true;
+  // ---------- VERROU ANTI-BALISES pour contenus générés ----------
+  // Convertit tout HTML en texte simple avec un marquage léger (** / *)
+  function stripDangerousTags(html) {
+    if (!html) return "";
+    // 1) balises fortes -> markdown léger
+    html = html.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
+    html = html.replace(/<b[^>]*>(.*?)<\/b>/gi, '**$1**');
+    html = html.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
+    html = html.replace(/<i[^>]*>(.*?)<\/i>/gi, '*$1*');
+    // 2) paragraphes / titres -> sauts de ligne
+    html = html.replace(/<\/p>/gi, '\n\n');
+    html = html.replace(/<\/h[1-6]>/gi, '\n\n');
+    html = html.replace(/<br\s*\/?>/gi, '\n');
+    // 3) retire tout le reste
+    html = html.replace(/<\/?[^>]+>/g, '');
+    // 4) normalisation
+    html = html.replace(/\n{3,}/g, '\n\n').trim();
+    return html;
+  }
+  function cleanGeneratedContent(raw) {
+    return stripDangerousTags(String(raw || ""));
+  }
 
+  // ---------- garde-fous / gabarits ----------
   function bgwLink(book, chap, vers, version) {
     const core = `${book} ${chap}${vers ? ':'+vers : ''}`;
     return bgwUrl(core, version || (versionSelect && versionSelect.value) || "LSG");
@@ -391,13 +411,18 @@
       const secs = Array.isArray(data.sections) ? data.sections : [];
       secs.forEach((s) => {
         const i = (s.id | 0) - 1;
-        if (i >= 0 && i < N) notes[i] = String(s.content || "").trim();
+        if (i >= 0 && i < N) {
+          // 🔒 Verrou : nettoyage fort de la réponse
+          notes[i] = cleanGeneratedContent(String(s.content || "").trim());
+        }
       });
 
-      if (true) notes[0] = defaultPrayerOpen();                 // prière d’ouverture forcée
-      if (!notes[2] || !notes[2].trim()) notes[2] = buildRevisionSection();
-      notes[27] = defaultPrayerClose();
+      // Defaults verrouillés aussi
+      notes[0] = cleanGeneratedContent(defaultPrayerOpen());
+      if (!notes[2] || !notes[2].trim()) notes[2] = cleanGeneratedContent(buildRevisionSection());
+      notes[27] = cleanGeneratedContent(defaultPrayerClose());
 
+      // Nettoyage soft complémentaire
       for (const k of Object.keys(notes)) {
         notes[k] = dedupeParagraphs(ensureLinksLineBreaks(notes[k]));
       }
