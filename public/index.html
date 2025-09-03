@@ -63,16 +63,16 @@
     #noteView{display:none; width:100%; min-height:460px; border:1px solid var(--border); border-radius:10px; padding:14px;
       font-family:Spectral,Georgia,serif; line-height:1.6; background:#fff; outline:none}
     #noteView p{margin:0 0 .75rem 0}
-    /* 🔵 Forcer les liens (versets) à être bleus et soulignés */
-    #noteView a{color:#2563eb; text-decoration: underline; text-underline-offset: 2px; cursor:pointer}
+    /* 🔵 Tous les liens (dont BibleGateway) restent bleus et en gras */
+    #noteView a{color:var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor:pointer; font-weight:700}
     #noteView strong{font-weight:700} #noteView em{font-style:italic}
     #noteView ul, #noteView ol{padding-left:1.25rem}
     #noteView h3{margin:1rem 0 .5rem 0}
 
     /* (5) 3 petites lignes CSS demandées */
-    .ref-list li { margin-bottom: .25rem; }
-    .sep { margin: 0 .25rem; color: var(--muted); }
-    .refs-inline a { margin-right: .25rem; }
+    .ref-list li { margin-bottom: .25rem; }                     /* espacement items de liste */
+    .sep { margin: 0 .25rem; color: var(--muted); }             /* séparateur “ · ” */
+    .refs-inline a { margin-right: .25rem; }                    /* léger espacement des liens inline */
   </style>
 </head>
 <body data-theme="cyan">
@@ -107,11 +107,13 @@
       <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
       <button id="validate" class="btn" type="button">Valider</button>
       <button id="generateBtn" class="btn warn" type="button">Générer</button>
+      <!-- (2) Bouton ChatGPT à côté de Générer -->
       <a id="chatgptBtn" class="btn secondary" href="https://tchatgpt.com" target="_blank" rel="noopener">ChatGPT</a>
     </div>
 
     <div class="layout">
       <aside class="sidebar">
+        <!-- (6) centrer et enlever “28” -->
         <div class="side-head">Rubriques</div>
         <div id="pointsList" class="list"></div>
       </aside>
