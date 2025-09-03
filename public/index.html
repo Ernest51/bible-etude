@@ -8,73 +8,238 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   <style>
+    /* ========= Design tokens ========= */
     :root{
-      --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b;
-      --accent:#0891b2; --accent-soft:#e0f2fe;
-    }
-    [data-theme="cyan"]  { --accent:#0891b2; --accent-soft:#e0f2fe; }
-    [data-theme="violet"]{ --accent:#7c3aed; --accent-soft:#ede9fe; }
-    [data-theme="vert"]  { --accent:#059669; --accent-soft:#dcfce7; }
-    [data-theme="rouge"] { --accent:#dc2626; --accent-soft:#fee2e2; }
-    [data-theme="mauve"] { --accent:#a855f7; --accent-soft:#f3e8ff; }
-    [data-theme="indigo"]{ --accent:#4f46e5; --accent-soft:#e0e7ff; }
+      --bg:#f5f7fb;              /* fond page */
+      --panel:#ffffff;           /* cartes/panneaux */
+      --text:#0f172a;            /* texte principal */
+      --muted:#64748b;           /* texte secondaire */
+      --border:#e5e7eb;          /* bordures douces */
+      --dark:#111827;            /* noir doux (rare) */
+      --ok:#16a34a;              /* état OK */
+      --warn:#f59e0b;            /* état WARN */
 
-    *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+      /* Couleur d’accent par défaut (cyan) */
+      --accent:#0891b2;
+      --accent-soft:#e0f2fe;
+      --accent-contrast:#ffffff;
+
+      /* Effets */
+      --ring: 0 0 0 2px var(--accent-soft), 0 0 0 4px var(--accent);
+      --shadow-sm: 0 1px 2px rgba(15,23,42,.06);
+      --shadow-md: 0 6px 16px rgba(15,23,42,.08);
+      --radius: 12px;
+      --radius-sm: 10px;
+
+      /* Scrollbar */
+      --scroll-track: rgba(2,6,23,.06);
+      --scroll-thumb: rgba(2,6,23,.25);
+    }
+
+    /* ========= Variantes de thème (couleur d’accent) ========= */
+    [data-theme="cyan"]   { --accent:#0891b2; --accent-soft:#e0f2fe; }
+    [data-theme="violet"] { --accent:#7c3aed; --accent-soft:#ede9fe; }
+    [data-theme="vert"]   { --accent:#059669; --accent-soft:#dcfce7; }
+    [data-theme="rouge"]  { --accent:#dc2626; --accent-soft:#fee2e2; }
+    [data-theme="mauve"]  { --accent:#a855f7; --accent-soft:#f3e8ff; }
+    [data-theme="indigo"] { --accent:#4f46e5; --accent-soft:#e0e7ff; }
+
+    /* ========= Dark mode (doux, sans casser app.js) ========= */
+    [data-mode="dark"]{
+      --bg:#0b1220;
+      --panel:#0f172a;
+      --text:#e5e7eb;
+      --muted:#94a3b8;
+      --border:#1f2a44;
+      --accent-soft: color-mix(in srgb, var(--accent) 15%, #0b1220 85%);
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.35);
+      --shadow-md: 0 10px 24px rgba(0,0,0,.35);
+      --scroll-track: rgba(255,255,255,.06);
+      --scroll-thumb: rgba(255,255,255,.26);
+    }
+
+    /* ========= Reset léger ========= */
+    *,*::before,*::after{box-sizing:border-box}
+    html,body{
+      margin:0;padding:0;background:var(--bg);color:var(--text);
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif
+    }
+    a{color:var(--accent);text-decoration:none}
+    a:hover{opacity:.9}
+    img{max-width:100%;height:auto}
+
+    /* scrollbars fines */
+    *{ scrollbar-width:thin; scrollbar-color: var(--scroll-thumb) var(--scroll-track); }
+    *::-webkit-scrollbar{height:10px;width:10px}
+    *::-webkit-scrollbar-track{background:var(--scroll-track)}
+    *::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:999px}
+
+    /* ========= Barre de progression ========= */
     .progress-wrap{position:sticky;top:0;z-index:20}
-    .progress{height:4px;background:#e5e7eb}
+    .progress{height:4px;background:var(--border)}
     .progress>.bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#16a34a);transition:width .2s}
-    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:14px 18px;position:sticky;top:4px;z-index:10}
+
+    /* ========= Header ========= */
+    header{
+      background:var(--panel);
+      box-shadow:0 1px 0 rgba(0,0,0,.06);
+      padding:14px 18px;
+      position:sticky;top:4px;z-index:10;
+      border:1px solid var(--border);
+      border-radius:12px;
+      margin:8px auto 0;
+      max-width:1200px;
+    }
+    [data-mode="dark"] header{ box-shadow:none }
     h1{margin:0;font-size:28px;font-weight:800;letter-spacing:.2px;text-align:center}
+
+    /* ========= Conteneur principal ========= */
     main{max-width:1200px;margin:14px auto;padding:0 12px}
-    .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto auto auto;gap:10px;margin:12px 0}
-    @media (max-width:1100px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}.controls .wide{grid-column:1/-1}}
-    input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%}
-    .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
-    .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
-    .btn.warn{background:var(--accent)}
+
+    /* ========= Contrôles ========= */
+    .controls{
+      display:grid;
+      grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto auto auto;
+      gap:10px;margin:12px 0
+    }
+    @media (max-width:1100px){
+      .controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}
+      .controls .wide{grid-column:1/-1}
+    }
+
+    /* Inputs / Selects harmonisés */
+    input[type="text"],select{
+      border:1px solid var(--border);
+      border-radius:var(--radius-sm);
+      padding:10px 12px;width:100%;
+      background:#fff;
+      color:#0f172a;
+      box-shadow:var(--shadow-sm);
+      transition:border-color .15s, box-shadow .15s, background .15s, color .15s;
+      outline:none;
+    }
+    [data-mode="dark"] input[type="text"], [data-mode="dark"] select{
+      background:#0b1220;color:var(--text);border-color:#233052;
+    }
+    input[type="text"]:focus,select:focus{
+      border-color:var(--accent);box-shadow:var(--ring);
+    }
+
+    /* ========= Boutons ========= */
+    .btn{
+      appearance:none;border:1px solid var(--accent);
+      background:var(--accent); color:#fff;
+      border-radius:var(--radius-sm);
+      padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap;
+      box-shadow:var(--shadow-sm);
+      transition:transform .05s ease, box-shadow .15s, background-color .15s, color .15s, border-color .15s, opacity .15s;
+    }
+    .btn:hover{box-shadow:var(--shadow-md)}
+    .btn:active{transform:translateY(1px)}
+    .btn:focus{outline:none;box-shadow:var(--ring)}
+
+    /* Secondaire = fond panel, bord doux, avec hover accentué */
+    .btn.secondary{
+      background:var(--panel);color:var(--text);
+      border:1px solid var(--border);
+    }
+    .btn.secondary:hover{border-color:var(--accent); color:var(--text)}
+    .btn.secondary:focus{box-shadow:var(--ring)}
+
+    /* Warn = accent plus “punchy” */
+    .btn.warn{
+      background:linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 80%, #000 20%));
+      border-color:transparent;color:#fff;
+    }
+
+    /* ========= Layout ========= */
     .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
     @media (max-width:1000px){.layout{grid-template-columns:1fr}}
-    .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700;text-align:center}
+
+    /* ========= Sidebar ========= */
+    .sidebar{
+      background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;
+      box-shadow:var(--shadow-sm)
+    }
+    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700;text-align:center;background:color-mix(in srgb, var(--panel) 80%, var(--accent-soft) 20%)}
     .list{max-height:70vh;overflow:auto}
-    .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
-    .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
+    .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
+    .item:last-child{border-bottom:0}
+    .item:hover{background:color-mix(in srgb, var(--panel) 80%, var(--accent-soft) 20%)}
+    .item.active{background:var(--accent-soft)}
     .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
+    [data-mode="dark"] .idx{background:#0b1220;border-color:#233052}
     .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
     .dot{width:8px;height:8px;border-radius:999px;background:#f59e0b;margin-left:auto}
     .dot.ok{background:var(--ok)}
-    .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
-    .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
-    .ed-title{font-weight:800;flex:1}.ed-body{padding:12px}
-    textarea#noteArea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;white-space:pre-wrap}
-    .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+
+    /* ========= Éditeur ========= */
+    .editor{
+      background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+      min-height:60vh;display:flex;flex-direction:column;box-shadow:var(--shadow-sm)
+    }
+    .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:color-mix(in srgb, var(--panel) 85%, var(--accent-soft) 15%)}
+    .ed-title{font-weight:800;flex:1}
+    .ed-body{padding:12px}
+    textarea#noteArea{
+      width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:var(--radius-sm);
+      padding:14px;font-family:Spectral,Georgia,serif;line-height:1.7;white-space:pre-wrap;background:#fff;color:#0f172a;
+      box-shadow:var(--shadow-sm); transition:border-color .15s, box-shadow .15s, background .15s, color .15s;
+    }
+    [data-mode="dark"] textarea#noteArea{background:#0b1220;color:var(--text);border-color:#233052}
+    textarea#noteArea:focus{border-color:var(--accent);box-shadow:var(--ring)}
+
+    .ed-foot{
+      padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap;
+      background:color-mix(in srgb, var(--panel) 90%, var(--accent-soft) 10%)
+    }
     .mini{width:8px;height:8px;border-radius:999px;background:#d97706}.mini.ok{background:#16a34a}.mini.ko{background:#dc2626}
-    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
-    .links-panel{background:#fafafa;border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
+    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--panel);border-radius:999px;padding:4px 8px;font-size:12px;color:var(--text)}
+    .badge .mini{box-shadow:0 0 0 2px var(--panel);border:1px solid var(--border)}
+    .badge strong{color:var(--text)}
+
+    .links-panel{background:color-mix(in srgb, var(--panel) 92%, var(--accent-soft) 8%);border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
     .links-panel b{color:var(--accent)} .links-panel a{color:var(--accent);text-decoration:underline}
     .links-panel.empty{display:none}
-    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:#64748b;font-size:14px}
-    #debugBtn{margin-left:6px;background:var(--dark);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
-    #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;font-size:12px}
-    @media print{.progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row,#debugPanel{display:none!important} textarea{min-height:unset}}
 
-    /* Vue enrichie */
-    #noteView{display:none; width:100%; min-height:460px; border:1px solid var(--border); border-radius:10px; padding:14px;
-      font-family:Spectral,Georgia,serif; line-height:1.6; background:#fff; outline:none}
-    #noteView p{margin:0 0 .75rem 0}
+    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:var(--muted);font-size:14px}
+
+    /* Debug bouton harmonisé */
+    #debugBtn{
+      margin-left:6px;background:var(--panel);color:var(--text);border:1px solid var(--border);
+      border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;box-shadow:var(--shadow-sm);
+      transition:border-color .15s, box-shadow .15s
+    }
+    #debugBtn:hover{border-color:var(--accent)}
+    #debugBtn:focus{outline:none;box-shadow:var(--ring)}
+    #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;font-size:12px}
+
+    @media print{
+      .progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row,#debugPanel{display:none!important}
+      textarea{min-height:unset}
+      body{background:#fff;color:#000}
+    }
+
+    /* ========= Vue enrichie ========= */
+    #noteView{
+      display:none;width:100%;min-height:460px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;
+      font-family:Spectral,Georgia,serif;line-height:1.7;background:#fff;color:#0f172a;outline:none;box-shadow:var(--shadow-sm);
+      transition:border-color .15s, box-shadow .15s, background .15s, color .15s;
+    }
+    [data-mode="dark"] #noteView{background:#0b1220;color:var(--text);border-color:#233052}
+    #noteView p{margin:0 0 .85rem 0}
     #noteView a{color:var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor:pointer}
     #noteView strong{font-weight:700} #noteView em{font-style:italic}
     #noteView ul, #noteView ol{padding-left:1.25rem}
     #noteView h3{margin:1rem 0 .5rem 0}
 
-    /* (5) 3 petites lignes CSS demandées */
-    .ref-list li { margin-bottom: .25rem; }                     /* espacement items de liste */
-    .sep { margin: 0 .25rem; color: var(--muted); }             /* séparateur “ · ” */
-    .refs-inline a { margin-right: .25rem; }                    /* léger espacement des liens inline */
+    /* ========= Affinages demandés ========= */
+    .ref-list li { margin-bottom: .25rem; }
+    .sep { margin: 0 .25rem; color: var(--muted); }
+    .refs-inline a { margin-right: .25rem; }
   </style>
 </head>
-<body data-theme="cyan">
+<body data-theme="cyan" data-mode="light">
   <div class="progress-wrap"><div class="progress"><div id="progressBar" class="bar"></div></div></div>
   <header><h1>Méditation</h1></header>
 
@@ -97,22 +262,23 @@
         <option value="rouge">Thème : Rouge</option>
         <option value="mauve">Thème : Mauve</option>
         <option value="indigo">Thème : Indigo</option>
+        <option value="auto">Thème : Auto (AT/NT)</option>
       </select>
+
+      <!-- Nouveau : mode sombre doux (persistance locale) -->
       <label style="display:flex;align-items:center;gap:8px;">
-        <input id="enrichToggle" type="checkbox" checked />
-        <span>Mode enrichi</span>
+        <input id="darkToggle" type="checkbox" />
+        <span>Mode sombre</span>
       </label>
 
       <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
       <button id="validate" class="btn" type="button">Valider</button>
       <button id="generateBtn" class="btn warn" type="button">Générer</button>
-      <!-- (2) Bouton ChatGPT à côté de Générer -->
       <a id="chatgptBtn" class="btn secondary" href="https://tchatgpt.com" target="_blank" rel="noopener">ChatGPT</a>
     </div>
 
     <div class="layout">
       <aside class="sidebar">
-        <!-- (6) centrer et enlever “28” -->
         <div class="side-head">Rubriques</div>
         <div id="pointsList" class="list"></div>
       </aside>
@@ -153,7 +319,95 @@
     <div id="debugPanel">[init]</div>
   </footer>
 
-  <!-- Bump de version pour forcer le cache -->
+  <!-- App principal (inchangé) -->
   <script src="/app.js?v=2025-09-03-injections-3" defer></script>
+
+  <!-- Mini-script non intrusif : mode sombre + Auto-thème (AT/NT) -->
+  <script>
+    (function(){
+      const body = document.body;
+      const themeSelect = document.getElementById('themeSelect');
+      const darkToggle  = document.getElementById('darkToggle');
+      const bookSelect  = document.getElementById('bookSelect');
+
+      const LS_THEME_BASE = 'be_pref_theme_base'; // 'auto' | 'cyan' | ...
+      const LS_DARK = 'be_pref_dark';
+
+      // 1) Restaure préférences
+      try {
+        const savedDark = JSON.parse(localStorage.getItem(LS_DARK) || 'false');
+        darkToggle.checked = !!savedDark;
+        body.setAttribute('data-mode', savedDark ? 'dark' : 'light');
+      } catch {}
+
+      try {
+        const savedBase = JSON.parse(localStorage.getItem(LS_THEME_BASE) || '"cyan"');
+        // Si base = auto, on sélectionne l’option et on appliquera ensuite computeAutoTheme()
+        const opt = Array.from(themeSelect.options).find(o => o.value === savedBase);
+        if (opt) themeSelect.value = savedBase;
+      } catch {}
+
+      // 2) Auto-thème selon AT/NT (si base 'auto')
+      const NT_BOOKS = new Set([
+        "Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens",
+        "Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens",
+        "1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre",
+        "1 Jean","2 Jean","3 Jean","Jude","Apocalypse"
+      ]);
+      function computeAutoTheme(){
+        try {
+          const b = (bookSelect && bookSelect.value) || "Genèse";
+          const isNT = NT_BOOKS.has(b);
+          const autoColor = isNT ? 'indigo' : 'vert';
+          body.setAttribute('data-theme', autoColor);
+        } catch {}
+      }
+
+      // 3) Applique thème au load (si 'auto', calcule)
+      function applyTheme(){
+        const base = themeSelect.value;
+        if (base === 'auto') {
+          computeAutoTheme();
+        } else {
+          body.setAttribute('data-theme', base);
+        }
+        try { localStorage.setItem(LS_THEME_BASE, JSON.stringify(base)); } catch {}
+      }
+      // Appel initial une fois que app.js a rempli les livres (bookSelect peut être vide au tout début)
+      // On refait un tick asynchrone pour laisser le temps à app.js d'initialiser
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          applyTheme();
+          if (themeSelect.value === 'auto') computeAutoTheme();
+        }, 50);
+      });
+
+      // 4) Écouteurs (ne cassent pas ceux d’app.js)
+      themeSelect.addEventListener('change', applyTheme);
+      if (bookSelect) {
+        bookSelect.addEventListener('change', () => {
+          if (themeSelect.value === 'auto') computeAutoTheme();
+        });
+      }
+
+      // 5) Dark mode toggle (persistance)
+      darkToggle.addEventListener('change', () => {
+        const on = !!darkToggle.checked;
+        body.setAttribute('data-mode', on ? 'dark' : 'light');
+        try { localStorage.setItem(LS_DARK, JSON.stringify(on)); } catch {}
+      });
+
+      // 6) Si app.js change le thème (data-theme) via select classique,
+      // on garde notre base en cohérence si ce n’est pas 'auto'
+      // (aucun conflit : on écoute simplement l’attribut)
+      const mo = new MutationObserver(() => {
+        const base = themeSelect.value;
+        if (base !== 'auto') {
+          try { localStorage.setItem(LS_THEME_BASE, JSON.stringify(base)); } catch {}
+        }
+      });
+      mo.observe(document.body, { attributes:true, attributeFilter:['data-theme'] });
+    })();
+  </script>
 </body>
 </html>
