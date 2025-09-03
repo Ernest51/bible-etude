@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Test Références Bibliques (LSG) – Genèse 1</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;max-width:900px;margin:32px auto;padding:0 16px;line-height:1.5}
+    h1{font-size:1.25rem;margin:0 0 12px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+    input{padding:8px 10px;border:1px solid #ccc;border-radius:10px;min-width:280px}
+    button{padding:8px 12px;border-radius:10px;border:1px solid #ccc;cursor:pointer}
+    .card{border:1px solid #e5e7eb;border-radius:16px;padding:14px;margin:12px 0;box-shadow:0 1px 0 rgba(0,0,0,.02)}
+    .muted{color:#6b7280;font-size:.9rem}
+    .ok{background:#ecfdf5;border-color:#a7f3d0}
+    .err{background:#fef2f2;border-color:#fecaca}
+    code,pre{background:#f6f7f9;border:1px solid #e5e7eb;border-radius:10px;padding:2px 6px}
+    pre{padding:10px;overflow:auto}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media (max-width:800px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <h1>Test Références – LSG (Genèse 1)</h1>
+  <p class="muted">
+    Objectif : vérifier que <strong>Genèse 1:2</strong> ne renvoie pas par erreur le texte de <strong>Genèse 1:1</strong>.
+  </p>
+
+  <div class="row">
+    <input id="refInput" value="Genèse 1:2" />
+    <button id="btnTest">Tester</button>
+    <button id="btnCompare">Comparer vs Genèse 1:1</button>
+  </div>
+
+  <div id="outParse" class="card"></div>
+  <div class="grid">
+    <div class="card" id="outResult"></div>
+    <div class="card" id="outBaseline"></div>
+  </div>
+  <div id="outStatus" class="card"></div>
+
+  <script>
+    // --- Données LSG minimales pour le test (Genèse 1:1–5) ---
+    const LSG = {
+      "Genèse": {
+        1: {
+          1: "Au commencement, Dieu créa les cieux et la terre.",
+          2: "La terre était informe et vide; il y avait des ténèbres à la surface de l’abîme, et l’Esprit de Dieu se mouvait au-dessus des eaux.",
+          3: "Dieu dit: Que la lumière soit! Et la lumière fut.",
+          4: "Dieu vit que la lumière était bonne; et Dieu sépara la lumière d'avec les ténèbres.",
+          5: "Dieu appela la lumière jour, et il appela les ténèbres nuit. Ainsi, il y eut un soir, et il y eut un matin: ce fut le premier jour."
+        }
+      }
+    };
+
+    // --- Normalisation & parsing de la référence ---
+    const BOOKS_MAP = [
+      { norm: "genese", canon: "Genèse", aliases: ["genese","genèse","gen","gn"] },
+      // si besoin, ajouter d'autres livres ici...
+    ];
+
+    function stripAccents(s){
+      return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+    }
+    function findBookCanon(name){
+      const n = stripAccents(name.toLowerCase()).replace(/\./g,"").trim();
+      for(const b of BOOKS_MAP){
+        if(b.aliases.includes(n)) return b.canon;
+      }
+      return null;
+    }
+
+    function parseReference(input){
+      // Formats supportés: "Genèse 1:2", "Gen 1:2-5", "Gn 1"
+      const txt = input.trim().replace(/\s+/g," ");
+      // capture: [book words] [chapter] [: [v1] [- v2]? ]?
+      const m = txt.match(/^([^\d]+?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/i);
+      if(!m) throw new Error("Référence invalide: " + input);
+
+      const bookRaw = m[1].trim();
+      const chapter = Number(m[2]);
+      const v1 = m[3] ? Number(m[3]) : undefined;
+      const v2 = m[4] ? Number(m[4]) : undefined;
+
+      const book = findBookCanon(bookRaw);
+      if(!book) throw new Error("Livre non reconnu: " + bookRaw);
+
+      const ref = { book, chapter, startVerse: v1, endVerse: v2 ?? v1 };
+      return ref;
+    }
+
+    // --- Sélection des versets sans retomber à 1:1 par défaut ---
+    function getPassage(ref){
+      const { book, chapter, startVerse, endVerse } = ref;
+      const bookData = LSG[book];
+      if(!bookData) throw new Error("Livre indisponible: " + book);
+      const chapData = bookData[chapter];
+      if(!chapData) throw new Error("Chapitre indisponible: " + book + " " + chapter);
+
+      // IMPORTANT: si un verset est demandé, on ne doit PAS retomber à 1 !
+      if(typeof startVerse === "number"){
+        const end = typeof endVerse === "number" ? endVerse : startVerse;
+        const out = [];
+        for(let v = startVerse; v <= end; v++){
+          const line = chapData[v];
+          if(!line) throw new Error(`Verset ${v} introuvable pour ${book} ${chapter}`);
+          out.push(`${book} ${chapter}:${v} — ${line}`);
+        }
+        return out.join("\n");
+      } else {
+        // Pas de verset précisé -> renvoyer (par ex.) tout le chapitre (ici limité)
+        return Object.keys(chapData).map(v => `${book} ${chapter}:${v} — ${chapData[v]}`).join("\n");
+      }
+    }
+
+    // --- UI ---
+    const $ = sel => document.querySelector(sel);
+    const refInput = $("#refInput");
+    const outParse = $("#outParse");
+    const outResult = $("#outResult");
+    const outBaseline = $("#outBaseline");
+    const outStatus = $("#outStatus");
+
+    function render(refStr){
+      try{
+        const ref = parseReference(refStr);
+        outParse.innerHTML = `<strong>Parsing OK</strong><br/><pre>${JSON.stringify(ref,null,2)}</pre>`;
+        const txt = getPassage(ref);
+        outResult.innerHTML = `<strong>Résultat (${refStr})</strong><br/><pre>${txt}</pre>`;
+
+        // baseline: Genèse 1:1
+        const base = getPassage(parseReference("Genèse 1:1"));
+        outBaseline.innerHTML = `<strong>Baseline (Genèse 1:1)</strong><br/><pre>${base}</pre>`;
+
+        // Comparaison
+        if(txt.trim() === base.trim()){
+          outStatus.className = "card err";
+          outStatus.innerHTML = "❌ <strong>ERREUR :</strong> le résultat est IDENTIQUE à Genèse 1:1 (comportement incorrect).";
+        } else {
+          outStatus.className = "card ok";
+          outStatus.innerHTML = "✅ <strong>OK :</strong> le passage demandé est différent de Genèse 1:1.";
+        }
+      }catch(e){
+        outStatus.className = "card err";
+        outStatus.innerHTML = "❌ " + (e && e.message ? e.message : e);
+      }
+    }
+
+    $("#btnTest").addEventListener("click", () => render(refInput.value));
+    $("#btnCompare").addEventListener("click", () => render("Genèse 1:2"));
+
+    // premier rendu
+    render(refInput.value);
+  </script>
+</body>
+</html>
