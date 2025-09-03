@@ -54,12 +54,12 @@
     .links-panel{background:#fafafa;border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
     .links-panel b{color:var(--accent)} .links-panel a{color:var(--accent);text-decoration:underline}
     .links-panel.empty{display:none}
-    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:var(--muted);font-size:14px}
+    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:#64748b;font-size:14px}
     #debugBtn{margin-left:6px;background:var(--dark);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
     #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;font-size:12px}
     @media print{.progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row,#debugPanel{display:none!important} textarea{min-height:unset}}
 
-    /* --- Vue enrichie (liens cliquables soulignés) --- */
+    /* Vue enrichie */
     #noteView{display:none; width:100%; min-height:460px; border:1px solid var(--border); border-radius:10px; padding:14px;
       font-family:Spectral,Georgia,serif; line-height:1.6; background:#fff; outline:none}
     #noteView p{margin:0 0 .75rem 0}
@@ -117,9 +117,7 @@
         </div>
 
         <div class="ed-body">
-          <!-- textarea d'origine (conservé pour tout le flux) -->
           <textarea id="noteArea" placeholder="Écris ici…"></textarea>
-          <!-- vue enrichie synchronisée (liens cliquables) -->
           <div id="noteView" contenteditable="true" spellcheck="false" aria-label="Contenu enrichi"></div>
 
           <div id="linksPanel" class="links-panel empty">
@@ -147,7 +145,7 @@
     <div id="debugPanel">[init]</div>
   </footer>
 
-  <!-- Version bump -->
-  <script src="/app.js?v=2025-09-03-1" defer></script>
+  <!-- Bump de version pour forcer le cache -->
+  <script src="/app.js?v=2025-09-03-ctx-1" defer></script>
 </body>
 </html>
