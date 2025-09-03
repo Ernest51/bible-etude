@@ -1,7 +1,8 @@
-// public/app.js — UI + auto-liens BibleGateway sûrs + améliorations demandées
+// public/app.js — UI + auto-liens BibleGateway sûrs + améliorations
 // - MetaInfo : "Point X / 28"
 // - Auto-séparation des références collées (ex: "Jean 1:1-3Hébreux 11:3" -> "Jean 1:1-3 · Hébreux 11:3")
-// - Filtre des commentaires HTML résiduels et des &nbsp;
+// - Filtre commentaires HTML / &nbsp;
+// - ✅ Ajout : références bibliques automatiquement en **gras** dans la vue enrichie
 
 (function () {
   // ---------- helpers UI ----------
@@ -46,6 +47,7 @@
     ["1 Pierre", 5],["2 Pierre", 3],["1 Jean", 5],["2 Jean", 1],["3 Jean", 1],
     ["Jude", 1],["Apocalypse", 22],
   ];
+  const BOOK_TITLES = BOOKS.map(([n]) => n);
 
   const NT_START_INDEX = BOOKS.findIndex(([n]) => n === "Matthieu");
 
@@ -139,9 +141,9 @@
     document.querySelectorAll(".list .item").forEach((el) => el.classList.toggle("active", +el.dataset.idx === current));
     if (edTitle) edTitle.textContent = `${i + 1}. ${FIXED_POINTS[i].t}`;
     if (noteArea) noteArea.value = notes[i] || "";
-    if (metaInfo) metaInfo.textContent = `Point ${i + 1} / ${N}`;          // ✅ MetaInfo conforme
-    renderViewFromArea();       // MAJ vue enrichie
-    updateLinksPanel();         // MAJ panneau liens
+    if (metaInfo) metaInfo.textContent = `Point ${i + 1} / ${N}`;
+    renderViewFromArea();
+    updateLinksPanel();
     if (enrichToggle && enrichToggle.checked) { noteView && noteView.focus(); } else { noteArea && noteArea.focus(); }
     HOOK('be:point-selected', { index: i, hasContent: !!(notes[i] && notes[i].trim()) });
   }
@@ -188,13 +190,11 @@
 
   // ---------- thème ----------
   themeSelect.addEventListener("change", () => {
-    // propagation intégrale via [data-theme], déjà stylée en CSS
     document.body.setAttribute("data-theme", themeSelect.value);
   });
 
   // ---------- BibleGateway / réf. ----------
   function escapeRegExp(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-  const BOOK_TITLES = BOOKS.map(([n]) => n);
   const bookAlt = BOOK_TITLES.map(escapeRegExp).join("|");
   // chap obligatoire, :vers[–-fin] optionnel, ou range de chapitres
   const refRe = new RegExp(`\\b(${bookAlt})\\s+(\\d+)(?::(\\d+(?:[–-]\\d+)?))?(?:[–-](\\d+))?`, "gi");
@@ -209,7 +209,7 @@
     return bgwUrl(`${book} ${chap}`, version);
   }
 
-  // ---------- pré-sanitisation / anti-commentaires ----------
+  // ---------- pré-sanitisation ----------
   function stripHtmlComments(raw){
     return String(raw||"").replace(/<!--[\s\S]*?-->/g, "");
   }
@@ -217,33 +217,32 @@
     return String(raw||"").replace(/&nbsp;/g, " ").replace(/\s{2,}/g, " ");
   }
 
-  // ---------- rendu enrichi (inline links soulignés) ----------
+  // ---------- rendu enrichi ----------
   function sanitizeBasic(text){
-    // On retire d’abord commentaires &nbsp; puis on échappe
     text = stripNbsp(stripHtmlComments(text));
     return String(text||"")
       .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   }
   function mdLite(html){
-    // **gras** -> <strong>, *italique* -> <em>
     return html
       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
       .replace(/\*([^*]+)\*/g, "<em>$1</em>");
   }
-  // (NOUVEAU) Sépare des références bibliques collées sans séparateur visible.
-  // Ex: "Jean 1:1-3Hébreux 11:3" -> "Jean 1:1-3 · Hébreux 11:3"
+  // Sépare des références collées
   function fixAdjacentRefs(htmlEscaped){
-    // on travaille sur texte échappé (pas de balises), uniquement insertion de " · "
-    // Repère: fin de ref (…\d)(ou \d-\d) suivi immédiatement d’un nom de livre
     const bookUnion = BOOK_TITLES.map(escapeRegExp).join("|");
     const pattern = new RegExp(`((?:\\d|\\d[–-]\\d))(?:\\s*)(${bookUnion}\\s+\\d)`, "g");
     return htmlEscaped.replace(pattern, (_m, prev, next) => `${prev} · ${next}`);
   }
-  // URLs nues -> liens (travaille sur TEXTE ÉCHAPPÉ, aucun attribut présent à ce stade)
+  // 🔹 Mettre en **gras** toutes les références bibliques détectées
+  function boldBibleRefs(htmlEscaped){
+    return htmlEscaped.replace(refRe, (m)=> `**${m}**`);
+  }
+  // URLs nues -> liens
   function autolinkURLs(html){
     return html.replace(/(\bhttps?:\/\/[^\s<>"'()]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
   }
-  // Références bibliques -> liens
+  // Références bibliques -> liens BibleGateway
   function autolinkBible(html){
     return html.replace(refRe, (m,bk,ch,vr,chEnd)=>{
       const url = makeBGWLink(bk, ch, vr||"", chEnd||"");
@@ -260,12 +259,13 @@
 
   function renderViewFromArea(){
     const raw = noteArea.value || "";
-    let html = sanitizeBasic(raw);
-    html = fixAdjacentRefs(html); // ✅ nouveau : séparation des refs collées
-    html = mdLite(html);          // 1) **bold** / *italique*
-    html = autolinkURLs(html);    // 2) lier d'abord les URLs nues
-    html = autolinkBible(html);   // 3) puis lier les références bibliques
-    html = wrapParagraphs(html);  // 4) mise en <p> + <br>
+    let html = sanitizeBasic(raw);     // 1) échappe tout
+    html = fixAdjacentRefs(html);      // 2) sépare refs collées
+    html = boldBibleRefs(html);        // 3) 🔵 force le gras sur toutes les refs
+    html = mdLite(html);               // 4) **bold** / *italique* -> <strong>/<em>
+    html = autolinkURLs(html);         // 5) URLs nues
+    html = autolinkBible(html);        // 6) Références -> <a href=BGW>
+    html = wrapParagraphs(html);       // 7) paragraphes
     noteView.innerHTML = html || "<p style='color:#9aa2b1'>Écris ici…</p>";
   }
   function syncAreaFromView(){
@@ -274,8 +274,8 @@
     html = html.replace(/<br\s*\/?>/gi, "\n");
     html = html.replace(/<\/p>/gi, "\n\n").replace(/<p[^>]*>/gi,"");
     html = html.replace(/<\/?strong>/gi, "**").replace(/<\/?em>/gi, "*");
-    html = html.replace(/<!--[\s\S]*?-->/g, ""); // ✅ retire commentaires si collés dans contenteditable
-    html = html.replace(/&nbsp;/g, " ");         // ✅ retire nappes
+    html = html.replace(/<!--[\s\S]*?-->/g, "");
+    html = html.replace(/&nbsp;/g, " ");
     html = html.replace(/<\/?[^>]+>/g,"");
     html = html.replace(/\n{3,}/g,"\n\n").trim();
     noteArea.value = html;
@@ -307,23 +307,20 @@
   }
   if (enrichToggle){ enrichToggle.addEventListener("change", applyEnrichMode); }
 
-  // ---------- VERROU ANTI-BALISES pour contenus générés ----------
+  // ---------- VERROU anti-balises pour contenus générés ----------
   function stripDangerousTags(html) {
     if (!html) return "";
-    html = html.replace(/<!--[\s\S]*?-->/g, ""); // ✅ enlève commentaires résiduels
+    html = html.replace(/<!--[\s\S]*?-->/g, "");
     html = html.replace(/&nbsp;/g, " ");
-    // 1) balises fortes -> markdown léger
+    // convertir forte/italique en markdown léger (laisser le moteur de vue gérer)
     html = html.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
     html = html.replace(/<b[^>]*>(.*?)<\/b>/gi, '**$1**');
     html = html.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
     html = html.replace(/<i[^>]*>(.*?)<\/i>/gi, '*$1*');
-    // 2) paragraphes / titres -> sauts de ligne
     html = html.replace(/<\/p>/gi, '\n\n');
     html = html.replace(/<\/h[1-6]>/gi, '\n\n');
     html = html.replace(/<br\s*\/?>/gi, '\n');
-    // 3) retire tout le reste
     html = html.replace(/<\/?[^>]+>/g, '');
-    // 4) normalisation
     html = html.replace(/\s{2,}/g, " ").replace(/\n{3,}/g, '\n\n').trim();
     return html;
   }
@@ -439,19 +436,17 @@
       secs.forEach((s) => {
         const i = (s.id | 0) - 1;
         if (i >= 0 && i < N) {
-          // 🔒 Verrou : nettoyage fort de la réponse + filtre commentaires/html
           notes[i] = cleanGeneratedContent(String(s.content || "").trim());
         }
       });
 
-      // Defaults verrouillés aussi
-      notes[0] = cleanGeneratedContent(defaultPrayerOpen());
-      if (!notes[2] || !notes[2].trim()) notes[2] = cleanGeneratedContent(buildRevisionSection());
-      notes[27] = cleanGeneratedContent(defaultPrayerClose());
+      // ✅ garder les valeurs API si présentes
+      if (!notes[0]  || !notes[0].trim())  notes[0]  = cleanGeneratedContent(defaultPrayerOpen());
+      if (!notes[2]  || !notes[2].trim())  notes[2]  = cleanGeneratedContent(buildRevisionSection());
+      if (!notes[27] || !notes[27].trim()) notes[27] = cleanGeneratedContent(defaultPrayerClose());
 
-      // Nettoyage soft complémentaire
+      // Nettoyage complémentaire
       for (const k of Object.keys(notes)) {
-        // Sépare aussi d’éventuelles refs collées pour l’édition en brut
         notes[k] = dedupeParagraphs(ensureLinksLineBreaks(stripNbsp(stripHtmlComments(notes[k]))));
       }
 
@@ -473,7 +468,7 @@
     }
   }
 
-  // ---------- panneau liens cliquables (listing) ----------
+  // ---------- panneau liens ----------
   function extractLinks(text) {
     const links = [];
     const raw = String(text || "");
