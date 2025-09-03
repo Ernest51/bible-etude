@@ -83,14 +83,15 @@ function classifyGenre(book) {
 
 function simpleHash(str){ let h=0; for (let i=0;i<str.length;i++){ h=((h<<5)-h)+str.charCodeAt(i); h|=0;} return Math.abs(h); }
 const pick = (arr, seed, salt=0) => arr[(seed + salt) % arr.length];
-const pickMany = (arr, k, seed, salt=0) => {
+const shuffleBySeed = (arr, seed, salt=0) => {
   const a = [...arr];
   for (let i=a.length-1;i>0;i--){
     const j = (seed + salt + i*31) % (i+1);
     [a[i],a[j]] = [a[j],a[i]];
   }
-  return a.slice(0, Math.max(1, Math.min(k, a.length)));
+  return a;
 };
+const pickMany = (arr, k, seed, salt=0) => shuffleBySeed(arr, seed, salt).slice(0, Math.max(1, Math.min(k, arr.length)));
 
 function guessMotifs(book, chapter, verse) {
   const b = (book || "").toLowerCase();
@@ -201,13 +202,47 @@ function buildRubrique3(blockTitle) {
   ].join("\n");
 }
 
-/* ───────── Étude canonique (28 rubriques) ───────── */
+/* ───────── Pools dynamiques de références ───────── */
+
+const POOLS = {
+  creation: ["Genèse 1:1-5","Psaumes 33:6","Jean 1:1-3","Hébreux 11:3","Colossiens 1:16","Psaumes 104:24"],
+  covenant: ["Genèse 12:1-3","Exode 19:4-6","Jérémie 31:31-34","Ézéchiel 36:26-27","Galates 3:8","Luc 22:20"],
+  wisdom: ["Proverbes 1:7","Psaumes 1","Ecclésiaste 12:13","Jacques 1:5","Colossiens 3:16"],
+  gospel: ["Romains 1:16-17","1 Corinthiens 15:1-4","Jean 3:16","Éphésiens 2:8-10","Tite 3:4-7"],
+  spirit: ["Actes 2:1-4","Romains 8:1-11","Galates 5:22-25","Jean 14:26","Éphésiens 5:18"],
+  church: ["Actes 2:42-47","Éphésiens 4:11-16","Hébreux 10:24-25","Matthieu 28:18-20","1 Pierre 2:9-10"],
+  mission: ["Matthieu 5:13-16","1 Pierre 3:15","Actes 1:8","Romains 10:14-15"],
+  holiness: ["1 Pierre 1:15-16","Hébreux 12:14","1 Thessaloniciens 4:3-4","Romains 12:1-2"],
+  hope: ["Romains 5:1-5","1 Pierre 1:3-5","Apocalypse 21:1-5","Hébreux 6:19"],
+  justice: ["Michée 6:8","Ésaïe 1:17","Amos 5:24","Luc 4:18-19"],
+  love: ["1 Corinthiens 13","Jean 13:34-35","Romains 5:8","1 Jean 4:7-12"],
+  prayer: ["Psaumes 23","Psaumes 51:10-12","Matthieu 6:9-13","Philippiens 4:6-7"],
+  word: ["2 Timothée 3:16-17","Néhémie 8:8","Psaumes 119:105","Jean 17:17"]
+};
+
+function refsFromPools(poolNames, k, seed, salt=0) {
+  const flat = poolNames.flatMap(name => POOLS[name] || []);
+  return pickMany(flat, k, seed, salt);
+}
+
+// Ancres simples autour du chapitre courant (reste valable même si tous les versets n’existent pas : BibleGateway gère)
+function currentAnchors(book, chapter, seed) {
+  const B = cap(book);
+  const ch = clamp(parseInt(chapter,10), 1, 150);
+  const v1 = 1;
+  const v2 = (seed % 10) + 3;      // 3..12
+  const v3 = ((seed >> 3) % 15) + 8; // 8..22
+  return [`${B} ${ch}:${v1}-${v1+4}`, `${B} ${ch}:${v2}`, `${B} ${Math.max(1,ch-1)}:${(seed%7)+1}`];
+}
+
+/* ───────── Étude canonique (28 rubriques) — dynamique ───────── */
 
 function canonicalStudy(book, chapter, verse, version) {
   const B = cap(book);
   const ref = refString(book, chapter, verse);
   const testament = classifyTestament(B);
   const genre = classifyGenre(B);
+  const seed = simpleHash(`${B}|${chapter}|${verse||""}`);
 
   const genreLine = {
     narratif: "Genre: narratif (récit théologique qui forme par l’histoire).",
@@ -216,37 +251,50 @@ function canonicalStudy(book, chapter, verse, version) {
     épistolaire:"Genre: épistolaire (enseignement et exhortation pour la vie chrétienne)."
   }[genre];
 
-  // Exemples de références communes à injecter (toutes cliquables)
-  const refsCreation = ["Jean 1:1-3","Hébreux 11:3","Colossiens 1:16","Psaumes 104:24","Exode 34:6-7","Josué 1:8-9"];
-  const refsEvangile = ["Romains 1:16-17","1 Corinthiens 15:1-4","Jean 3:16","Éphésiens 2:8-10","Tite 3:4-7"];
+  // Sélections thématiques variables selon Testament/Genre
+  const baseAT = ["creation","covenant","word","wisdom"];
+  const baseNT = ["gospel","spirit","church","love","holiness","hope","mission"];
+  const poolPack = testament === "AT" ? baseAT : baseNT;
+
+  const anchors = currentAnchors(B, chapter, seed);
 
   const data = [];
   data.push({ id: 1, title: "Prière d’ouverture", content: "<p>…</p>" }); // remplacée ensuite
+
+  // 2
   data.push({
     id: 2, title: "Canon et testament",
     content: withParagraphs([
       `${B} se situe dans le ${testament === "AT" ? "Premier" : "Nouveau"} Testament. ${genreLine}`,
-      `Repères canoniques utiles : ${joinRefsInline(testament==="AT"?refsCreation:refsEvangile, version)}`
+      `Repères canoniques utiles : ${joinRefsInline(refsFromPools(poolPack, 3, seed, 1), version)}`
     ])
   });
+
+  // 3
   data.push({
     id: 3, title: "Questions du chapitre précédent",
     content: buildRubrique3(`Révision sur ${ref} — 5 questions (${genre})`)
   });
+
+  // 4
   data.push({
     id: 4, title: "Titre du chapitre",
     content: withParagraphs([
       `${ref} — <strong>Orientation de lecture</strong> : ${genre==="poétique"?"sagesse et prière":"axes narratifs/argumentatifs et réponse de foi"}.`,
-      `Versets d’appui : ${joinRefsInline(testament==="AT"?["Psaumes 19:8-10","Psaumes 119:105"]:["Luc 24:27","2 Timothée 3:16-17"], version)}`
+      `Versets d’appui (${B} ${chapter}) : ${joinRefsInline(anchors.slice(0,2), version)}`
     ])
   });
+
+  // 5
   data.push({
     id: 5, title: "Contexte historique",
     content: withParagraphs([
       `Situer la période, le(s) peuple(s), le cadre géopolitique et cultuel. Clarifier la place du chapitre dans l’histoire du salut.`,
-      `Textes de contexte : ${joinRefsInline(testament==="AT"?["Genèse 12:1-3","Exode 19:4-6"]:["Actes 1:8","Galates 4:4-5"], version)}`
+      `Textes de contexte : ${joinRefsInline(testament==="AT" ? refsFromPools(["covenant","creation"], 2, seed, 3) : refsFromPools(["church","mission"], 2, seed, 3), version)}`
     ])
   });
+
+  // 6
   data.push({
     id: 6, title: "Structure littéraire",
     content: withParagraphs([
@@ -259,52 +307,69 @@ function canonicalStudy(book, chapter, verse, version) {
         : "Indicatifs de l’Évangile → impératifs de la vie nouvelle → applications communautaires."
     ])
   });
+
+  // 7
   data.push({ id: 7, title: "Genre littéraire", content: withParagraphs([genreLine]) });
+
+  // 8
   data.push({
     id: 8, title: "Auteur et généalogie",
     content: withParagraphs([
       `Auteur/tradition, destinataires et enracinement canonique.`,
-      testament==="AT" ? `Lien aux pères et à l’Alliance : ${joinRefsInline(["Genèse 15:6","Exode 34:6-7","Psaumes 103:17-18"], version)}`
-                       : `Lien à l’Église apostolique et à la mission : ${joinRefsInline(["Matthieu 28:18-20","Actes 2:42-47"], version)}`
+      testament==="AT"
+        ? `Lien aux pères et à l’Alliance : ${joinRefsInline(refsFromPools(["covenant"], 2, seed, 5), version)}`
+        : `Lien à l’Église apostolique et à la mission : ${joinRefsInline(refsFromPools(["church","mission"], 2, seed, 5), version)}`
     ])
   });
+
+  // 9
   data.push({
     id: 9, title: "Verset-clé doctrinal",
     content: withParagraphs([
       `Choisir un pivot qui condense l’intention du passage (révélation de Dieu / appel à l’homme).`,
-      `Exemples de critères : initiative divine, charnière logique, reprise d’un refrain.`
+      `Deux ancres candidates : ${joinRefsInline(anchors.slice(0,2), version)}`
     ])
   });
+
+  // 10
   data.push({
     id:10, title: "Analyse exégétique",
     content: withParagraphs([
       `Repérer les marqueurs (répétitions, inclusions, refrains), les acteurs et les verbes dominants. Discerner la logique du passage.`,
-      `Aides : ${joinRefsInline(["Néhémie 8:8","Luc 24:27","2 Timothée 2:15"], version)}`
+      `Aides : ${joinRefsInline(refsFromPools(["word"], 2, seed, 7).concat(refsFromPools(["gospel"], 1, seed, 8)), version)}`
     ])
   });
+
+  // 11
   data.push({
     id:11, title: "Analyse lexicale",
     content: withParagraphs([
       `Éclairer 1–2 termes décisifs (justice, alliance, gloire, sagesse, esprit…). Définir brièvement, avec contexte d’usage.`,
-      `Voir aussi : ${joinRefsInline(["Proverbes 1:7","Michée 6:8","Jean 1:14","Romains 3:24-26"], version)}`
+      `Voir aussi : ${joinRefsInline(refsFromPools(["wisdom","justice","holiness"], 3, seed, 9), version)}`
     ])
   });
+
+  // 12
   data.push({
     id:12, title: "Références croisées",
     content: withParagraphs([
       `Repérer 2–4 échos AT/NT pour montrer l’unité du dessein de Dieu.`,
       testament==="AT"
-        ? `Passerelles vers le NT : ${joinRefsInline(["Jean 1:1-3","Hébreux 1:1-3","Galates 3:8"], version)}`
-        : `Racines dans l’AT : ${joinRefsInline(["Genèse 12:3","Psaumes 110:1","Ésaïe 53"], version)}`
+        ? `Passerelles vers le NT : ${joinRefsInline(refsFromPools(["gospel","church","spirit"], 3, seed, 11), version)}`
+        : `Racines dans l’AT : ${joinRefsInline(refsFromPools(["creation","covenant","wisdom","justice"], 3, seed, 11), version)}`
     ])
   });
+
+  // 13
   data.push({
     id:13, title: "Fondements théologiques",
     content: withParagraphs([
-      `Dieu ${testament==="AT"?"crée/élit/appelle/jug e/promet":"révèle en Christ/sauve/sanctifie/envoie"} ; l’homme ${testament==="AT"?"répond par l’obéissance de la foi":"marche par l’Esprit, dans la charité"}.`,
-      `Ancrages : ${joinRefsInline(testament==="AT"?["Deutéronome 6:4-5","Habacuc 2:4"]:["Romains 5:1-5","Galates 5:22-25"], version)}`
+      `Dieu ${testament==="AT"?"crée/élit/appelle/juge/promet":"révèle en Christ/sauve/sanctifie/envoie"} ; l’homme ${testament==="AT"?"répond par l’obéissance de la foi":"marche par l’Esprit, dans la charité"}.`,
+      `Ancrages : ${joinRefsInline(testament==="AT" ? refsFromPools(["covenant","justice","hope"], 2, seed, 13) : refsFromPools(["gospel","holiness","hope"], 2, seed, 13), version)}`
     ])
   });
+
+  // 14
   data.push({
     id:14, title: "Thème doctrinal",
     content: withParagraphs([
@@ -312,82 +377,111 @@ function canonicalStudy(book, chapter, verse, version) {
       genre==="poétique"    ? "Sagesse / louange" :
       genre==="épistolaire" ? "Évangile / sainteté" :
                                "Actes de Dieu et réponse humaine",
-      `Textes en appui : ${joinRefsInline(genre==="poétique"?["Psaumes 1","Psaumes 19:8-10","Psaumes 119:105"]:["Romains 12:1-2","Philippiens 2:12-13"], version)}`
+      `Textes en appui : ${joinRefsInline(genre==="poétique" ? refsFromPools(["wisdom","prayer"], 2, seed, 15) : refsFromPools(["gospel","holiness","love"], 2, seed, 15), version)}`
     ])
   });
+
+  // 15
   data.push({ id:15, title: "Fruits spirituels", content: withParagraphs([`Gratitude, discernement, persévérance, justice, charité, espérance.`]) });
+
+  // 16
   data.push({ id:16, title: "Types bibliques", content: withParagraphs([`Préfigurations et figures (motifs, lieux, personnes) qui convergent vers le Christ.`]) });
+
+  // 17
   data.push({
     id:17, title: "Appui doctrinal",
     content: withParagraphs([
-      testament==="AT" ? `Psaumes/Prophètes en renfort : ${joinRefsInline(["Psaumes 33:6","Ésaïe 40:8","Ésaïe 55:10-11"], version)}`
-                       : `Épîtres/Évangiles : ${joinRefsInline(["2 Timothée 3:16-17","Jean 17:17"], version)}`
+      testament==="AT"
+        ? `Psaumes/Prophètes en renfort : ${joinRefsInline(refsFromPools(["wisdom","justice"], 2, seed, 17), version)}`
+        : `Épîtres/Évangiles : ${joinRefsInline(refsFromPools(["word","gospel","holiness"], 2, seed, 17), version)}`
     ])
   });
-  data.push({
-    id:18, title: "Comparaison entre versets",
-    content: withParagraphs([`Comparer ouverture / charnière / conclusion pour clarifier la ligne théologique du passage.`])
-  });
+
+  // 18
+  data.push({ id:18, title: "Comparaison entre versets", content: withParagraphs([`Comparer ouverture / charnière / conclusion pour clarifier la ligne théologique du passage.`, `Ancres : ${joinRefsInline(anchors, version)}`]) });
+
+  // 19
   data.push({
     id:19, title: "Comparaison avec Actes 2",
-    content: withParagraphs([`Parole – Esprit – Communauté : pertinence pour aujourd’hui. Voir : ${joinRefsInline(["Actes 2:1-4","Actes 2:42-47"], version)}`])
+    content: withParagraphs([
+      `Parole – Esprit – Communauté : pertinence pour aujourd’hui.`,
+      `Voir : ${joinRefsInline(refsFromPools(["spirit","church"], 2, seed, 19), version)}`
+    ])
   });
+
+  // 20
   data.push({
     id:20, title: "Verset à mémoriser",
     content: withParagraphs([
       `Choisir un verset ; rédiger une phrase-mémo et une prière-réponse.`,
-      `Aide : ${joinRefsInline(["Psaumes 119:11","Colossiens 3:16"], version)}`
+      `Aide : ${joinRefsInline(refsFromPools(["word","prayer"], 2, seed, 20), version)}`
     ])
   });
+
+  // 21
   data.push({
     id:21, title: "Enseignement pour l’Église",
     content: withParagraphs([
       `Annonce, édification, discipline, mission : impact communautaire du passage.`,
-      `Repères : ${joinRefsInline(["Éphésiens 4:11-16","Hébreux 10:24-25"], version)}`
+      `Repères : ${joinRefsInline(refsFromPools(["church","love","holiness"], 2, seed, 21), version)}`
     ])
   });
+
+  // 22
   data.push({
     id:22, title: "Enseignement pour la famille",
     content: withParagraphs([
       `Transmettre : lecture, prière, service, pardon, bénédiction.`,
-      `Références : ${joinRefsInline(["Deutéronome 6:6-7","Josué 24:15","Éphésiens 6:4"], version)}`
+      `Références : ${joinRefsInline(refsFromPools(["wisdom","prayer","love"], 2, seed, 22), version)}`
     ])
   });
+
+  // 23
   data.push({
     id:23, title: "Enseignement pour enfants",
     content: withParagraphs([
       `Approche simple et visuelle : raconter, prier, mémoriser, agir.`,
-      `Aide : ${joinRefsInline(["Marc 10:14-16","2 Timothée 3:15"], version)}`
+      `Aide : ${joinRefsInline(refsFromPools(["prayer","love"], 2, seed, 23), version)}`
     ])
   });
+
+  // 24
   data.push({
     id:24, title: "Application missionnaire",
     content: withParagraphs([
       `Témoignage humble et cohérent ; parole claire ; amour concret.`,
-      `Repères : ${joinRefsInline(["Matthieu 5:13-16","1 Pierre 3:15"], version)}`
+      `Repères : ${joinRefsInline(refsFromPools(["mission","gospel"], 2, seed, 24), version)}`
     ])
   });
+
+  // 25
   data.push({
     id:25, title: "Application pastorale",
     content: withParagraphs([
       `Accompagnement : prière, consolation, conseil, persévérance.`,
-      `Textes : ${joinRefsInline(["1 Thessaloniciens 5:14","Galates 6:1-2"], version)}`
+      `Textes : ${joinRefsInline(refsFromPools(["holiness","love","hope"], 2, seed, 25), version)}`
     ])
   });
+
+  // 26
   data.push({
     id:26, title: "Application personnelle",
     content: withParagraphs([
       `Nommer 1–2 décisions concrètes (quoi/quand/comment) pour la semaine.`,
-      `Aide : ${joinRefsInline(["Jacques 1:22-25","Psaumes 139:23-24"], version)}`
+      `Aide : ${joinRefsInline(refsFromPools(["wisdom","holiness","prayer"], 2, seed, 26), version)}`
     ])
   });
+
+  // 27
   data.push({
     id:27, title: "Versets à retenir",
     content: withParagraphs([
       `Lister 3–5 versets du chapitre ; noter une clé de compréhension pour chacun.`,
-      `Suggestion : ${joinRefsInline(testament==="AT"?refsCreation:refsEvangile, version)}`
+      `Suggestions (chapitre courant + échos) : ${joinRefsInline(pickMany(anchors.concat(refsFromPools(poolPack, 4, seed, 27)), 4, seed, 27), version)}`
     ])
   });
+
+  // 28
   data.push({
     id:28, title: "Prière de fin",
     content: withParagraphs([`Que ta Parole devienne en nous foi, prière et obéissance ; et que notre vie te glorifie. Amen.`])
