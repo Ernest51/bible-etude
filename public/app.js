@@ -475,10 +475,10 @@
         }
       });
 
-      // Defaults verrouillés aussi
-      notes[0] = cleanGeneratedContent(defaultPrayerOpen());
-      if (!notes[2] || !notes[2].trim()) notes[2] = cleanGeneratedContent(buildRevisionSection());
-      notes[27] = cleanGeneratedContent(defaultPrayerClose());
+      // ✅ N'UTILISER les textes par défaut qu'en ABSENCE de contenu API
+      if (!notes[0]  || !notes[0].trim())  notes[0]  = cleanGeneratedContent(defaultPrayerOpen());
+      if (!notes[2]  || !notes[2].trim())  notes[2]  = cleanGeneratedContent(buildRevisionSection());
+      if (!notes[27] || !notes[27].trim()) notes[27] = cleanGeneratedContent(defaultPrayerClose());
 
       // Nettoyage soft complémentaire
       for (const k of Object.keys(notes)) {
@@ -495,9 +495,7 @@
 
       setProgress(100); setTimeout(() => setProgress(0), 300);
       dlog(`[GEN] source=${window.__lastChatSource} sections=${secs.length} filled=${Object.keys(notes).length} → étude générée`);
-      /* ======= AJOUT: affiche les badges ======= */
       paintGenBadges();
-      /* ======= fin ajout ======= */
     } catch (e) {
       console.error(e);
       alert(String((e && e.message) || e));
