@@ -1,4 +1,4 @@
-// public/app.js — Auto-liens BibleGateway soulignés en mode enrichi + clic forcé dans contenteditable
+// public/app.js — Auto-liens BibleGateway sûrs en mode enrichi (ordre de parsing corrigé)
 // Conserve : génération, progression, pastilles fixes, hooks, panneau de liens, thèmes, boutons.
 
 (function () {
@@ -217,6 +217,18 @@
       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
       .replace(/\*([^*]+)\*/g, "<em>$1</em>");
   }
+  // URLs nues -> liens (fonctionne sur TEXTE ÉCHAPPÉ, donc pas d'attributs encore présents)
+  function autolinkURLs(html){
+    // évite de matcher après href=" déjà présent (par précaution si la chaîne contenait des balises)
+    return html.replace(/(?<!href=")(\bhttps?:\/\/[^\s<>"'()]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  }
+  // Références bibliques -> liens
+  function autolinkBible(html){
+    return html.replace(refRe, (m,bk,ch,vr,chEnd)=>{
+      const url = makeBGWLink(bk, ch, vr||"", chEnd||"");
+      return `<a href="${url}" target="_blank" rel="noopener">${m}</a>`;
+    });
+  }
   function wrapParagraphs(html){
     const blocks = String(html||"").split(/\n{2,}/);
     return blocks.map(b=>{
@@ -224,22 +236,14 @@
       return "<p>"+b.replace(/\n/g,"<br>")+"</p>";
     }).join("");
   }
-  function autolinkBible(html){
-    return html.replace(refRe, (m,bk,ch,vr,chEnd)=>{
-      const url = makeBGWLink(bk, ch, vr||"", chEnd||"");
-      return `<a href="${url}" target="_blank" rel="noopener">${m}</a>`;
-    });
-  }
-  function autolinkURLs(html){
-    return html.replace(/(\bhttps?:\/\/[^\s<>"'()]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
-  }
+
   function renderViewFromArea(){
     const raw = noteArea.value || "";
     let html = sanitizeBasic(raw);
-    html = mdLite(html);          // **Genèse 1:1** -> <strong>Genèse 1:1</strong>
-    html = autolinkBible(html);   // … puis on transforme "Genèse 1:1" en <a>…</a> (à l'intérieur du strong)
-    html = autolinkURLs(html);
-    html = wrapParagraphs(html);
+    html = mdLite(html);          // 1) **bold** / *italique*
+    html = autolinkURLs(html);    // 2) lier d'abord les URLs nues (AUCUN tag existant à ce stade)
+    html = autolinkBible(html);   // 3) puis lier les références bibliques
+    html = wrapParagraphs(html);  // 4) mise en <p> + <br>
     noteView.innerHTML = html || "<p style='color:#9aa2b1'>Écris ici…</p>";
   }
   function syncAreaFromView(){
@@ -257,13 +261,10 @@
     HOOK('be:note-changed', { index: current, value: noteArea.value, hasContent: !!(noteArea.value || '').trim() });
   }
 
-  // RENDRE LES LIENS CLIQUABLES DANS CONTENTEDITABLE
+  // liens cliquables dans contenteditable
   noteView.addEventListener("click", (e)=>{
     const a = e.target.closest && e.target.closest("a");
-    if (a && a.href) {
-      e.preventDefault();
-      window.open(a.href, "_blank", "noopener");
-    }
+    if (a && a.href) { e.preventDefault(); window.open(a.href, "_blank", "noopener"); }
   });
 
   // toggle enrichi
@@ -280,9 +281,7 @@
       noteArea.focus();
     }
   }
-  if (enrichToggle){
-    enrichToggle.addEventListener("change", applyEnrichMode);
-  }
+  if (enrichToggle){ enrichToggle.addEventListener("change", applyEnrichMode); }
 
   // ---------- garde-fous / gabarits ----------
   const forcePrayerOpen = true;
