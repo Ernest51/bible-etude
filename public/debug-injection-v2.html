@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Debug Injection v2 — Prière vs Texte Biblique</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;max-width:1100px;margin:28px auto;padding:0 16px;line-height:1.5;background:#f4f6f8;color:#0f172a}
+    h1{font-size:1.25rem;margin:0 0 10px}
+    .muted{color:#6b7280}
+    .row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+    select,button{padding:8px 10px;border:1px solid #e5e7eb;border-radius:10px;background:#fff}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px}
+    pre{background:#f6f7f9;border:1px solid #e5e7eb;border-radius:8px;padding:10px;overflow:auto}
+    .ok{background:#ecfdf5;border-color:#a7f3d0}
+    .err{background:#fef2f2;border-color:#fecaca}
+    .status{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+    .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #e5e7eb;border-radius:999px;padding:4px 10px;background:#fff}
+    .dot{width:10px;height:10px;border-radius:999px;background:#d97706}
+    .dot.ok{background:#16a34a}.dot.ko{background:#dc2626}
+    code{background:#f6f7f9;border:1px solid #e5e7eb;border-radius:6px;padding:2px 6px}
+  </style>
+</head>
+<body>
+  <h1>Debug Injection v2 — Prière vs Texte Biblique</h1>
+  <p class="muted">But : montrer que la prière générée est un <em>modèle fixe</em> (seule la référence change) et qu’elle n’intègre pas le texte du verset.</p>
+
+  <div class="row">
+    <div>
+      <div><strong>Réf A</strong></div>
+      <select id="bookA"></select>
+      <select id="chapA"></select>
+      <select id="verseA"></select>
+    </div>
+    <div>
+      <div><strong>Réf B</strong></div>
+      <select id="bookB"></select>
+      <select id="chapB"></select>
+      <select id="verseB"></select>
+    </div>
+    <div style="align-self:flex-end">
+      <button id="btnCheck">Comparer</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <strong>Texte généré (defaultPrayerOpen) — A</strong>
+      <pre id="outPrayerA"></pre>
+      <div class="pill"><span class="dot" id="dotIncA"></span> <span id="labIncA"></span></div>
+    </div>
+    <div class="card">
+      <strong>Texte généré (defaultPrayerOpen) — B</strong>
+      <pre id="outPrayerB"></pre>
+      <div class="pill"><span class="dot" id="dotIncB"></span> <span id="labIncB"></span></div>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:12px">
+    <div class="card">
+      <strong>Texte biblique LSG — A</strong>
+      <pre id="outBibleA"></pre>
+    </div>
+    <div class="card">
+      <strong>Texte biblique LSG — B</strong>
+      <pre id="outBibleB"></pre>
+    </div>
+  </div>
+
+  <div class="status">
+    <div id="boxSame" class="card">
+      <strong>La prière A et B sont-elles identiques (hors ref) ?</strong><br>
+      <div class="pill" style="margin-top:8px"><span class="dot" id="dotSame"></span> <span id="labSame"></span></div>
+      <div class="muted" style="margin-top:8px">On normalise la référence avec un joker <code>**REF**</code> pour ignorer juste le numéro.</div>
+    </div>
+    <div id="boxExpl" class="card">
+      <strong>Conclusion</strong>
+      <p id="expl" style="margin-top:8px"></p>
+    </div>
+  </div>
+
+<script>
+// --- Mini cache LSG étendu pour ce test (Genèse 1:1–10) ---
+const LSG = {
+  "Genèse": {
+    1: {
+      1: "Au commencement, Dieu créa les cieux et la terre.",
+      2: "La terre était informe et vide; il y avait des ténèbres à la surface de l’abîme, et l’Esprit de Dieu se mouvait au-dessus des eaux.",
+      3: "Dieu dit: Que la lumière soit! Et la lumière fut.",
+      4: "Dieu vit que la lumière était bonne; et Dieu sépara la lumière d'avec les ténèbres.",
+      5: "Dieu appela la lumière jour, et il appela les ténèbres nuit. Ainsi, il y eut un soir, et il y eut un matin: ce fut le premier jour.",
+      6: "Dieu dit: Qu’il y ait une étendue entre les eaux, et qu’elle sépare les eaux d’avec les eaux.",
+      7: "Et Dieu fit l’étendue, et il sépara les eaux qui sont au-dessous de l’étendue d’avec les eaux qui sont au-dessus de l’étendue. Et cela fut ainsi.",
+      8: "Dieu appela l’étendue ciel. Ainsi, il y eut un soir, et il y eut un matin: ce fut le second jour.",
+      9: "Dieu dit: Que les eaux qui sont au-dessous du ciel se rassemblent en un seul lieu, et que le sec paraisse. Et cela fut ainsi.",
+      10:"Dieu appela le sec terre, et il appela l’amas des eaux mers. Dieu vit que cela était bon."
+    }
+  }
+};
+
+// --- Listes / sélecteurs ---
+const BOOKS = [["Genèse", 50]];
+function renderBooks(sel){ BOOKS.forEach(([n])=>{ const o=document.createElement("option"); o.value=n; o.textContent=n; sel.appendChild(o); }); }
+function renderChapters(sel){ for(let i=1;i<=50;i++){ const o=document.createElement("option"); o.value=i; o.textContent=i; sel.appendChild(o);} }
+function renderVerses(sel,max=31){ for(let i=1;i<=max;i++){ const o=document.createElement("option"); o.value=i; o.textContent=i; sel.appendChild(o);} }
+
+// --- Réplique exacte de ton modèle actuel ---
+function defaultPrayerOpen(book, c, v){
+  const ref = `${book} ${c}${v?":"+v:""}`;
+  return `Père saint, nous nous approchons de toi pour méditer **${ref}**. Par ton Esprit, ouvre notre intelligence, purifie nos intentions, et fais naître en nous l’amour de ta volonté. Que ta Parole façonne notre pensée, notre prière et nos décisions. Au nom de Jésus, amen.`;
+}
+
+// --- Texte biblique ---
+function getVerse(book, chap, verse){ return LSG?.[book]?.[chap]?.[verse] || ""; }
+
+// --- Normalisation : neutralise juste la **référence** pour comparer le fond ---
+function normalizePrayer(p){
+  return String(p||"").replace(/\*\*[^*]+\*\*/g,"**REF**").trim();
+}
+
+// --- UI helpers ---
+function setDot(el, ok){ el.classList.remove("ok","ko"); el.classList.add(ok?"ok":"ko"); }
+function $(id){ return document.getElementById(id); }
+
+// --- Comparaison ---
+function compare(){
+  const aB=$("bookA").value, aC=+$("chapA").value, aV=+$("verseA").value;
+  const bB=$("bookB").value, bC=+$("chapB").value, bV=+$("verseB").value;
+
+  const prA = defaultPrayerOpen(aB,aC,aV);
+  const prB = defaultPrayerOpen(bB,bC,bV);
+  const bxA = getVerse(aB,aC,aV);
+  const bxB = getVerse(bB,bC,bV);
+
+  $("outPrayerA").textContent = prA;
+  $("outPrayerB").textContent = prB;
+  $("outBibleA").textContent  = `${aB} ${aC}:${aV} — ${bxA}`;
+  $("outBibleB").textContent  = `${bB} ${bC}:${bV} — ${bxB}`;
+
+  // Voyant "le texte biblique est-il inclus ?"
+  const incA = bxA && prA.includes(bxA);
+  const incB = bxB && prB.includes(bxB);
+  setDot($("dotIncA"), incA); $("labIncA").textContent = incA ? "✅ Le texte biblique est inclus." : "❌ Le texte biblique n’apparaît pas";
+  setDot($("dotIncB"), incB); $("labIncB").textContent = incB ? "✅ Le texte biblique est inclus." : "❌ Le texte biblique n’apparaît pas";
+
+  // Comparaison de fond (on ignore juste la ref en gras)
+  const same = normalizePrayer(prA) === normalizePrayer(prB);
+  setDot($("dotSame"), same); $("labSame").textContent = same ? "❌ Aucune différence de fond (seule la ref change)" : "✅ Le fond du texte change";
+
+  // Conclusion
+  const expl = (!incA && !incB && same)
+    ? "Le générateur utilise un gabarit fixe pour la prière. Il ne récupère pas le texte du verset. La différence 1:1 → 1:2 ne change que la référence affichée."
+    : "Le gabarit semble avoir été modifié. Si tu veux, envoie ton app.js et je recalibre le test.";
+  $("expl").textContent = expl;
+}
+
+// --- init ---
+(function init(){
+  const bookA=$("bookA"), bookB=$("bookB"), chapA=$("chapA"), chapB=$("chapB"), verseA=$("verseA"), verseB=$("verseB");
+  renderBooks(bookA); renderBooks(bookB);
+  renderChapters(chapA); renderChapters(chapB);
+  renderVerses(verseA, 31); renderVerses(verseB, 31);
+  // Défauts : A=Genèse 1:1, B=Genèse 1:2
+  verseB.value = "2";
+  $("btnCheck").addEventListener("click", compare);
+  compare();
+})();
+</script>
+</body>
+</html>
