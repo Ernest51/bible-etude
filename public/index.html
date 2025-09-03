@@ -12,13 +12,12 @@
       --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b;
       --accent:#0891b2; --accent-soft:#e0f2fe;
     }
-    /* Thèmes (accent + fond adouci) */
-    [data-theme="cyan"]  { --accent:#0891b2; --accent-soft:#e0f2fe; --bg:#f4f9fb; --panel:#ffffff; }
-    [data-theme="violet"]{ --accent:#7c3aed; --accent-soft:#ede9fe; --bg:#f7f3fe; --panel:#ffffff; }
-    [data-theme="vert"]  { --accent:#059669; --accent-soft:#dcfce7; --bg:#f3fbf6; --panel:#ffffff; }
-    [data-theme="rouge"] { --accent:#dc2626; --accent-soft:#fee2e2; --bg:#fef6f6; --panel:#ffffff; }
-    [data-theme="mauve"] { --accent:#a855f7; --accent-soft:#f3e8ff; --bg:#faf5ff; --panel:#ffffff; }
-    [data-theme="indigo"]{ --accent:#4f46e5; --accent-soft:#e0e7ff; --bg:#f6f7ff; --panel:#ffffff; }
+    [data-theme="cyan"]  { --accent:#0891b2; --accent-soft:#e0f2fe; }
+    [data-theme="violet"]{ --accent:#7c3aed; --accent-soft:#ede9fe; }
+    [data-theme="vert"]  { --accent:#059669; --accent-soft:#dcfce7; }
+    [data-theme="rouge"] { --accent:#dc2626; --accent-soft:#fee2e2; }
+    [data-theme="mauve"] { --accent:#a855f7; --accent-soft:#f3e8ff; }
+    [data-theme="indigo"]{ --accent:#4f46e5; --accent-soft:#e0e7ff; }
 
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
@@ -43,23 +42,31 @@
     .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
     .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
     .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
-    .dot{width:8px;height:8px;border-radius:999px;background:#eab308;margin-left:auto} /* jaune par défaut */
-    .dot.ok{background:var(--ok)} /* vert quand OK */
-
+    .dot{width:8px;height:8px;border-radius:999px;background:#f59e0b;margin-left:auto}
+    .dot.ok{background:var(--ok)}
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
     .ed-title{font-weight:800;flex:1}.ed-body{padding:12px}
-    textarea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;white-space:pre-wrap}
+    textarea#noteArea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;white-space:pre-wrap}
     .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
     .mini{width:8px;height:8px;border-radius:999px;background:#d97706}.mini.ok{background:#16a34a}.mini.ko{background:#dc2626}
     .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
     .links-panel{background:#fafafa;border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
     .links-panel b{color:var(--accent)} .links-panel a{color:var(--accent);text-decoration:underline}
     .links-panel.empty{display:none}
-    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:#64748b;font-size:14px}
+    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:var(--muted);font-size:14px}
     #debugBtn{margin-left:6px;background:var(--dark);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
     #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;font-size:12px}
     @media print{.progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row,#debugPanel{display:none!important} textarea{min-height:unset}}
+
+    /* --- Vue enrichie (liens cliquables soulignés) --- */
+    #noteView{display:none; width:100%; min-height:460px; border:1px solid var(--border); border-radius:10px; padding:14px;
+      font-family:Spectral,Georgia,serif; line-height:1.6; background:#fff; outline:none}
+    #noteView p{margin:0 0 .75rem 0}
+    #noteView a{color:var(--accent); text-decoration: underline; text-underline-offset: 2px}
+    #noteView strong{font-weight:700} #noteView em{font-style:italic}
+    #noteView ul, #noteView ol{padding-left:1.25rem}
+    #noteView h3{margin:1rem 0 .5rem 0}
   </style>
 </head>
 <body data-theme="cyan">
@@ -91,13 +98,9 @@
         <span>Mode enrichi</span>
       </label>
 
-      <!-- Ordre : Lire la Bible (gauche) + Valider + Générer -->
       <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
       <button id="validate" class="btn" type="button">Valider</button>
       <button id="generateBtn" class="btn warn" type="button">Générer</button>
-
-      <!-- Compat éventuelle -->
-      <a id="readLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Lire</a>
     </div>
 
     <div class="layout">
@@ -114,7 +117,11 @@
         </div>
 
         <div class="ed-body">
+          <!-- textarea d'origine (conservé pour tout le flux) -->
           <textarea id="noteArea" placeholder="Écris ici…"></textarea>
+          <!-- vue enrichie synchronisée (liens cliquables) -->
+          <div id="noteView" contenteditable="true" spellcheck="false" aria-label="Contenu enrichi"></div>
+
           <div id="linksPanel" class="links-panel empty">
             <b>Liens détectés :</b>
             <div id="linksList"></div>
@@ -140,150 +147,7 @@
     <div id="debugPanel">[init]</div>
   </footer>
 
-  <!-- Front existant (inchangé) -->
-  <script src="/app.js?v=2025-09-02-2" defer></script>
-
-  <!-- Ouvre BibleGateway pour Lire la Bible / Valider (si présent côté site) -->
-  <script src="/bible-open.js" defer></script>
-
-  <!-- Progress Générer + Nettoyage balises + Thème + Correctif "dot ok" (robuste) -->
-  <script>
-    (function () {
-      const bar   = document.getElementById('progressBar');
-      const note  = document.getElementById('noteArea');
-      const genBtn= document.getElementById('generateBtn');
-      const yearEl= document.getElementById('y');
-      const themeSelect = document.getElementById('themeSelect');
-      const pointsList  = document.getElementById('pointsList');
-      const edTitle     = document.getElementById('edTitle');
-
-      if (yearEl) yearEl.textContent = new Date().getFullYear();
-
-      /* -------- Barre de progression (Générer) -------- */
-      let ticking = false, iv = null, safetyTimer = null, startLen = 0;
-      function setWidth(p){ if (bar) bar.style.width = Math.max(0, Math.min(100, p)) + '%'; }
-      function startProgress(){
-        if (!bar || ticking) return;
-        ticking = true; startLen = (note.value || '').length; setWidth(5);
-        let w = 5;
-        iv = setInterval(()=>{ w = Math.min(90, w + Math.max(0.4, (90 - w) * 0.03)); setWidth(w); }, 180);
-        safetyTimer = setTimeout(()=>finish(false), 45000);
-      }
-      function finish(ok){
-        if (!ticking) return;
-        ticking = false;
-        clearInterval(iv); iv = null;
-        clearTimeout(safetyTimer); safetyTimer = null;
-        if (ok){ setWidth(100); setTimeout(()=>setWidth(0), 600); }
-        else {
-          let w = parseFloat(bar.style.width) || 0;
-          const step = ()=>{ w = w - Math.max(2, w * 0.12); if (w <= 0){ setWidth(0); return; } setWidth(w); requestAnimationFrame(step); };
-          requestAnimationFrame(step);
-        }
-      }
-      if (genBtn) genBtn.addEventListener('click', startProgress);
-
-      /* -------- HTML -> texte brut (supprime les balises) -------- */
-      function htmlToPlainText(html){
-        if (!html) return "";
-        const container = document.createElement('div');
-        container.innerHTML = html;
-        const blocks = new Set(['P','DIV','SECTION','ARTICLE','HEADER','FOOTER','H1','H2','H3','H4','H5','H6','LI','BR','HR','UL','OL','PRE','BLOCKQUOTE']);
-        let out = "";
-        function walk(node){
-          if (node.nodeType === 3){ out += node.nodeValue; return; }
-          if (node.nodeType !== 1) return;
-          const name = node.nodeName;
-          if (name === 'LI') out += (out.endsWith('\n') || out === '' ? '' : '\n') + '- ';
-          for (let i=0;i<node.childNodes.length;i++) walk(node.childNodes[i]);
-          if (blocks.has(name)){ if (!out.endsWith('\n')) out += '\n'; }
-        }
-        walk(container);
-        out = out.replace(/\r/g,'').replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n').trim();
-        return out;
-      }
-      function plainifyIfNeeded(){
-        const v = note.value || '';
-        if (/[<][^>]+>/.test(v)){
-          const text = htmlToPlainText(v);
-          if (text !== v){
-            const selStart = note.selectionStart, selEnd = note.selectionEnd;
-            note.value = text;
-            const ev = new Event('input', {bubbles:true});
-            note.dispatchEvent(ev);
-            if (typeof selStart === 'number' && typeof selEnd === 'number'){
-              const pos = Math.min(text.length, selStart);
-              note.setSelectionRange(pos, pos);
-            }
-          }
-        }
-      }
-
-      /* -------- MARQUAGE AU VERT (robuste) -------- */
-      function markActivePointOk() {
-        if (!pointsList) return;
-
-        // 1) Essai direct : l'élément actif
-        let dot = pointsList.querySelector('.item.active .dot');
-
-        // 2) Si pas trouvé, on identifie par titre (texte de la colonne droite)
-        if (!dot && edTitle) {
-          const title = (edTitle.textContent || '').trim().toLowerCase();
-          if (title) {
-            const items = pointsList.querySelectorAll('.item');
-            for (const it of items) {
-              const text = (it.textContent || '').trim().toLowerCase();
-              // tolérant : on cherche le titre au début ou inclus (certains items ont une description sous le titre)
-              if (text.startsWith(title) || text.includes('\n'+title) || text.includes(title)) {
-                dot = it.querySelector('.dot');
-                if (dot) break;
-              }
-            }
-          }
-        }
-
-        if (dot) {
-          dot.classList.add('ok');      // -> vert
-          dot.classList.remove('warn'); // au cas où
-        }
-      }
-
-      note.addEventListener('input', () => {
-        const grew = (note.value || '').length > startLen;
-        plainifyIfNeeded();
-        if ((note.value || '').trim().length > 0) markActivePointOk();
-        if (grew) finish(true);
-      });
-
-      // Si app.js injecte sans event, on surveille et on marque aussi
-      let lastHash = '';
-      setInterval(()=>{
-        const v = note.value || '';
-        const h = v.length + ':' + v.slice(0,64);
-        if (h !== lastHash){
-          lastHash = h;
-          const before = note.value;
-          plainifyIfNeeded();
-          if ((note.value || '').trim().length > 0) markActivePointOk();
-          if ((note.value || '').length > startLen) finish(true);
-        }
-      }, 350);
-
-      /* -------- Gestion du thème (avec indigo + mémoire locale) -------- */
-      function applyTheme(value){
-        if (!value) return;
-        document.body.setAttribute('data-theme', value);
-        try { localStorage.setItem('meditation:theme', value); } catch(e){}
-      }
-      try {
-        const saved = localStorage.getItem('meditation:theme');
-        if (saved && themeSelect){
-          const opt = Array.from(themeSelect.options).find(o => o.value === saved);
-          if (opt) { themeSelect.value = saved; applyTheme(saved); }
-        }
-      } catch(e){}
-      if (themeSelect) themeSelect.addEventListener('change', function(){ applyTheme(this.value); });
-    })();
-  </script>
+  <!-- Version bump -->
+  <script src="/app.js?v=2025-09-02-3" defer></script>
 </body>
 </html>
