@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Test /api/verse</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;max-width:900px;margin:24px auto;padding:0 14px;background:#f7f8fb;color:#0f172a}
+  h1{font-size:1.2rem;margin:0 0 10px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+  input,select,button{padding:8px 10px;border:1px solid #e5e7eb;border-radius:10px;background:#fff}
+  button{cursor:pointer;font-weight:600}
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-top:10px}
+  pre{background:#0b1020;color:#e2e8f0;border-radius:8px;padding:10px;overflow:auto;white-space:pre-wrap}
+  .muted{color:#6b7280}
+  .ok{color:#16a34a;font-weight:700}
+  .ko{color:#dc2626;font-weight:700}
+</style>
+</head>
+<body>
+<h1>Test de l’API — <code>/api/verse</code></h1>
+
+<div class="row">
+  <input id="book"  placeholder="Livre (ex: Genèse, 1 Samuel, Jean)" value="Genèse"/>
+  <input id="chap"  type="number" min="1" max="200" value="1" style="width:110px"/>
+  <input id="vers"  type="number" min="1" max="300" value="2" style="width:110px"/>
+  <select id="ver">
+    <option value="LSG" selected>LSG</option>
+  </select>
+  <button id="go">Appeler /api/verse</button>
+  <button id="ex1">Gn 1:1</button>
+  <button id="ex2">Gn 1:2</button>
+  <button id="ex9">Gn 1:9</button>
+</div>
+
+<div class="card">
+  <div><strong>Référence:</strong> <span id="ref">—</span></div>
+  <div class="muted"><strong>Source:</strong> <span id="source">—</span> <span id="warn" class="muted"></span></div>
+  <div style="margin-top:8px"><strong>Texte:</strong></div>
+  <div id="text" style="margin-top:4px"></div>
+</div>
+
+<div class="card">
+  <strong>Réponse JSON</strong>
+  <pre id="out">—</pre>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+async function call(){
+  const body = {
+    book: $("book").value.trim(),
+    chapter: +$("chap").value,
+    verse: +$("vers").value,
+    version: $("ver").value
+  };
+  $("out").textContent = "appel en cours…";
+  $("ref").textContent = "—";
+  $("source").textContent = "—";
+  $("warn").textContent = "";
+  $("text").textContent = "";
+
+  try{
+    const r = await fetch("/api/verse", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(body)
+    });
+    const ct = r.headers.get("Content-Type") || "";
+    const isJSON = /json/i.test(ct);
+    const data = isJSON ? await r.json() : { raw: await r.text() };
+
+    $("out").textContent = JSON.stringify(data, null, 2);
+
+    if (r.ok && data.ok){
+      $("ref").textContent = data.reference || `${data.book} ${data.chapter}:${data.verse}`;
+      $("source").textContent = data.source || "—";
+      $("warn").textContent = data.warn ? ` (${data.warn})` : "";
+      $("text").textContent = data.text || "";
+    } else {
+      $("ref").textContent = (data && (data.reference || body.book+" "+body.chapter+":"+body.verse)) || "—";
+      $("source").textContent = "—";
+      $("warn").textContent = data && data.error ? ` (${data.error})` : " (erreur)";
+      $("text").textContent = "";
+    }
+  }catch(e){
+    $("out").textContent = String(e);
+    $("warn").textContent = " (exception côté client)";
+  }
+}
+
+$("go").addEventListener("click", call);
+$("ex1").addEventListener("click", ()=>{ $("book").value="Genèse"; $("chap").value=1; $("vers").value=1; call(); });
+$("ex2").addEventListener("click", ()=>{ $("book").value="Genèse"; $("chap").value=1; $("vers").value=2; call(); });
+$("ex9").addEventListener("click", ()=>{ $("book").value="Genèse"; $("chap").value=1; $("vers").value=9; call(); });
+
+// auto-test au chargement
+call();
+</script>
+</body>
+</html>
