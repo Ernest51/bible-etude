@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Debug Injection — Prière d’ouverture vs Texte Biblique</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;max-width:900px;margin:32px auto;padding:0 16px;line-height:1.5;background:#f4f6f8;color:#111}
+    h1{font-size:1.3rem;margin-bottom:1rem}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem}
+    select,button{padding:6px 10px;border:1px solid #ccc;border-radius:6px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:12px 0}
+    .ok{background:#ecfdf5;border-color:#a7f3d0}
+    .err{background:#fef2f2;border-color:#fecaca}
+    pre{background:#f6f7f9;border:1px solid #e5e7eb;border-radius:6px;padding:8px;overflow:auto}
+  </style>
+</head>
+<body>
+  <h1>Debug Injection — Prière d’ouverture vs Texte Biblique</h1>
+
+  <div class="controls">
+    <select id="bookSelect"></select>
+    <select id="chapterSelect"></select>
+    <select id="verseSelect"></select>
+    <button id="btnCheck">Vérifier</button>
+  </div>
+
+  <div id="outRef" class="card"></div>
+  <div id="outPrayer" class="card"></div>
+  <div id="outBible" class="card"></div>
+  <div id="outStatus" class="card"></div>
+
+<script>
+// --- Mini cache Louis Segond 1910 pour Genèse 1:1–5 ---
+const LSG = {
+  "Genèse": {
+    1: {
+      1: "Au commencement, Dieu créa les cieux et la terre.",
+      2: "La terre était informe et vide; il y avait des ténèbres à la surface de l’abîme, et l’Esprit de Dieu se mouvait au-dessus des eaux.",
+      3: "Dieu dit: Que la lumière soit! Et la lumière fut.",
+      4: "Dieu vit que la lumière était bonne; et Dieu sépara la lumière d'avec les ténèbres.",
+      5: "Dieu appela la lumière jour, et il appela les ténèbres nuit. Ainsi, il y eut un soir, et il y eut un matin: ce fut le premier jour."
+    }
+  }
+};
+
+// --- Listes de sélection ---
+const BOOKS = [["Genèse",50]];
+function renderBooks(){
+  const sel = document.getElementById("bookSelect");
+  BOOKS.forEach(([n])=>{
+    const o=document.createElement("option"); o.value=n; o.textContent=n; sel.appendChild(o);
+  });
+}
+function renderChapters(){
+  const sel=document.getElementById("chapterSelect"); sel.innerHTML="";
+  for(let i=1;i<=50;i++){ const o=document.createElement("option"); o.value=i; o.textContent=i; sel.appendChild(o); }
+}
+function renderVerses(max=31){
+  const sel=document.getElementById("verseSelect"); sel.innerHTML="";
+  for(let i=1;i<=max;i++){ const o=document.createElement("option"); o.value=i; o.textContent=i; sel.appendChild(o); }
+}
+
+// --- Ton code actuel (modèle fixe) ---
+function defaultPrayerOpen(book, c, v){
+  const ref = `${book} ${c}${v?":"+v:""}`;
+  return `Père saint, nous nous approchons de toi pour méditer **${ref}**. Par ton Esprit, ouvre notre intelligence, purifie nos intentions, et fais naître en nous l’amour de ta volonté. Que ta Parole façonne notre pensée, notre prière et nos décisions. Au nom de Jésus, amen.`;
+}
+
+// --- Récupération du texte biblique ---
+function getVerse(book, chap, verse){
+  return LSG?.[book]?.[chap]?.[verse] || "(⚠ verset non présent dans le cache)";
+}
+
+// --- Comparateur ---
+function check(){
+  const b=document.getElementById("bookSelect").value;
+  const c=document.getElementById("chapterSelect").value;
+  const v=document.getElementById("verseSelect").value;
+
+  const ref=`${b} ${c}:${v}`;
+  const prayer=defaultPrayerOpen(b,c,v);
+  const bible=getVerse(b, c, v);
+
+  document.getElementById("outRef").innerHTML=`<strong>Référence</strong><br>${ref}`;
+  document.getElementById("outPrayer").innerHTML=`<strong>Texte généré (defaultPrayerOpen)</strong><br><pre>${prayer}</pre>`;
+  document.getElementById("outBible").innerHTML=`<strong>Texte biblique (LSG)</strong><br><pre>${b} ${c}:${v} — ${bible}</pre>`;
+
+  const status=document.getElementById("outStatus");
+  if(prayer.includes(bible)){
+    status.className="card ok";
+    status.innerHTML="✅ Le texte biblique est bien inclus.";
+  } else {
+    status.className="card err";
+    status.innerHTML="❌ Le texte biblique n’apparaît PAS, seul le modèle fixe est utilisé.";
+  }
+}
+
+// --- init ---
+renderBooks(); renderChapters(); renderVerses();
+document.getElementById("btnCheck").addEventListener("click", check);
+</script>
+</body>
+</html>
