@@ -3,45 +3,38 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Debug app.js — Vérif envoi verse & contenu généré</title>
+  <title>Debug app.js — Vérif verset & prière</title>
   <style>
     body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:#f6f7fb;color:#0f172a;max-width:1100px;margin:24px auto;padding:0 16px}
-    h1{font-size:1.25rem;margin:0 0 10px}
+    h1{font-size:1.2rem;margin:0 0 10px}
     .row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
     select,button{padding:8px 10px;border:1px solid #e5e7eb;border-radius:10px;background:#fff}
     .area{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     @media (max-width:900px){.area{grid-template-columns:1fr}}
     .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px}
     pre{background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;padding:10px;overflow:auto}
-    .ok{background:#ecfdf5;border-color:#a7f3d0}
-    .err{background:#fef2f2;border-color:#fecaca}
-    .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #e5e7eb;border-radius:999px;padding:4px 10px;background:#fff}
-    .dot{width:10px;height:10px;border-radius:999px;background:#d97706}
-    .dot.ok{background:#16a34a}.dot.ko{background:#dc2626}
-    textarea{width:100%;min-height:200px;border:1px solid #e5e7eb;border-radius:10px;padding:10px}
-    #noteView{display:none}
     .progress{height:4px;background:#e5e7eb;border-radius:4px;overflow:hidden;margin:8px 0}
     .bar{height:100%;width:0;background:linear-gradient(90deg,#06b6d4,#16a34a)}
+    .dot{width:10px;height:10px;border-radius:999px;background:#d97706;display:inline-block}
+    .ok{background:#16a34a}.ko{background:#dc2626}
+    textarea{width:100%;min-height:200px;border:1px solid #e5e7eb;border-radius:10px;padding:10px}
+    #noteView{display:none}
     .muted{color:#6b7280}
   </style>
 </head>
 <body>
-  <h1>Debug app.js — Vérifier l’envoi du verset & la prière générée</h1>
+  <h1>Debug app.js — Vérifier l’envoi du verset & l’injection dans la prière</h1>
 
   <!-- barre de progression attendue par app.js -->
   <div class="progress"><div id="progressBar" class="bar"></div></div>
 
-  <!-- contrôles minimalistes que app.js attend -->
+  <!-- contrôles minimalistes requis par app.js -->
   <div class="row">
     <input id="searchRef" placeholder="Rechercher (ex: Genèse 1:2)" style="display:none"/>
     <select id="bookSelect"></select>
     <select id="chapterSelect"></select>
     <select id="verseSelect"></select>
-    <select id="versionSelect">
-      <option value="LSG" selected>LSG</option>
-      <option value="PDV">PDV</option>
-      <option value="S21">S21</option>
-    </select>
+    <select id="versionSelect"><option value="LSG" selected>LSG</option></select>
     <select id="themeSelect"><option value="cyan" selected>cyan</option></select>
     <label style="display:flex;align-items:center;gap:6px">
       <input id="enrichToggle" type="checkbox" checked/> <span>Mode enrichi</span>
@@ -78,10 +71,13 @@
   <!-- voyants & logs -->
   <div class="area" style="margin-top:12px">
     <div class="card">
-      <strong>Résultat — Prière d’ouverture (#noteArea après génération)</strong>
+      <strong>Résultat — Prière d’ouverture (#noteArea)</strong>
       <pre id="outNote"></pre>
-      <div class="pill" style="margin-top:6px"><span id="dotVerse" class="dot"></span> <span id="labVerse"></span></div>
-      <div class="muted" style="margin-top:6px">Le voyant passe ✅ si le texte retourné par <code>/api/verse</code> apparaît dans la prière.</div>
+      <div style="margin-top:6px">
+        <span id="dotVerse" class="dot"></span>
+        <span id="labVerse" style="margin-left:6px"></span>
+      </div>
+      <div class="muted" style="margin-top:6px">✅ s’allume si le texte retourné par <code>/api/verse</code> apparaît dans la prière.</div>
     </div>
     <div class="card">
       <strong>Logs des appels réseau (fetch)</strong>
@@ -89,23 +85,21 @@
     </div>
   </div>
 
-  <div id="debugPanel" class="card" style="display:none;margin-top:12px">[init]</div>
-  <button id="debugBtn" style="display:none">Debug</button>
   <footer class="muted" style="margin:14px 0">© <span id="y"></span> — debug</footer>
 
 <script>
-  // --- horodatage ---
+  // Année
   document.getElementById("y").textContent = new Date().getFullYear();
 
-  // --- 1) Interception de fetch pour tracer ce que /public/app.js envoie ---
+  // 1) Interception fetch pour tracer /api/chat et /api/verse
   (function(){
     const origFetch = window.fetch;
     const netbox = () => document.getElementById("netlog");
     window.fetch = async function(url, opts){
-      const start = Date.now();
+      const started = Date.now();
       let bodyStr = "";
       try { if (opts && opts.body) bodyStr = typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body); } catch {}
-      try { netbox().textContent += `\n→ ${url}\n   body: ${bodyStr || "(aucun)"}\n`; } catch {}
+      netbox().textContent += `\n→ ${url}\n   body: ${bodyStr || "(aucun)"}\n`;
       const res = await origFetch(url, opts);
       const clone = res.clone();
       let summary = `${res.status} ${res.statusText}`;
@@ -114,59 +108,66 @@
         if (/json/i.test(ct)) { const j = await clone.json(); summary += ` | json: ${JSON.stringify(j).slice(0,300)}…`; }
         else { const t = await clone.text(); summary += ` | text: ${t.slice(0,300)}…`; }
       } catch {}
-      try { netbox().textContent += `   ← ${summary}\n`; } catch {}
+      netbox().textContent += `   ← ${summary}\n`;
       return res;
     };
   })();
 
-  // --- 2) Helpers pour notre verdict ---
+  // 2) Verdict : le texte /api/verse est-il dans la prière ?
   function setDot(el, ok){ el.classList.remove("ok","ko"); el.classList.add(ok?"ok":"ko"); }
   function showNoteVerdict(){
     const txt = document.getElementById("noteArea").value || "";
     const net = document.getElementById("netlog").textContent || "";
-    // on essaie d'extraire le dernier texte de /api/verse depuis les logs pour vérifier s'il est inclus
-    const m = net.match(/← .*json:.*?"text"\s*:\s*"([^"]+)"/g);
+    // on cherche le dernier "text":"..." venant de /api/verse
+    const blocks = net.split("→ ").filter(s=>s.startsWith("/api/verse"));
     let lastVerse = "";
-    if (m && m.length){ const last = m[m.length-1]; const m2 = last.match(/"text"\s*:\s*"([^"]+)"/); if (m2) lastVerse = m2[1].replace(/\\"/g,'"'); }
+    if (blocks.length){
+      const last = blocks[blocks.length-1];
+      const m = last.match(/json:\s*({[^]+?)…/); // tronqué à 300 chars
+      if (m){
+        try {
+          const obj = JSON.parse(m[1].replace(/…$/,""));
+          lastVerse = obj && obj.text || "";
+        } catch {}
+      } else {
+        const m2 = last.match(/"text"\s*:\s*"([^"]+)"/);
+        if (m2) lastVerse = m2[1].replace(/\\"/g,'"');
+      }
+    }
     document.getElementById("outNote").textContent = txt || "(vide)";
     if (lastVerse && txt.includes(lastVerse)){
       setDot(document.getElementById("dotVerse"), true);
-      document.getElementById("labVerse").textContent = "✅ Le texte renvoyé par /api/verse est bien présent dans la prière.";
+      document.getElementById("labVerse").textContent = "✅ Le texte /api/verse est bien présent dans la prière.";
     } else {
       setDot(document.getElementById("dotVerse"), false);
-      document.getElementById("labVerse").textContent = "❌ Le texte de verset n'est pas détecté dans la prière (API absente, ou app.js en fallback).";
+      document.getElementById("labVerse").textContent = "❌ Texte de verset non détecté dans la prière (API absente ou fallback).";
     }
   }
 
-  // --- 3) Petite aide pour lancer 1:2 et 1:3 rapidement ---
+  // 3) Préselection Genèse 1:2 + déclenchement génération
   function setRef(chap, vers){
     const b = document.getElementById("bookSelect");
     const c = document.getElementById("chapterSelect");
     const v = document.getElementById("verseSelect");
-    // Les listes seront remplies par app.js au chargement
-    // On laisse un petit délai pour que app.js ait rendu les options.
     setTimeout(()=>{
-      // cherche "Genèse"
       const idx = Array.from(b.options).findIndex(o=>o.value==="Genèse");
       if (idx>=0) b.selectedIndex = idx;
       c.value = String(chap);
       v.value = String(vers);
-      // clique sur Générer (app.js a déjà attaché l'écouteur)
       document.getElementById("generateBtn").click();
-      // après génération, montre la prière lue depuis #noteArea
-      setTimeout(showNoteVerdict, 800);
-    }, 150);
+      setTimeout(showNoteVerdict, 900);
+    }, 180);
   }
 
-  // --- 4) Bouton local pour (re)tester la réf courante ---
+  // 4) Re-vérifier après un clic sur “Générer”
   window.addEventListener("click", (e)=>{
     if (e.target && e.target.id === "generateBtn"){
-      setTimeout(showNoteVerdict, 800);
+      setTimeout(showNoteVerdict, 900);
     }
   });
 </script>
 
-<!-- IMPORTANT : on charge TON app.js réel -->
+<!-- IMPORTANT : charger TON app.js -->
 <script src="/app.js" defer onload="setRef(1,2)"></script>
 </body>
 </html>
