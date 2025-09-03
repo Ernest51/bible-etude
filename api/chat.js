@@ -1,9 +1,11 @@
-// /api/chat.js
-// Étude biblique “école théologique”
-// - 28 rubriques, toutes dynamiques (2→27 enrichies)
-// - Paragraphes pédagogiques + glossaire court intégré
-// - Références BibleGateway cliquables, sans doublons
-// - HTML sûr: <p>, <strong>, <em> (+ <a> inline)
+// /api/chat.js — VERSION ENRICHIE
+// Étude biblique « école théologique » — sortie beaucoup plus EXPLICATIVE
+// - 28 rubriques structurées, avec paragraphes développés
+// - Mini « commentaire explicatif » généré à partir des motifs
+// - Glossaire court intégré (termes clés)
+// - Références BibleGateway cliquables (LSG par défaut)
+// - HTML sûr: <p>, <strong>, <em>, <a>
+// - Zéro dépendance côté client : on renvoie un JSON prêt à afficher
 //
 // POST: { book, chapter, verse?, version?, directives? }
 
@@ -207,7 +209,7 @@ function buildOpeningPrayerFallback(book, chapter, verse, version) {
 
 /* ───────────────── OpenAI (motifs/attributs) ───────────────── */
 
-async function callOpenAI({ system, user, model = "gpt-4o-mini", temperature = 0.7, max_tokens = 600 }) {
+async function callOpenAI({ system, user, model = "gpt-4o-mini", temperature = 0.6, max_tokens = 700 }) {
   const url = "https://api.openai.com/v1/chat/completions";
   const body = { model, messages:[{role:"system",content:system},{role:"user",content:user}], temperature, max_tokens };
   const r = await fetch(url, { method:"POST", headers:{ "Authorization":`Bearer ${OPENAI_API_KEY}`, "Content-Type":"application/json" }, body: JSON.stringify(body) });
@@ -307,6 +309,25 @@ function sectionTextFromMotifs(ref, motifs, attrs, testament, genre, version, se
   return { lineCanon, lineStruct, lineFruits, lineMethod };
 }
 
+/* ─────────────── Commentaire explicatif (nouveau) ─────────────── */
+
+function paragraphForMotif(motif, ref, version){
+  const m = motif.toLowerCase();
+  if (/alliance/.test(m)) return `${ref} montre la fidélité de Dieu à son Alliance: il agit selon ses promesses et appelle à y répondre par la foi et l’obéissance. Les alliances d’Abraham et du Sinaï éclairent ce passage (${joinRefsInline(["Genèse 12:1-3","Exode 19:4-6"], version)}).`;
+  if (/parole|parler|dit/.test(m)) return `La Parole de Dieu n’est pas une idée abstraite: elle crée, juge, console et oriente. Dans ${ref}, cette Parole produit un effet reconnaissable, conforme à ${joinRefsInline(["Ésaïe 55:10-11","Hébreux 4:12"], version)}.`;
+  if (/foi|grâce|évangile|christ|justification/.test(m)) return `L’Évangile apparaît en filigrane: Dieu donne par grâce ce qu’il demande. Ainsi ${ref} renvoie à l’œuvre du Christ et à la justice reçue par la foi (${joinRefsInline(["Romains 1:16-17","Éphésiens 2:8-10"], version)}).`;
+  if (/esprit|saint|communauté|église|disciples/.test(m)) return `Le passage façonne une vie animée par l’Esprit et tournée vers la communauté: enseignement, communion, service. On peut le relire à la lumière d’${joinRefsInline(["Actes 2:42-47"], version)}.`;
+  if (/sagesse|louange|poétique|psaume|métaphores|images/.test(m)) return `${ref} éduque à la sagesse: images, parallélismes et appels à la louange invitent à conformer le cœur et la pratique à Dieu (${joinRefsInline(["Psaumes 19:8-10","Proverbes 1:7"], version)}).`;
+  if (/oracle|jugement|revenir|repentance|espérance/.test(m)) return `La dynamique prophétique est nette: diagnostic, appel à revenir, promesse d’espérance. ${ref} avertit et console tout à la fois (${joinRefsInline(["Jérémie 31:31-34","Ésaïe 40:1-5"], version)}).`;
+  if (/création|lumière|image|commencement/.test(m)) return `${ref} fait écho aux commencements: Dieu crée et ordonne, il sépare pour faire vivre; l’humain reçoit une vocation (${joinRefsInline(["Genèse 1:1-5","Psaumes 104:24"], version)}).`;
+  return `${ref} met en évidence le motif « ${motif} »: repérer où il apparaît dans le texte, ce qu’il révèle de Dieu, et comment il oriente la réponse du lecteur (foi, amour, espérance).`;
+}
+
+function buildCommentaryParagraphs(ref, motifs, version, seed){
+  const picked = pickMany(motifs, Math.min(5, Math.max(3, motifs.length)), seed, 99);
+  return picked.map(m => paragraphForMotif(m, ref, version));
+}
+
 /* ───────────────── Génération des 28 rubriques ───────────────── */
 
 function buildAllSections({ book, chapter, verse, version, motifs, attrs }) {
@@ -321,22 +342,25 @@ function buildAllSections({ book, chapter, verse, version, motifs, attrs }) {
   const canonRefs = dynamicRefsFromMotifs(motifs, testament, genre, seed);
   const gloss = shortGlossary(motifs, genre, seed);
 
+  const commentary = buildCommentaryParagraphs(ref, motifs, version, seed);
+
   const data = [];
   data.push({ id: 1, title: "Prière d’ouverture", content: "<p>…</p>" }); // remplacée plus tard
 
-  // 2. Canon & testament
+  // 2. Canon & testament (développé)
   data.push({
     id: 2,
     title: "Canon et testament",
     content: withParagraphs([
       `${B} appartient au ${testament === "AT" ? "Premier" : "Nouveau"} Testament; genre: ${genre}.`,
       lineCanon,
-      `Repères canoniques: ${joinRefsInline(canonRefs.slice(0, 4), version)}.`,
+      `Repères canoniques majeurs: ${joinRefsInline(canonRefs.slice(0, 5), version)}.`,
+      `Pourquoi c’est important: situer ${ref} dans l’histoire du salut empêche les contresens (on lit avec l’ensemble de la Bible).`,
       `Glossaire: ${gloss}.`
     ])
   });
 
-  // 3. Questions (bloc pédagogique)
+  // 3. Questions (bloc pédagogique structuré)
   data.push({
     id: 3,
     title: "Questions du chapitre précédent",
@@ -344,30 +368,31 @@ function buildAllSections({ book, chapter, verse, version, motifs, attrs }) {
       `<p><strong>Observation.</strong> Acteurs, lieux, procédés (répétitions, inclusions, parallélismes). Verbes-clés; questions: “qui fait quoi, où, quand, pourquoi ?”.</p>`,
       `<p><strong>Compréhension.</strong> Que révèle ${ref} de Dieu et de l’humain ? Quelles intentions dominent ?</p>`,
       `<p><strong>Interprétation.</strong> Identifier un verset-charnière; expliciter la logique du passage et sa place dans l’Alliance.</p>`,
-      `<p><strong>Connexions.</strong> Échos canoniques pertinents: ${joinRefsInline(pickMany(canonRefs, 3, seed, 5), version)}.</p>`,
+      `<p><strong>Connexions.</strong> Échos canoniques pertinents: ${joinRefsInline(pickMany(canonRefs, 4, seed, 5), version)}.</p>`,
       `<p><strong>Application.</strong> Décision concrète (quoi/quand/comment) et prière-réponse.</p>`
     ].join("\n")
   });
 
-  // 4. Titre / orientation
+  // 4. Titre / orientation (développé)
   data.push({
     id: 4,
     title: "Titre du chapitre",
     content: withParagraphs([
       `${ref} — <strong>Orientation</strong>: lire à la lumière de ${pickMany(motifs, 2, seed, 2).join(", ")}.`,
       `Appuis: ${joinRefsInline((testament==="AT"?["Psaumes 19:8-10","Psaumes 119:105"]:["Luc 24:27","2 Timothée 3:16-17"]), version)}.`,
-      `Méthodologie: énoncer le thème en une phrase puis justifier par 2–3 indices textuels.`
+      `Méthodologie: énoncer le thème en une phrase puis justifier par 2–3 indices textuels (mots répétés, contraste, progression).`
     ])
   });
 
-  // 5. Contexte historique
+  // 5. Contexte historique (vraiment explicatif)
   data.push({
     id: 5,
     title: "Contexte historique",
     content: withParagraphs([
       `Situer ${ref}: période, peuple(s), cadre géopolitique et cultuel; place dans l’histoire du salut.`,
-      `Textes de contexte: ${joinRefsInline(pickMany(canonRefs, 3, seed, 4), version)}.`,
-      `Conseil: cartographier les lieux cités; noter institutions et fêtes; distinguer coutume/commandement.`
+      `Question-clé: quelles promesses de Dieu sont déjà connues à ce stade et comment orientent-elles la lecture ?`,
+      `Textes de contexte: ${joinRefsInline(pickMany(canonRefs, 4, seed, 4), version)}.`,
+      `Conseil pratique: faire une carte simple des lieux; noter institutions et fêtes; distinguer coutume/commandement; relever les autorités en présence.`
     ])
   });
 
@@ -377,7 +402,7 @@ function buildAllSections({ book, chapter, verse, version, motifs, attrs }) {
     title: "Structure littéraire",
     content: withParagraphs([
       lineStruct,
-      `Indicateurs: connecteurs (“or”, “ainsi”, “c’est pourquoi”), inclusions, changements de locuteur.`
+      `Indicateurs: connecteurs (“or”, “ainsi”, “c’est pourquoi”), inclusions, changements de locuteur; repérer l’ouverture, la charnière et la conclusion.`
     ])
   });
 
@@ -387,7 +412,7 @@ function buildAllSections({ book, chapter, verse, version, motifs, attrs }) {
     title: "Genre littéraire",
     content: withParagraphs([
       `Genre: ${genre}. Chaque genre forme le lecteur différemment (récit, prière, oracle, argument).`,
-      `Conséquence: adapter les attentes d’application et la prise de notes.`
+      `Conséquence: adapter les attentes d’application et la prise de notes (ex.: dans un psaume, l’émotion compte autant que l’argument).`
     ])
   });
 
@@ -408,28 +433,27 @@ function buildAllSections({ book, chapter, verse, version, motifs, attrs }) {
     id: 9,
     title: "Verset-clé doctrinal",
     content: withParagraphs([
-      `Choisir un pivot lié à ${pickMany(motifs,2,seed,5).join(", ")} et montrer comment il organise le passage.`,
+      `Choisir un pivot lié à ${pickMany(motifs,2,seed,5).join(", ")}; montrer comment il organise le passage (avant/après, conséquence).`,
       `Aide: ${joinRefsInline(["Psaumes 119:11","Colossiens 3:16"], version)}.`
     ])
   });
 
-  // 10. Exégèse
+  // 10. Commentaire explicatif (NOUVEAU cœur pédagogique)
   data.push({
     id: 10,
-    title: "Analyse exégétique",
+    title: "Commentaire explicatif",
     content: withParagraphs([
-      `Relever marqueurs (répétitions, inclusions), champs lexicaux et verbes gouverneurs; confronter hypothèses.`,
-      `Aides: ${joinRefsInline(REFS.EXEGESE, version)}.`,
-      lineMethod
+      `Lecture guidée de ${ref}. Objectif: comprendre le sens avant d’appliquer.`,
+      ...commentary
     ])
   });
 
-  // 11. Lexique
+  // 11. Analyse lexicale
   data.push({
     id: 11,
     title: "Analyse lexicale",
     content: withParagraphs([
-      `Éclairer 1–2 termes associés à ${pickMany(motifs,2,seed,7).join(", ")} dans ${ref}; noter sens, contexte et réemploi ailleurs.`,
+      `Éclairer 1–2 termes associés à ${pickMany(motifs,2,seed,7).join(", ")}} dans ${ref}; noter sens, contexte et réemploi ailleurs.`,
       `Voir aussi: ${joinRefsInline(REFS.LEXIQUE, version)}.`,
       `Mini glossaire: ${gloss}.`
     ])
@@ -444,8 +468,8 @@ function buildAllSections({ book, chapter, verse, version, motifs, attrs }) {
     content: withParagraphs([
       `Relier ${ref} à l’unité du canon via ${pickMany(motifs,2,seed,8).join(", ")}.`,
       testament==="AT"
-        ? `Vers le NT: ${joinRefsInline(pickMany(uniqRefs([...towardsNT, ...canonRefs]), 3, seed, 9), version)}.`
-        : `Racines AT: ${joinRefsInline(pickMany(uniqRefs([...rootsAT, ...canonRefs]), 3, seed, 10), version)}.`
+        ? `Vers le NT: ${joinRefsInline(pickMany(uniqRefs([...towardsNT, ...canonRefs]), 4, seed, 9), version)}.`
+        : `Racines AT: ${joinRefsInline(pickMany(uniqRefs([...rootsAT, ...canonRefs]), 4, seed, 10), version)}.`
     ])
   });
 
@@ -474,13 +498,13 @@ function buildAllSections({ book, chapter, verse, version, motifs, attrs }) {
     ])
   });
 
-  // 15. Fruits spirituels
+  // 15. Fruits spirituels (avec applications concrètes)
   data.push({
     id: 15,
     title: "Fruits spirituels",
     content: withParagraphs([
       lineFruits,
-      `Exemples de mise en œuvre: gratitude quotidienne; choix éthique concret; prière d’intercession informée par ${ref}.`
+      `Mises en pratique possibles: (1) prière quotidienne nourrie par ${ref}; (2) choix éthique concret; (3) acte de service discret; (4) partage d’un verset mémorisé.`
     ])
   });
 
@@ -643,8 +667,8 @@ export default async function handler(req, res) {
         const motifsRaw = await callOpenAI({
           ...buildMotifsPrompt(reference, version, directives.priere_ouverture || ""),
           model: "gpt-4o-mini",
-          temperature: 0.25,
-          max_tokens: 250
+          temperature: 0.35,
+          max_tokens: 320
         });
         const motifsJson = safeParseJSON(motifsRaw) || {};
         motifs = Array.isArray(motifsJson.motifs) ? motifsJson.motifs.filter(Boolean).slice(0, 8) : [];
