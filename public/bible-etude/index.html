@@ -1,16 +1,16 @@
 // /public/bible-etude/tester.js
 (function(){
+  /* ---------- helpers erreur & ready ---------- */
   function showErr(e){
     try{
       const box = document.getElementById("err");
       if (!box) return;
       box.style.display = "block";
-      const msg = (e && e.stack) ? e.stack : String(e && e.message || e);
+      const msg = (e && e.stack) ? e.stack : String((e && e.message) || e);
       box.textContent = "Erreur: " + msg;
       console.error(e);
     }catch{}
   }
-
   function ready(fn){
     if (document.readyState === "complete" || document.readyState === "interactive"){
       setTimeout(fn, 0);
@@ -24,12 +24,16 @@
       const $ = (id) => document.getElementById(id);
 
       // Vérifie la présence des éléments requis
-      const reqIds = ["bookA","bookB","chapA","chapB","versA","versB","versionSel","btnRun","btnSwap","table","details","jsonA","jsonB","apiStatus","refA","refB"];
+      const reqIds = [
+        "bookA","bookB","chapA","chapB","versA","versB",
+        "versionSel","btnRun","btnSwap","table","details",
+        "jsonA","jsonB","refA","refB"
+      ];
       for (const id of reqIds){
         if (!$(id)) throw new Error(`Élément manquant dans le DOM: #${id}`);
       }
 
-      // Livres
+      /* ---------- livres ---------- */
       const BOOKS = [
         ["Genèse", 50],["Exode", 40],["Lévitique", 27],["Nombres", 36],["Deutéronome", 34],
         ["Josué", 24],["Juges", 21],["Ruth", 4],["1 Samuel", 31],["2 Samuel", 24],
@@ -46,22 +50,19 @@
         ["1 Pierre", 5],["2 Pierre", 3],["1 Jean", 5],["2 Jean", 1],["3 Jean", 1],
         ["Jude", 1],["Apocalypse", 22],
       ];
-
-      function fillBooks(sel) {
+      function fillBooks(sel){
         if (!sel) throw new Error("Select introuvable pour fillBooks");
         sel.innerHTML = "";
-        for (const [n, ch] of BOOKS) {
+        for (const [n, ch] of BOOKS){
           const o = document.createElement("option");
           o.value = n; o.textContent = n; o.dataset.ch = String(ch);
           sel.appendChild(o);
         }
-        // petit log utile si ça casse
-        // console.log("Remplissage", sel.id, sel.options.length);
       }
-
       fillBooks($("bookA"));
       fillBooks($("bookB"));
 
+      // valeurs par défaut
       $("bookA").value = "Genèse";
       $("bookB").value = "Genèse";
       $("chapA").value = 1;
@@ -69,7 +70,7 @@
       $("versA").value = "1";
       $("versB").value = "2";
 
-      // Helpers similarité
+      /* ---------- similarité helpers ---------- */
       function refStr(book, ch, v){ return v ? `${book} ${ch}:${v}` : `${book} ${ch}`; }
       function norm(s){
         return String(s||"")
@@ -108,29 +109,34 @@
         return 1 - (dist / maxLen);
       }
       function pct(x){ return Math.round(x*1000)/10; }
-      function cls(score){ return score>=0.80 ? "bad" : (score>=0.60 ? "mid" : "ok"); }
+      const cls = (s) => s>=0.80 ? "bad" : (s>=0.60 ? "mid" : "ok");
 
-      // API health (facultatif)
+      /* ---------- API health (optionnel) ---------- */
       (async ()=>{
         try{
+          const badge = document.getElementById("apiStatus");
+          if (!badge) return;
           const r = await fetch("/api/health", {cache:"no-store"});
-          $("apiStatus").textContent = r.ok ? "API: health OK" : "API: health KO";
-          $("apiStatus").className = "pill " + (r.ok ? "ok" : "mid");
+          badge.textContent = r.ok ? "API: health OK" : "API: health KO";
+          badge.className = "pill " + (r.ok ? "ok" : "mid");
         }catch{
-          $("apiStatus").textContent = "API: health indisponible";
-          $("apiStatus").className = "pill mid";
+          const badge = document.getElementById("apiStatus");
+          if (badge){ badge.textContent = "API: health indisponible"; badge.className = "pill mid"; }
         }
       })();
 
+      /* ---------- requêtes ---------- */
       function collect(side){
-        const book = $(side==="A"?"bookA":"bookB").value;
-        const ch = Number($(side==="A"?"chapA":"chapB").value || 1);
-        const v = $(side==="A"?"versA":"versB").value.trim();
+        const book = (side==="A" ? $("bookA") : $("bookB")).value;
+        const ch = Number((side==="A" ? $("chapA") : $("chapB")).value || 1);
+        const v = (side==="A" ? $("versA") : $("versB")).value.trim();
         const version = $("versionSel").value || "LSG";
-        const directives = $("directives").value.trim();
-        return { book, chapter: ch, verse: v || "", version, directives: directives ? { priere_ouverture: directives } : {} };
+        const directives = $("directives") ? $("directives").value.trim() : "";
+        return {
+          book, chapter: ch, verse: v || "", version,
+          directives: directives ? { priere_ouverture: directives } : {}
+        };
       }
-
       async function getStudy(payload){
         const r = await fetch("/api/chat", {
           method:"POST",
@@ -143,8 +149,15 @@
         return j;
       }
 
+      /* ---------- rendu tableau ---------- */
       function renderTable(A,B){
         const table = $("table");
+        // Nettoie un éventuel résumé précédent (frère juste avant la table)
+        const prevSummary = table.previousElementSibling;
+        if (prevSummary && prevSummary.dataset && prevSummary.dataset.kind === "summary"){
+          prevSummary.remove();
+        }
+
         let html = `
           <thead>
             <tr>
@@ -188,8 +201,9 @@
         html += `</tbody>`;
         table.innerHTML = html;
 
-        // petit résumé dans le header de la table
+        // Résumé (inséré juste avant la table)
         const summary = document.createElement("div");
+        summary.dataset.kind = "summary";
         summary.className = "row";
         summary.style.margin = "6px 0 0 0";
         summary.innerHTML = `
@@ -200,6 +214,7 @@
         table.parentElement.insertBefore(summary, table);
       }
 
+      /* ---------- rendu détails ---------- */
       function renderDetails(A,B){
         const wrap = $("details");
         wrap.innerHTML = "";
@@ -227,6 +242,7 @@
         }
       }
 
+      /* ---------- run ---------- */
       async function run(){
         const A = collect("A");
         const B = collect("B");
