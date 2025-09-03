@@ -1,10 +1,5 @@
-// public/app.js — FRONT complété et corrigé
-// - Hooks d'événements
-// - Pas de pré-remplissage initial (pastille 1 jaune tant que non générée)
-// - Pastilles fiables (fix select i!==current)
-// - Génération + progression
-// - Liens cliquables INLINE en mode enrichi (soulignés), vers BibleGateway pour TOUTES les références
-// - Panneau “Liens détectés” (URLs + réf. bibliques) conservé
+// public/app.js — Auto-liens BibleGateway soulignés en mode enrichi + clic forcé dans contenteditable
+// Conserve : génération, progression, pastilles fixes, hooks, panneau de liens, thèmes, boutons.
 
 (function () {
   // ---------- helpers UI ----------
@@ -22,7 +17,7 @@
 
   const searchRef = $("searchRef"), bookSelect = $("bookSelect"), chapterSelect = $("chapterSelect"),
         verseSelect = $("verseSelect"), versionSelect = $("versionSelect"),
-        validateBtn = $("validate"), generateBtn = $("generateBtn"),
+        validateBtn = $("validate"), generateBtn = $("generateBtn"), readBtn = $("readBtn"),
         pointsList = $("pointsList"), edTitle = $("edTitle"),
         noteArea = $("noteArea"), noteView = $("noteView"),
         prevBtn = $("prev"), nextBtn = $("next"),
@@ -198,6 +193,7 @@
   function escapeRegExp(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
   const BOOK_TITLES = BOOKS.map(([n]) => n);
   const bookAlt = BOOK_TITLES.map(escapeRegExp).join("|");
+  // chap obligatoire, :vers[–-fin] optionnel, ou range de chapitres
   const refRe = new RegExp(`\\b(${bookAlt})\\s+(\\d+)(?::(\\d+(?:[–-]\\d+)?))?(?:[–-](\\d+))?`, "gi");
 
   function bgwUrl(search, version){
@@ -222,7 +218,6 @@
       .replace(/\*([^*]+)\*/g, "<em>$1</em>");
   }
   function wrapParagraphs(html){
-    // découpe double sauts en <p>
     const blocks = String(html||"").split(/\n{2,}/);
     return blocks.map(b=>{
       if (!b.trim()) return "";
@@ -236,40 +231,40 @@
     });
   }
   function autolinkURLs(html){
-    // rend cliquables les URLs nues dans la vue enrichie
     return html.replace(/(\bhttps?:\/\/[^\s<>"'()]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
   }
   function renderViewFromArea(){
     const raw = noteArea.value || "";
     let html = sanitizeBasic(raw);
-    html = mdLite(html);
-    html = autolinkBible(html);
+    html = mdLite(html);          // **Genèse 1:1** -> <strong>Genèse 1:1</strong>
+    html = autolinkBible(html);   // … puis on transforme "Genèse 1:1" en <a>…</a> (à l'intérieur du strong)
     html = autolinkURLs(html);
     html = wrapParagraphs(html);
     noteView.innerHTML = html || "<p style='color:#9aa2b1'>Écris ici…</p>";
   }
   function syncAreaFromView(){
-    // convertit l'HTML basique en texte : on remplace les <br> par \n, <p> blocs par \n\n
     let html = noteView.innerHTML || "";
-    // retirer les liens mais garder le texte
     html = html.replace(/<a\b[^>]*>(.*?)<\/a>/gi, "$1");
-    // <br> -> \n
     html = html.replace(/<br\s*\/?>/gi, "\n");
-    // </p> -> \n\n
     html = html.replace(/<\/p>/gi, "\n\n").replace(/<p[^>]*>/gi,"");
-    // strong/em simples
     html = html.replace(/<\/?strong>/gi, "**").replace(/<\/?em>/gi, "*");
-    // enlever tout le reste
     html = html.replace(/<\/?[^>]+>/g,"");
-    // normaliser
     html = html.replace(/\n{3,}/g,"\n\n").trim();
     noteArea.value = html;
-    // déclencher autosave + recalcul pastille
     notes[current] = noteArea.value;
     saveStorage();
     updateLinksPanel();
     HOOK('be:note-changed', { index: current, value: noteArea.value, hasContent: !!(noteArea.value || '').trim() });
   }
+
+  // RENDRE LES LIENS CLIQUABLES DANS CONTENTEDITABLE
+  noteView.addEventListener("click", (e)=>{
+    const a = e.target.closest && e.target.closest("a");
+    if (a && a.href) {
+      e.preventDefault();
+      window.open(a.href, "_blank", "noopener");
+    }
+  });
 
   // toggle enrichi
   function applyEnrichMode(){
@@ -490,7 +485,7 @@
   generateBtn && generateBtn.addEventListener("click", generateStudy);
 
   // Lire / Valider => BibleGateway sur la réf courante
-  $("readBtn") && $("readBtn").addEventListener("click", () => {
+  readBtn && readBtn.addEventListener("click", () => {
     const b = bookSelect.value, c = chapterSelect.value, v = verseSelect.value, ver = versionSelect.value;
     window.open(bgwLink(b, c, v, ver), "_blank", "noopener");
   });
@@ -500,7 +495,6 @@
   });
 
   // Auto-génération si sélection change
-  let autoTimer = null;
   function autoGenerate() {
     clearTimeout(autoTimer);
     autoTimer = setTimeout(() => {
@@ -512,7 +506,6 @@
   verseSelect.addEventListener("change", () => { /* rien */ });
 
   // autosave + liens live
-  let autosaveTimer = null;
   noteArea.addEventListener("input", () => {
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(() => {
@@ -525,7 +518,6 @@
   });
   // saisie dans la vue enrichie => textarea
   noteView.addEventListener("input", () => {
-    // maj immédiate pour ressentir le lien
     syncAreaFromView();
   });
 
