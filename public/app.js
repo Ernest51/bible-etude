@@ -1,8 +1,10 @@
 // public/app.js — FRONT complété et corrigé
 // - Hooks d'événements
-// - Prière d’ouverture forcée uniquement à la génération (pas au chargement)
-// - Pastilles fiables (pas d’écrasement sur select(0))
-// - Liens cliquables: URLs + Références bibliques -> BibleGateway dans le panneau de liens
+// - Pas de pré-remplissage initial (pastille 1 jaune tant que non générée)
+// - Pastilles fiables (fix select i!==current)
+// - Génération + progression
+// - Liens cliquables INLINE en mode enrichi (soulignés), vers BibleGateway pour TOUTES les références
+// - Panneau “Liens détectés” (URLs + réf. bibliques) conservé
 
 (function () {
   // ---------- helpers UI ----------
@@ -16,20 +18,18 @@
   const setMini = (dot, ok) => { if (!dot) return; dot.classList.remove("ok", "ko"); if (ok === true) dot.classList.add("ok"); else if (ok === false) dot.classList.add("ko"); };
 
   // ---------- HOOK dispatcher ----------
-  const HOOK = (name, detail) => {
-    try { window.dispatchEvent(new CustomEvent(name, { detail })); } catch (e) { /* no-op */ }
-  };
+  const HOOK = (name, detail) => { try { window.dispatchEvent(new CustomEvent(name, { detail })); } catch (e) {} };
 
   const searchRef = $("searchRef"), bookSelect = $("bookSelect"), chapterSelect = $("chapterSelect"),
         verseSelect = $("verseSelect"), versionSelect = $("versionSelect"),
         validateBtn = $("validate"), generateBtn = $("generateBtn"),
-        pointsList = $("pointsList"), edTitle = $("edTitle"), noteArea = $("noteArea"),
+        pointsList = $("pointsList"), edTitle = $("edTitle"),
+        noteArea = $("noteArea"), noteView = $("noteView"),
         prevBtn = $("prev"), nextBtn = $("next"),
         metaInfo = $("metaInfo"), themeSelect = $("themeSelect"),
         enrichToggle = $("enrichToggle"),
         dotHealth = $("dot-health"), dotChat = $("dot-chat"), dotPing = $("dot-ping"),
         linksPanel = $("linksPanel"), linksList = $("linksList");
-
   $("y").textContent = new Date().getFullYear();
 
   // ---------- livres / chapitres ----------
@@ -49,6 +49,7 @@
     ["1 Pierre", 5],["2 Pierre", 3],["1 Jean", 5],["2 Jean", 1],["3 Jean", 1],
     ["Jude", 1],["Apocalypse", 22],
   ];
+
   const NT_START_INDEX = BOOKS.findIndex(([n]) => n === "Matthieu");
 
   function renderBooks() {
@@ -135,7 +136,6 @@
   }
 
   function select(i) {
-    // Sauvegarder la note courante seulement si on change de rubrique
     if (noteArea && i !== current) notes[current] = noteArea.value;
     saveStorage();
     current = i;
@@ -143,8 +143,9 @@
     if (edTitle) edTitle.textContent = `${i + 1}. ${FIXED_POINTS[i].t}`;
     if (noteArea) noteArea.value = notes[i] || "";
     if (metaInfo) metaInfo.textContent = `Point ${i + 1} / ${N}`;
-    updateLinksPanel(); // MAJ liens à l'affichage (incluant références bibliques)
-    if (noteArea) noteArea.focus();
+    renderViewFromArea();       // MAJ vue enrichie
+    updateLinksPanel();         // MAJ panneau liens
+    if (enrichToggle && enrichToggle.checked) { noteView && noteView.focus(); } else { noteArea && noteArea.focus(); }
     HOOK('be:point-selected', { index: i, hasContent: !!(notes[i] && notes[i].trim()) });
   }
 
@@ -193,16 +194,108 @@
     document.body.setAttribute("data-theme", themeSelect.value);
   });
 
-  // ---------- outils BibleGateway ----------
-  function bgwLink(book, chap, versOrRange, version) {
-    const core = `${book} ${chap}${versOrRange ? ':'+versOrRange : ''}`;
-    const ref = encodeURIComponent(core);
-    const v = encodeURIComponent(version || "LSG");
-    return `https://www.biblegateway.com/passage/?search=${ref}&version=${v}`;
+  // ---------- BibleGateway / réf. ----------
+  function escapeRegExp(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  const BOOK_TITLES = BOOKS.map(([n]) => n);
+  const bookAlt = BOOK_TITLES.map(escapeRegExp).join("|");
+  const refRe = new RegExp(`\\b(${bookAlt})\\s+(\\d+)(?::(\\d+(?:[–-]\\d+)?))?(?:[–-](\\d+))?`, "gi");
+
+  function bgwUrl(search, version){
+    return `https://www.biblegateway.com/passage/?search=${encodeURIComponent(search)}&version=${encodeURIComponent(version||"LSG")}`;
+  }
+  function makeBGWLink(book, chap, verseOrRange, chapEnd){
+    const version = (versionSelect && versionSelect.value) || "LSG";
+    if (chapEnd) return bgwUrl(`${book} ${chap}-${chapEnd}`, version);
+    if (verseOrRange) return bgwUrl(`${book} ${chap}:${verseOrRange}`, version);
+    return bgwUrl(`${book} ${chap}`, version);
+  }
+
+  // ---------- rendu enrichi (inline links soulignés) ----------
+  function sanitizeBasic(text){
+    return String(text||"")
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+  function mdLite(html){
+    // **gras** -> <strong>, *italique* -> <em>
+    return html
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  }
+  function wrapParagraphs(html){
+    // découpe double sauts en <p>
+    const blocks = String(html||"").split(/\n{2,}/);
+    return blocks.map(b=>{
+      if (!b.trim()) return "";
+      return "<p>"+b.replace(/\n/g,"<br>")+"</p>";
+    }).join("");
+  }
+  function autolinkBible(html){
+    return html.replace(refRe, (m,bk,ch,vr,chEnd)=>{
+      const url = makeBGWLink(bk, ch, vr||"", chEnd||"");
+      return `<a href="${url}" target="_blank" rel="noopener">${m}</a>`;
+    });
+  }
+  function autolinkURLs(html){
+    // rend cliquables les URLs nues dans la vue enrichie
+    return html.replace(/(\bhttps?:\/\/[^\s<>"'()]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  }
+  function renderViewFromArea(){
+    const raw = noteArea.value || "";
+    let html = sanitizeBasic(raw);
+    html = mdLite(html);
+    html = autolinkBible(html);
+    html = autolinkURLs(html);
+    html = wrapParagraphs(html);
+    noteView.innerHTML = html || "<p style='color:#9aa2b1'>Écris ici…</p>";
+  }
+  function syncAreaFromView(){
+    // convertit l'HTML basique en texte : on remplace les <br> par \n, <p> blocs par \n\n
+    let html = noteView.innerHTML || "";
+    // retirer les liens mais garder le texte
+    html = html.replace(/<a\b[^>]*>(.*?)<\/a>/gi, "$1");
+    // <br> -> \n
+    html = html.replace(/<br\s*\/?>/gi, "\n");
+    // </p> -> \n\n
+    html = html.replace(/<\/p>/gi, "\n\n").replace(/<p[^>]*>/gi,"");
+    // strong/em simples
+    html = html.replace(/<\/?strong>/gi, "**").replace(/<\/?em>/gi, "*");
+    // enlever tout le reste
+    html = html.replace(/<\/?[^>]+>/g,"");
+    // normaliser
+    html = html.replace(/\n{3,}/g,"\n\n").trim();
+    noteArea.value = html;
+    // déclencher autosave + recalcul pastille
+    notes[current] = noteArea.value;
+    saveStorage();
+    updateLinksPanel();
+    HOOK('be:note-changed', { index: current, value: noteArea.value, hasContent: !!(noteArea.value || '').trim() });
+  }
+
+  // toggle enrichi
+  function applyEnrichMode(){
+    const on = !!(enrichToggle && enrichToggle.checked);
+    if (on){
+      noteArea.style.display = "none";
+      noteView.style.display = "block";
+      renderViewFromArea();
+      noteView.focus();
+    } else {
+      noteView.style.display = "none";
+      noteArea.style.display = "block";
+      noteArea.focus();
+    }
+  }
+  if (enrichToggle){
+    enrichToggle.addEventListener("change", applyEnrichMode);
   }
 
   // ---------- garde-fous / gabarits ----------
   const forcePrayerOpen = true;
+
+  function bgwLink(book, chap, vers, version) {
+    const core = `${book} ${chap}${vers ? ':'+vers : ''}`;
+    return bgwUrl(core, version || (versionSelect && versionSelect.value) || "LSG");
+  }
 
   function defaultPrayerOpen() {
     const book = bookSelect.value, c = chapterSelect.value, v = verseSelect.value;
@@ -214,7 +307,6 @@
     return `Dieu de grâce, merci pour la lumière reçue dans **${book} ${c}**. Fortifie notre foi, accorde-nous d’obéir avec joie et de servir avec humilité. Garde ton Église dans la paix du Christ. Amen.`;
   }
 
-  // Canevas rempli pour la rubrique 3
   function buildRevisionSection() {
     const book = bookSelect.value, c = chapterSelect.value, v = versionSelect.value || "LSG";
     const url = bgwLink(book, c, null, v);
@@ -233,12 +325,11 @@
     ].join("\n");
   }
 
-  // ---------- cache navigateur ----------
+  // ---------- cache / fetch ----------
   const cacheKey = (ref, ver) => `be_cache:${ref}::${ver || "LSG"}`;
   const loadCache = (ref, ver) => { try { return JSON.parse(localStorage.getItem(cacheKey(ref, ver)) || "null"); } catch { return null; } };
   const saveCacheResp = (ref, ver, data) => { try { localStorage.setItem(cacheKey(ref, ver), JSON.stringify({ at: Date.now(), data })); } catch {} };
 
-  // ---------- fetch /api/chat (POST uniquement) ----------
   async function postJSON(url, payload, tries = 3) {
     let lastErr;
     for (let k = 0; k < tries; k++) {
@@ -271,7 +362,6 @@
       return { from: j.source || "api", data: j.data };
     }
     const text = await r.text();
-    // fallback minimal : on répartit arbitrairement
     const sections = [{id:2,title:"Canon et testament",content:text}];
     const data = { reference: `${book} ${chapter}`, sections };
     return { from: "api-md", data };
@@ -280,14 +370,8 @@
   // ---------- génération ----------
   function dedupeParagraphs(raw) {
     const lines = String(raw || "").split(/\r?\n/);
-    const out = [];
-    let last = "";
-    for (const ln of lines) {
-      const lnTrim = ln.trim();
-      if (lnTrim && lnTrim === last) continue;
-      out.push(ln);
-      last = lnTrim;
-    }
+    const out = []; let last = "";
+    for (const ln of lines) { const t = ln.trim(); if (t && t === last) continue; out.push(ln); last = t; }
     return out.join("\n");
   }
   function ensureLinksLineBreaks(txt) {
@@ -310,31 +394,21 @@
       const { data } = await getStudy();
       notes = {}; // reset
 
-      // Remplir selon les sections renvoyées
       const secs = Array.isArray(data.sections) ? data.sections : [];
       secs.forEach((s) => {
         const i = (s.id | 0) - 1;
         if (i >= 0 && i < N) notes[i] = String(s.content || "").trim();
       });
 
-      // 1) Prière d’ouverture forcée (non vide) — UNIQUEMENT LORS DE LA GÉNÉRATION
-      if (forcePrayerOpen) notes[0] = defaultPrayerOpen();
-
-      // 3) Rubrique révision : toujours un canevas rempli
+      if (true) notes[0] = defaultPrayerOpen();                 // prière d’ouverture forcée
       if (!notes[2] || !notes[2].trim()) notes[2] = buildRevisionSection();
-
-      // 28) prière de fin par défaut
       notes[27] = defaultPrayerClose();
 
-      // Nettoyage minimum : dédoublonner
       for (const k of Object.keys(notes)) {
         notes[k] = dedupeParagraphs(ensureLinksLineBreaks(notes[k]));
       }
 
-      renderSidebar();
-      select(0);
-      renderSidebarDots();
-
+      renderSidebar(); select(0); renderSidebarDots();
       HOOK('be:study-generated', {
         reference: data.reference || ref,
         filled: Object.keys(notes).filter(k => (notes[k] || "").trim()).map(k => +k),
@@ -352,106 +426,51 @@
     }
   }
 
-  // ---------- détection URLs + Références bibliques ----------
-  function escapeRegExp(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-
-  // Construit un RegExp qui match "Livre 1", "Livre 1:2", "Livre 1:2-5", "Livre 1–3"
-  const BOOK_TITLES = BOOKS.map(([n]) => n);
-  const bookAlt = BOOK_TITLES.map(escapeRegExp).join("|");
-  // chap obligatoire, puis :vers[–-fin] optionnel OU [–-chapFin] optionnel (range de chapitres)
-  const refRe = new RegExp(`\\b(${bookAlt})\\s+(\\d+)(?::(\\d+(?:[–-]\\d+)?))?(?:[–-](\\d+))?`, "gi");
-
-  function findBibleRefs(text){
-    const out = [];
-    const seen = new Set();
-    const version = (versionSelect && versionSelect.value) || "LSG";
-    const raw = String(text || "");
-    let m;
-    while ((m = refRe.exec(raw))) {
-      const book = m[1];
-      const chap = m[2];
-      const verseOrRange = m[3] || "";   // "1", "1-5"…
-      const chapEnd = m[4] || "";        // "3" si "Genèse 1–3"
-      let label = m[0];
-
-      // Construire la recherche la plus proche du libellé saisi
-      let search;
-      if (chapEnd) {
-        // Range de chapitres: "Genèse 1–3"
-        search = `${book} ${chap}-${chapEnd}`;
-      } else if (verseOrRange) {
-        // "Genèse 1:1" ou "Genèse 1:1-5"
-        search = `${book} ${chap}:${verseOrRange}`;
-      } else {
-        // "Genèse 1"
-        search = `${book} ${chap}`;
-      }
-      const url = `https://www.biblegateway.com/passage/?search=${encodeURIComponent(search)}&version=${encodeURIComponent(version)}`;
-
-      // Dédoublonnage sur (label,url) pour éviter les répétitions
-      const key = label + "||" + url;
-      if (!seen.has(key)) {
-        out.push({ url, label });
-        seen.add(key);
-      }
-    }
-    return out;
-  }
-
+  // ---------- panneau liens cliquables (listing) ----------
   function extractLinks(text) {
     const links = [];
     const raw = String(text || "");
-
-    // balises <a href="...">texte</a>
     const aTagRe = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi;
-    let m;
-    while ((m = aTagRe.exec(raw))) { links.push({ url: m[1], label: m[2] || m[1] }); }
-
-    // urls nues
+    let m; while ((m = aTagRe.exec(raw))) { links.push({ url: m[1], label: m[2] || m[1] }); }
     const urlRe = /https?:\/\/[^\s<>"'()]+/g;
-    let n;
-    while ((n = urlRe.exec(raw))) { const url = n[0]; if (!links.find(l => l.url === url)) links.push({ url, label: url }); }
-
+    let n; while ((n = urlRe.exec(raw))) { const url = n[0]; if (!links.find(l => l.url === url)) links.push({ url, label: url }); }
     return links;
   }
-
+  function findBibleRefs(text){
+    const out = []; const seen = new Set();
+    const raw = String(text || "");
+    let m;
+    while ((m = refRe.exec(raw))) {
+      const book = m[1], chap = m[2], verseOrRange = m[3] || "", chapEnd = m[4] || "";
+      let search = chapEnd ? `${book} ${chap}-${chapEnd}` : (verseOrRange ? `${book} ${chap}:${verseOrRange}` : `${book} ${chap}`);
+      const url = bgwUrl(search, (versionSelect && versionSelect.value) || "LSG");
+      const key = search+"||"+url;
+      if (!seen.has(key)) { out.push({ url, label: m[0] }); seen.add(key); }
+    }
+    return out;
+  }
   function updateLinksPanel() {
     const txt = noteArea.value || "";
-
-    // 1) URLs existantes
     const urlLinks = extractLinks(txt);
-
-    // 2) Références bibliques -> BibleGateway
     const bibleLinks = findBibleRefs(txt);
-
-    // Fusion sans doublons (même url)
-    const merged = [];
-    const seen = new Set();
-    for (const l of [...bibleLinks, ...urlLinks]) {
-      if (seen.has(l.url)) continue;
-      merged.push(l); seen.add(l.url);
-    }
-
+    const merged = []; const seen = new Set();
+    for (const l of [...bibleLinks, ...urlLinks]) { if (seen.has(l.url)) continue; merged.push(l); seen.add(l.url); }
     linksList.innerHTML = "";
     if (!merged.length) { linksPanel.classList.add("empty"); return; }
     linksPanel.classList.remove("empty");
-
-    // On affiche toutes les références/URLs
     for (const l of merged) {
       const a = document.createElement("a");
-      a.href = l.url; a.target = "_blank"; a.rel = "noopener";
-      a.textContent = l.label;
-      const div = document.createElement("div");
-      div.appendChild(a);
-      linksList.appendChild(div);
+      a.href = l.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = l.label;
+      const div = document.createElement("div"); div.appendChild(a); linksList.appendChild(div);
     }
   }
 
   // ---------- init ----------
   renderBooks(); renderChapters(); renderVerses();
-  renderSidebar(); select(0);          // textarea vide → pastille 1 reste jaune
-  renderSidebarDots();                 // synchronise l’état visuel (toutes jaunes)
+  renderSidebar(); select(0);
+  renderSidebarDots();
   updateLinksPanel();
+  applyEnrichMode();
 
   // Recherche intelligente
   if (searchRef) {
@@ -470,14 +489,18 @@
   // Générer
   generateBtn && generateBtn.addEventListener("click", generateStudy);
 
-  // Valider ⇒ ouvre BibleGateway sur la référence courante
+  // Lire / Valider => BibleGateway sur la réf courante
+  $("readBtn") && $("readBtn").addEventListener("click", () => {
+    const b = bookSelect.value, c = chapterSelect.value, v = verseSelect.value, ver = versionSelect.value;
+    window.open(bgwLink(b, c, v, ver), "_blank", "noopener");
+  });
   validateBtn && validateBtn.addEventListener("click", () => {
-    const book = bookSelect.value, c = chapterSelect.value, v = verseSelect.value, ver = versionSelect.value;
-    const url = bgwLink(book, c, v, ver);
-    window.open(url, "_blank", "noopener");
+    const b = bookSelect.value, c = chapterSelect.value, v = verseSelect.value, ver = versionSelect.value;
+    window.open(bgwLink(b, c, v, ver), "_blank", "noopener");
   });
 
   // Auto-génération si sélection change
+  let autoTimer = null;
   function autoGenerate() {
     clearTimeout(autoTimer);
     autoTimer = setTimeout(() => {
@@ -489,14 +512,21 @@
   verseSelect.addEventListener("change", () => { /* rien */ });
 
   // autosave + liens live
+  let autosaveTimer = null;
   noteArea.addEventListener("input", () => {
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(() => {
       notes[current] = noteArea.value;
       saveStorage();
+      renderViewFromArea();
       updateLinksPanel();
       HOOK('be:note-changed', { index: current, value: noteArea.value, hasContent: !!(noteArea.value || '').trim() });
     }, 700);
+  });
+  // saisie dans la vue enrichie => textarea
+  noteView.addEventListener("input", () => {
+    // maj immédiate pour ressentir le lien
+    syncAreaFromView();
   });
 
   // navigation simple
@@ -517,8 +547,6 @@
       })();
     }
   });
-
-  // Pas de pré-remplissage initial de la prière d’ouverture
 
   // HOOK init
   HOOK('be:init', {
