@@ -29,6 +29,7 @@
         if (!$(id)) throw new Error(`Élément manquant dans le DOM: #${id}`);
       }
 
+      // Livres
       const BOOKS = [
         ["Genèse", 50],["Exode", 40],["Lévitique", 27],["Nombres", 36],["Deutéronome", 34],
         ["Josué", 24],["Juges", 21],["Ruth", 4],["1 Samuel", 31],["2 Samuel", 24],
@@ -54,6 +55,8 @@
           o.value = n; o.textContent = n; o.dataset.ch = String(ch);
           sel.appendChild(o);
         }
+        // petit log utile si ça casse
+        // console.log("Remplissage", sel.id, sel.options.length);
       }
 
       fillBooks($("bookA"));
@@ -66,7 +69,7 @@
       $("versA").value = "1";
       $("versB").value = "2";
 
-      // Helpers
+      // Helpers similarité
       function refStr(book, ch, v){ return v ? `${book} ${ch}:${v}` : `${book} ${ch}`; }
       function norm(s){
         return String(s||"")
@@ -105,16 +108,17 @@
         return 1 - (dist / maxLen);
       }
       function pct(x){ return Math.round(x*1000)/10; }
+      function cls(score){ return score>=0.80 ? "bad" : (score>=0.60 ? "mid" : "ok"); }
 
       // API health (facultatif)
       (async ()=>{
         try{
           const r = await fetch("/api/health", {cache:"no-store"});
           $("apiStatus").textContent = r.ok ? "API: health OK" : "API: health KO";
-          $("apiStatus").className = "badge " + (r.ok ? "" : "hl");
+          $("apiStatus").className = "pill " + (r.ok ? "ok" : "mid");
         }catch{
           $("apiStatus").textContent = "API: health indisponible";
-          $("apiStatus").className = "badge hl";
+          $("apiStatus").className = "pill mid";
         }
       })();
 
@@ -139,27 +143,24 @@
         return j;
       }
 
-      function qualityClass(score){
-        if (score >= 0.80) return "bad";
-        if (score >= 0.60) return "mid";
-        return "ok";
-      }
-
       function renderTable(A,B){
         const table = $("table");
-        const head = `
-          <tr>
-            <th>#</th>
-            <th>Rubrique</th>
-            <th class="muted">Long. A</th>
-            <th class="muted">Long. B</th>
-            <th>Jaccard</th>
-            <th>Levenshtein</th>
-            <th>Combiné</th>
-            <th>Statut</th>
-          </tr>`;
-        let rows = "";
-        let hi=0, mid=0, ok=0;
+        let html = `
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Rubrique</th>
+              <th class="muted">Long. A</th>
+              <th class="muted">Long. B</th>
+              <th>Jaccard</th>
+              <th>Levenshtein</th>
+              <th>Combiné</th>
+              <th>Statut</th>
+            </tr>
+          </thead>
+          <tbody>
+        `;
+        let hi=0, mid=0, okc=0;
 
         for(const secA of A.data.sections){
           const id = secA.id;
@@ -169,25 +170,34 @@
           const jac = jaccard(cA,cB);
           const lev = levenshteinRatio(cA,cB);
           const comb = 0.5*jac + 0.5*lev;
-          const cls = qualityClass(comb);
-          if (cls==="bad") hi++; else if (cls==="mid") mid++; else ok++;
+          const jcls = cls(jac), lcls = cls(lev), ccls = cls(comb);
+          if (ccls==="bad") hi++; else if (ccls==="mid") mid++; else okc++;
 
-          rows += `
+          html += `
             <tr>
               <td>${id}</td>
               <td>${secA.title||""}</td>
               <td class="muted">${cA.length.toLocaleString()}</td>
               <td class="muted">${cB.length.toLocaleString()}</td>
-              <td><span class="pill ${qualityClass(jac)}">${pct(jac)}%</span></td>
-              <td><span class="pill ${qualityClass(lev)}">${pct(lev)}%</span></td>
-              <td><span class="pill ${cls}">${pct(comb)}%</span></td>
-              <td>${cls==="bad" ? "⚠️ élevé" : (cls==="mid"?"△ moyen":"✅ faible")}</td>
+              <td><span class="pill ${jcls}">${pct(jac)}%</span></td>
+              <td><span class="pill ${lcls}">${pct(lev)}%</span></td>
+              <td><span class="pill ${ccls}">${pct(comb)}%</span></td>
+              <td>${ccls==="bad" ? "⚠️ élevé" : (ccls==="mid"?"△ moyen":"✅ faible")}</td>
             </tr>`;
         }
-        table.innerHTML = head + rows;
-        $("countHigh").textContent = `forte similarité: ${hi}`;
-        $("countMid").textContent = `moyenne: ${mid}`;
-        $("countOk").textContent = `faible: ${ok}`;
+        html += `</tbody>`;
+        table.innerHTML = html;
+
+        // petit résumé dans le header de la table
+        const summary = document.createElement("div");
+        summary.className = "row";
+        summary.style.margin = "6px 0 0 0";
+        summary.innerHTML = `
+          <span class="pill bad">forte similarité: ${hi}</span>
+          <span class="pill mid">moyenne: ${mid}</span>
+          <span class="pill ok">faible: ${okc}</span>
+        `;
+        table.parentElement.insertBefore(summary, table);
       }
 
       function renderDetails(A,B){
@@ -208,8 +218,8 @@
           box.className = "two-cols";
           const left = document.createElement("div");
           const right = document.createElement("div");
-          left.innerHTML = `<div class="small muted">A</div><div class="panel-text">${cA || "<em class='muted'>— vide —</em>"}</div>`;
-          right.innerHTML = `<div class="small muted">B</div><div class="panel-text">${cB || "<em class='muted'>— vide —</em>"}</div>`;
+          left.innerHTML = `<div class="muted" style="font-size:12px">A</div><div class="panel-text">${cA || "<em class='muted'>— vide —</em>"}</div>`;
+          right.innerHTML = `<div class="muted" style="font-size:12px">B</div><div class="panel-text">${cB || "<em class='muted'>— vide —</em>"}</div>`;
           box.appendChild(left); box.appendChild(right);
 
           el.appendChild(box);
@@ -220,22 +230,22 @@
       async function run(){
         const A = collect("A");
         const B = collect("B");
-        document.getElementById("refA").textContent = `A: ${refStr(A.book, A.chapter, A.verse)} (${A.version})`;
-        document.getElementById("refB").textContent = `B: ${refStr(B.book, B.chapter, B.verse)} (${B.version})`;
+        $("refA").textContent = `A : ${refStr(A.book, A.chapter, A.verse)} (${A.version})`;
+        $("refB").textContent = `B : ${refStr(B.book, B.chapter, B.verse)} (${B.version})`;
 
         const [resA, resB] = await Promise.all([getStudy(A), getStudy(B)]);
-        document.getElementById("jsonA").textContent = JSON.stringify(resA, null, 2);
-        document.getElementById("jsonB").textContent = JSON.stringify(resB, null, 2);
+        $("jsonA").textContent = JSON.stringify(resA, null, 2);
+        $("jsonB").textContent = JSON.stringify(resB, null, 2);
 
         renderTable(resA, resB);
         renderDetails(resA, resB);
 
-        const first = document.getElementById("details").querySelector("details");
+        const first = $("details").querySelector("details");
         if (first) first.open = true;
       }
 
-      document.getElementById("btnRun").addEventListener("click", () => {
-        const btn = document.getElementById("btnRun");
+      $("btnRun").addEventListener("click", () => {
+        const btn = $("btnRun");
         btn.disabled = true;
         btn.textContent = "Comparaison…";
         run().catch(showErr).finally(()=>{
@@ -244,13 +254,13 @@
         });
       });
 
-      document.getElementById("btnSwap").addEventListener("click", () => {
-        const bookA = document.getElementById("bookA");
-        const bookB = document.getElementById("bookB");
-        const chapA = document.getElementById("chapA");
-        const chapB = document.getElementById("chapB");
-        const versA = document.getElementById("versA");
-        const versB = document.getElementById("versB");
+      $("btnSwap").addEventListener("click", () => {
+        const bookA = $("bookA");
+        const bookB = $("bookB");
+        const chapA = $("chapA");
+        const chapB = $("chapB");
+        const versA = $("versA");
+        const versB = $("versB");
 
         const bA = bookA.value, bB = bookB.value;
         const cA = chapA.value, cB = chapB.value;
