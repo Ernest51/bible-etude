@@ -1,5 +1,8 @@
-// public/app.js — FRONT complété et corrigé (liens cliquables + prière forcée + rubrique 3 canevas)
-// + HOOKS d'événements pour mise à jour fiable des pastilles & intégrations UI
+// public/app.js — FRONT complété et corrigé
+// - Hooks d'événements
+// - Prière d’ouverture forcée uniquement à la génération (pas au chargement)
+// - Pastilles fiables (pas d’écrasement sur select(0))
+// - Liens cliquables: URLs + Références bibliques -> BibleGateway dans le panneau de liens
 
 (function () {
   // ---------- helpers UI ----------
@@ -8,7 +11,8 @@
   const setProgress = (p) => { if (progressBar) progressBar.style.width = Math.max(0, Math.min(100, p)) + "%"; };
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const busy = (el, on) => { if (!el) return; el.disabled = !!on; el.classList.toggle("opacity-60", !!on); el.textContent = on ? "Génération..." : el.dataset.label || el.textContent; };
-  const dpanel = $("debugPanel"); const dbtn = $("debugBtn"); const dlog = (msg) => { if (!dpanel) return; dpanel.style.display = "block"; dbtn && (dbtn.textContent = "Fermer Debug"); const line = `[${new Date().toISOString()}] ${msg}`; dpanel.textContent += (dpanel.textContent ? "\n" : "") + line; console.log(line); };
+  const dpanel = $("debugPanel"); const dbtn = $("debugBtn");
+  const dlog = (msg) => { if (!dpanel) return; dpanel.style.display = "block"; dbtn && (dbtn.textContent = "Fermer Debug"); const line = `[${new Date().toISOString()}] ${msg}`; dpanel.textContent += (dpanel.textContent ? "\n" : "") + line; console.log(line); };
   const setMini = (dot, ok) => { if (!dot) return; dot.classList.remove("ok", "ko"); if (ok === true) dot.classList.add("ok"); else if (ok === false) dot.classList.add("ko"); };
 
   // ---------- HOOK dispatcher ----------
@@ -139,7 +143,7 @@
     if (edTitle) edTitle.textContent = `${i + 1}. ${FIXED_POINTS[i].t}`;
     if (noteArea) noteArea.value = notes[i] || "";
     if (metaInfo) metaInfo.textContent = `Point ${i + 1} / ${N}`;
-    updateLinksPanel(); // MAJ liens à l'affichage
+    updateLinksPanel(); // MAJ liens à l'affichage (incluant références bibliques)
     if (noteArea) noteArea.focus();
     HOOK('be:point-selected', { index: i, hasContent: !!(notes[i] && notes[i].trim()) });
   }
@@ -189,14 +193,16 @@
     document.body.setAttribute("data-theme", themeSelect.value);
   });
 
-  // ---------- garde-fous / gabarits ----------
-  const forcePrayerOpen = true;
-
-  function bgwLink(book, chap, vers, version) {
-    const ref = encodeURIComponent(`${book} ${chap}${vers ? ':'+vers : ''}`);
+  // ---------- outils BibleGateway ----------
+  function bgwLink(book, chap, versOrRange, version) {
+    const core = `${book} ${chap}${versOrRange ? ':'+versOrRange : ''}`;
+    const ref = encodeURIComponent(core);
     const v = encodeURIComponent(version || "LSG");
     return `https://www.biblegateway.com/passage/?search=${ref}&version=${v}`;
   }
+
+  // ---------- garde-fous / gabarits ----------
+  const forcePrayerOpen = true;
 
   function defaultPrayerOpen() {
     const book = bookSelect.value, c = chapterSelect.value, v = verseSelect.value;
@@ -273,7 +279,6 @@
 
   // ---------- génération ----------
   function dedupeParagraphs(raw) {
-    // supprime des répétitions évidentes "Développement :" en rafale
     const lines = String(raw || "").split(/\r?\n/);
     const out = [];
     let last = "";
@@ -285,9 +290,7 @@
     }
     return out.join("\n");
   }
-
   function ensureLinksLineBreaks(txt) {
-    // met une ligne seule pour chaque lien https?://... qui suit du texte
     return String(txt || "").replace(/(\S)(https?:\/\/[^\s)]+)(\S)?/g, (_, a, url, b) => `${a}\n${url}\n${b||""}`);
   }
 
@@ -330,7 +333,7 @@
 
       renderSidebar();
       select(0);
-      renderSidebarDots(); // s'assurer que l'état visuel colle aux notes
+      renderSidebarDots();
 
       HOOK('be:study-generated', {
         reference: data.reference || ref,
@@ -349,7 +352,52 @@
     }
   }
 
-  // ---------- panneau liens cliquables ----------
+  // ---------- détection URLs + Références bibliques ----------
+  function escapeRegExp(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+  // Construit un RegExp qui match "Livre 1", "Livre 1:2", "Livre 1:2-5", "Livre 1–3"
+  const BOOK_TITLES = BOOKS.map(([n]) => n);
+  const bookAlt = BOOK_TITLES.map(escapeRegExp).join("|");
+  // chap obligatoire, puis :vers[–-fin] optionnel OU [–-chapFin] optionnel (range de chapitres)
+  const refRe = new RegExp(`\\b(${bookAlt})\\s+(\\d+)(?::(\\d+(?:[–-]\\d+)?))?(?:[–-](\\d+))?`, "gi");
+
+  function findBibleRefs(text){
+    const out = [];
+    const seen = new Set();
+    const version = (versionSelect && versionSelect.value) || "LSG";
+    const raw = String(text || "");
+    let m;
+    while ((m = refRe.exec(raw))) {
+      const book = m[1];
+      const chap = m[2];
+      const verseOrRange = m[3] || "";   // "1", "1-5"…
+      const chapEnd = m[4] || "";        // "3" si "Genèse 1–3"
+      let label = m[0];
+
+      // Construire la recherche la plus proche du libellé saisi
+      let search;
+      if (chapEnd) {
+        // Range de chapitres: "Genèse 1–3"
+        search = `${book} ${chap}-${chapEnd}`;
+      } else if (verseOrRange) {
+        // "Genèse 1:1" ou "Genèse 1:1-5"
+        search = `${book} ${chap}:${verseOrRange}`;
+      } else {
+        // "Genèse 1"
+        search = `${book} ${chap}`;
+      }
+      const url = `https://www.biblegateway.com/passage/?search=${encodeURIComponent(search)}&version=${encodeURIComponent(version)}`;
+
+      // Dédoublonnage sur (label,url) pour éviter les répétitions
+      const key = label + "||" + url;
+      if (!seen.has(key)) {
+        out.push({ url, label });
+        seen.add(key);
+      }
+    }
+    return out;
+  }
+
   function extractLinks(text) {
     const links = [];
     const raw = String(text || "");
@@ -366,13 +414,30 @@
 
     return links;
   }
+
   function updateLinksPanel() {
     const txt = noteArea.value || "";
-    const links = extractLinks(txt);
+
+    // 1) URLs existantes
+    const urlLinks = extractLinks(txt);
+
+    // 2) Références bibliques -> BibleGateway
+    const bibleLinks = findBibleRefs(txt);
+
+    // Fusion sans doublons (même url)
+    const merged = [];
+    const seen = new Set();
+    for (const l of [...bibleLinks, ...urlLinks]) {
+      if (seen.has(l.url)) continue;
+      merged.push(l); seen.add(l.url);
+    }
+
     linksList.innerHTML = "";
-    if (!links.length) { linksPanel.classList.add("empty"); return; }
+    if (!merged.length) { linksPanel.classList.add("empty"); return; }
     linksPanel.classList.remove("empty");
-    for (const l of links) {
+
+    // On affiche toutes les références/URLs
+    for (const l of merged) {
       const a = document.createElement("a");
       a.href = l.url; a.target = "_blank"; a.rel = "noopener";
       a.textContent = l.label;
@@ -386,6 +451,7 @@
   renderBooks(); renderChapters(); renderVerses();
   renderSidebar(); select(0);          // textarea vide → pastille 1 reste jaune
   renderSidebarDots();                 // synchronise l’état visuel (toutes jaunes)
+  updateLinksPanel();
 
   // Recherche intelligente
   if (searchRef) {
@@ -426,8 +492,8 @@
   noteArea.addEventListener("input", () => {
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(() => {
-      notes[current] = noteArea.value; 
-      saveStorage(); 
+      notes[current] = noteArea.value;
+      saveStorage();
       updateLinksPanel();
       HOOK('be:note-changed', { index: current, value: noteArea.value, hasContent: !!(noteArea.value || '').trim() });
     }, 700);
@@ -452,8 +518,7 @@
     }
   });
 
-  // ⚠️ SUPPRIMÉ : pas de pré-remplissage initial de la prière d’ouverture
-  // notes[0] = defaultPrayerOpen();
+  // Pas de pré-remplissage initial de la prière d’ouverture
 
   // HOOK init
   HOOK('be:init', {
