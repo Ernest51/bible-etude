@@ -12,6 +12,7 @@
       --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b;
       --accent:#0891b2; --accent-soft:#e0f2fe;
     }
+    /* Thèmes (la couleur d’accent est utilisée partout: boutons, liens, séparateurs, focus, etc.) */
     [data-theme="cyan"]  { --accent:#0891b2; --accent-soft:#e0f2fe; }
     [data-theme="violet"]{ --accent:#7c3aed; --accent-soft:#ede9fe; }
     [data-theme="vert"]  { --accent:#059669; --accent-soft:#dcfce7; }
@@ -27,7 +28,7 @@
     header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:14px 18px;position:sticky;top:4px;z-index:10}
     h1{margin:0;font-size:28px;font-weight:800;letter-spacing:.2px;text-align:center}
     main{max-width:1200px;margin:14px auto;padding:0 12px}
-    .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto auto;gap:10px;margin:12px 0}
+    .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto auto auto;gap:10px;margin:12px 0}
     @media (max-width:1100px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}.controls .wide{grid-column:1/-1}}
     input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%}
     .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
@@ -36,7 +37,7 @@
     .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
     @media (max-width:1000px){.layout{grid-template-columns:1fr}}
     .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700}
+    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700;text-align:center}
     .list{max-height:70vh;overflow:auto}
     .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
     .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
@@ -67,6 +68,11 @@
     #noteView strong{font-weight:700} #noteView em{font-style:italic}
     #noteView ul, #noteView ol{padding-left:1.25rem}
     #noteView h3{margin:1rem 0 .5rem 0}
+
+    /* === 3 LIGNES CSS DEMANDÉES === */
+    .ref-list li{margin-bottom:.25rem}
+    .ed-body a + a::before{content:" · "; color:var(--muted)}
+    .links-panel div a + a::before{content:" · "; color:var(--muted)}
   </style>
 </head>
 <body data-theme="cyan">
@@ -101,11 +107,14 @@
       <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
       <button id="validate" class="btn" type="button">Valider</button>
       <button id="generateBtn" class="btn warn" type="button">Générer</button>
+      <!-- 2) Bouton à côté de "Générer" → tchatgpt.com -->
+      <a id="chatgptBtn" class="btn secondary" href="https://tchatgpt.com" target="_blank" rel="noopener" title="Ouvrir tchatgpt.com">ChatGPT</a>
     </div>
 
     <div class="layout">
       <aside class="sidebar">
-        <div class="side-head">Rubriques (28)</div>
+        <!-- 6) Centrer le titre et enlever “28” -->
+        <div class="side-head">Rubriques</div>
         <div id="pointsList" class="list"></div>
       </aside>
 
@@ -146,6 +155,6 @@
   </footer>
 
   <!-- Bump de version pour forcer le cache -->
-  <script src="/app.js?v=2025-09-03-injections-2" defer></script>
+  <script src="/app.js?v=2025-09-03-injections-3" defer></script>
 </body>
 </html>
