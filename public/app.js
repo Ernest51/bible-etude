@@ -131,7 +131,7 @@
   }
 
   function select(i) {
-    // --- FIX: ne pas écraser la note si on reste sur la même rubrique
+    // Sauvegarder la note courante seulement si on change de rubrique
     if (noteArea && i !== current) notes[current] = noteArea.value;
     saveStorage();
     current = i;
@@ -314,7 +314,7 @@
         if (i >= 0 && i < N) notes[i] = String(s.content || "").trim();
       });
 
-      // 1) Prière d’ouverture forcée (non vide)
+      // 1) Prière d’ouverture forcée (non vide) — UNIQUEMENT LORS DE LA GÉNÉRATION
       if (forcePrayerOpen) notes[0] = defaultPrayerOpen();
 
       // 3) Rubrique révision : toujours un canevas rempli
@@ -329,13 +329,13 @@
       }
 
       renderSidebar();
-      select(0);            // <-- grâce au FIX, notes[0] n'est plus écrasé ici
-      renderSidebarDots();  // s'assurer que l'état visuel colle aux notes
+      select(0);
+      renderSidebarDots(); // s'assurer que l'état visuel colle aux notes
 
       HOOK('be:study-generated', {
         reference: data.reference || ref,
         filled: Object.keys(notes).filter(k => (notes[k] || "").trim()).map(k => +k),
-        notes // attention : structure potentiellement volumineuse
+        notes
       });
 
       setProgress(100); setTimeout(() => setProgress(0), 300);
@@ -384,7 +384,8 @@
 
   // ---------- init ----------
   renderBooks(); renderChapters(); renderVerses();
-  renderSidebar(); select(0);
+  renderSidebar(); select(0);          // textarea vide → pastille 1 reste jaune
+  renderSidebarDots();                 // synchronise l’état visuel (toutes jaunes)
 
   // Recherche intelligente
   if (searchRef) {
@@ -451,9 +452,8 @@
     }
   });
 
-  // remplir prière d’ouverture par défaut au chargement (point 1 non vide)
-  notes[0] = defaultPrayerOpen();
-  renderSidebarDots();
+  // ⚠️ SUPPRIMÉ : pas de pré-remplissage initial de la prière d’ouverture
+  // notes[0] = defaultPrayerOpen();
 
   // HOOK init
   HOOK('be:init', {
