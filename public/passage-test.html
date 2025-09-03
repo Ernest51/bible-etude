@@ -3,154 +3,274 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Test Références Bibliques (LSG) – Genèse 1</title>
+  <title>Méditation — Test Références & Rubriques</title>
+  <meta name="description" content="Test autonome pour vérifier que Genèse 1:2 ne retombe pas sur Genèse 1:1. Inclut comparaison, parseur, et rubriques.">
   <style>
-    body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;max-width:900px;margin:32px auto;padding:0 16px;line-height:1.5}
-    h1{font-size:1.25rem;margin:0 0 12px}
-    .row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-    input{padding:8px 10px;border:1px solid #ccc;border-radius:10px;min-width:280px}
-    button{padding:8px 12px;border-radius:10px;border:1px solid #ccc;cursor:pointer}
-    .card{border:1px solid #e5e7eb;border-radius:16px;padding:14px;margin:12px 0;box-shadow:0 1px 0 rgba(0,0,0,.02)}
+    :root{
+      --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b;
+      --accent:#0891b2; --accent-soft:#e0f2fe;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:14px 18px;position:sticky;top:0;z-index:10}
+    h1{margin:0;font-size:28px;font-weight:800;letter-spacing:.2px;text-align:center}
+    main{max-width:1200px;margin:16px auto;padding:0 12px}
+    .controls{display:grid;grid-template-columns:1.3fr auto auto auto;gap:10px;margin:12px 0}
+    @media (max-width:900px){.controls{grid-template-columns:1fr 1fr}}
+    input[type="text"]{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%}
+    .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
+    .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
+    .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
+    @media (max-width:1000px){.layout{grid-template-columns:1fr}}
+    .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700}
+    .list{max-height:70vh;overflow:auto}
+    .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
+    .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
+    .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
+    .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+    .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
+    .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+    .ed-title{font-weight:800;flex:1}
+    .ed-body{padding:12px}
+    .card{border:1px solid var(--border);border-radius:12px;padding:12px;margin:10px 0;background:#fff}
     .muted{color:#6b7280;font-size:.9rem}
     .ok{background:#ecfdf5;border-color:#a7f3d0}
     .err{background:#fef2f2;border-color:#fecaca}
-    code,pre{background:#f6f7f9;border:1px solid #e5e7eb;border-radius:10px;padding:2px 6px}
+    code,pre{background:#f6f7f9;border:1px solid var(--border);border-radius:10px;padding:2px 6px}
     pre{padding:10px;overflow:auto}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    @media (max-width:800px){.grid{grid-template-columns:1fr}}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+    a{color:var(--accent);text-decoration:underline}
+    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:#64748b;font-size:14px}
+    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
+    .mini{width:8px;height:8px;border-radius:999px;background:#d97706}.mini.ok{background:#16a34a}.mini.ko{background:#dc2626}
   </style>
 </head>
 <body>
-  <h1>Test Références – LSG (Genèse 1)</h1>
-  <p class="muted">
-    Objectif : vérifier que <strong>Genèse 1:2</strong> ne renvoie pas par erreur le texte de <strong>Genèse 1:1</strong>.
-  </p>
+  <header><h1>Méditation — Test Références & Rubriques</h1></header>
 
-  <div class="row">
-    <input id="refInput" value="Genèse 1:2" />
-    <button id="btnTest">Tester</button>
-    <button id="btnCompare">Comparer vs Genèse 1:1</button>
-  </div>
+  <main>
+    <p class="muted">
+      Objectif : prouver (ou infirmer) le bug où <strong>Genèse 1:2</strong> renvoie le même texte que <strong>Genèse 1:1</strong>. 
+      Le même service est utilisé par les rubriques pour montrer si le bug s’y propage.
+    </p>
 
-  <div id="outParse" class="card"></div>
-  <div class="grid">
-    <div class="card" id="outResult"></div>
-    <div class="card" id="outBaseline"></div>
-  </div>
-  <div id="outStatus" class="card"></div>
+    <div class="controls">
+      <input id="refInput" type="text" value="Genèse 1:2" />
+      <button id="btnTest" class="btn secondary" type="button">Tester</button>
+      <button id="btnCompare" class="btn secondary" type="button">Comparer vs 1:1</button>
+      <button id="btnInject" class="btn" type="button">Injecter dans les rubriques</button>
+    </div>
 
-  <script>
-    // --- Données LSG minimales pour le test (Genèse 1:1–5) ---
-    const LSG = {
-      "Genèse": {
-        1: {
-          1: "Au commencement, Dieu créa les cieux et la terre.",
-          2: "La terre était informe et vide; il y avait des ténèbres à la surface de l’abîme, et l’Esprit de Dieu se mouvait au-dessus des eaux.",
-          3: "Dieu dit: Que la lumière soit! Et la lumière fut.",
-          4: "Dieu vit que la lumière était bonne; et Dieu sépara la lumière d'avec les ténèbres.",
-          5: "Dieu appela la lumière jour, et il appela les ténèbres nuit. Ainsi, il y eut un soir, et il y eut un matin: ce fut le premier jour."
-        }
-      }
-    };
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="side-head">Rubriques (28)</div>
+        <div id="pointsList" class="list"></div>
+      </aside>
 
-    // --- Normalisation & parsing de la référence ---
-    const BOOKS_MAP = [
-      { norm: "genese", canon: "Genèse", aliases: ["genese","genèse","gen","gn"] },
-      // si besoin, ajouter d'autres livres ici...
-    ];
+      <section class="editor">
+        <div class="ed-head">
+          <div class="ed-title" id="edTitle">—</div>
+          <div class="badge"><span id="miniStatus" class="mini"></span> état</div>
+        </div>
 
-    function stripAccents(s){
-      return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+        <div class="ed-body">
+          <div id="outParse" class="card"></div>
+          <div class="grid">
+            <div class="card" id="outResult"></div>
+            <div class="card" id="outBaseline"></div>
+          </div>
+          <div id="outStatus" class="card"></div>
+
+          <div class="card">
+            <b>Liens utiles</b><br/>
+            <span class="muted">Vérifie rapidement dans YouVersion :</span>
+            <div id="linksPanel"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    © <span id="y"></span> — Test références
+  </footer>
+
+<script>
+/* ================== Données minimales LSG (Genèse 1:1–5) ================== */
+const LSG = {
+  "Genèse": {
+    1: {
+      1: "Au commencement, Dieu créa les cieux et la terre.",
+      2: "La terre était informe et vide; il y avait des ténèbres à la surface de l’abîme, et l’Esprit de Dieu se mouvait au-dessus des eaux.",
+      3: "Dieu dit: Que la lumière soit! Et la lumière fut.",
+      4: "Dieu vit que la lumière était bonne; et Dieu sépara la lumière d'avec les ténèbres.",
+      5: "Dieu appela la lumière jour, et il appela les ténèbres nuit. Ainsi, il y eut un soir, et il y eut un matin: ce fut le premier jour."
     }
-    function findBookCanon(name){
-      const n = stripAccents(name.toLowerCase()).replace(/\./g,"").trim();
-      for(const b of BOOKS_MAP){
-        if(b.aliases.includes(n)) return b.canon;
-      }
-      return null;
+  }
+};
+
+/* ================== Parseur de références (sans retomber sur 1:1) ================== */
+const BOOKS_MAP = [
+  { norm: "genese", canon: "Genèse", aliases: ["genese","genèse","gen","gn"] },
+  // étendre ici si besoin
+];
+
+function stripAccents(s){ return s.normalize("NFD").replace(/[\u0300-\u036f]/g,""); }
+function findBookCanon(name){
+  const n = stripAccents(name.toLowerCase()).replace(/\./g,"").trim();
+  for(const b of BOOKS_MAP){ if(b.aliases.includes(n)) return b.canon; }
+  return null;
+}
+
+/** Formats: "Genèse 1:2", "Gen 1:2-5", "Gn 1" */
+function parseReference(input){
+  const txt = input.trim().replace(/\s+/g," ");
+  const m = txt.match(/^([^\d]+?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/i);
+  if(!m) throw new Error("Référence invalide: " + input);
+  const bookRaw = m[1].trim();
+  const chapter = Number(m[2]);
+  const v1 = m[3] ? Number(m[3]) : undefined;
+  const v2 = m[4] ? Number(m[4]) : undefined;
+
+  const book = findBookCanon(bookRaw);
+  if(!book) throw new Error("Livre non reconnu: " + bookRaw);
+
+  const ref = { book, chapter };
+  if(typeof v1 === "number"){
+    ref.startVerse = v1;
+    ref.endVerse = (typeof v2 === "number" ? v2 : v1);
+  }
+  return ref;
+}
+
+/* ================== Sélection de versets (critique du bug) ================== */
+function getPassage(ref){
+  const { book, chapter, startVerse, endVerse } = ref;
+  const bookData = LSG[book];
+  if(!bookData) throw new Error("Livre indisponible: " + book);
+  const chapData = bookData[chapter];
+  if(!chapData) throw new Error("Chapitre indisponible: " + book + " " + chapter);
+
+  // IMPORTANT : si un verset est demandé, on NE retombe PAS sur 1.
+  if(typeof startVerse === "number"){
+    const end = typeof endVerse === "number" ? endVerse : startVerse;
+    const out = [];
+    for(let v = startVerse; v <= end; v++){
+      const line = chapData[v];
+      if(!line) throw new Error(`Verset ${v} introuvable pour ${book} ${chapter}`);
+      out.push(`${book} ${chapter}:${v} — ${line}`);
+    }
+    return out;
+  }
+
+  // Pas de verset : renvoyer le chapitre (limité à ce que nous avons)
+  return Object.keys(chapData)
+    .map(n => Number(n))
+    .sort((a,b)=>a-b)
+    .map(v => `${book} ${chapter}:${v} — ${chapData[v]}`);
+}
+
+/* ================== UI & Rubriques ================== */
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const refInput = $("#refInput");
+const outParse = $("#outParse");
+const outResult = $("#outResult");
+const outBaseline = $("#outBaseline");
+const outStatus = $("#outStatus");
+const linksPanel = $("#linksPanel");
+const miniStatus = $("#miniStatus");
+const edTitle = $("#edTitle");
+document.getElementById("y").textContent = new Date().getFullYear();
+
+const RUBRIQUES = [
+  "Prière d’ouverture","Contexte","Observations clés","Parallèles bibliques","Théologie du texte",
+  "Application personnelle","Prière finale","Résumé","Structure du passage","Mots clés",
+  "Contexte historique","Contexte littéraire","Auteur & destinataires","Thème central","Promesses",
+  "Commandements","Mise en pratique","Questions pour le groupe","Méditation","Réflexion",
+  "Louange","Confession","Action de grâce","Intercession","Engagement",
+  "Lien avec Christ","Évangile","Conclusion"
+];
+
+function mountRubriques(){
+  const list = $("#pointsList");
+  list.innerHTML = "";
+  RUBRIQUES.forEach((name, i) => {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.dataset.idx = String(i+1);
+    div.innerHTML = `
+      <span class="idx">${i+1}</span>
+      <div>
+        <div>${name}</div>
+        <span class="desc">Utilise la même API de passage</span>
+      </div>
+    `;
+    div.addEventListener("click", async () => {
+      $$(".item").forEach(n=>n.classList.remove("active"));
+      div.classList.add("active");
+      edTitle.textContent = `${i+1}. ${name}`;
+      miniStatus.className = "mini";
+      await render(refInput.value); // même service -> si bug, il apparaît aussi ici
+    });
+    list.appendChild(div);
+  });
+}
+mountRubriques();
+
+function buildYouVersionLinks(refStr){
+  try{
+    const ref = parseReference(refStr);
+    const chapUrl = `https://www.bible.com/fr/bible/93/GEN.${ref.chapter}.LSG`;
+    const anchor = (typeof ref.startVerse === "number") ? `#${ref.startVerse}` : "";
+    const full = chapUrl + anchor;
+    return `<a href="${full}" target="_blank" rel="noopener">Ouvrir dans YouVersion (chap.)</a>`;
+  }catch(_e){
+    return "";
+  }
+}
+
+async function render(refStr){
+  try{
+    const ref = parseReference(refStr);
+    outParse.className = "card";
+    outParse.innerHTML = `<strong>Parsing OK</strong><br/><pre>${JSON.stringify(ref,null,2)}</pre>`;
+
+    const lines = getPassage(ref);
+    outResult.innerHTML = `<strong>Résultat (${refStr})</strong><br/><pre>${lines.join("\n")}</pre>`;
+
+    const base = getPassage(parseReference("Genèse 1:1"));
+    outBaseline.innerHTML = `<strong>Baseline (Genèse 1:1)</strong><br/><pre>${base.join("\n")}</pre>`;
+
+    if(lines.join("\n").trim() === base.join("\n").trim()){
+      outStatus.className = "card err";
+      outStatus.innerHTML = "❌ <strong>ERREUR :</strong> le résultat est IDENTIQUE à Genèse 1:1 (comportement incorrect).";
+      miniStatus.className = "mini ko";
+    } else {
+      outStatus.className = "card ok";
+      outStatus.innerHTML = "✅ <strong>OK :</strong> le passage demandé est différent de Genèse 1:1.";
+      miniStatus.className = "mini ok";
     }
 
-    function parseReference(input){
-      // Formats supportés: "Genèse 1:2", "Gen 1:2-5", "Gn 1"
-      const txt = input.trim().replace(/\s+/g," ");
-      // capture: [book words] [chapter] [: [v1] [- v2]? ]?
-      const m = txt.match(/^([^\d]+?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/i);
-      if(!m) throw new Error("Référence invalide: " + input);
+    linksPanel.innerHTML = buildYouVersionLinks(refStr);
+  }catch(e){
+    outStatus.className = "card err";
+    outStatus.innerHTML = "❌ " + (e && e.message ? e.message : e);
+    miniStatus.className = "mini ko";
+  }
+}
 
-      const bookRaw = m[1].trim();
-      const chapter = Number(m[2]);
-      const v1 = m[3] ? Number(m[3]) : undefined;
-      const v2 = m[4] ? Number(m[4]) : undefined;
+$("#btnTest").addEventListener("click", () => render(refInput.value));
+$("#btnCompare").addEventListener("click", () => render("Genèse 1:2"));
+$("#btnInject").addEventListener("click", () => {
+  const first = document.querySelector(".item");
+  if(first){ first.click(); }
+});
 
-      const book = findBookCanon(bookRaw);
-      if(!book) throw new Error("Livre non reconnu: " + bookRaw);
-
-      const ref = { book, chapter, startVerse: v1, endVerse: v2 ?? v1 };
-      return ref;
-    }
-
-    // --- Sélection des versets sans retomber à 1:1 par défaut ---
-    function getPassage(ref){
-      const { book, chapter, startVerse, endVerse } = ref;
-      const bookData = LSG[book];
-      if(!bookData) throw new Error("Livre indisponible: " + book);
-      const chapData = bookData[chapter];
-      if(!chapData) throw new Error("Chapitre indisponible: " + book + " " + chapter);
-
-      // IMPORTANT: si un verset est demandé, on ne doit PAS retomber à 1 !
-      if(typeof startVerse === "number"){
-        const end = typeof endVerse === "number" ? endVerse : startVerse;
-        const out = [];
-        for(let v = startVerse; v <= end; v++){
-          const line = chapData[v];
-          if(!line) throw new Error(`Verset ${v} introuvable pour ${book} ${chapter}`);
-          out.push(`${book} ${chapter}:${v} — ${line}`);
-        }
-        return out.join("\n");
-      } else {
-        // Pas de verset précisé -> renvoyer (par ex.) tout le chapitre (ici limité)
-        return Object.keys(chapData).map(v => `${book} ${chapter}:${v} — ${chapData[v]}`).join("\n");
-      }
-    }
-
-    // --- UI ---
-    const $ = sel => document.querySelector(sel);
-    const refInput = $("#refInput");
-    const outParse = $("#outParse");
-    const outResult = $("#outResult");
-    const outBaseline = $("#outBaseline");
-    const outStatus = $("#outStatus");
-
-    function render(refStr){
-      try{
-        const ref = parseReference(refStr);
-        outParse.innerHTML = `<strong>Parsing OK</strong><br/><pre>${JSON.stringify(ref,null,2)}</pre>`;
-        const txt = getPassage(ref);
-        outResult.innerHTML = `<strong>Résultat (${refStr})</strong><br/><pre>${txt}</pre>`;
-
-        // baseline: Genèse 1:1
-        const base = getPassage(parseReference("Genèse 1:1"));
-        outBaseline.innerHTML = `<strong>Baseline (Genèse 1:1)</strong><br/><pre>${base}</pre>`;
-
-        // Comparaison
-        if(txt.trim() === base.trim()){
-          outStatus.className = "card err";
-          outStatus.innerHTML = "❌ <strong>ERREUR :</strong> le résultat est IDENTIQUE à Genèse 1:1 (comportement incorrect).";
-        } else {
-          outStatus.className = "card ok";
-          outStatus.innerHTML = "✅ <strong>OK :</strong> le passage demandé est différent de Genèse 1:1.";
-        }
-      }catch(e){
-        outStatus.className = "card err";
-        outStatus.innerHTML = "❌ " + (e && e.message ? e.message : e);
-      }
-    }
-
-    $("#btnTest").addEventListener("click", () => render(refInput.value));
-    $("#btnCompare").addEventListener("click", () => render("Genèse 1:2"));
-
-    // premier rendu
-    render(refInput.value);
-  </script>
+// premier rendu
+render(refInput.value);
+</script>
 </body>
 </html>
