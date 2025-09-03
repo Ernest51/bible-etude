@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Méditation</title>
-  <meta name="description" content="Étude biblique — 28 rubriques, une zone de saisie, liens cliquables automatiques." />
+  <meta name="description" content="Étude biblique — rubriques, zone de saisie, liens cliquables automatiques." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   <style>
@@ -12,7 +12,6 @@
       --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b;
       --accent:#0891b2; --accent-soft:#e0f2fe;
     }
-    /* Thèmes (la couleur d’accent est utilisée partout: boutons, liens, séparateurs, focus, etc.) */
     [data-theme="cyan"]  { --accent:#0891b2; --accent-soft:#e0f2fe; }
     [data-theme="violet"]{ --accent:#7c3aed; --accent-soft:#ede9fe; }
     [data-theme="vert"]  { --accent:#059669; --accent-soft:#dcfce7; }
@@ -69,10 +68,10 @@
     #noteView ul, #noteView ol{padding-left:1.25rem}
     #noteView h3{margin:1rem 0 .5rem 0}
 
-    /* === 3 LIGNES CSS DEMANDÉES === */
-    .ref-list li{margin-bottom:.25rem}
-    .ed-body a + a::before{content:" · "; color:var(--muted)}
-    .links-panel div a + a::before{content:" · "; color:var(--muted)}
+    /* (5) 3 petites lignes CSS demandées */
+    .ref-list li { margin-bottom: .25rem; }                     /* espacement items de liste */
+    .sep { margin: 0 .25rem; color: var(--muted); }             /* séparateur “ · ” */
+    .refs-inline a { margin-right: .25rem; }                    /* léger espacement des liens inline */
   </style>
 </head>
 <body data-theme="cyan">
@@ -107,13 +106,13 @@
       <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
       <button id="validate" class="btn" type="button">Valider</button>
       <button id="generateBtn" class="btn warn" type="button">Générer</button>
-      <!-- 2) Bouton à côté de "Générer" → tchatgpt.com -->
-      <a id="chatgptBtn" class="btn secondary" href="https://tchatgpt.com" target="_blank" rel="noopener" title="Ouvrir tchatgpt.com">ChatGPT</a>
+      <!-- (2) Bouton ChatGPT à côté de Générer -->
+      <a id="chatgptBtn" class="btn secondary" href="https://tchatgpt.com" target="_blank" rel="noopener">ChatGPT</a>
     </div>
 
     <div class="layout">
       <aside class="sidebar">
-        <!-- 6) Centrer le titre et enlever “28” -->
+        <!-- (6) centrer et enlever “28” -->
         <div class="side-head">Rubriques</div>
         <div id="pointsList" class="list"></div>
       </aside>
@@ -136,7 +135,7 @@
         </div>
 
         <div class="ed-foot">
-          <span class="small" id="metaInfo">Point — / 28</span>
+          <span class="small" id="metaInfo">Point — / —</span>
           <span class="small">Sauvegarde auto (2s) après saisie.</span>
         </div>
       </section>
