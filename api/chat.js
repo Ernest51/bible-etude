@@ -51,21 +51,17 @@ const BOOKS_FR = [
   "Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"
 ];
 const BOOK_ALT = BOOKS_FR.map(s => s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join("|");
-// Ex: "Jean 1:1-3", "Genèse 1", "1 Jean 4:8"
 const REF_RE = new RegExp(`\\b(${BOOK_ALT})\\s+(\\d+)(?::(\\d+(?:[–-]\\d+)?))?(?:[–-](\\d+))?`,"g");
 
-/* Linkify + espacement */
+/* Linkify + espacement (y compris refs collées) */
 function linkifyAllVerses(html, version="LSG"){
   if (!html) return "";
-  // si l’IA a collé les refs: "Jean 1:1-3Hébreux 11:3" → insérer espace
-  html = html.replace(/(\d)([A-ZÉÈÊÎÔÂÀÂa-zÀ-ÿ])/g, '$1 $2');
-  // Remplacer refs par liens
+  html = html.replace(/(\d)([A-ZÉÈÊÎÔÂÀÂa-zÀ-ÿ])/g, '$1 $2'); // "Jean 1:1-3Hébreux" → espace
   html = html.replace(REF_RE, (m,bk,ch,vr,chEnd)=>{
     const ref = chEnd ? `${bk} ${ch}-${chEnd}` : (vr ? `${bk} ${ch}:${vr}` : `${bk} ${ch}`);
     return aRef(ref, version, m);
   });
-  // Espacer les liens consécutifs
-  html = html.replace(/<\/a>\s*(?=<a\b)/g, '</a> · ');
+  html = html.replace(/<\/a>\s*(?=<a\b)/g, '</a> · '); // séparateur lisible
   return html;
 }
 
@@ -135,7 +131,7 @@ async function fetchVerseText(req, { book, chapter, verse, version="LSG" }, time
   }catch{ return null; } finally{ clearTimeout(t); }
 }
 
-/* ───────────── Cross-refs proposées ───────────── */
+/* ───────────── Cross-refs ───────────── */
 function crossRefsFor(book, chapter, testament, genre){
   const B=(book||"").toLowerCase(); const arr=[];
   if ((B==="genèse"||B==="genese") && Number(chapter)===1)
@@ -197,7 +193,7 @@ function skeleton(book, chapter, verse, version){
   data.push({ id:8,  title:"Auteur et généalogie",             content: shortPara("…") });
   data.push({ id:9,  title:"Verset-clé doctrinal",             content: shortPara("…") });
   data.push({ id:10, title:"Analyse exégétique",               content: shortPara("…") });
-  data.push({ id:11, title:"Analyse lexicale & Glossaire",     content: shortPara("…") }); // <- renommée
+  data.push({ id:11, title:"Analyse lexicale & Glossaire",     content: shortPara("…") });
   data.push({ id:12, title:"Références croisées",              content: shortPara("…") });
   data.push({ id:13, title:"Fondements théologiques",          content: shortPara("…") });
   data.push({ id:14, title:"Thème doctrinal",                  content: shortPara("…") });
@@ -289,7 +285,7 @@ function buildMotifsPrompt(ref, version){
 }
 const safeParseJSON = (s)=>{ try{ return JSON.parse(s); }catch{ return null; } };
 
-/* Prompts doctrinaux */
+/* Prompts doctrinaux (utilisés pour 2,4,5,6,7,8,10,11,12,13,14,15,16,17,18,19,21–26) */
 function buildSectionPrompt({ ref, version, testament, genre, sectionTitle, goal, mustUse, versesText, avoidPhrases }) {
   const versesBlock = versesText?.length
     ? `Extraits disponibles (optionnels) :
