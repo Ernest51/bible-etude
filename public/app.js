@@ -2,20 +2,8 @@
 // - MetaInfo : "Point X / 28"
 // - Auto-séparation des références collées (ex: "Jean 1:1-3Hébreux 11:3" -> "Jean 1:1-3 · Hébreux 11:3")
 // - Filtre des commentaires HTML résiduels et des &nbsp;
-// - NEW: préférences persistantes (thème, version, enrichi, dernier point)
-// - NEW: deep-linking (?ref=... & ?point=... / #point=...)
-// - NEW: raccourcis clavier (Ctrl+G, Ctrl+Enter, Alt+←/→)
-// - NEW: progress bar liée au scroll de l’éditeur (optionnelle)
 
 (function () {
-  // ---------- feature flags ----------
-  window.FEATURES = Object.assign({
-    persistPrefs: true,
-    deepLink: true,
-    keyboardShortcuts: true,
-    progressOnScroll: true
-  }, window.FEATURES || {});
-
   // ---------- helpers UI ----------
   const $ = (id) => document.getElementById(id);
   const progressBar = $("progressBar");
@@ -41,6 +29,37 @@
         linksPanel = $("linksPanel"), linksList = $("linksList");
   $("y").textContent = new Date().getFullYear();
 
+  /* ======= AJOUT: badges footer source/warn ======= */
+  (function setupGenBadges(){
+    const footerRow = document.querySelector('footer .status-row');
+    if (!footerRow) return;
+    const srcBadge = document.createElement('span');
+    srcBadge.id = 'badge-source';
+    srcBadge.className = 'badge';
+    srcBadge.textContent = 'source: —';
+    footerRow.appendChild(srcBadge);
+
+    const warnBadge = document.createElement('span');
+    warnBadge.id = 'badge-warn';
+    warnBadge.className = 'badge';
+    warnBadge.textContent = '—';
+    warnBadge.style.display = 'none';
+    footerRow.appendChild(warnBadge);
+  })();
+
+  function paintGenBadges() {
+    const s = window.__lastChatSource || 'unknown';
+    const w = (window.__lastChatWarn || '').trim();
+    const sb = document.getElementById('badge-source');
+    const wb = document.getElementById('badge-warn');
+    if (sb) sb.textContent = `source: ${s}`;
+    if (wb) {
+      if (w) { wb.textContent = `⚠︎ ${w}`; wb.style.display = ''; }
+      else { wb.style.display = 'none'; }
+    }
+  }
+  /* ======= fin ajout badges ======= */
+
   // ---------- livres / chapitres ----------
   const BOOKS = [
     ["Genèse", 50],["Exode", 40],["Lévitique", 27],["Nombres", 36],["Deutéronome", 34],
@@ -58,6 +77,7 @@
     ["1 Pierre", 5],["2 Pierre", 3],["1 Jean", 5],["2 Jean", 1],["3 Jean", 1],
     ["Jude", 1],["Apocalypse", 22],
   ];
+
   const NT_START_INDEX = BOOKS.findIndex(([n]) => n === "Matthieu");
 
   function renderBooks() {
@@ -113,26 +133,6 @@
   // ---------- état ----------
   let current = 0, notes = {}, autosaveTimer = null, autoTimer = null, inFlight = false;
 
-  // ---------- préférences (persist) ----------
-  const PREF_KEYS = {
-    theme: "be_pref_theme",
-    version: "be_pref_version",
-    enrich: "be_pref_enrich",
-    lastPoint: "be_pref_point",
-    notes: "be_notes" // existant
-  };
-  function saveStorage() {
-    try { localStorage.setItem(PREF_KEYS.notes, JSON.stringify(notes)); renderSidebarDots(); } catch {}
-  }
-  function savePref(key, value) {
-    if (!window.FEATURES.persistPrefs) return;
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
-  }
-  function loadPref(key, fallback) {
-    if (!window.FEATURES.persistPrefs) return fallback;
-    try { const v = localStorage.getItem(key); return v == null ? fallback : JSON.parse(v); } catch { return fallback; }
-  }
-
   function renderSidebar() {
     pointsList.innerHTML = "";
     FIXED_POINTS.forEach((r, i) => {
@@ -163,19 +163,6 @@
     });
   }
 
-  function updateURLFromState() {
-    if (!window.FEATURES.deepLink) return;
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const b = bookSelect.value, c = chapterSelect.value, v = verseSelect.value;
-      const ref = `${b} ${c}${v?':'+v:''}`;
-      params.set("ref", ref);
-      params.set("point", String(current+1));
-      const newUrl = `${location.pathname}?${params.toString()}${location.hash || ''}`;
-      history.replaceState(null, "", newUrl);
-    } catch {}
-  }
-
   function select(i) {
     if (noteArea && i !== current) notes[current] = noteArea.value;
     saveStorage();
@@ -187,9 +174,11 @@
     renderViewFromArea();       // MAJ vue enrichie
     updateLinksPanel();         // MAJ panneau liens
     if (enrichToggle && enrichToggle.checked) { noteView && noteView.focus(); } else { noteArea && noteArea.focus(); }
-    savePref(PREF_KEYS.lastPoint, current);
-    updateURLFromState();
     HOOK('be:point-selected', { index: i, hasContent: !!(notes[i] && notes[i].trim()) });
+  }
+
+  function saveStorage() {
+    try { localStorage.setItem("be_notes", JSON.stringify(notes)); renderSidebarDots(); } catch {}
   }
 
   // ---------- util ----------
@@ -230,8 +219,8 @@
 
   // ---------- thème ----------
   themeSelect.addEventListener("change", () => {
+    // propagation intégrale via [data-theme], déjà stylée en CSS
     document.body.setAttribute("data-theme", themeSelect.value);
-    savePref(PREF_KEYS.theme, themeSelect.value);
   });
 
   // ---------- BibleGateway / réf. ----------
@@ -261,23 +250,31 @@
 
   // ---------- rendu enrichi (inline links soulignés) ----------
   function sanitizeBasic(text){
+    // On retire d’abord commentaires &nbsp; puis on échappe
     text = stripNbsp(stripHtmlComments(text));
     return String(text||"")
       .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   }
   function mdLite(html){
+    // **gras** -> <strong>, *italique* -> <em>
     return html
       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
       .replace(/\*([^*]+)\*/g, "<em>$1</em>");
   }
+  // (NOUVEAU) Sépare des références bibliques collées sans séparateur visible.
+  // Ex: "Jean 1:1-3Hébreux 11:3" -> "Jean 1:1-3 · Hébreux 11:3"
   function fixAdjacentRefs(htmlEscaped){
+    // on travaille sur texte échappé (pas de balises), uniquement insertion de " · "
+    // Repère: fin de ref (…\d)(ou \d-\d) suivi immédiatement d’un nom de livre
     const bookUnion = BOOK_TITLES.map(escapeRegExp).join("|");
     const pattern = new RegExp(`((?:\\d|\\d[–-]\\d))(?:\\s*)(${bookUnion}\\s+\\d)`, "g");
     return htmlEscaped.replace(pattern, (_m, prev, next) => `${prev} · ${next}`);
   }
+  // URLs nues -> liens (travaille sur TEXTE ÉCHAPPÉ, aucun attribut présent à ce stade)
   function autolinkURLs(html){
     return html.replace(/(\bhttps?:\/\/[^\s<>"'()]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
   }
+  // Références bibliques -> liens
   function autolinkBible(html){
     return html.replace(refRe, (m,bk,ch,vr,chEnd)=>{
       const url = makeBGWLink(bk, ch, vr||"", chEnd||"");
@@ -295,11 +292,11 @@
   function renderViewFromArea(){
     const raw = noteArea.value || "";
     let html = sanitizeBasic(raw);
-    html = fixAdjacentRefs(html);
-    html = mdLite(html);
-    html = autolinkURLs(html);
-    html = autolinkBible(html);
-    html = wrapParagraphs(html);
+    html = fixAdjacentRefs(html); // ✅ nouveau : séparation des refs collées
+    html = mdLite(html);          // 1) **bold** / *italique*
+    html = autolinkURLs(html);    // 2) lier d'abord les URLs nues
+    html = autolinkBible(html);   // 3) puis lier les références bibliques
+    html = wrapParagraphs(html);  // 4) mise en <p> + <br>
     noteView.innerHTML = html || "<p style='color:#9aa2b1'>Écris ici…</p>";
   }
   function syncAreaFromView(){
@@ -308,8 +305,8 @@
     html = html.replace(/<br\s*\/?>/gi, "\n");
     html = html.replace(/<\/p>/gi, "\n\n").replace(/<p[^>]*>/gi,"");
     html = html.replace(/<\/?strong>/gi, "**").replace(/<\/?em>/gi, "*");
-    html = html.replace(/<!--[\s\S]*?-->/g, "");
-    html = html.replace(/&nbsp;/g, " ");
+    html = html.replace(/<!--[\s\S]*?-->/g, ""); // ✅ retire commentaires si collés dans contenteditable
+    html = html.replace(/&nbsp;/g, " ");         // ✅ retire nappes
     html = html.replace(/<\/?[^>]+>/g,"");
     html = html.replace(/\n{3,}/g,"\n\n").trim();
     noteArea.value = html;
@@ -338,23 +335,26 @@
       noteArea.style.display = "block";
       noteArea.focus();
     }
-    savePref(PREF_KEYS.enrich, on);
   }
   if (enrichToggle){ enrichToggle.addEventListener("change", applyEnrichMode); }
 
   // ---------- VERROU ANTI-BALISES pour contenus générés ----------
   function stripDangerousTags(html) {
     if (!html) return "";
-    html = html.replace(/<!--[\s\S]*?-->/g, "");
+    html = html.replace(/<!--[\s\S]*?-->/g, ""); // ✅ enlève commentaires résiduels
     html = html.replace(/&nbsp;/g, " ");
+    // 1) balises fortes -> markdown léger
     html = html.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
     html = html.replace(/<b[^>]*>(.*?)<\/b>/gi, '**$1**');
     html = html.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
     html = html.replace(/<i[^>]*>(.*?)<\/i>/gi, '*$1*');
+    // 2) paragraphes / titres -> sauts de ligne
     html = html.replace(/<\/p>/gi, '\n\n');
     html = html.replace(/<\/h[1-6]>/gi, '\n\n');
     html = html.replace(/<br\s*\/?>/gi, '\n');
+    // 3) retire tout le reste
     html = html.replace(/<\/?[^>]+>/g, '');
+    // 4) normalisation
     html = html.replace(/\s{2,}/g, " ").replace(/\n{3,}/g, '\n\n').trim();
     return html;
   }
@@ -470,6 +470,7 @@
       secs.forEach((s) => {
         const i = (s.id | 0) - 1;
         if (i >= 0 && i < N) {
+          // 🔒 Verrou : nettoyage fort de la réponse + filtre commentaires/html
           notes[i] = cleanGeneratedContent(String(s.content || "").trim());
         }
       });
@@ -481,6 +482,7 @@
 
       // Nettoyage soft complémentaire
       for (const k of Object.keys(notes)) {
+        // Sépare aussi d’éventuelles refs collées pour l’édition en brut
         notes[k] = dedupeParagraphs(ensureLinksLineBreaks(stripNbsp(stripHtmlComments(notes[k]))));
       }
 
@@ -493,6 +495,9 @@
 
       setProgress(100); setTimeout(() => setProgress(0), 300);
       dlog(`[GEN] source=${window.__lastChatSource} sections=${secs.length} filled=${Object.keys(notes).length} → étude générée`);
+      /* ======= AJOUT: affiche les badges ======= */
+      paintGenBadges();
+      /* ======= fin ajout ======= */
     } catch (e) {
       console.error(e);
       alert(String((e && e.message) || e));
@@ -543,53 +548,10 @@
 
   // ---------- init ----------
   renderBooks(); renderChapters(); renderVerses();
-
-  // Charger préférences & notes
-  try {
-    const saved = JSON.parse(localStorage.getItem(PREF_KEYS.notes) || "null");
-    if (saved && typeof saved === "object") notes = saved;
-  } catch {}
-  const savedTheme = loadPref(PREF_KEYS.theme, null);
-  if (savedTheme && themeSelect) { themeSelect.value = savedTheme; document.body.setAttribute("data-theme", savedTheme); }
-  const savedVersion = loadPref(PREF_KEYS.version, null);
-  if (savedVersion && versionSelect) versionSelect.value = savedVersion;
-  const savedEnrich = loadPref(PREF_KEYS.enrich, true);
-  if (enrichToggle) enrichToggle.checked = !!savedEnrich;
-
-  renderSidebar();
-
-  // Deep-link: ?ref=... & ?point=... / #point=...
-  (function applyDeepLinkOnLoad(){
-    if (!window.FEATURES.deepLink) return;
-    try {
-      const params = new URLSearchParams(location.search);
-      const hashPoint = (location.hash.match(/point=(\d+)/i) || [])[1];
-      const ref = params.get("ref");
-      const p = Number(params.get("point") || hashPoint || 0);
-      if (ref) {
-        const sel = parseSearch(ref);
-        if (sel) applySelection(sel);
-      }
-      // sinon, garder le dernier livre sélectionné par défaut
-      if (!ref) {
-        // rien : on laisse tes valeurs initiales
-      }
-      renderVerses(bookSelect.value === "Psaumes" ? 200 : 60);
-      const lastPoint = loadPref(PREF_KEYS.lastPoint, null);
-      if (p && p >= 1 && p <= N) { select(p-1); }
-      else if (Number.isInteger(lastPoint) && lastPoint >= 0 && lastPoint < N) { select(lastPoint); }
-      else { select(0); }
-    } catch {
-      select(0);
-    }
-  })();
-
+  renderSidebar(); select(0);
   renderSidebarDots();
   updateLinksPanel();
   applyEnrichMode();
-
-  // Sauvegarder la version choisie
-  versionSelect && versionSelect.addEventListener("change", () => savePref(PREF_KEYS.version, versionSelect.value));
 
   // Recherche intelligente
   if (searchRef) {
@@ -609,24 +571,25 @@
   generateBtn && generateBtn.addEventListener("click", generateStudy);
 
   // Lire / Valider => BibleGateway sur la réf courante
-  function openCurrentRef(){
+  readBtn && readBtn.addEventListener("click", () => {
     const b = bookSelect.value, c = chapterSelect.value, v = verseSelect.value, ver = versionSelect.value;
     window.open(bgwLink(b, c, v, ver), "_blank", "noopener");
-  }
-  readBtn && readBtn.addEventListener("click", openCurrentRef);
-  validateBtn && validateBtn.addEventListener("click", openCurrentRef);
+  });
+  validateBtn && validateBtn.addEventListener("click", () => {
+    const b = bookSelect.value, c = chapterSelect.value, v = verseSelect.value, ver = versionSelect.value;
+    window.open(bgwLink(b, c, v, ver), "_blank", "noopener");
+  });
 
   // Auto-génération si sélection change
   function autoGenerate() {
     clearTimeout(autoTimer);
     autoTimer = setTimeout(() => {
       if (bookSelect?.value && chapterSelect?.value && !(searchRef?.value || "").trim()) generateStudy();
-      updateURLFromState();
     }, 250);
   }
   bookSelect.addEventListener("change", () => { renderChapters(); renderVerses(bookSelect.value === "Psaumes" ? 200 : 60); autoGenerate(); });
   chapterSelect.addEventListener("change", autoGenerate);
-  verseSelect.addEventListener("change", () => { updateURLFromState(); });
+  verseSelect.addEventListener("change", () => { /* rien */ });
 
   // autosave + liens live
   noteArea.addEventListener("input", () => {
@@ -647,33 +610,6 @@
   // navigation simple
   prevBtn.addEventListener("click", () => { if (current > 0) select(current - 1); });
   nextBtn.addEventListener("click", () => { if (current < N - 1) select(current + 1); });
-
-  // ---------- raccourcis clavier ----------
-  if (window.FEATURES.keyboardShortcuts) {
-    window.addEventListener("keydown", (e) => {
-      const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
-      const ctrl = isMac ? e.metaKey : e.ctrlKey;
-      if (ctrl && e.key.toLowerCase() === "g") { e.preventDefault(); generateStudy(); }
-      if (ctrl && (e.key === "Enter" || e.key === "NumpadEnter")) { e.preventDefault(); openCurrentRef(); }
-      if (e.altKey && e.key === "ArrowLeft") { e.preventDefault(); if (current > 0) select(current-1); }
-      if (e.altKey && e.key === "ArrowRight") { e.preventDefault(); if (current < N-1) select(current+1); }
-    });
-  }
-
-  // ---------- progress bar synchronisée au scroll éditeur ----------
-  function progressFromScroll(el){
-    if (!el) return 0;
-    const max = (el.scrollHeight - el.clientHeight) || 1;
-    return Math.max(0, Math.min(100, (el.scrollTop / max) * 100));
-  }
-  if (window.FEATURES.progressOnScroll) {
-    const onScroll = () => {
-      const el = (enrichToggle && enrichToggle.checked) ? noteView : noteArea;
-      setProgress(progressFromScroll(el));
-    };
-    noteArea.addEventListener("scroll", onScroll);
-    noteView.addEventListener("scroll", onScroll);
-  }
 
   // debug panel (health + chat + ping)
   dbtn && dbtn.addEventListener("click", () => {
