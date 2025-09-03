@@ -1,159 +1,268 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Bible Étude — Banc de test</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-  <style>
-    :root{
-      --bg:#f6f7fb; --panel:#fff; --text:#0f172a; --muted:#6b7280; --border:#e5e7eb;
-      --ok:#16a34a; --warn:#f59e0b; --bad:#dc2626; --accent:#4f46e5;
+// /public/bible-etude/tester.js
+(function(){
+  function showErr(e){
+    try{
+      const box = document.getElementById("err");
+      if (!box) return;
+      box.style.display = "block";
+      const msg = (e && e.stack) ? e.stack : String(e && e.message || e);
+      box.textContent = "Erreur: " + msg;
+      console.error(e);
+    }catch{}
+  }
+
+  function ready(fn){
+    if (document.readyState === "complete" || document.readyState === "interactive"){
+      setTimeout(fn, 0);
+    } else {
+      document.addEventListener("DOMContentLoaded", fn);
     }
-    *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    header{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);padding:14px 16px;z-index:5}
-    h1{margin:0;font-size:20px;font-weight:800;letter-spacing:.2px}
-    main{max-width:1200px;margin:16px auto;padding:0 14px 40px}
-    .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px}
-    .grid{display:grid;gap:12px}
-    .g2{grid-template-columns:1fr 1fr}
-    .g3{grid-template-columns:repeat(3,1fr)}
-    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    label{font-size:12px;color:var(--muted)}
-    select,input,textarea{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px}
-    textarea{min-height:70px;resize:vertical}
-    .btn{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
-    .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
-    .table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
-    .table th,.table td{border-bottom:1px solid var(--border);padding:8px 6px;text-align:left;vertical-align:top}
-    .table th{font-size:12px;color:var(--muted);font-weight:600}
-    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid var(--border);background:#fff}
-    .pill.ok{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
-    .pill.mid{background:#fffbeb;color:#92400e;border-color:#fde68a}
-    .pill.bad{background:#fef2f2;color:#991b1b;border-color:#fecaca}
-    details{background:#fafafa;border:1px solid var(--border);border-radius:10px;padding:8px;margin-top:8px}
-    details pre{white-space:pre-wrap}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:12px}
-    .muted{color:var(--muted)}
-    .right{display:flex;gap:8px;align-items:center;justify-content:flex-end}
-    .small{font-size:12px;color:var(--muted)}
-    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
-    .status{display:flex;gap:8px;flex-wrap:wrap}
-    .panel-text{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px}
-    .two-cols{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-    @media (max-width:900px){.g2,.g3,.two-cols{grid-template-columns:1fr}}
-    .hl{background:#fffbe6}
-  </style>
-</head>
-<body>
-  <header>
-    <div class="row" style="justify-content:space-between">
-      <h1>Bible Étude — Banc de test (API /api/chat)</h1>
-      <div class="status">
-        <span class="badge" id="apiStatus">API: inconnu</span>
-      </div>
-    </div>
-  </header>
+  }
 
-  <main class="grid" style="gap:14px">
-    <section class="card">
-      <div class="grid g2">
-        <div>
-          <h2 style="margin:4px 0 8px 0;font-size:16px">Référence A</h2>
-          <div class="grid g3">
-            <div>
-              <label>Livre</label>
-              <select id="bookA"></select>
-            </div>
-            <div>
-              <label>Chapitre</label>
-              <input id="chapA" type="number" min="1" value="1"/>
-            </div>
-            <div>
-              <label>Verset (optionnel)</label>
-              <input id="versA" type="text" placeholder="ex: 1 ou 1-3"/>
-            </div>
-          </div>
-        </div>
-        <div>
-          <h2 style="margin:4px 0 8px 0;font-size:16px">Référence B</h2>
-          <div class="grid g3">
-            <div>
-              <label>Livre</label>
-              <select id="bookB"></select>
-            </div>
-            <div>
-              <label>Chapitre</label>
-              <input id="chapB" type="number" min="1" value="1"/>
-            </div>
-            <div>
-              <label>Verset (optionnel)</label>
-              <input id="versB" type="text" placeholder="ex: 2 ou 6-10"/>
-            </div>
-          </div>
-        </div>
-      </div>
+  ready(function init(){
+    try{
+      const $ = (id) => document.getElementById(id);
 
-      <div class="grid g2" style="margin-top:12px">
-        <div>
-          <label>Version</label>
-          <select id="versionSel">
-            <option value="LSG" selected>Louis Segond 1910 (LSG)</option>
-            <option value="PDV">Parole de Vie (PDV)</option>
-            <option value="S21">Segond 21 (S21)</option>
-            <option value="BFC">Français Courant (BFC)</option>
-          </select>
-        </div>
-        <div>
-          <label>Directives prière (facultatif, renvoyées à l’API)</label>
-          <textarea id="directives" placeholder="Ex: Insiste sur l'Esprit planant (Gn 1:2), les ténèbres et la séparation des eaux."></textarea>
-        </div>
-      </div>
+      // Vérifie la présence des éléments requis
+      const reqIds = ["bookA","bookB","chapA","chapB","versA","versB","versionSel","btnRun","btnSwap","table","details","jsonA","jsonB","apiStatus","refA","refB"];
+      for (const id of reqIds){
+        if (!$(id)) throw new Error(`Élément manquant dans le DOM: #${id}`);
+      }
 
-      <div class="row" style="margin-top:12px;justify-content:space-between">
-        <div class="small">Conseil: compare <strong>Genèse 1:1</strong> vs <strong>Genèse 1:2</strong> pour vérifier la variation de la prière, puis d'autres chapitres pour voir les rubriques.</div>
-        <div class="right">
-          <button id="btnSwap" class="btn secondary" type="button">↔︎ Inverser A/B</button>
-          <button id="btnRun" class="btn" type="button">Comparer</button>
-        </div>
-      </div>
-    </section>
+      const BOOKS = [
+        ["Genèse", 50],["Exode", 40],["Lévitique", 27],["Nombres", 36],["Deutéronome", 34],
+        ["Josué", 24],["Juges", 21],["Ruth", 4],["1 Samuel", 31],["2 Samuel", 24],
+        ["1 Rois", 22],["2 Rois", 25],["1 Chroniques", 29],["2 Chroniques", 36],["Esdras", 10],
+        ["Néhémie", 13],["Esther", 10],["Job", 42],["Psaumes", 150],["Proverbes", 31],
+        ["Ecclésiaste", 12],["Cantique des cantiques", 8],["Ésaïe", 66],["Jérémie", 52],["Lamentations", 5],
+        ["Ézéchiel", 48],["Daniel", 12],["Osée", 14],["Joël", 3],["Amos", 9],
+        ["Abdias", 1],["Jonas", 4],["Michée", 7],["Nahoum", 3],["Habacuc", 3],
+        ["Sophonie", 3],["Aggée", 2],["Zacharie", 14],["Malachie", 4],
+        ["Matthieu", 28],["Marc", 16],["Luc", 24],["Jean", 21],["Actes", 28],
+        ["Romains", 16],["1 Corinthiens", 16],["2 Corinthiens", 13],["Galates", 6],["Éphésiens", 6],
+        ["Philippiens", 4],["Colossiens", 4],["1 Thessaloniciens", 5],["2 Thessaloniciens", 3],["1 Timothée", 6],
+        ["2 Timothée", 4],["Tite", 3],["Philémon", 1],["Hébreux", 13],["Jacques", 5],
+        ["1 Pierre", 5],["2 Pierre", 3],["1 Jean", 5],["2 Jean", 1],["3 Jean", 1],
+        ["Jude", 1],["Apocalypse", 22],
+      ];
 
-    <section id="summaryCard" class="card">
-      <div class="row" style="justify-content:space-between;align-items:center">
-        <h2 style="margin:4px 0 6px 0;font-size:16px">Résumé</h2>
-        <div class="row">
-          <span id="countHigh" class="pill bad">forte similarité: 0</span>
-          <span id="countMid" class="pill mid">moyenne: 0</span>
-          <span id="countOk" class="pill ok">faible: 0</span>
-        </div>
-      </div>
-      <div id="refA" class="small muted">A: —</div>
-      <div id="refB" class="small muted">B: —</div>
-      <table class="table" id="table"></table>
-    </section>
+      function fillBooks(sel) {
+        if (!sel) throw new Error("Select introuvable pour fillBooks");
+        sel.innerHTML = "";
+        for (const [n, ch] of BOOKS) {
+          const o = document.createElement("option");
+          o.value = n; o.textContent = n; o.dataset.ch = String(ch);
+          sel.appendChild(o);
+        }
+      }
 
-    <section id="detailsCard" class="card">
-      <h2 style="margin:4px 0 8px 0;font-size:16px">Détails des contenus</h2>
-      <div id="details"></div>
-    </section>
+      fillBooks($("bookA"));
+      fillBooks($("bookB"));
 
-    <section class="card">
-      <h2 style="margin:4px 0 8px 0;font-size:16px">Réponses JSON (brut)</h2>
-      <div class="two-cols">
-        <div>
-          <div class="small muted">A</div>
-          <pre id="jsonA" class="panel-text mono"></pre>
-        </div>
-        <div>
-          <div class="small muted">B</div>
-          <pre id="jsonB" class="panel-text mono"></pre>
-        </div>
-      </div>
-    </section>
-  </main>
+      $("bookA").value = "Genèse";
+      $("bookB").value = "Genèse";
+      $("chapA").value = 1;
+      $("chapB").value = 1;
+      $("versA").value = "1";
+      $("versB").value = "2";
 
-  <script src="./tester.js?v=2025-09-03"></script>
-</body>
-</html>
+      // Helpers
+      function refStr(book, ch, v){ return v ? `${book} ${ch}:${v}` : `${book} ${ch}`; }
+      function norm(s){
+        return String(s||"")
+          .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+          .toLowerCase().replace(/[^a-z0-9\s]/g," ")
+          .replace(/\s+/g," ").trim();
+      }
+      function tokens(s){ return norm(s).split(" ").filter(Boolean); }
+      function jaccard(a,b){
+        const A = new Set(tokens(a)), B = new Set(tokens(b));
+        if (A.size === 0 && B.size === 0) return 1;
+        let inter = 0;
+        for (const t of A) if (B.has(t)) inter++;
+        const uni = A.size + B.size - inter;
+        return uni === 0 ? 1 : inter / uni;
+      }
+      function levenshteinRatio(a,b){
+        const s = String(a||""), t = String(b||"");
+        const n = s.length, m = t.length;
+        if (n === 0 && m === 0) return 1;
+        const dp = Array.from({length:n+1},()=>Array(m+1).fill(0));
+        for(let i=0;i<=n;i++) dp[i][0] = i;
+        for(let j=0;j<=m;j++) dp[0][j] = j;
+        for(let i=1;i<=n;i++){
+          for(let j=1;j<=m;j++){
+            const cost = s[i-1] === t[j-1] ? 0 : 1;
+            dp[i][j] = Math.min(
+              dp[i-1][j] + 1,
+              dp[i][j-1] + 1,
+              dp[i-1][j-1] + cost
+            );
+          }
+        }
+        const dist = dp[n][m];
+        const maxLen = Math.max(n,m) || 1;
+        return 1 - (dist / maxLen);
+      }
+      function pct(x){ return Math.round(x*1000)/10; }
+
+      // API health (facultatif)
+      (async ()=>{
+        try{
+          const r = await fetch("/api/health", {cache:"no-store"});
+          $("apiStatus").textContent = r.ok ? "API: health OK" : "API: health KO";
+          $("apiStatus").className = "badge " + (r.ok ? "" : "hl");
+        }catch{
+          $("apiStatus").textContent = "API: health indisponible";
+          $("apiStatus").className = "badge hl";
+        }
+      })();
+
+      function collect(side){
+        const book = $(side==="A"?"bookA":"bookB").value;
+        const ch = Number($(side==="A"?"chapA":"chapB").value || 1);
+        const v = $(side==="A"?"versA":"versB").value.trim();
+        const version = $("versionSel").value || "LSG";
+        const directives = $("directives").value.trim();
+        return { book, chapter: ch, verse: v || "", version, directives: directives ? { priere_ouverture: directives } : {} };
+      }
+
+      async function getStudy(payload){
+        const r = await fetch("/api/chat", {
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body: JSON.stringify(payload)
+        });
+        if (!r.ok) throw new Error(await r.text().catch(()=>`HTTP ${r.status}`));
+        const j = await r.json();
+        if (!j || j.ok === false) throw new Error(j?.error || "Réponse invalide");
+        return j;
+      }
+
+      function qualityClass(score){
+        if (score >= 0.80) return "bad";
+        if (score >= 0.60) return "mid";
+        return "ok";
+      }
+
+      function renderTable(A,B){
+        const table = $("table");
+        const head = `
+          <tr>
+            <th>#</th>
+            <th>Rubrique</th>
+            <th class="muted">Long. A</th>
+            <th class="muted">Long. B</th>
+            <th>Jaccard</th>
+            <th>Levenshtein</th>
+            <th>Combiné</th>
+            <th>Statut</th>
+          </tr>`;
+        let rows = "";
+        let hi=0, mid=0, ok=0;
+
+        for(const secA of A.data.sections){
+          const id = secA.id;
+          const secB = B.data.sections.find(s=>s.id===id) || {content:"", title:secA.title};
+          const cA = String(secA.content||"").trim();
+          const cB = String(secB.content||"").trim();
+          const jac = jaccard(cA,cB);
+          const lev = levenshteinRatio(cA,cB);
+          const comb = 0.5*jac + 0.5*lev;
+          const cls = qualityClass(comb);
+          if (cls==="bad") hi++; else if (cls==="mid") mid++; else ok++;
+
+          rows += `
+            <tr>
+              <td>${id}</td>
+              <td>${secA.title||""}</td>
+              <td class="muted">${cA.length.toLocaleString()}</td>
+              <td class="muted">${cB.length.toLocaleString()}</td>
+              <td><span class="pill ${qualityClass(jac)}">${pct(jac)}%</span></td>
+              <td><span class="pill ${qualityClass(lev)}">${pct(lev)}%</span></td>
+              <td><span class="pill ${cls}">${pct(comb)}%</span></td>
+              <td>${cls==="bad" ? "⚠️ élevé" : (cls==="mid"?"△ moyen":"✅ faible")}</td>
+            </tr>`;
+        }
+        table.innerHTML = head + rows;
+        $("countHigh").textContent = `forte similarité: ${hi}`;
+        $("countMid").textContent = `moyenne: ${mid}`;
+        $("countOk").textContent = `faible: ${ok}`;
+      }
+
+      function renderDetails(A,B){
+        const wrap = $("details");
+        wrap.innerHTML = "";
+        for(const secA of A.data.sections){
+          const id = secA.id;
+          const secB = B.data.sections.find(s=>s.id===id) || {content:"", title:secA.title};
+          const cA = String(secA.content||"").trim();
+          const cB = String(secB.content||"").trim();
+
+          const el = document.createElement("details");
+          const sum = document.createElement("summary");
+          sum.innerHTML = `<strong>${id}. ${secA.title||""}</strong>`;
+          el.appendChild(sum);
+
+          const box = document.createElement("div");
+          box.className = "two-cols";
+          const left = document.createElement("div");
+          const right = document.createElement("div");
+          left.innerHTML = `<div class="small muted">A</div><div class="panel-text">${cA || "<em class='muted'>— vide —</em>"}</div>`;
+          right.innerHTML = `<div class="small muted">B</div><div class="panel-text">${cB || "<em class='muted'>— vide —</em>"}</div>`;
+          box.appendChild(left); box.appendChild(right);
+
+          el.appendChild(box);
+          wrap.appendChild(el);
+        }
+      }
+
+      async function run(){
+        const A = collect("A");
+        const B = collect("B");
+        document.getElementById("refA").textContent = `A: ${refStr(A.book, A.chapter, A.verse)} (${A.version})`;
+        document.getElementById("refB").textContent = `B: ${refStr(B.book, B.chapter, B.verse)} (${B.version})`;
+
+        const [resA, resB] = await Promise.all([getStudy(A), getStudy(B)]);
+        document.getElementById("jsonA").textContent = JSON.stringify(resA, null, 2);
+        document.getElementById("jsonB").textContent = JSON.stringify(resB, null, 2);
+
+        renderTable(resA, resB);
+        renderDetails(resA, resB);
+
+        const first = document.getElementById("details").querySelector("details");
+        if (first) first.open = true;
+      }
+
+      document.getElementById("btnRun").addEventListener("click", () => {
+        const btn = document.getElementById("btnRun");
+        btn.disabled = true;
+        btn.textContent = "Comparaison…";
+        run().catch(showErr).finally(()=>{
+          btn.disabled = false;
+          btn.textContent = "Comparer";
+        });
+      });
+
+      document.getElementById("btnSwap").addEventListener("click", () => {
+        const bookA = document.getElementById("bookA");
+        const bookB = document.getElementById("bookB");
+        const chapA = document.getElementById("chapA");
+        const chapB = document.getElementById("chapB");
+        const versA = document.getElementById("versA");
+        const versB = document.getElementById("versB");
+
+        const bA = bookA.value, bB = bookB.value;
+        const cA = chapA.value, cB = chapB.value;
+        const vA = versA.value, vB = versB.value;
+
+        bookA.value = bB; bookB.value = bA;
+        chapA.value = cB; chapB.value = cA;
+        versA.value = vB; versB.value = vA;
+      });
+
+    }catch(e){
+      showErr(e);
+    }
+  });
+})();
