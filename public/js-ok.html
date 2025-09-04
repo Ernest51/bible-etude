@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Test chargement JS</title>
+  <style>
+    body{font:16px/1.5 system-ui,Segoe UI,Roboto,Arial;margin:0;padding:24px;background:#0b1220;color:#e5e7eb}
+    .card{background:#0f172a;border:1px solid #1f2937;border-radius:12px;padding:16px}
+    .ok{color:#16a34a}.ko{color:#dc2626}
+    .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Test chargement JS (CSP / chemin)</h1>
+    <p>Statut : <span id="js-status" class="mono">en attente…</span></p>
+    <p class="mono" id="err">—</p>
+  </div>
+  <script defer src="/js-ok.js"></script>
+</body>
+</html>
