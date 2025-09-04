@@ -1,4 +1,4 @@
-// /api/explain.js — Texte + explication verset par verset (FR)
+// /api/explain.js — Texte + explication verset par verset (fallback forcé, sans OpenAI)
 // GET/POST: { book, chapter, verse? }
 // Retour: { ok, data: { reference, osis, items: [ { v, text, html } ] } }
 
@@ -64,67 +64,22 @@ function splitToVerses(text) {
   return [{ v: 0, text: clean(t) }];
 }
 
-/* ───────────── 3) Générer l’explication (OpenAI → fallback) ───────────── */
+/* ───────────── 3) Explication — Fallback forcé (pas d’OpenAI) ───────────── */
 
-const OPENAI_API_KEY =
-  process.env.OPENAI_API_KEY || process.env.OPENAI_APIKEY || process.env.OPENAI_KEY;
-
-async function explainVerses({ reference, items }) {
-  // Sans clé, commentaire simple (ne bloque pas l’UX)
-  if (!OPENAI_API_KEY) {
-    return items.map(it => ({
-      ...it,
-      html: safeHtml(
-        `<p><strong>${reference}${it.v ? " v." + it.v : ""}</strong> — ${clean(
-          it.text
-        )}<br><em>Application :</em> Que puis-je mettre en pratique aujourd’hui ?</p>`
-      ),
-    }));
-  }
-
-  const system =
-    `Tu es un bibliste pédagogue. Explique en français, verset par verset, de manière claire et édifiante.
-- Pour chaque verset: 1–2 phrases d'explication + 1 phrase d'application concrète.
-- Style: pastoral mais rigoureux; évite le jargon.
-- Réponds exclusivement en HTML sûr: <p>, <strong>, <em>, <ul>, <ol>, <li>, <a>.
-- Ne réécris pas le texte biblique; commente ce qui est fourni.`;
-
-  const user =
-    `Passage: ${reference}\n` +
-    `Versets (JSON): ${JSON.stringify(items)}`;
-
-  const body = {
-    model: "gpt-4o-mini",
-    temperature: 0.4,
-    max_tokens: 1100,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user }
-    ]
-  };
-
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENAI_API_KEY}`
-    },
-    body: JSON.stringify(body)
+function explainVersesFallback({ reference, items }) {
+  // Petit guide pédagogique constant ; pas d'appel externe
+  return items.map(it => {
+    const head = `<strong>${reference}${it.v ? " v." + it.v : ""}</strong>`;
+    const base = clean(it.text);
+    const html =
+      `<p>${head} — ${base}</p>` +
+      `<ul>` +
+      `<li><em>Sens :</em> Que révèle ce verset sur Dieu, sa volonté ou l’humain ?</li>` +
+      `<li><em>Clé :</em> Repère un mot important (verbe/nom répété, promesse, ordre).</li>` +
+      `<li><em>Application :</em> Une action simple à vivre aujourd’hui (forme “je vais …”).</li>` +
+      `</ul>`;
+    return { ...it, html: safeHtml(html) };
   });
-  if (!r.ok) throw new Error(await r.text());
-  const j = await r.json();
-  const raw = j.choices?.[0]?.message?.content || "";
-
-  // On sépare par doubles sauts de ligne; on aligne avec les items
-  const chunks = raw.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
-
-  return items.map((it, i) => ({
-    ...it,
-    html: safeHtml(
-      chunks[i] ||
-        `<p><strong>${reference}${it.v ? " v." + it.v : ""}</strong> — ${clean(it.text)}</p>`
-    )
-  }));
 }
 
 /* ───────────── Handler ───────────── */
@@ -148,8 +103,8 @@ export default async function handler(req, res) {
     const blocks = passage?.items?.length ? passage.items : [];
     const verses = blocks.length ? splitToVerses(blocks[0].text) : [];
 
-    // 2) Explication (OpenAI ou fallback)
-    const explained = await explainVerses({
+    // 2) Explication — Fallback forcé (aucun appel OpenAI)
+    const explained = explainVersesFallback({
       reference: passage.reference,
       items: verses
     });
