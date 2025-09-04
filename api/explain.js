@@ -64,7 +64,7 @@ export default async function handler(req, res) {
     const { book = "Genèse", chapter = "1", verse = "" } = req.query || {};
     const reference = refString(book, chapter, verse);
 
-    // Appel à TON provider interne (même déploiement)
+    // Appel au provider interne (même déploiement)
     const baseUrl =
       (req.headers["x-forwarded-proto"] || "https") +
       "://" +
