@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Diagnostic API.Bible</title>
+  <style>
+    :root{--bg:#0b1220;--panel:#0f172a;--muted:#94a3b8;--ok:#16a34a;--ko:#dc2626;--accent:#38bdf8}
+    html,body{margin:0;padding:0;background:var(--bg);color:#e5e7eb;font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
+    main{max-width:980px;margin:24px auto;padding:0 16px}
+    h1{font-size:22px;margin:0 0 12px}
+    .card{background:var(--panel);border:1px solid #1f2937;border-radius:12px;padding:14px;margin:12px 0}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+    input,select,button{border-radius:10px;border:1px solid #334155;background:#0b1220;color:#e5e7eb;padding:10px 12px}
+    button{cursor:pointer;font-weight:700}
+    button.primary{background:#0369a1;border-color:#075985;color:#fff}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:8px 0}
+    .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+    pre{white-space:pre-wrap;word-break:break-word;background:#0b1020;border:1px solid #1f2a44;border-radius:8px;padding:10px;max-height:360px;overflow:auto}
+    .ok{color:var(--ok)} .ko{color:var(--ko)}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{border-bottom:1px solid #1f2937;padding:6px 6px;text-align:left}
+    a{color:var(--accent)}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>🔎 Diagnostic API.Bible (via /api/bibleProvider)</h1>
+    <p class="mono" style="color:var(--muted)">
+      Objectif : vérifier la clé API.Bible et la récupération de texte, sans toucher le reste de l’appli.
+    </p>
+
+    <!-- Test 1 : la clé fonctionne (liste bibles FR) -->
+    <section class="card">
+      <h2 style="margin:0 0 6px">1) Lister les Bibles (FR)</h2>
+      <div class="row">
+        <div>
+          <label>Langue</label>
+          <input id="lang" value="fra" />
+        </div>
+        <button id="btn-list" class="primary">Lister</button>
+        <span id="status-list" class="mono" style="margin-left:8px"></span>
+      </div>
+      <div id="tbl-wrap"></div>
+      <pre id="raw-list" class="mono">—</pre>
+    </section>
+
+    <!-- Test 2 : un passage (avec ou sans bibleId si ENV par défaut est réglé) -->
+    <section class="card">
+      <h2 style="margin:0 0 6px">2) Passage (book + chapter + [verse])</h2>
+      <div class="row">
+        <div>
+          <label>Bible ID (laisser vide si API_BIBLE_BIBLE_ID est configurée)</label>
+          <input id="bibleId" placeholder="ex: a93a92589195411f-01" style="min-width:280px" />
+        </div>
+        <div>
+          <label>Livre (FR)</label>
+          <input id="book" value="Jean" />
+        </div>
+        <div>
+          <label>Chapitre</label>
+          <input id="chapter" type="number" value="3" />
+        </div>
+        <div>
+          <label>Versets (ex: 16 ou 1-3,7) — optionnel</label>
+          <input id="verses" value="16" />
+        </div>
+        <button id="btn-pass" class="primary">Tester passage</button>
+        <span id="status-pass" class="mono" style="margin-left:8px"></span>
+      </div>
+      <div id="preview" class="mono" style="margin:6px 0;color:#cbd5e1">—</div>
+      <pre id="raw-pass" class="mono">—</pre>
+    </section>
+
+    <section class="card">
+      <h2 style="margin:0 0 6px">Notes d’interprétation</h2>
+      <ul>
+        <li>Si <strong>Liste Bibles</strong> renvoie des lignes, ta variable <code>API_BIBLE_KEY</code> est valide.</li>
+        <li>Si <strong>Passage</strong> renvoie <code>ok:true</code> avec un <code>items[0].text</code> non vide, tout est opérationnel.</li>
+        <li>Erreur « Aucun bibleId défini » : ajoute <code>API_BIBLE_BIBLE_ID</code> côté Vercel ou renseigne <em>Bible ID</em> ci-dessus.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script>
+    const $ = (s)=>document.querySelector(s);
+    const esc = (s='') => String(s).replace(/[&<>"']/g, m=>({ '&':
