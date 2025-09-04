@@ -3,13 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Étude Biblique</title>
+  <title>Étude Biblique — Méditation</title>
 
-  <!-- (Optionnel) ta feuille tailwind générée ; présente dans /public/dist/output.css -->
+  <!-- (Optionnel) ta feuille Tailwind si tu l’utilises -->
   <link rel="stylesheet" href="/dist/output.css" />
 
   <style>
-    /* Styles très légers pour ne pas interférer avec ton app */
     :root { --brand:#06b6d4; --ink:#0f172a; --muted:#64748b; --card:#ffffff; --border:#e5e7eb; }
     body { margin:0; font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif; color:var(--ink); background:#f8fafc; }
     .container { max-width: 1100px; margin: 0 auto; padding: 20px 16px 64px; }
@@ -26,7 +25,7 @@
 </head>
 
 <body>
-  <!-- Barre simple -->
+  <!-- Barre -->
   <header>
     <div class="container">
       <div class="brand">
@@ -38,7 +37,6 @@
 
   <main class="container">
     <!-- ======== TON APP EXISTANTE ======== -->
-    <!-- Si ton app cible un autre id, ce bloc est neutre. -->
     <section class="card" style="margin-bottom:16px">
       <h2 style="margin:0 0 10px">Application</h2>
       <div id="app"></div>
@@ -48,24 +46,75 @@
     <script defer src="/app-loader.js"></script>
     <script defer src="/app.js"></script>
 
-    <!-- ======== WIDGET EXPLICATION (nouveau, autonome) ======== -->
+    <!-- ======== CONTROLS (Option A) ======== -->
+    <section class="card" style="margin-top:16px">
+      <h2 style="margin:0 0 12px">Sélection</h2>
+      <div class="stack" style="margin-bottom:8px">
+        <!-- Livre -->
+        <select data-field="book" aria-label="Livre">
+          <option value="">— Livre —</option>
+          <!-- AT (extraits, complète si tu veux) -->
+          <option>Genèse</option><option>Exode</option><option>Lévitique</option>
+          <option>Nombres</option><option>Deutéronome</option>
+          <option>Josué</option><option>Juges</option><option>Ruth</option>
+          <option>1 Samuel</option><option>2 Samuel</option>
+          <option>1 Rois</option><option>2 Rois</option>
+          <option>1 Chroniques</option><option>2 Chroniques</option>
+          <option>Esdras</option><option>Néhémie</option><option>Esther</option>
+          <option>Job</option><option>Psaumes</option><option>Proverbes</option>
+          <option>Ecclésiaste</option><option>Cantique des cantiques</option>
+          <option>Ésaïe</option><option>Jérémie</option><option>Lamentations</option>
+          <option>Ézéchiel</option><option>Daniel</option>
+          <option>Osée</option><option>Joël</option><option>Amos</option><option>Abdias</option>
+          <option>Jonas</option><option>Michée</option><option>Nahoum</option>
+          <option>Habacuc</option><option>Sophonie</option><option>Aggée</option>
+          <option>Zacharie</option><option>Malachie</option>
+          <!-- NT -->
+          <option>Matthieu</option><option>Marc</option><option>Luc</option><option>Jean</option>
+          <option>Actes</option><option>Romains</option>
+          <option>1 Corinthiens</option><option>2 Corinthiens</option>
+          <option>Galates</option><option>Éphésiens</option><option>Philippiens</option>
+          <option>Colossiens</option>
+          <option>1 Thessaloniciens</option><option>2 Thessaloniciens</option>
+          <option>1 Timothée</option><option>2 Timothée</option>
+          <option>Tite</option><option>Philémon</option><option>Hébreux</option>
+          <option>Jacques</option>
+          <option>1 Pierre</option><option>2 Pierre</option>
+          <option>1 Jean</option><option>2 Jean</option><option>3 Jean</option>
+          <option>Jude</option><option>Apocalypse</option>
+        </select>
+
+        <!-- Chapitre -->
+        <select data-field="chapter" aria-label="Chapitre" style="width:140px">
+          <option value="">— Chapitre —</option>
+          <!-- 1..150 -->
+          <script>
+            // Remplit 1..150 côté client pour rester statique côté fichier
+            document.currentScript.insertAdjacentHTML(
+              'beforebegin',
+              Array.from({length:150}, (_,i)=>`<option value="${i+1}">${i+1}</option>`).join('')
+            );
+          </script>
+        </select>
+
+        <!-- Versets (optionnel) -->
+        <input data-field="verses" placeholder="Versets (ex : 1-3,7)" style="width:180px" />
+        <button id="btn-read" class="btn">Lire la Bible</button>
+        <span id="sel-status" class="muted"></span>
+      </div>
+    </section>
+
+    <!-- ======== WIDGET EXPLICATION (autonome) ======== -->
     <section class="card" id="explain-widget" style="margin-top:16px">
       <h2 style="margin:0 0 12px">Lecture + Explication</h2>
-      <div class="stack" style="margin-bottom:8px">
-        <input id="x-book" placeholder="Livre (ex : Josué)" />
-        <input id="x-ch" type="number" min="1" placeholder="Chapitre" style="width:120px" />
-        <input id="x-v" placeholder="Versets (ex : 1-3,7)" style="width:180px" />
-        <button id="x-run" class="btn">Lire & Expliquer</button>
-        <span id="x-status" class="muted"></span>
-      </div>
       <div id="x-out"></div>
     </section>
 
-    <!-- JS du widget (n’interfère pas avec app.js) -->
+    <!-- JS du widget + API publique -->
     <script>
       (function () {
         const $ = (s, r = document) => r.querySelector(s);
-        const out = $("#x-out"), status = $("#x-status");
+        const out = $("#x-out");
 
         function card(html) {
           return `<div style="border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;margin:10px 0;background:#fff">${html}</div>`;
@@ -86,8 +135,7 @@
         }
 
         async function runExplain({ book, chapter, verse }) {
-          status.textContent = "Chargement…";
-          out.innerHTML = "";
+          out.innerHTML = card(`<p class="muted">Chargement…</p>`);
           try {
             const qs = new URLSearchParams({ book, chapter, verse });
             const r = await fetch(`/api/explain?${qs.toString()}`);
@@ -95,28 +143,56 @@
             const j = await r.json();
             if (!j.ok) throw new Error(j.error || "Erreur inconnue");
             renderExplain(j.data);
-            status.textContent = "";
           } catch (e) {
-            status.textContent = "Erreur";
             out.innerHTML = card(`<p style="color:#b91c1c"><strong>Oops :</strong> ${String(e.message || e)}</p>`);
           }
         }
 
-        // Bouton du widget
-        $("#x-run")?.addEventListener("click", () => {
-          const book = $("#x-book").value.trim();
-          const chapter = $("#x-ch").value.trim();
-          const verse = ($("#x-v").value || "").trim();
-          if (!book || !chapter) {
-            out.innerHTML = card(`<p style="color:#b91c1c">Livre et chapitre sont requis.</p>`);
-            return;
-          }
-          runExplain({ book, chapter, verse });
-        });
-
-        // API publique pour ton app existante (si tu veux déclencher depuis app.js)
+        // API publique pour ton app existante
         window.renderMeditationExplain = (book, chapter, verse = "") =>
           runExplain({ book, chapter, verse });
+      })();
+    </script>
+
+    <!-- ======== BRIDGE Option A (relie tes sélecteurs au bouton) ======== -->
+    <script>
+      (function () {
+        const $ = (s, r=document) => r.querySelector(s);
+        const status = $('#sel-status');
+
+        function getVal(sel){
+          const el = $(sel);
+          return el ? (el.value || el.textContent || "").trim() : "";
+        }
+
+        function getInputs(){
+          const book    = getVal('[data-field="book"]');
+          const chapter = getVal('[data-field="chapter"]');
+          const verse   = getVal('[data-field="verses"]'); // optionnel
+          return { book, chapter, verse };
+        }
+
+        function run(){
+          const { book, chapter, verse } = getInputs();
+          if (!book || !chapter) {
+            status.textContent = "Livre et chapitre requis.";
+            return;
+          }
+          status.textContent = "";
+          if (typeof window.renderMeditationExplain !== "function") {
+            status.textContent = "Composant d'explication indisponible.";
+            return;
+          }
+          window.renderMeditationExplain(book, chapter, verse || "");
+        }
+
+        // Bouton principal
+        $('#btn-read')?.addEventListener('click', run);
+
+        // UX: Enter dans le champ versets
+        document.querySelector('[data-field="verses"]')?.addEventListener('keydown', (e)=>{
+          if(e.key === 'Enter') run();
+        });
       })();
     </script>
   </main>
