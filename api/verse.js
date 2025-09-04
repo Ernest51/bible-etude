@@ -1,5 +1,5 @@
-// pages/api/verse.js
-// Next.js API Route — renvoie un verset unique (texte brut).
+// /api/verse.js
+// Renvoie un verset unique (texte brut) depuis un mini-cache local LSG.
 // Source = "local" si trouvé, sinon ok:true mais text:"" et warn.
 
 export const config = { runtime: "nodejs" };
@@ -13,7 +13,7 @@ const ALIASES = {
   "genese": "Genèse", "genèse": "Genèse",
   "psaume": "Psaumes", "psaumes": "Psaumes",
   "esaie": "Ésaïe", "esaïe": "Ésaïe", "isaie": "Ésaïe", "isaïe": "Ésaïe",
-  "ephesiens": "Éphésiens", "ephe­siens": "Éphésiens", "ephésiens": "Éphésiens",
+  "ephesiens": "Éphésiens", "ephésiens": "Éphésiens",
   "colossiens": "Colossiens", "hebreux": "Hébreux", "hébreux": "Hébreux",
   "exode": "Exode", "josue": "Josué", "josué": "Josué",
   "jean": "Jean", "romains": "Romains"
@@ -24,7 +24,7 @@ function normalizeBook(frName) {
 }
 
 /* --- Mini cache local Louis Segond 1910 --- */
-const LSG = {
+export const LSG = {
   // Genèse 1
   "Genèse/1/1": "Au commencement, Dieu créa les cieux et la terre.",
   "Genèse/1/2": "La terre était informe et vide; il y avait des ténèbres à la surface de l’abîme, et l’Esprit de Dieu se mouvait au-dessus des eaux.",
