@@ -1,487 +1,462 @@
 
-// api/chat.js — canonical generator (28 rubriques) with directive support
-// Works as a Next.js API route or a simple Node handler (req,res).
-// Always returns: { ok, source: "canonical", warn, data: { reference, version, sections } }
+/**
+ * /api/chat.js — canonical generator (28 rubriques) with robust error handling.
+ * Runtime: Next.js "pages" API route / Vercel serverless (CommonJS).
+ * No external deps, no network calls.
+ */
 
-function toRef(book, chapter, verse) {
-  return verse ? `${book} ${chapter}:${verse}` : `${book} ${chapter}`;
+// ---------------------- helpers ----------------------
+function send(res, status, payload) {
+  try {
+    res.statusCode = status;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.end(JSON.stringify(payload, null, 2));
+  } catch (e) {
+    // Last-chance fallback
+    try {
+      res.end('{"ok":false,"source":"canonical","warn":"send_failed"}');
+    } catch {}
+  }
 }
 
-function htmlEscape(s) {
-  return String(s).replace(/[&<>"']/g, (m) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  })[m]);
+async function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', (chunk) => (data += chunk));
+    req.on('end', () => {
+      if (!data) return resolve({});
+      try {
+        const obj = JSON.parse(data);
+        resolve(obj);
+      } catch (e) {
+        resolve({ __parse_error: e.message, __raw: data });
+      }
+    });
+    req.on('error', (err) => resolve({ __stream_error: err?.message || String(err) }));
+  });
 }
 
-function prayerFromDirective({book, chapter, verse, directive}) {
-  const ref = toRef(book, chapter, verse);
-  if (!directive) return null;
-  const d = directive.trim().toLowerCase();
+function normalizePayload(body) {
+  const probe = body && body.probe === true;
+  const book = (body?.book ?? '').toString().trim();
+  const chapter = body?.chapter === "" ? null : (body?.chapter ?? null);
+  const chapterNum = chapter === null ? null : Number.parseInt(chapter, 10);
+  const verse = (body?.verse ?? "").toString().trim();
+  const version = (body?.version ?? "LSG").toString().trim() || "LSG";
+  const directives = (typeof body?.directives === 'object' && body?.directives) ? body.directives : {};
 
-  // If the directive explicitly asks for "Amen." at the end, honor it exactly.
-  const endsWithAmenDot = /amen\.\s*$/.test(d);
-
-  // Heuristics to keep it short and on-topic
-  if (d.includes("faire court") || d.includes("court")) {
-    const lines = [
-      `<p><strong>Dieu d'amour</strong>, nous venons à toi devant <strong>${htmlEscape(ref)}</strong>.</p>`,
-      `<p>Merci pour ton amour et la foi qui reçoit ta grâce en Jésus-Christ.</p>`,
-      endsWithAmenDot ? `<p>Amen.</p>` : `<p>Amen</p>`
-    ];
-    return lines.join("\n");
-  }
-
-  // If the directive mentions "Par ton Esprit Saint, amen.", end exactly like that.
-  if (d.includes("par ton esprit saint") && d.includes("amen")) {
-    const lines = [
-      `<p><strong>Dieu fidèle</strong>, nous venons à toi devant <strong>${htmlEscape(ref)}</strong>.</p>`,
-      `<p>Par ta Parole qui ordonne, fais luire ta lumière au milieu des ténèbres.</p>`,
-      `<p>Par ton Esprit Saint, amen.</p>`
-    ];
-    return lines.join("\n");
-  }
-
-  // Fallback: echo the intent but stay concise
-  const lines = [
-    `<p><strong>Seigneur</strong>, nous venons à toi devant <strong>${htmlEscape(ref)}</strong>.</p>`,
-    `<p>Conduis-nous par ta Parole et ta lumière.</p>`,
-    `<p>Amen.</p>`
-  ];
-  return lines.join("\n");
+  return { probe, book, chapter: chapterNum, verse, version, directives };
 }
 
-function openingPrayer({book, chapter, verse, directives}) {
-  const ref = toRef(book, chapter, verse);
-  if (directives && directives.priere_ouverture) {
-    return prayerFromDirective({book, chapter, verse, directive: directives.priere_ouverture});
+function nonEmptyString(s) {
+  return typeof s === 'string' && s.trim().length > 0;
+}
+
+// -------------- content builders (28 sections) --------------
+function makeSection(id, title, contentHtml) {
+  return { id, title, content: contentHtml };
+}
+
+function buildPrayer({reference, directives, defaultFocus}) {
+  // Use directives.priere_ouverture if present, to influence tone/length/emphases
+  const d = directives || {};
+  const raw = (d.priere_ouverture || "").toLowerCase();
+
+  // Very short prayer when directive contains "faire court"
+  const short = raw.includes("faire court");
+  const endAmen = raw.includes("amen") || raw.includes("amen.");
+  const mentionParole = raw.includes("parole");
+  const mentionLumiere = raw.includes("lumière") || raw.includes("lumiere");
+  const mentionEsprit = raw.includes("esprit");
+
+  if (short) {
+    // tailor for Jean 3:16 shortcut
+    return [
+      `<p><strong>Dieu d'amour</strong>, nous venons à toi devant <strong>${reference}</strong>.</p>`,
+      `<p>Apprends-nous à accueillir ton amour par la foi et à vivre selon ta Parole.</p>`,
+      `<p>${endAmen ? "Amen." : "Amen."}</p>`
+    ].join('\n');
   }
-  // Default sober prayer
+
+  // directive for "Parole qui ordonne" + "lumière/ténèbres" + "Par ton Esprit Saint, amen."
+  if (mentionParole || mentionLumiere || mentionEsprit) {
+    const lines = [];
+    lines.push(`<p><strong>Seigneur</strong>, nous venons à toi devant <strong>${reference}</strong>.</p>`);
+    lines.push(`<p>Donne-nous d'accueillir ta <em>Parole qui ordonne</em> et de marcher dans la clarté face à <em>lumière et ténèbres</em>.</p>`);
+    lines.push(`<p>Apprends-nous l'obéissance simple et joyeuse, selon ta Parole. ${mentionEsprit ? "Par ton Esprit Saint, amen." : "Amen."}</p>`);
+    return lines.join('\n');
+  }
+
+  // default
   return [
-    `<p><strong>Dieu trois fois saint</strong>, nous venons à toi devant <strong>${htmlEscape(ref)}</strong>.</p>`,
-    `<p>Par ta Parole qui ordonne, fais luire ta lumière et donne-nous d'obéir avec foi.</p>`,
-    `<p>Amen.</p>`
-  ].join("\n");
+    `<p><strong>Dieu trois fois saint</strong>, nous venons à toi devant <strong>${reference}</strong>.</p>`,
+    `<p>Éclaire-nous par ta Parole afin de discerner et d'obéir.</p>`,
+    `<p>${endAmen ? "Amen." : "Amen."}</p>`
+  ].join('\n');
 }
 
-function isNT(book) {
-  const nt = ["Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"];
-  return nt.includes(book);
+function commonBlocks({ref, book, chapter, verse}) {
+  const refInline = ref;
+  return {
+    canon: [
+      `<p>${book} appartient au ${book.toLowerCase() === "jean" ? "Nouveau" : "Premier"} Testament; genre: narratif.</p>`,
+      `<p>${refInline} s’éclaire par des thèmes structurants (Parole, foi, lumière/tenèbres, création/renouveau) selon le passage.</p>`,
+      `<p>Repères canoniques: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=${encodeURIComponent(refInline)}&version=LSG" target="_blank" rel="noopener">${refInline}</a></span>.</p>`
+    ].join('\n'),
+    scaffold: (theme) => `<p>${refInline} — thème(s): ${theme}.</p>`
+  };
 }
 
-function asList(arr) {
-  return arr.map(x => htmlEscape(x)).join("·");
+// ---- Specific content for Genèse 1 ----
+function buildGenesis1({version, directives}) {
+  const reference = `Genèse 1`;
+  const ref = reference;
+  const { canon, scaffold } = commonBlocks({ref, book: "Genèse", chapter: 1, verse: ""});
+
+  const sections = [];
+  sections.push(makeSection(1, "Prière d’ouverture", buildPrayer({reference: ref, directives, defaultFocus: "Parole/lumière/ténèbres"})));
+
+  sections.push(makeSection(2, "Canon et testament",
+    [
+      `<p>Genèse appartient au Premier Testament; genre: narratif.</p>`,
+      `<p>${ref} s’éclaire par <em>Parole qui ordonne</em> et <em>séparation lumière/ténèbres</em>, marquant l’ordre issu du chaos.</p>`,
+      `<p>Repères canoniques: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Gen%C3%A8se%201%3A1-5&version=LSG" target="_blank" rel="noopener">Genèse 1:1-5</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Psaumes%2033%3A6&version=LSG" target="_blank" rel="noopener">Psaumes 33:6</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Psaumes%20104%3A24&version=LSG" target="_blank" rel="noopener">Psaumes 104:24</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Jean%201%3A1-3&version=LSG" target="_blank" rel="noopener">Jean 1:1-3</a></span>.</p>`,
+      `<p>Glossaire: <em>alliance</em> (relation de fidélité instituée par Dieu), <em>sagesse</em> (art de vivre selon Dieu), <em>sanctification</em> (mise à part et transformation).</p>`
+    ].join('\n')
+  ));
+
+  sections.push(makeSection(3, "Questions du chapitre précédent",
+    [
+      `<p><strong>Observation.</strong> Acteurs, lieux, procédés (répétitions, inclusions, parallélismes). Verbes-clés; questions: “qui fait quoi, où, quand, pourquoi ?”.</p>`,
+      `<p><strong>Compréhension.</strong> Que révèle ${ref} de Dieu et de l’humain ? Quelles intentions dominent ?</p>`,
+      `<p><strong>Interprétation.</strong> Identifier un verset-charnière; expliciter la logique et la place dans l’Alliance.</p>`,
+      `<p><strong>Connexions.</strong> Échos canoniques: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Gen%C3%A8se%201%3A1-5&version=LSG" target="_blank" rel="noopener">Genèse 1:1-5</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Psaumes%20104%3A24&version=LSG" target="_blank" rel="noopener">Psaumes 104:24</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Colossiens%201%3A16&version=LSG" target="_blank" rel="noopener">Colossiens 1:16</a></span>.</p>`,
+      `<p><strong>Application.</strong> Décision concrète (quoi/quand/comment) et prière-réponse.</p>`
+    ].join('\n')
+  ));
+
+  sections.push(makeSection(4, "Titre du chapitre",
+    [
+      `<p>${ref} — <strong>Orientation</strong>: lire à la lumière des <em>séparations</em> et de l’<em>image de Dieu</em>.</p>`,
+      `<p>Appuis: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Psaumes%2019%3A8-10&version=LSG" target="_blank" rel="noopener">Psaumes 19:8-10</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Psaumes%20119%3A105&version=LSG" target="_blank" rel="noopener">Psaumes 119:105</a></span>.</p>`,
+      `<p>Méthodologie: énoncer le thème en une phrase puis justifier par 2–3 indices textuels.</p>`
+    ].join('\n')
+  ));
+
+  sections.push(makeSection(5, "Contexte historique",
+    [
+      `<p>Situer ${ref}: peuple, époque, contexte cultuel; place dans l’histoire du salut.</p>`,
+      `<p>Textes de contexte: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Psaumes%2033%3A6&version=LSG" target="_blank" rel="noopener">Psaumes 33:6</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Colossiens%201%3A16&version=LSG" target="_blank" rel="noopener">Colossiens 1:16</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Jean%201%3A1-3&version=LSG" target="_blank" rel="noopener">Jean 1:1-3</a></span>.</p>`,
+      `<p>Conseil: distinguer coutume/commandement; noter institutions et fêtes.</p>`
+    ].join('\n')
+  ));
+
+  sections.push(makeSection(6, "Structure littéraire",
+    `<p>Rechercher ouverture, péripéties, charnières, résolution; noter connecteurs, inclusions, changements de scène.</p>`
+  ));
+  sections.push(makeSection(7, "Genre littéraire",
+    `<p>Genre: narratif. Adapter attentes d’application et prise de notes selon le genre.</p>`
+  ));
+  sections.push(makeSection(8, "Auteur et généalogie",
+    [
+      `<p>Auteur/tradition, destinataires, enracinement canonique pour ${ref}.</p>`,
+      `<p>Lien aux pères: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Gen%C3%A8se%2015%3A6&version=LSG" target="_blank" rel="noopener">Genèse 15:6</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Exode%2034%3A6-7&version=LSG" target="_blank" rel="noopener">Exode 34:6-7</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Psaumes%20103%3A17-18&version=LSG" target="_blank" rel="noopener">Psaumes 103:17-18</a></span>.</p>`
+    ].join('\n')
+  ));
+
+  sections.push(makeSection(9, "Verset-clé doctrinal",
+    [
+      `<p>Choisir un pivot lié à <em>création</em>, <em>lumière et ténèbres</em> et montrer comment il organise le passage.</p>`,
+      `<p>Aide: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Psaumes%20119%3A11&version=LSG" target="_blank" rel="noopener">Psaumes 119:11</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Colossiens%203%3A16&version=LSG" target="_blank" rel="noopener">Colossiens 3:16</a></span>.</p>`
+    ].join('\n')
+  ));
+
+  sections.push(makeSection(10, "Analyse exégétique",
+    [
+      `<p>Relever marqueurs (répétitions, inclusions), champs lexicaux et verbes gouverneurs; confronter hypothèses.</p>`,
+      `<p>Aides: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=N%C3%A9h%C3%A9mie%208%3A8&version=LSG" target="_blank" rel="noopener">Néhémie 8:8</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Luc%2024%3A27&version=LSG" target="_blank" rel="noopener">Luc 24:27</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=2%20Timoth%C3%A9e%202%3A15&version=LSG" target="_blank" rel="noopener">2 Timothée 2:15</a></span>.</p>`
+    ].join('\n')
+  ));
+
+  sections.push(makeSection(11, "Analyse lexicale",
+    [
+      `<p>Éclairer 1–2 termes associés à <em>lumière/ténèbres</em>, <em>Parole qui ordonne</em>; noter sens, contexte et réemploi ailleurs.</p>`,
+      `<p>Voir aussi: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Proverbes%201%3A7&version=LSG" target="_blank" rel="noopener">Proverbes 1:7</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Mich%C3%A9e%206%3A8&version=LSG" target="_blank" rel="noopener">Michée 6:8</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Jean%201%3A14&version=LSG" target="_blank" rel="noopener">Jean 1:14</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Romains%203%3A24-26&version=LSG" target="_blank" rel="noopener">Romains 3:24-26</a></span>.</p>`
+    ].join('\n')
+  ));
+
+  sections.push(makeSection(12, "Références croisées",
+    [
+      `<p>Relier ${ref} à l’unité du canon via <em>lumière/ténèbres</em> et <em>séparations</em>.</p>`,
+      `<p>Vers le NT: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Jean%201%3A1-3&version=LSG" target="_blank" rel="noopener">Jean 1:1-3</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Colossiens%201%3A16&version=LSG" target="_blank" rel="noopener">Colossiens 1:16</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Josu%C3%A9%201%3A8-9&version=LSG" target="_blank" rel="noopener">Josué 1:8-9</a></span>.</p>`
+    ].join('\n')
+  ));
+
+  sections.push(makeSection(13, "Fondements théologiques",
+    [
+      `<p>Dieu agit comme Guide du peuple; l’humain est appelé à la foi agissante. Sous cette action naissent gratitude, repentance, discernement, persévérance.</p>`,
+      `<p>Ancrages: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Deut%C3%A9ronome%206%3A4-5&version=LSG" target="_blank" rel="noopener">Deutéronome 6:4-5</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Habacuc%202%3A4&version=LSG" target="_blank" rel="noopener">Habacuc 2:4</a></span>.</p>`
+    ].join('\n')
+  ));
+
+  sections.push(makeSection(14, "Thème doctrinal",
+    [
+      `<p>Actes de Dieu et réponse humaine: <em>Parole qui ordonne</em>, <em>séparations</em> conduisant à vocation humaine.</p>`,
+      `<p>Appuis: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Romains%2012%3A1-2&version=LSG" target="_blank" rel="noopener">Romains 12:1-2</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Philippiens%202%3A12-13&version=LSG" target="_blank" rel="noopener">Philippiens 2:12-13</a></span>.</p>`
+    ].join('\n')
+  ));
+
+  sections.push(makeSection(15, "Fruits spirituels", `<p>Gratitude, repentance, discernement, persévérance.</p>`));
+  sections.push(makeSection(16, "Types bibliques",
+    `<p>Repérer motifs qui préfigurent le Christ (lumière, Parole) et leur accomplissement; éviter la sur-interprétation.</p>`
+  ));
+  sections.push(makeSection(17, "Appui doctrinal",
+    [
+      `<p>Psaumes/Prophètes en renfort: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Psaumes%20104%3A24&version=LSG" target="_blank" rel="noopener">Psaumes 104:24</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=H%C3%A9breux%2011%3A3&version=LSG" target="_blank" rel="noopener">Hébreux 11:3</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=%C3%89sa%C3%AFe%2040%3A8&version=LSG" target="_blank" rel="noopener">Ésaïe 40:8</a></span>.</p>`,
+      `<p>Usage: ancrer une doctrine dans plusieurs témoins scripturaires.</p>`
+    ].join('\n')
+  ));
+  sections.push(makeSection(18, "Comparaison entre versets",
+    `<p>Comparer ouverture/charnière/conclusion; suivre l’évolution d’un mot-clé; vérifier l’unité du passage.</p>`
+  ));
+  sections.push(makeSection(19, "Comparaison avec Actes 2",
+    [
+      `<p>Parole – Esprit – Communauté; pertinence pour la vie d’Église.</p>`,
+      `<p><span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Actes%202%3A1-4&version=LSG" target="_blank" rel="noopener">Actes 2:1-4</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Actes%202%3A42-47&version=LSG" target="_blank" rel="noopener">Actes 2:42-47</a></span>.</p>`
+    ].join('\n')
+  ));
+  sections.push(makeSection(20, "Verset à mémoriser",
+    [
+      `<p>Choisir un verset de ${ref}; formuler une phrase-mémo et une prière-réponse.</p>`,
+      `<p>Aide: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Psaumes%20119%3A11&version=LSG" target="_blank" rel="noopener">Psaumes 119:11</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Colossiens%203%3A16&version=LSG" target="_blank" rel="noopener">Colossiens 3:16</a></span>.</p>`
+    ].join('\n')
+  ));
+  sections.push(makeSection(21, "Enseignement pour l’Église",
+    [
+      `<p>Impact communautaire (${ref}): annonce, édification, mission.</p>`,
+      `<p>Repères: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=%C3%89ph%C3%A9siens%204%3A11-16&version=LSG" target="_blank" rel="noopener">Éphésiens 4:11-16</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=H%C3%A9breux%2010%3A24-25&version=LSG" target="_blank" rel="noopener">Hébreux 10:24-25</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Jean%2017%3A17&version=LSG" target="_blank" rel="noopener">Jean 17:17</a></span>.</p>`
+    ].join('\n')
+  ));
+  sections.push(makeSection(22, "Enseignement pour la famille",
+    [
+      `<p>Transmettre ${ref}: lecture, prière, service, pardon, bénédiction.</p>`,
+      `<p>Textes: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Deut%C3%A9ronome%206%3A6-7&version=LSG" target="_blank" rel="noopener">Deutéronome 6:6-7</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Josu%C3%A9%2024%3A15&version=LSG" target="_blank" rel="noopener">Josué 24:15</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=%C3%89ph%C3%A9siens%206%3A4&version=LSG" target="_blank" rel="noopener">Éphésiens 6:4</a></span>.</p>`
+    ].join('\n')
+  ));
+  sections.push(makeSection(23, "Enseignement pour enfants",
+    [
+      `<p>Raconter simplement ${ref}; utiliser images/gestes; inviter à prier et mémoriser.</p>`,
+      `<p>Aide: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Marc%2010%3A14-16&version=LSG" target="_blank" rel="noopener">Marc 10:14-16</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=2%20Timoth%C3%A9e%203%3A15&version=LSG" target="_blank" rel="noopener">2 Timothée 3:15</a></span>.</p>`
+    ].join('\n')
+  ));
+  sections.push(makeSection(24, "Application missionnaire",
+    [
+      `<p>Témoignage humble et cohérent à partir de ${ref}: parole claire, amour concret.</p>`,
+      `<p>Repères: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Matthieu%205%3A13-16&version=LSG" target="_blank" rel="noopener">Matthieu 5:13-16</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=1%20Pierre%203%3A15&version=LSG" target="_blank" rel="noopener">1 Pierre 3:15</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Actes%201%3A8&version=LSG" target="_blank" rel="noopener">Actes 1:8</a></span>.</p>`
+    ].join('\n')
+  ));
+  sections.push(makeSection(25, "Application pastorale",
+    [
+      `<p>Accompagnement: prière, consolation, conseil, persévérance éclairés par ${ref}.</p>`,
+      `<p>Textes: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=1%20Thessaloniciens%205%3A14&version=LSG" target="_blank" rel="noopener">1 Thessaloniciens 5:14</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Galates%206%3A1-2&version=LSG" target="_blank" rel="noopener">Galates 6:1-2</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=2%20Timoth%C3%A9e%204%3A2&version=LSG" target="_blank" rel="noopener">2 Timothée 4:2</a></span>.</p>`
+    ].join('\n')
+  ));
+  sections.push(makeSection(26, "Application personnelle",
+    [
+      `<p>Décider 1–2 actions concrètes (quoi/quand/comment) pour la semaine avec ${ref}.</p>`,
+      `<p>Aide: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Jacques%201%3A22-25&version=LSG" target="_blank" rel="noopener">Jacques 1:22-25</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Psaumes%20139%3A23-24&version=LSG" target="_blank" rel="noopener">Psaumes 139:23-24</a></span>.</p>`
+    ].join('\n')
+  ));
+  sections.push(makeSection(27, "Versets à retenir",
+    [
+      `<p>Lister 3–5 versets du chapitre; pour chacun, noter une clé (création, Parole qui ordonne).</p>`,
+      `<p>Suggestions hors chapitre: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Psaumes%2033%3A6&version=LSG" target="_blank" rel="noopener">Psaumes 33:6</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Psaumes%20104%3A24&version=LSG" target="_blank" rel="noopener">Psaumes 104:24</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Psaumes%2019%3A8-10&version=LSG" target="_blank" rel="noopener">Psaumes 19:8-10</a></span>.</p>`
+    ].join('\n')
+  ));
+  sections.push(makeSection(28, "Prière de fin",
+    `<p>Que la Parole reçue en ${ref} devienne en nous foi, prière et obéissance. Amen.</p>`
+  ));
+
+  return {
+    reference: ref,
+    version,
+    sections
+  };
 }
 
-function buildSections({book, chapter, verse, version, directives}) {
-  const ref = toRef(book, chapter, verse);
-  const isJean316 = (book === "Jean" && String(chapter) === "3" && String(verse || "") === "16");
-  const isGen1 = (book === "Genèse" && String(chapter) === "1" && (verse === "" || verse === undefined || verse === null));
+// ---- Specific content for Jean 3:16 ----
+function buildJohn316({version, directives}) {
+  const reference = `Jean 3:16`;
+  const ref = reference;
+  const sections = [];
+  sections.push(makeSection(1, "Prière d’ouverture", buildPrayer({reference: ref, directives, defaultFocus: "amour/foi"})));
+  sections.push(makeSection(2, "Canon et testament",
+    [
+      `<p>Jean appartient au Nouveau Testament; genre: narratif (Évangile).</p>`,
+      `<p>${ref} s’inscrit dans l’entretien avec Nicodème; thèmes: <em>amour de Dieu</em>, <em>don du Fils</em>, <em>foi</em>, <em>vie éternelle</em>.</p>`,
+      `<p>Repères canoniques: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Jean%203%3A16&version=LSG" target="_blank" rel="noopener">Jean 3:16</a></span>.</p>`
+    ].join('\n')
+  ));
+  sections.push(makeSection(3, "Questions du chapitre précédent",
+    `<p><strong>Observation/Compréhension/Interprétation</strong> centrées sur amour de Dieu et foi; articulation avec Jean 3:1-15.</p>`));
+  sections.push(makeSection(4, "Titre du chapitre",
+    [
+      `<p>${ref} — <strong>Orientation</strong>: lire à la lumière de l’amour de Dieu et du don du Fils pour tous.</p>`,
+      `<p>Appuis: <span class="refs-inline"><a href="https://www.biblegateway.com/passage/?search=Psaumes%2019%3A8-10&version=LSG" target="_blank" rel="noopener">Psaumes 19:8-10</a><span class="sep">·</span><a href="https://www.biblegateway.com/passage/?search=Psaumes%20119%3A105&version=LSG" target="_blank" rel="noopener">Psaumes 119:105</a></span>.</p>`
+    ].join('\n')
+  ));
+  sections.push(makeSection(5, "Contexte historique",
+    `<p>Ministère de Jésus en Judée; interlocuteur: Nicodème (chef des Juifs). Place dans l’économie du salut: révélation du cœur du Père.</p>`
+  ));
+  sections.push(makeSection(6, "Structure littéraire",
+    `<p>Cadre narratif (dialogue), logion central (v.16), contrastes vie/jugement, croire/ne pas croire, lumière/ténèbres (v.19-21).</p>`
+  ));
+  sections.push(makeSection(7, "Genre littéraire",
+    `<p>Récit théologique: parole autoritative de Jésus au sein d’un dialogue catéchétique.</p>`
+  ));
+  sections.push(makeSection(8, "Auteur et généalogie",
+    `<p>Tradition johannique; destinataires confrontés aux questions de foi et d’identité messianique.</p>`
+  ));
+  sections.push(makeSection(9, "Verset-clé doctrinal",
+    `<p>Pivot: “Dieu a tant aimé… afin que quiconque croit… ait la vie éternelle” — organise amour → don → foi → vie.</p>`
+  ));
+  sections.push(makeSection(10, "Analyse exégétique",
+    `<p>Reprises lexicales: aimer (agapē), donner (didōmi), croire (pisteuō), périr/vie (apollymi/zoē aiōnios). Contrastes et finalités.</p>`
+  ));
+  sections.push(makeSection(11, "Analyse lexicale",
+    `<p><em>Agapē</em>: amour gratuit et souverain; <em>pisteuō</em>: confiance active; <em>aiōnios</em>: qualité de vie liée à Dieu.</p>`
+  ));
+  sections.push(makeSection(12, "Références croisées",
+    `<p>1 Jn 4:9-10; Rm 5:8; Ép 2:4-9; Nb 21 (serpent d’airain) en arrière-plan de Jn 3:14-15.</p>`
+  ));
+  sections.push(makeSection(13, "Fondements théologiques",
+    `<p>Dieu, source et initiative du salut; Christ, don du Père; réponse: foi qui accueille et transforme.</p>`
+  ));
+  sections.push(makeSection(14, "Thème doctrinal",
+    `<p>Universalité de l’offre du salut et nécessité de la foi personnelle; gratuité et grâce.</p>`
+  ));
+  sections.push(makeSection(15, "Fruits spirituels",
+    `<p>Assurance, joie, humilité, charité active, témoignage.</p>`
+  ));
+  sections.push(makeSection(16, "Types bibliques",
+    `<p>Exaltation du Fils (Jn 3:14) ↔ serpent d’airain (Nb 21): regard de foi qui sauve.</p>`
+  ));
+  sections.push(makeSection(17, "Appui doctrinal",
+    `<p>Jean 17:17; 2 Tm 3:16-17; Ps 19:8-10 — autorité et efficacité de la Parole.</p>`
+  ));
+  sections.push(makeSection(18, "Comparaison entre versets",
+    `<p>Comparer Jn 3:16 avec Jn 3:14-15 et 3:17-21 (amour/jugement, lumière/ténèbres).</p>`
+  ));
+  sections.push(makeSection(19, "Comparaison avec Actes 2",
+    `<p>Parole annoncée, Esprit donné, communauté formée: dynamique du salut vécue et partagée.</p>`
+  ));
+  sections.push(makeSection(20, "Verset à mémoriser",
+    `<p>Formuler une phrase-mémo et prière-réponse centrées sur amour, foi, vie.</p>`
+  ));
+  sections.push(makeSection(21, "Enseignement pour l’Église",
+    `<p>Évangélisation, catéchèse baptismale, hospitalité pour “quiconque croit”.</p>`
+  ));
+  sections.push(makeSection(22, "Enseignement pour la famille",
+    `<p>Transmission: prière en famille, pardon, service; apprendre le verset aux enfants.</p>`
+  ));
+  sections.push(makeSection(23, "Enseignement pour enfants",
+    `<p>Raconter l’histoire de Nicodème; geste: main sur le cœur “Dieu aime”, mains ouvertes “il donne Jésus”.</p>`
+  ));
+  sections.push(makeSection(24, "Application missionnaire",
+    `<p>Témoignage simple: “voici ce que l’amour de Dieu a changé pour moi”.</p>`
+  ));
+  sections.push(makeSection(25, "Application pastorale",
+    `<p>Accompagnement des personnes en quête: écouter, clarifier l’Évangile, prier ensemble.</p>`
+  ));
+  sections.push(makeSection(26, "Application personnelle",
+    `<p>Deux pas concrets cette semaine: (1) prier pour une personne, (2) poser un acte de charité.</p>`
+  ));
+  sections.push(makeSection(27, "Versets à retenir",
+    `<p>Jn 3:16; Rm 5:8; Ép 2:8-9; 1 Jn 4:9-10.</p>`
+  ));
+  sections.push(makeSection(28, "Prière de fin",
+    `<p>Que la Parole reçue en ${ref} devienne en nous foi, prière et obéissance. Amen.</p>`
+  ));
 
-  // Themes
-  const themes = isJean316
-    ? ["amour de Dieu", "foi", "don du Fils", "vie éternelle"]
-    : isGen1
-      ? ["Parole qui ordonne", "lumière et ténèbres", "création", "image de Dieu"]
-      : isNT(book)
-        ? ["Évangile", "foi", "grâce"]
-        : ["Alliance", "fidélité de Dieu", "sagesse"];
+  return {
+    reference: ref,
+    version,
+    sections
+  };
+}
 
-  // Helpers for richer content
-  function p(txt) { return `<p>${txt}</p>`; }
+// ---- Fallback generic content (for any other passage) ----
+function buildGeneric({book, chapter, verse, version, directives}) {
+  const ref = `${book} ${chapter ?? ""}${nonEmptyString(verse) ? ":"+verse : ""}`.trim();
+  const sections = [];
+  sections.push(makeSection(1, "Prière d’ouverture", buildPrayer({reference: ref, directives, defaultFocus: "Parole/foi"})));
+  for (let i = 2; i <= 28; i++) {
+    sections.push(makeSection(i, [
+      "Canon et testament","Questions du chapitre précédent","Titre du chapitre","Contexte historique",
+      "Structure littéraire","Genre littéraire","Auteur et généalogie","Verset-clé doctrinal",
+      "Analyse exégétique","Analyse lexicale","Références croisées","Fondements théologiques",
+      "Thème doctrinal","Fruits spirituels","Types bibliques","Appui doctrinal",
+      "Comparaison entre versets","Comparaison avec Actes 2","Verset à mémoriser","Enseignement pour l’Église",
+      "Enseignement pour la famille","Enseignement pour enfants","Application missionnaire",
+      "Application pastorale","Application personnelle","Versets à retenir","Prière de fin"
+    ][i-2] || `Section ${i}`,
+    `<p>Indications pour ${ref} — contenu générique (à enrichir selon le passage).</p>`));
+  }
+  // Ensure 28 sections
+  return { reference: ref, version, sections: sections.slice(0, 28) };
+}
 
-  function s1() {
-    return { id: 1, title: "Prière d’ouverture", content: openingPrayer({book, chapter, verse, directives}) };
+// ---------------- handler core ----------------
+function buildResponse(payload) {
+  const norm = normalizePayload(payload || {});
+  if (norm.probe) {
+    return { ok: true, source: "probe", warn: "" };
   }
 
-  function s2() {
-    const bullets = isJean316
-      ? [
-          "Jean appartient au Nouveau Testament; genre: évangile à visée théologique.",
-          "Contexte immédiat: entretien de Jésus avec Nicodème (Jean 3:1-21).",
-          "Axes: amour de Dieu, foi, vie éternelle."
-        ]
-      : isGen1
-      ? [
-          "Genèse appartient au Premier Testament; genre: récit des origines.",
-          "Axes: Parole créatrice, ordres/limites, lumière/ténèbres."
-        ]
-      : [
-          `${book} appartient au ${isNT(book) ? "Nouveau" : "Premier"} Testament; genre principal: narratif.`
-        ];
-    const reps = isJean316
-      ? ["Jean 3:16", "Romains 5:8", "1 Jean 4:9-10", "Éphésiens 2:8-9"]
-      : isGen1
-      ? ["Genèse 1:1-5", "Psaume 33:6", "Jean 1:1-3", "Hébreux 11:3"]
-      : [ref];
+  // Validate
+  if (!nonEmptyString(norm.book) || (!norm.chapter && norm.chapter !== 0)) {
     return {
-      id: 2,
-      title: "Canon et testament",
-      content: [
-        p(htmlEscape(bullets[0])),
-        bullets[1] ? p(htmlEscape(bullets[1])) : "",
-        bullets[2] ? p(htmlEscape(bullets[2])) : "",
-        p(`Repères canoniques: ${asList(reps)}.`),
-        p("<em>Glossaire</em>: foi: confiance qui s’en remet à Dieu ; grâce: faveur imméritée ; alliance: relation de fidélité établie par Dieu.")
-      ].filter(Boolean).join("\n")
+      ok: false,
+      source: "canonical",
+      warn: "Invalid request: 'book' and 'chapter' are required.",
+      data: null
     };
   }
 
-  function s3() {
-    const lines = [
-      "<strong>Observation.</strong> Qui parle, à qui, où et quand ? Noter répétitions, contrastes, connecteurs.",
-      isJean316 ? "<strong>Repère.</strong> Les verbes « aimer », « donner », « croire », « périr/avoir la vie » structurent le verset." : "",
-      "<strong>Compréhension.</strong> Que révèle le texte de Dieu et de l’humain ?",
-      "<strong>Interprétation.</strong> Quelle idée centrale tient ensemble le passage ?",
-      "<strong>Application.</strong> Quelle réponse concrète aujourd’hui ?"
-    ].filter(Boolean).map(p).join("\n");
-    return { id: 3, title: "Questions du chapitre précédent", content: lines };
+  // Choose builder
+  let data;
+  const bookKey = norm.book.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  if ((bookKey === "genese" || bookKey === "genese") && norm.chapter === 1) {
+    data = buildGenesis1({ version: norm.version, directives: norm.directives });
+  } else if (bookKey === "jean" && norm.chapter === 3 && norm.verse === "16") {
+    data = buildJohn316({ version: norm.version, directives: norm.directives });
+  } else {
+    data = buildGeneric({ book: norm.book, chapter: norm.chapter, verse: norm.verse, version: norm.version, directives: norm.directives });
   }
 
-  function s4() {
-    const orient = isJean316
-      ? "L’amour qui donne le Fils et la foi qui reçoit la vie"
-      : isGen1 ? "La Parole qui ordonne et la séparation lumière/ténèbres"
-      : themes.slice(0,2).join(", ");
-    return {
-      id: 4,
-      title: "Titre du chapitre",
-      content: [
-        p(`${htmlEscape(ref)} — <strong>Orientation</strong>: lire à la lumière de ${htmlEscape(orient)}.`),
-        p(`Appuis: ${asList(isJean316 ? ["Luc 24:27","2 Timothée 3:16-17"] : ["Psaume 19:8-10","Psaume 119:105"])}.`),
-        p("Méthode: énoncer le thème en une phrase, justifier par 2–3 indices textuels.")
-      ].join("\n")
-    };
-  }
-
-  function s5() {
-    const content = isJean316
-      ? [
-          "Fin du Ier siècle; communauté johannique confrontée à l’incrédulité et aux clivages.",
-          "Cadre: Jérusalem, un docteur de la loi (Nicodème) vient de nuit interroger Jésus.",
-          "Place dans l’histoire du salut: révélation de l’amour universel de Dieu en son Fils, pour la vie du monde."
-        ]
-      : isGen1
-      ? [
-          "Origines d’Israël; affirmation de Dieu comme Créateur unique face aux récits du Proche-Orient ancien.",
-          "Place: ouverture de la Torah; fondation du sabbat et des vocations humaines."
-        ]
-      : [
-          "Situer l’époque, les destinataires, et la question pastorale majeure du livre."
-        ];
-    return { id: 5, title: "Contexte historique", content: content.map(p).join("\n") };
-  }
-
-  function s6() {
-    const lines = isJean316
-      ? [
-          "Structure locale (Jean 3:1-21): dialogue (3:1-15), déclaration théologique (3:16-21).",
-          "Connecteurs clés: « car » (explication), « afin que » (finalité).",
-          "Champ lexical: amour, don, croire, périr, vie."
-        ]
-      : [
-          "Repérer ouverture, charnières et conclusion; noter les connecteurs (« car », « afin que », « mais »)."
-        ];
-    return { id: 6, title: "Structure littéraire", content: lines.map(p).join("\n") };
-  }
-
-  function s7() {
-    return {
-      id: 7,
-      title: "Genre littéraire",
-      content: [
-        isJean316 ? p("Évangile (récit + discours). Le verset 16 est une maxime théologique condensée.") : p("Genre: narratif/poétique/discipulaire selon le livre."),
-        p("Conséquence: lire le propos théologique et l’appel à la réponse.")
-      ].join("\n")
-    };
-  }
-
-  function s8() {
-    const lines = isJean316
-      ? [
-          "Tradition johannique (apôtre Jean ou son école).",
-          "Destinataires: croyants et chercheurs de vérité.",
-          "Insertion: prologue (1:1-18) — signes — discours; Jean 3 éclaire la nouvelle naissance."
-        ]
-      : [
-          "Auteur, destinataires, enracinement canonique et trajectoire théologique."
-        ];
-    return { id: 8, title: "Auteur et généalogie", content: lines.map(p).join("\n") };
-  }
-
-  function s9() {
-    const lines = isJean316
-      ? [
-          "Pivot: « Dieu a tant aimé le monde qu’il a donné son Fils unique, afin que quiconque croit en lui ne périsse point, mais qu’il ait la vie éternelle. »",
-          "Organisation: amour (motif) → don (acte) → foi (réponse) → vie (but)."
-        ]
-      : [
-          "Identifier un verset-pivot qui concentre le propos théologique et organise la lecture."
-        ];
-    return { id: 9, title: "Verset-clé doctrinal", content: lines.map(p).join("\n") };
-  }
-
-  function s10() {
-    const lines = isJean316
-      ? [
-          "Répétitions: « le monde », « croire », « vie »; antithèse: « périr »/« vie éternelle ».",
-          "Syntaxe: cause (« car ») et finalité (« afin que ») structurent l’argument.",
-          "Vérifier l’arrière-plan dans 3:14-15 (serpent élevé par Moïse) annonçant l’élévation du Fils."
-        ]
-      : [
-          "Relever répétitions, inclusions, champs lexicaux, et tester l’hypothèse de lecture sur l’ensemble."
-        ];
-    return { id: 10, title: "Analyse exégétique", content: lines.map(p).join("\n") };
-  }
-
-  function s11() {
-    const lines = isJean316
-      ? [
-          "<em>Agapaō / agapē</em> (aimer/amour): amour qui se donne; source en Dieu.",
-          "<em>Pisteuō</em> (croire): s’en remettre, faire confiance; dimension relationnelle.",
-          "<em>Aiōnios</em> (éternel): qualité de vie liée à la communion avec Dieu, dès maintenant."
-        ]
-      : [
-          "Éclairer 1–2 termes décisifs (p.ex. « créer », « sagesse », « grâce », « foi ») par leur usage dans la Bible."
-        ];
-    return { id: 11, title: "Analyse lexicale", content: lines.map(p).join("\n") };
-  }
-
-  function s12() {
-    const lines = isJean316
-      ? [
-          "1 Jean 4:9-10 (amour manifesté), Romains 5:8 (Dieu prouve son amour), Éphésiens 2:8-9 (salut par grâce, par la foi).",
-          "Nombres 21:8-9 (serpent élevé) comme arrière-plan typologique."
-        ]
-      : [
-          "Relier le passage aux témoins majeurs du canon pour confirmer et nuancer la lecture."
-        ];
-    return { id: 12, title: "Références croisées", content: lines.map(p).join("\n") };
-  }
-
-  function s13() {
-    const lines = isJean316
-      ? [
-          "Dieu est amour et il prend l’initiative du salut.",
-          "Le salut est don (grâce) reçu par la foi, non par les œuvres.",
-          "Universalité de l’offre (« le monde ») et particularité de la réponse (« quiconque croit »)."
-        ]
-      : [
-          "Synthétiser ce que le texte affirme de Dieu et de l’humain (création, chute, rédemption, espérance)."
-        ];
-    return { id: 13, title: "Fondements théologiques", content: lines.map(p).join("\n") };
-  }
-
-  function s14() {
-    const lines = isJean316
-      ? [
-          "Actes de Dieu: aimer, donner le Fils, offrir la vie.",
-          "Réponse humaine: croire/faire confiance, recevoir la vie, marcher dans la lumière."
-        ]
-      : [
-          "Articuler ce que Dieu fait et ce que l’homme est appelé à faire en réponse."
-        ];
-    return { id: 14, title: "Thème doctrinal", content: lines.map(p).join("\n") };
-  }
-
-  function s15() {
-    const lines = [
-      "Gratitude, assurance, joie.",
-      "Repentance et confiance renouvelée.",
-      "Charité envers le prochain."
-    ];
-    return { id: 15, title: "Fruits spirituels", content: lines.map(p).join("\n") };
-  }
-
-  function s16() {
-    const lines = isJean316
-      ? [
-          "Moïse élevant le serpent (Nb 21) préfigure l’élévation du Christ; regarder avec foi conduit à la vie."
-        ]
-      : [
-          "Repérer motifs et figures qui annoncent le Christ, sans forcer le sens littéral."
-        ];
-    return { id: 16, title: "Types bibliques", content: lines.map(p).join("\n") };
-  }
-
-  function s17() {
-    const lines = isJean316
-      ? [
-          "Jean 1:12; 1 Jean 4:9-10; Romains 8:32; Tite 3:4-7; Psaume 103:8."
-        ]
-      : [
-          "Rassembler des témoins majeurs (Torah, Prophètes, Sagesse, Évangiles, Épîtres) en renfort."
-        ];
-    return { id: 17, title: "Appui doctrinal", content: lines.map(p).join("\n") };
-  }
-
-  function s18() {
-    const lines = isJean316
-      ? [
-          "Comparer 3:16 avec 3:17-21 (but non pour juger mais sauver) et 1 Jean 4:9-10.",
-          "Observer l’évolution du champ sémantique de « vie » dans l’Évangile de Jean (3:16; 10:10; 17:3)."
-        ]
-      : [
-          "Comparer ouverture/charnière/conclusion; noter l’évolution d’un mot-clé dans le livre."
-        ];
-    return { id: 18, title: "Comparaison entre versets", content: lines.map(p).join("\n") };
-  }
-
-  function s19() {
-    const lines = isJean316
-      ? [
-          "Actes 2 annonce un salut offert « à vous, à vos enfants et à tous au loin »; la foi naît à l’écoute de la Parole et par l’Esprit.",
-        ]
-      : [
-          "Relier le passage à Parole–Esprit–Communauté pour la vie d’Église."
-        ];
-    return { id: 19, title: "Comparaison avec Actes 2", content: lines.map(p).join("\n") };
-  }
-
-  function s20() {
-    const lines = isJean316
-      ? [
-          "Jean 3:16 (texte entier).",
-          "Phrase-mémo: « Aimés, nous croyons et nous vivons. »",
-          "Prière: « Seigneur, enracine ma foi dans ton amour manifesté en Jésus. »"
-        ]
-      : [
-          "Choisir un verset du passage; écrire une phrase-mémo et une prière-réponse."
-        ];
-    return { id: 20, title: "Verset à mémoriser", content: lines.map(p).join("\n") };
-  }
-
-  function s21() {
-    const lines = [
-      "Annonce: centrer la prédication sur l’initiative de Dieu et l’appel à la foi.",
-      "Édification: encourager l’assurance du salut et la vie nouvelle.",
-      "Mission: ouvrir largement l’invitation (« quiconque »)."
-    ];
-    return { id: 21, title: "Enseignement pour l’Église", content: lines.map(p).join("\n") };
-  }
-
-  function s22() {
-    const lines = [
-      "Lire le verset ensemble, expliquer « Dieu aime », « Dieu donne », « nous croyons ».",
-      "Prière familiale: remercier pour l’amour de Dieu et nommer une confiance concrète."
-    ];
-    return { id: 22, title: "Enseignement pour la famille", content: lines.map(p).join("\n") };
-  }
-
-  function s23() {
-    const lines = [
-      "Raconter: « Dieu nous aime tellement qu’il a donné Jésus »; mimer « donner » et « recevoir ».",
-      "Mémoriser en rythme; prier simplement: « Merci Jésus »."
-    ];
-    return { id: 23, title: "Enseignement pour enfants", content: lines.map(p).join("\n") };
-  }
-
-  function s24() {
-    const lines = [
-      "Témoigner sans crainte: parler de l’amour de Dieu centré sur la personne de Jésus.",
-      "Relier parole et actes d’amour concrets."
-    ];
-    return { id: 24, title: "Application missionnaire", content: lines.map(p).join("\n") };
-  }
-
-  function s25() {
-    const lines = [
-      "Conseiller: revenir à la grâce; lutter contre la culpabilité stérile par la foi au Fils.",
-      "Consoler: Dieu a aimé — cette déclaration précède nos mérites et nos faiblesses."
-    ];
-    return { id: 25, title: "Application pastorale", content: lines.map(p).join("\n") };
-  }
-
-  function s26() {
-    const lines = [
-      "Cette semaine: 1) remercier chaque jour pour l’amour de Dieu; 2) poser un acte d’amour gratuit; 3) partager le verset à quelqu’un."
-    ];
-    return { id: 26, title: "Application personnelle", content: lines.map(p).join("\n") };
-  }
-
-  function s27() {
-    const lines = isJean316
-      ? [
-          "Jean 3:16 — amour/don/foi/vie.",
-          "Romains 5:8 — amour prouvé.",
-          "1 Jean 4:9-10 — amour manifesté.",
-          "Éphésiens 2:8-9 — salut par grâce."
-        ]
-      : [
-          "Lister 3–5 versets clés du chapitre et noter la clé thématique pour chacun."
-        ];
-    return { id: 27, title: "Versets à retenir", content: lines.map(p).join("\n") };
-  }
-
-  function s28() {
-    const closing = isJean316
-      ? "Que la Parole reçue en Jean 3:16 enracine notre foi dans ton amour, et qu’elle devienne prière et obéissance. Amen."
-      : "Que ta Parole devienne en nous foi, prière et obéissance. Amen.";
-    return { id: 28, title: "Prière de fin", content: p(closing) };
-  }
-
-  const sections = [
-    s1(), s2(), s3(), s4(), s5(), s6(), s7(), s8(), s9(), s10(),
-    s11(), s12(), s13(), s14(), s15(), s16(), s17(), s18(), s19(), s20(),
-    s21(), s22(), s23(), s24(), s25(), s26(), s27(), s28()
-  ];
-
-  return sections;
-}
-
-async function readBody(req) {
-  // Next.js (Node) provides req.body; Edge/Fetch may require parsing
-  if (req && typeof req.body === 'object' && req.body !== null) return req.body;
-  if (req && typeof req.text === 'function') {
-    const raw = await req.text();
-    try { return JSON.parse(raw || "{}"); } catch { return {}; }
-  }
-  return {};
-}
-
-async function handler(req, res) {
-  // Allow GET probe as well, but prefer POST
-  let body = await readBody(req);
-  if (body && body.probe === true) {
-    const payload = { ok: true, source: "probe", warn: "" };
-    if (res && typeof res.status === 'function') return res.status(200).json(payload);
-    return new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json" } });
-  }
-
-  if (!body || Object.keys(body).length === 0) {
-    body = {}; // avoid crash
-  }
-
-  const book = body.book || "Genèse";
-  const chapter = body.chapter ?? 1;
-  const verse = body.verse ?? "";
-  const version = body.version || "LSG";
-  const directives = body.directives || {};
-
-  const reference = toRef(book, chapter, verse);
-  const sections = buildSections({ book, chapter, verse, version, directives });
-
-  const payload = {
+  return {
     ok: true,
     source: "canonical",
     warn: "",
-    data: { reference, version, sections }
+    data
   };
-
-  if (res && typeof res.status === 'function') {
-    res.setHeader?.("content-type", "application/json; charset=utf-8");
-    return res.status(200).json(payload);
-  } else if (typeof Response !== "undefined") {
-    return new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json" } });
-  } else {
-    // Fallback: return payload (for unit tests)
-    return payload;
-  }
 }
 
-// CommonJS + ESM compatibility
-module.exports = handler;
-module.exports.default = handler;
+// ---------------- exported handler (Next.js pages / Vercel) ----------------
+module.exports = async function handler(req, res) {
+  try {
+    if (req.method !== 'POST') {
+      return send(res, 405, { ok: false, source: "canonical", warn: "Method Not Allowed. Use POST." });
+    }
+    const body = await readJsonBody(req);
+    if (body && body.__parse_error) {
+      return send(res, 200, { ok: false, source: "canonical", warn: "JSON parse error: " + body.__parse_error, raw: body.__raw?.slice(0, 2000) ?? "" });
+    }
+    const result = buildResponse(body || {});
+    return send(res, 200, result);
+  } catch (err) {
+    // Never crash with 500 for expected cases; return structured error instead
+    const message = err?.message || String(err);
+    return send(res, 200, { ok: false, source: "canonical", warn: "Unhandled error: " + message });
+  }
+};
