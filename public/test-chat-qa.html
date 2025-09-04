@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Diagnostic /api/chat — Q/R dynamiques</title>
+  <style>
+    :root{--bg:#0b1220;--panel:#0f172a;--muted:#94a3b8;--ok:#16a34a;--ko:#dc2626;--accent:#38bdf8}
+    html,body{margin:0;padding:0;background:var(--bg);color:#e5e7eb;font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
+    main{max-width:1100px;margin:24px auto;padding:0 16px}
+    h1{font-size:22px;margin:0 0 12px}
+    .card{background:var(--panel);border:1px solid #1f2937;border-radius:12px;padding:14px;margin:12px 0}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+    input,button,select{border-radius:10px;border:1px solid #334155;background:#0b1220;color:#e5e7eb;padding:10px 12px}
+    button{cursor:pointer;font-weight:700}
+    button.primary{background:#0369a1;border-color:#075985;color:#fff}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:8px 0}
+    .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+    pre{white-space:pre-wrap;word-break:break-word;background:#0b1020;border:1px solid #1f2a44;border-radius:8px;padding:10px;max-height:360px;overflow:auto}
+    .ok{color:var(--ok)} .ko{color:var(--ko)}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    @media (max-width:900px){ .grid{grid-template-columns:1fr} }
+    .section{border:1px solid #1f2937;border-radius:10px;padding:10px}
+    .section h4{margin:0 0 6px;font-size:14px}
+    .section .content{font-size:13px;line-height:1.5}
+    .muted{color:#94a3b8}
+    a{color:var(--accent)}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>🔎 Diagnostic <code>/api/chat</code> — Q/R dynamiques (section 3)</h1>
+    <p class="mono muted">Active <strong>Réponses Q/R</strong> → on poste <code>{"directives":{"qa":true}}</code>.</p>
+
+    <section class="card">
+      <h2 style="margin:0 0 6px">Entrée</h2>
+      <div class="row">
+        <div><label>Livre</label><input id="book" value="Jean"></div>
+        <div><label>Chapitre</label><input id="chapter" type="number" value="3"></div>
+        <div><label>Versets (optionnel)</label><input id="verses" value="16"></div>
+        <div>
+          <label>Version</label>
+          <select id="version">
+            <option value="LSG" selected>LSG</option>
+            <option value="JND">JND</option>
+          </select>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;margin-left:8px">
+          <input type="checkbox" id="qa" checked>
+          <span>Réponses Q/R (section 3)</span>
+        </label>
+        <button id="btn" class="primary">POST /api/chat</button>
+        <span id="status" class="mono" style="margin-left:8px"></span>
+      </div>
+      <div id="meta" class="mono muted">—</div>
+    </section>
+
+    <section class="card">
+      <h2 style="margin:0 0 6px">Sections</h2>
+      <div class="mono">Référence : <span id="ref">—</span> · Source : <span id="src">—</span> · Sections : <span id="count">—</span></div>
+      <div id="sections" class="grid" style="margin-top:12px"></div>
+    </section>
+
+    <section class="card">
+      <h2 style="margin:0 0 6px">Réponse brute</h2>
+      <pre id="raw" class="mono">—</pre>
+    </section>
+  </main>
+
+  <script defer src="/test-chat-qa.js"></script>
+</body>
+</html>
