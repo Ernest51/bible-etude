@@ -1,5 +1,5 @@
 // /api/explain.js
-// "Lire la Bible" — Lecture + explication avec RÉPONSES courtes (sans OpenAI)
+// "Lire la Bible" — Lecture + explication AVEC RÉPONSES (sans OpenAI)
 // GET: ?book=Genèse&chapter=1&verse=1-3
 export const config = { runtime: "nodejs" };
 
@@ -13,7 +13,7 @@ function refString(book, chapter, verse) {
   return verse ? `${cap(book)} ${ch}:${verse}` : `${cap(book)} ${ch}`;
 }
 
-// Autorise p,strong,em,a,ul,ol,li
+// Autorise p,strong,em,a,ul,ol,li et neutralise le reste
 function safeHtml(s = "") {
   return String(s)
     .replace(/<(?!\/?(p|strong|em|a|ul|ol|li)(\s|>|\/))/gi, "&lt;")
@@ -24,8 +24,8 @@ function safeHtml(s = "") {
     });
 }
 
-const proseBlock = (inner) => `<div class="prose prose-slate max-w-none">${inner}</div>`;
-const esc = (s="") => String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const esc = (s = "") =>
+  String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 
 /* ───────────── Extraction simple depuis le texte ───────────── */
 
@@ -54,7 +54,7 @@ const VERB_PATTERNS = [
 const THEME_PATTERNS = [
   ["amour de Dieu", /amour|aim/i],
   ["foi", /croit|foi|croire/i],
-  ["grâce / don", /don|gr[aâ]ce/i],
+  ["grâce / don", /don(?!n[ée]e)|gr[aâ]ce/i],
   ["salut / vie", /salut|vie[^\p{L}]?etern|vie étern/i],
   ["jugement / perdition", /jugement|p[ée]r[iy]/i],
   ["Christ / Fils", /fils|christ|j[ée]sus/i],
@@ -65,7 +65,7 @@ const THEME_PATTERNS = [
 const PROMESSE_PAT = /(vie[^\p{L}]?etern|vie étern|salut|paix|joie|gr[aâ]ce|pardon)/i;
 const AVERT_PAT   = /(p[ée]r[iy]|jugement|col[èe]re|malheur|mort)/i;
 const BUT_PAT     = /(afin que|pour que|en sorte que)/i;
-const CAUSE_PAT   = /(car|parce que|puisque)/i;
+const CAUSE_PAT   = /\b(car|parce que|puisque)\b/i;
 const CONTR_PAT   = /\bmais\b/i;
 
 function capitalizeFirst(w) {
@@ -81,7 +81,6 @@ function extractActors(text) {
     .map(w => w.replace(/[’'-]+$/g, ""))
     .filter(w => w.length > 1);
 
-  // Regroupements simples
   const set = new Set(cleaned);
   if (set.has("Éternel") || set.has("Seigneur")) set.add("Dieu");
   if (set.has("Jésus")) set.add("Christ");
@@ -92,7 +91,7 @@ function extractActors(text) {
 function extractActions(text) {
   const lower = text.toLowerCase();
   const actions = [];
-  VERB_PATTERNS.forEach(([label, ...stems])=>{
+  VERB_PATTERNS.forEach(([label, ...stems]) => {
     if (stems.some(s => lower.includes(s))) actions.push(label);
   });
   return Array.from(new Set(actions)).slice(0, 8);
@@ -168,7 +167,8 @@ function buildExplainHTML(reference, rawText = "") {
 
   const texte = `<p><em>Texte (extrait)&nbsp;:</em> ${esc(rawText)}</p>`;
 
-  return safeHtml(proseBlock(intro + obs + comp + app + texte));
+  // ⚠️ On n’enveloppe PAS dans <div> pour éviter l’échappement côté UI.
+  return safeHtml(intro + obs + comp + app + texte);
 }
 
 /* ───────────── Handler ───────────── */
@@ -182,7 +182,7 @@ export default async function handler(req, res) {
     const { book = "Genèse", chapter = "1", verse = "" } = req.query || {};
     const reference = refString(book, chapter, verse);
 
-    // Appel provider interne (même déploiement)
+    // Appel au provider interne (même déploiement)
     const baseUrl =
       (req.headers["x-forwarded-proto"] || "https") + "://" + req.headers.host;
     const qs = new URLSearchParams({ book, chapter, verse }).toString();
