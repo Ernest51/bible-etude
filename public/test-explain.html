@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Diagnostic /api/explain</title>
+  <style>
+    :root{--bg:#0b1220;--panel:#0f172a;--muted:#94a3b8;--ok:#16a34a;--ko:#dc2626;--accent:#38bdf8}
+    html,body{margin:0;padding:0;background:var(--bg);color:#e5e7eb;font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
+    main{max-width:980px;margin:24px auto;padding:0 16px}
+    h1{font-size:22px;margin:0 0 12px}
+    .card{background:var(--panel);border:1px solid #1f2937;border-radius:12px;padding:14px;margin:12px 0}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+    input,button{border-radius:10px;border:1px solid #334155;background:#0b1220;color:#e5e7eb;padding:10px 12px}
+    button{cursor:pointer;font-weight:700}
+    button.primary{background:#0369a1;border-color:#075985;color:#fff}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:8px 0}
+    .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+    pre{white-space:pre-wrap;word-break:break-word;background:#0b1020;border:1px solid #1f2a44;border-radius:8px;padding:10px;max-height:360px;overflow:auto}
+    .ok{color:var(--ok)} .ko{color:var(--ko)}
+    .prose{line-height:1.6}
+    .prose p{margin:0 0 10px}
+    .prose a{color:var(--accent)}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>🔎 Diagnostic <code>/api/explain</code> (lit via /api/bibleProvider)</h1>
+    <p class="mono" style="color:var(--muted)">
+      Pré-requis : variable d’environnement <code>API_BIBLE_BIBLE_ID</code> configurée (ex: JND <code>a93a92589195411f-01</code>).
+    </p>
+
+    <section class="card">
+      <h2 style="margin:0 0 6px">Entrée</h2>
+      <div class="row">
+        <div><label>Livre</label><input id="book" value="Jean"></div>
+        <div><label>Chapitre</label><input id="chapter" type="number" value="3"></div>
+        <div><label>Versets (optionnel)</label><input id="verses" value="16"></div>
+        <button id="btn" class="primary">Tester /api/explain</button>
+        <span id="status" class="mono" style="margin-left:8px"></span>
+      </div>
+      <div id="meta" class="mono" style="color:#cbd5e1">—</div>
+    </section>
+
+    <section class="card">
+      <h2 style="margin:0 0 6px">Rendu HTML “Lecture + Explication”</h2>
+      <div id="html" class="prose">—</div>
+    </section>
+
+    <section class="card">
+      <h2 style="margin:0 0 6px">Réponse brute</h2>
+      <pre id="raw" class="mono">—</pre>
+    </section>
+  </main>
+
+  <script>
+    const $ = (s)=>document.querySelector(s);
+    const esc = (s='') => String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+
+    $('#btn').addEventListener('click', async ()=>{
+      $('#status').textContent='…'; $('#status').className='mono';
+      $('#raw').textContent='…'; $('#html').textContent='…';
+      const qs = new URLSearchParams({
+        book: $('#book').value||'Jean',
+        chapter: $('#chapter').value||'3',
+        verse: $('#verses').value||''
+      });
+      const url = '/api/explain?' + qs.toString();
+      $('#meta').textContent = url;
+      try{
+        const r = await fetch(url);
+        const j = await r.json();
+        $('#raw').textContent = JSON.stringify(j, null, 2);
+        if(j && j.ok && j.data && Array.isArray(j.data.items) && j.data.items[0]?.html){
+          $('#status').textContent='OK'; $('#status').className='mono ok';
+          $('#html').innerHTML = j.data.items[0].html;
+        }else{
+          $('#status').textContent='ÉCHEC'; $('#status').className='mono ko';
+          $('#html').innerHTML = '<em>Pas de HTML exploitable dans la réponse.</em>';
+        }
+      }catch(e){
+        $('#status').textContent='ÉCHEC'; $('#status').className='mono ko';
+        $('#raw').textContent = String(e?.message || e);
+        $('#html').textContent = '—';
+      }
+    });
+  </script>
+</body>
+</html>
