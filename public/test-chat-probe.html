@@ -1,0 +1,16 @@
+<!doctype html><meta charset="utf-8">
+<title>Probe /api/chat</title>
+<pre id="out">Ping…</pre>
+<script>
+(async()=>{
+  const out = document.getElementById("out");
+  try{
+    const res = await fetch("/api/chat",{method:"POST",headers:{'content-type':'application/json'},body:JSON.stringify({probe:true})});
+    const t = await res.text();
+    try{ out.textContent = "HTTP "+res.status+" "+res.statusText+"\n\n"+JSON.stringify(JSON.parse(t),null,2); }
+    catch{ out.textContent = "HTTP "+res.status+" "+res.statusText+"\n\n"+t; }
+  }catch(e){
+    out.textContent = "❌ "+e.message;
+  }
+})();
+</script>
