@@ -1,160 +1,124 @@
-<!DOCTYPE html>
-<html lang="fr">
+<!doctype html>
+<html lang="fr" data-theme="cyan">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Méditation</title>
-  <meta name="description" content="Étude biblique — rubriques, zone de saisie, liens cliquables automatiques." />
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Étude Biblique</title>
+
+  <!-- (Optionnel) ta feuille tailwind générée ; présente dans /public/dist/output.css -->
+  <link rel="stylesheet" href="/dist/output.css" />
+
   <style>
-    :root{
-      --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b;
-      --accent:#0891b2; --accent-soft:#e0f2fe;
-    }
-    [data-theme="cyan"]  { --accent:#0891b2; --accent-soft:#e0f2fe; }
-    [data-theme="violet"]{ --accent:#7c3aed; --accent-soft:#ede9fe; }
-    [data-theme="vert"]  { --accent:#059669; --accent-soft:#dcfce7; }
-    [data-theme="rouge"] { --accent:#dc2626; --accent-soft:#fee2e2; }
-    [data-theme="mauve"] { --accent:#a855f7; --accent-soft:#f3e8ff; }
-    [data-theme="indigo"]{ --accent:#4f46e5; --accent-soft:#e0e7ff; }
-
-    *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    .progress-wrap{position:sticky;top:0;z-index:20}
-    .progress{height:4px;background:#e5e7eb}
-    .progress>.bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#16a34a);transition:width .2s}
-    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:14px 18px;position:sticky;top:4px;z-index:10}
-    h1{margin:0;font-size:28px;font-weight:800;letter-spacing:.2px;text-align:center}
-    main{max-width:1200px;margin:14px auto;padding:0 12px}
-    .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto auto auto;gap:10px;margin:12px 0}
-    @media (max-width:1100px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}.controls .wide{grid-column:1/-1}}
-    input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%}
-    .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
-    .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
-    .btn.warn{background:var(--accent)}
-    .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
-    @media (max-width:1000px){.layout{grid-template-columns:1fr}}
-    .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700;text-align:center}
-    .list{max-height:70vh;overflow:auto}
-    .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
-    .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
-    .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
-    .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
-    .dot{width:8px;height:8px;border-radius:999px;background:#f59e0b;margin-left:auto}
-    .dot.ok{background:var(--ok)}
-    .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
-    .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
-    .ed-title{font-weight:800;flex:1}.ed-body{padding:12px}
-    textarea#noteArea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;white-space:pre-wrap}
-    .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
-    .mini{width:8px;height:8px;border-radius:999px;background:#d97706}.mini.ok{background:#16a34a}.mini.ko{background:#dc2626}
-    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
-    .links-panel{background:#fafafa;border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
-    .links-panel b{color:var(--accent)} .links-panel a{color:var(--accent);text-decoration:underline}
-    .links-panel.empty{display:none}
-    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:#64748b;font-size:14px}
-    #debugBtn{margin-left:6px;background:var(--dark);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
-    #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;font-size:12px}
-    @media print{.progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row,#debugPanel{display:none!important} textarea{min-height:unset}}
-
-    /* Vue enrichie */
-    #noteView{display:none; width:100%; min-height:460px; border:1px solid var(--border); border-radius:10px; padding:14px;
-      font-family:Spectral,Georgia,serif; line-height:1.6; background:#fff; outline:none}
-    #noteView p{margin:0 0 .75rem 0}
-    /* 🔵 Tous les liens (dont BibleGateway) restent bleus et en gras */
-    #noteView a{color:var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor:pointer; font-weight:700}
-    #noteView strong{font-weight:700} #noteView em{font-style:italic}
-    #noteView ul, #noteView ol{padding-left:1.25rem}
-    #noteView h3{margin:1rem 0 .5rem 0}
-
-    /* (5) 3 petites lignes CSS demandées */
-    .ref-list li { margin-bottom: .25rem; }                     /* espacement items de liste */
-    .sep { margin: 0 .25rem; color: var(--muted); }             /* séparateur “ · ” */
-    .refs-inline a { margin-right: .25rem; }                    /* léger espacement des liens inline */
+    /* Styles très légers pour ne pas interférer avec ton app */
+    :root { --brand:#06b6d4; --ink:#0f172a; --muted:#64748b; --card:#ffffff; --border:#e5e7eb; }
+    body { margin:0; font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif; color:var(--ink); background:#f8fafc; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 20px 16px 64px; }
+    header { padding: 14px 0; background: #fff; border-bottom: 1px solid var(--border); }
+    header .brand { display:flex; align-items:center; gap:10px; font-weight:700; color: var(--ink); }
+    header .brand .dot { width:10px; height:10px; border-radius:50%; background:var(--brand); display:inline-block; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px; }
+    .btn { background:var(--brand); color:#fff; border:0; padding:10px 14px; border-radius:10px; font-weight:600; cursor:pointer; }
+    .btn:disabled { opacity:.6; cursor:not-allowed; }
+    input, select { border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
+    .stack { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    .muted { color:var(--muted); font-size:12px; }
   </style>
 </head>
-<body data-theme="cyan">
-  <div class="progress-wrap"><div class="progress"><div id="progressBar" class="bar"></div></div></div>
-  <header><h1>Méditation</h1></header>
 
-  <main>
-    <div class="controls">
-      <input id="searchRef" class="wide" type="text" placeholder="Rechercher (ex : Marc 5:1, 1 Jean 2, Genèse 1:1-5)" />
-      <select id="bookSelect" title="Livre"></select>
-      <select id="chapterSelect" title="Chapitre"></select>
-      <select id="verseSelect" title="Verset"></select>
-      <select id="versionSelect" title="Version">
-        <option value="LSG" selected>Louis Segond 1910 (LSG)</option>
-        <option value="PDV">Parole de Vie (PDV)</option>
-        <option value="S21">Segond 21 (S21)</option>
-        <option value="BFC">Français Courant (BFC)</option>
-      </select>
-      <select id="themeSelect" title="Thème">
-        <option value="cyan" selected>Thème : Cyan</option>
-        <option value="violet">Thème : Violet</option>
-        <option value="vert">Thème : Vert</option>
-        <option value="rouge">Thème : Rouge</option>
-        <option value="mauve">Thème : Mauve</option>
-        <option value="indigo">Thème : Indigo</option>
-      </select>
-      <label style="display:flex;align-items:center;gap:8px;">
-        <input id="enrichToggle" type="checkbox" checked />
-        <span>Mode enrichi</span>
-      </label>
-
-      <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
-      <button id="validate" class="btn" type="button">Valider</button>
-      <button id="generateBtn" class="btn warn" type="button">Générer</button>
-      <!-- (2) Bouton ChatGPT à côté de Générer -->
-      <a id="chatgptBtn" class="btn secondary" href="https://tchatgpt.com" target="_blank" rel="noopener">ChatGPT</a>
+<body>
+  <!-- Barre simple -->
+  <header>
+    <div class="container">
+      <div class="brand">
+        <span class="dot"></span>
+        <span>Étude Biblique — Méditation</span>
+      </div>
     </div>
+  </header>
 
-    <div class="layout">
-      <aside class="sidebar">
-        <!-- (6) centrer et enlever “28” -->
-        <div class="side-head">Rubriques</div>
-        <div id="pointsList" class="list"></div>
-      </aside>
+  <main class="container">
+    <!-- ======== TON APP EXISTANTE ======== -->
+    <!-- Si ton app cible un autre id, ce bloc est neutre. -->
+    <section class="card" style="margin-bottom:16px">
+      <h2 style="margin:0 0 10px">Application</h2>
+      <div id="app"></div>
+    </section>
 
-      <section class="editor">
-        <div class="ed-head">
-          <div class="ed-title" id="edTitle">—</div>
-          <button id="prev" class="btn secondary" type="button">◀ Précédent</button>
-          <button id="next" class="btn secondary" type="button">Suivant ▶</button>
-        </div>
+    <!-- Scripts de ton app (inchangés) -->
+    <script defer src="/app-loader.js"></script>
+    <script defer src="/app.js"></script>
 
-        <div class="ed-body">
-          <textarea id="noteArea" placeholder="Écris ici…"></textarea>
-          <div id="noteView" contenteditable="true" spellcheck="false" aria-label="Contenu enrichi"></div>
+    <!-- ======== WIDGET EXPLICATION (nouveau, autonome) ======== -->
+    <section class="card" id="explain-widget" style="margin-top:16px">
+      <h2 style="margin:0 0 12px">Lecture + Explication</h2>
+      <div class="stack" style="margin-bottom:8px">
+        <input id="x-book" placeholder="Livre (ex : Josué)" />
+        <input id="x-ch" type="number" min="1" placeholder="Chapitre" style="width:120px" />
+        <input id="x-v" placeholder="Versets (ex : 1-3,7)" style="width:180px" />
+        <button id="x-run" class="btn">Lire & Expliquer</button>
+        <span id="x-status" class="muted"></span>
+      </div>
+      <div id="x-out"></div>
+    </section>
 
-          <div id="linksPanel" class="links-panel empty">
-            <b>Liens détectés :</b>
-            <div id="linksList"></div>
-          </div>
-        </div>
+    <!-- JS du widget (n’interfère pas avec app.js) -->
+    <script>
+      (function () {
+        const $ = (s, r = document) => r.querySelector(s);
+        const out = $("#x-out"), status = $("#x-status");
 
-        <div class="ed-foot">
-          <span class="small" id="metaInfo">Point — / —</span>
-          <span class="small">Sauvegarde auto (2s) après saisie.</span>
-        </div>
-      </section>
-    </div>
+        function card(html) {
+          return `<div style="border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;margin:10px 0;background:#fff">${html}</div>`;
+        }
+
+        function renderExplain(data) {
+          const { reference, items } = data;
+          const head = `<h3 style="margin:6px 0 10px;color:#0e7490">${reference}</h3>`;
+          const blocks = items.map((it) => {
+            const verse = it.v ? `<div style="font-weight:700;color:#334155">v.${it.v}</div>` : "";
+            return card(`
+              ${verse}
+              <p style="margin:6px 0 10px;color:#111827">${it.text}</p>
+              <div class="explain-html" style="color:#1f2937">${it.html}</div>
+            `);
+          }).join("");
+          out.innerHTML = head + blocks;
+        }
+
+        async function runExplain({ book, chapter, verse }) {
+          status.textContent = "Chargement…";
+          out.innerHTML = "";
+          try {
+            const qs = new URLSearchParams({ book, chapter, verse });
+            const r = await fetch(`/api/explain?${qs.toString()}`);
+            if (!r.ok) throw new Error(await r.text());
+            const j = await r.json();
+            if (!j.ok) throw new Error(j.error || "Erreur inconnue");
+            renderExplain(j.data);
+            status.textContent = "";
+          } catch (e) {
+            status.textContent = "Erreur";
+            out.innerHTML = card(`<p style="color:#b91c1c"><strong>Oops :</strong> ${String(e.message || e)}</p>`);
+          }
+        }
+
+        // Bouton du widget
+        $("#x-run")?.addEventListener("click", () => {
+          const book = $("#x-book").value.trim();
+          const chapter = $("#x-ch").value.trim();
+          const verse = ($("#x-v").value || "").trim();
+          if (!book || !chapter) {
+            out.innerHTML = card(`<p style="color:#b91c1c">Livre et chapitre sont requis.</p>`);
+            return;
+          }
+          runExplain({ book, chapter, verse });
+        });
+
+        // API publique pour ton app existante (si tu veux déclencher depuis app.js)
+        window.renderMeditationExplain = (book, chapter, verse = "") =>
+          runExplain({ book, chapter, verse });
+      })();
+    </script>
   </main>
-
-  <footer>
-    © <span id="y"></span> — Méditation
-    <div class="status-row" style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-      <span class="badge"><span id="dot-health" class="mini"></span> health</span>
-      <span class="badge"><span id="dot-chat" class="mini"></span> chat(POST)</span>
-      <span class="badge"><span id="dot-ping" class="mini"></span> ping</span>
-      <button id="debugBtn" type="button">Debug</button>
-    </div>
-    <div id="debugPanel">[init]</div>
-  </footer>
-
-  <!-- Bump de version pour forcer le cache -->
-  <script src="/app.js?v=2025-09-03-injections-3" defer></script>
 </body>
 </html>
