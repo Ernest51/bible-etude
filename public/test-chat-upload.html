@@ -1,160 +1,94 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Test /api/chat — upload JSON</title>
-  <style>
-    :root{--bg:#0b1220;--panel:#0f172a;--muted:#94a3b8;--ok:#16a34a;--ko:#dc2626;--accent:#38bdf8}
-    html,body{margin:0;padding:0;background:var(--bg);color:#e5e7eb;font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
-    main{max-width:980px;margin:24px auto;padding:0 16px}
-    h1{font-size:22px;margin:0 0 12px}
-    .card{background:var(--panel);border:1px solid #1f2937;border-radius:12px;padding:14px;margin:12px 0}
-    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
-    input[type="file"],textarea,button{border-radius:10px;border:1px solid #334155;background:#0b1220;color:#e5e7eb;padding:10px 12px}
-    textarea{width:100%;min-height:140px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
-    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
-    button{cursor:pointer;font-weight:700}
-    button.primary{background:#0369a1;border-color:#075985;color:#fff}
-    .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
-    .ok{color:var(--ok)} .ko{color:var(--ko)} .muted{color:var(--muted)}
-    pre{white-space:pre-wrap;word-break:break-word;background:#0b1020;border:1px solid #1f2a44;border-radius:8px;padding:10px;max-height:360px;overflow:auto}
-    .grid{display:grid;grid-template-columns:1fr;gap:10px}
-    @media(min-width:900px){.grid{grid-template-columns:1fr 1fr}}
-    .section{border:1px solid #1f2937;border-radius:10px;padding:10px}
-    .section h4{margin:0 0 6px;font-size:14px}
-  </style>
+<meta charset="utf-8" />
+<title>🔎 Test /api/chat — upload JSON</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  body{font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:24px}
+  textarea{width:100%; height:200px; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+  pre{background:#f6f8fa; padding:12px; border-radius:8px; overflow:auto}
+  button{padding:8px 12px; margin:0 8px 8px 0}
+  .row{margin:8px 0}
+  a.sample{margin-right:10px}
+</style>
 </head>
 <body>
-  <main>
-    <h1>🔎 Test <code>/api/chat</code> — upload d’un JSON</h1>
-    <p class="mono muted">
-      Charge un fichier JSON (ex: <code>req-b.json</code> ou <code>req-c.json</code>) <em>ou</em> colle le JSON ci-dessous, puis envoie.
-    </p>
+  <h1>🔎 Test /api/chat — upload JSON</h1>
 
-    <section class="card">
-      <h2 style="margin:0 0 6px">1) Charger la requête</h2>
-      <div class="row">
-        <div>
-          <label>Fichier JSON</label>
-          <input id="file" type="file" accept="application/json,.json">
-        </div>
-        <button id="btn-b" type="button">Charger l’exemple B</button>
-        <button id="btn-c" type="button">Charger l’exemple C</button>
-        <span id="js-status" class="mono muted" style="margin-left:auto">—</span>
-      </div>
-      <label>Contenu JSON (modifiable)</label>
-      <textarea id="payload" placeholder='{"book":"Genèse","chapter":1,"verse":"1","version":"LSG"}'></textarea>
-      <div class="row">
-        <button id="btn-send" class="primary" type="button">POST /api/chat</button>
-        <span id="status" class="mono" style="margin-left:8px"></span>
-      </div>
-      <div id="meta" class="mono muted">—</div>
-    </section>
+  <div class="row">
+    <input type="file" id="file" accept="application/json,.json" />
+    <button id="loadFile">Charger le fichier</button>
+  </div>
 
-    <section class="card grid">
-      <div>
-        <h2 style="margin:0 0 6px">Résultats</h2>
-        <p class="mono"><strong>Référence :</strong> <span id="ref" class="muted">—</span></p>
-        <p class="mono"><strong>Source :</strong> <span id="src" class="muted">—</span></p>
-        <p class="mono"><strong>Sections :</strong> <span id="count" class="muted">—</span></p>
-        <div id="sections"></div>
-      </div>
-      <div>
-        <h2 style="margin:0 0 6px">Réponse brute</h2>
-        <pre id="raw" class="mono">—</pre>
-      </div>
-    </section>
-  </main>
+  <div class="row">
+    <a href="/req-b.json" class="sample">req-b.json</a>
+    <a href="/req-c.json" class="sample">req-c.json</a>
+    <a href="/req-jean-3-16.json" class="sample">req-jean-3-16.json</a>
+    <a href="/req-jean-3-16-short.json" class="sample">req-jean-3-16-short.json</a>
+    <button id="loadB">Charger l’exemple B</button>
+    <button id="loadC">Charger l’exemple C</button>
+    <button id="loadJ">Charger Jean 3:16</button>
+  </div>
 
-  <script>
-    (function(){
-      const $ = (s)=>document.querySelector(s);
-      const esc = (s="")=>String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
-      const set = (id,txt,cls)=>{ const el=$(id); if(!el)return; el.textContent=txt; if(cls) el.className=cls; };
+  <textarea id="payload"></textarea>
+  <p><button id="send">POST /api/chat</button> <a href="/test-chat.html">⬅ retour</a></p>
 
-      // JS status
-      set('#js-status','JS chargé ✔ ' + new Date().toISOString(),'mono muted');
+  <h3>Réponse</h3>
+  <pre id="out">—</pre>
 
-      // Exemples intégrés
-      const sampleB = JSON.stringify({ book:"Genèse", chapter:1, verse:"1", version:"LSG" }, null, 2);
-      const sampleC = JSON.stringify({ book:"Jean", chapter:3, verse:"16", version:"LSG", directives:{ qa:true } }, null, 2);
+<script>
+const $ = (id)=>document.getElementById(id);
+const out = $("out"), ta = $("payload");
 
-      $('#btn-b')?.addEventListener('click', ()=> { $('#payload').value = sampleB; });
-      $('#btn-c')?.addEventListener('click', ()=> { $('#payload').value = sampleC; });
+const exB = { book:"Genèse", chapter:1, verse:"", version:"LSG" };
+const exC = { book:"Genèse", chapter:1, verse:"", version:"LSG",
+  directives:{ priere_ouverture:"Ton sobre, insister sur 'Parole qui ordonne' et 'lumière/ténèbres', conclure par 'Par ton Esprit Saint, amen.'" }
+};
+const exJ = { book:"Jean", chapter:3, verse:"16", version:"LSG",
+  directives:{ priere_ouverture:"Faire court, centrer sur l'amour de Dieu et la foi, conclure par 'Amen.'" }
+};
 
-      // Upload fichier JSON
-      $('#file')?.addEventListener('change', async (e)=>{
-        const f = e.target.files && e.target.files[0];
-        if(!f) return;
-        try{
-          const txt = await f.text();
-          JSON.parse(txt); // valide
-          $('#payload').value = txt;
-        }catch(err){
-          alert("Fichier JSON invalide: " + (err?.message||err));
-        }
-      });
+function set(v){ ta.value = JSON.stringify(v, null, 2); }
+set(exB);
 
-      async function postJSON(url, body) {
-        const r = await fetch(url, {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify(body||{})
-        });
-        const text = await r.text();
-        try { return { ok:r.ok, data: JSON.parse(text), status:r.status }; }
-        catch { return { ok:r.ok, data: text, status:r.status }; }
-      }
+$("loadB").onclick = ()=>set(exB);
+$("loadC").onclick = ()=>set(exC);
+$("loadJ").onclick = ()=>set(exJ);
 
-      // Envoi
-      $('#btn-send')?.addEventListener('click', async ()=>{
-        set('#status','…','mono'); set('#meta','—','mono muted');
-        set('#ref','—','muted'); set('#src','—','muted'); set('#count','—','muted');
-        $('#sections').innerHTML=''; $('#raw').textContent='…';
+$("loadFile").onclick = () => {
+  const f = $("file").files?.[0];
+  if (!f) { out.textContent = "Aucun fichier sélectionné."; return; }
+  const reader = new FileReader();
+  reader.onload = () => { ta.value = reader.result; };
+  reader.onerror = () => { out.textContent = "❌ Lecture fichier : " + reader.error; };
+  reader.readAsText(f, "utf-8");
+};
 
-        let payload;
-        try {
-          payload = JSON.parse($('#payload').value || '{}');
-        } catch(e){
-          set('#status','JSON invalide','mono ko');
-          return;
-        }
+$("send").onclick = async () => {
+  let payload;
+  try { payload = JSON.parse(ta.value || "{}"); }
+  catch (e) { out.textContent = "❌ JSON invalide : " + e.message; return; }
 
-        set('#meta','POST /api/chat ' + JSON.stringify(payload),'mono muted');
-
-        try{
-          const res = await postJSON('/api/chat', payload);
-          $('#raw').textContent = typeof res.data === 'string' ? res.data : JSON.stringify(res.data, null, 2);
-
-          if (!(res.data && res.data.ok && res.data.data && Array.isArray(res.data.data.sections))) {
-            set('#status', `ÉCHEC (${res.status})`, 'mono ko'); return;
-          }
-
-          const j = res.data;
-          const ref = j.data.reference || '';
-          const src = j.source || '';
-          const sections = j.data.sections || [];
-
-          set('#ref', ref, 'muted');
-          set('#src', src || '(inconnu)', 'muted');
-          set('#count', String(sections.length) + (sections.length === 28 ? ' ✅' : ' ❌'), 'muted');
-
-          sections.forEach(s=>{
-            const card = document.createElement('div');
-            card.className = 'section';
-            card.innerHTML = `<h4>${esc(String(s.id||''))}. ${esc(s.title||'')}</h4><div class="content">${s.content||''}</div>`;
-            $('#sections').appendChild(card);
-          });
-
-          set('#status', sections.length === 28 ? 'OK' : 'PARTIEL', 'mono ' + (sections.length === 28 ? 'ok' : 'ko'));
-
-        }catch(e){
-          set('#status','ÉCHEC','mono ko');
-          $('#raw').textContent = String(e?.message || e);
-        }
-      });
-    })();
-  </script>
+  out.textContent = "Envoi...";
+  try {
+    const res = await fetch("/api/chat", {
+      method:"POST",
+      headers:{ "content-type":"application/json" },
+      body: JSON.stringify(payload)
+    });
+    const text = await res.text();
+    try {
+      const json = JSON.parse(text);
+      const n = json?.data?.sections?.length ?? "—";
+      out.textContent = `HTTP ${res.status} ${res.statusText} | Sections: ${n}\n\n` + JSON.stringify(json, null, 2);
+    } catch {
+      out.textContent = `HTTP ${res.status} ${res.statusText}\n\n` + text;
+    }
+  } catch (e) {
+    out.textContent = "❌ Erreur réseau : " + e.message;
+  }
+};
+</script>
 </body>
 </html>
