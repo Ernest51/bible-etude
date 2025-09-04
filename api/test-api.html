@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Test API.Bible — provider</title>
+  <style>
+    :root { --bg:#0b1220; --panel:#0f172a; --muted:#94a3b8; --ok:#16a34a; --ko:#dc2626; --accent:#38bdf8; }
+    html,body{margin:0;padding:0;background:var(--bg);color:#e5e7eb;font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
+    main{max-width:960px;margin:24px auto;padding:0 16px}
+    h1{font-size:22px;margin:0 0 12px}
+    .card{background:var(--panel);border:1px solid #1f2937;border-radius:12px;padding:14px;margin:12px 0}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:8px 0}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+    input,select,button{border-radius:10px;border:1px solid #334155;background:#0b1220;color:#e5e7eb;padding:10px 12px}
+    button{background:#111827;border-color:#1f2937;cursor:pointer;font-weight:700}
+    button.primary{background:#0369a1;border-color:#075985}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid #334155;border-radius:999px;padding:4px 8px;color:#e5e7eb;background:#0b1220}
+    .dot{width:8px;height:8px;border-radius:999px;background:#64748b}
+    .dot.ok{background:var(--ok)} .dot.ko{background:var(--ko)}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:12px}
+    pre{white-space:pre-wrap;word-break:break-word;background:#0b1020;border:1px solid #1f2a44;border-radius:8px;padding:10px;max-height:300px;overflow:auto}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{border-bottom:1px solid #1f2937;padding:8px 6px;text-align:left}
+    a{color:var(--accent);text-decoration:underline}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>🔎 Test API.Bible (provider interne)</h1>
+    <p class="mono" style="color:var(--muted)">
+      1) Clique “Lister bibles FR” → si ça renvoie une liste, ta <strong>API_BIBLE_KEY</strong> est OK.<br/>
+      2) Choisis un <em>bibleId</em> dans la liste (bouton “→ utiliser”), puis lance “Tester passage”.
+    </p>
+
+    <!-- Test 1: bibles -->
+    <section class="card">
+      <h2 style="margin:0 0 6px">Test 1 — Lister les Bibles (FR)</h2>
+      <div class="row">
+        <div>
+          <label>Langue</label>
+          <input id="lang" value="fra" />
+        </div>
+        <button id="btn-list" class="primary">Lister bibles FR</button>
+        <div class="badges">
+          <span class="badge"><span id="dot-list" class="dot"></span> /api/bibleProvider?action=bibles</span>
+        </div>
+      </div>
+      <div id="out-list" class="mono"></div>
+      <div id="tbl-wrap"></div>
+    </section>
+
+    <!-- Test 2: passage -->
+    <section class="card">
+      <h2 style="margin:0 0 6px">Test 2 — Passage (book + chapter + [verse])</h2>
+      <div class="row">
+        <div>
+          <label>Bible ID (optionnel si ENV API_BIBLE_BIBLE_ID est configurée)</label>
+          <input id="bibleId" placeholder="ex: a93a92589195411f-01" style="min-width:280px" />
+        </div>
+        <div>
+          <label>Livre</label>
+          <input id="book" value="Jean" />
+        </div>
+        <div>
+          <label>Chapitre</label>
+          <input id="chapter" type="number" value="3" />
+        </div>
+        <div>
+          <label>Verses (ex: 16 ou 1-3,7)</label>
+          <input id="verses" value="16" />
+        </div>
+        <button id="btn-pass" class="primary">Tester passage</button>
+        <div class="badges">
+          <span class="badge"><span id="dot-pass" class="dot"></span> /api/bibleProvider?book=…</span>
+        </div>
+      </div>
+      <div id="meta" class="mono" style="margin:8px 0;color:var(--muted)"></div>
+      <pre id="out-pass" class="mono">—</pre>
+      <div id="preview" class="mono" style="margin-top:8px"></div>
+    </section>
+
+    <!-- Journal -->
+    <section class="card">
+      <h2 style="margin:0 0 6px">Journal</h2>
+      <pre id="log" class="mono">[init]</pre>
+    </section>
+  </main>
+
+  <script>
+    const $ = (s, r=document)=>r.querySelector(s);
+    const log = (t)=>{ const p=$('#log'); p.textContent += "\\n" + t; p.scrollTop=p.scrollHeight; };
+    const setDot = (id, ok)=>{ const d=$('#'+id); d.classList.remove('ok','ko'); d.classList.add(ok?'ok':'ko'); };
+
+    function pretty(obj){ try{ return JSON.stringify(obj, null, 2); }catch{ return String(obj); } }
+
+    // === Test 1: Lister bibles
+    $('#btn-list').addEventListener('click', async ()=>{
+      const language = $('#lang').value || 'fra';
+      const url = `/api/bibleProvider?action=bibles&language=${encodeURIComponent(language)}`;
+      log('GET ' + url);
+      $('#out-list').textContent = '…';
+      $('#tbl-wrap').innerHTML = '';
+      try{
+        const r = await fetch(url);
+        const j = await r.json();
+        setDot('dot-list', j && j.ok);
+        $('#out-list').textContent = pretty(j);
+        if(j && j.ok && j.data && Array.isArray(j.data.bibles)){
+          renderTable(j.data.bibles);
+        }
+      }catch(e){
+        setDot('dot-list', false);
+        $('#out-list').textContent = String(e?.message || e);
+      }
+    });
+
+    function renderTable(rows){
+      const wrap = $('#tbl-wrap');
+      if(!rows.length){ wrap.innerHTML = '<p class="mono" style="color:var(--muted)">Aucune Bible trouvée.</p>'; return; }
+      const head = `
+        <table>
+          <thead><tr><th>abbr</th><th>name</th><th>id</th><th>lang</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>`;
+      wrap.innerHTML = head;
+      const tb = wrap.querySelector('tbody');
+      rows.slice(0, 50).forEach(b=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(b.abbreviation || '')}</td>
+          <td>${escapeHtml(b.name || '')}</td>
+          <td class="mono">${escapeHtml(b.id || '')}</td>
+          <td>${escapeHtml((b.language && (b.language.name||b.language)) || '')}</td>
+          <td><button data-id="${b.id}">→ utiliser</button></td>`;
+        tr.querySelector('button').addEventListener('click', ()=>{
+          $('#bibleId').value = b.id || '';
+          window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'});
+        });
+        tb.appendChild(tr);
+      });
+    }
+
+    // === Test 2: Passage
+    $('#btn-pass').addEventListener('click', async ()=>{
+      const qs = new URLSearchParams({
+        book: $('#book').value || 'Jean',
+        chapter: $('#chapter').value || '3',
+        verse: $('#verses').value || ''
+      });
+      const bibleId = $('#bibleId').value.trim();
+      if(bibleId) qs.set('bibleId', bibleId);
+
+      const url = '/api/bibleProvider?' + qs.toString();
+      log('GET ' + url);
+      $('#meta').textContent = url;
+      $('#out-pass').textContent = '…';
+      $('#preview').innerHTML = '';
+
+      try{
+        const r = await fetch(url);
+        const j = await r.json();
+        setDot('dot-pass', j && j.ok);
+        $('#out-pass').textContent = pretty(j);
+
+        // Petit rendu résumé si ok
+        if(j && j.ok && j.data){
+          const ref = j.data.reference || '';
+          const items = Array.isArray(j.data.items) ? j.data.items : [];
+          const excerpt = (items[0] && items[0].text) ? String(items[0].text).slice(0, 320) + (String(items[0].text).length>320?'…':'') : '';
+          $('#preview').innerHTML = excerpt
+            ? `<div><strong>Extrait&nbsp;:</strong> ${escapeHtml(excerpt)}</div>`
+            : `<div style="color:var(--muted)">Aucun extrait dans la réponse.</div>`;
+        }
+      }catch(e){
+        setDot('dot-pass', false);
+        $('#out-pass').textContent = String(e?.message || e);
+      }
+    });
+
+    function escapeHtml(s=''){
+      return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+    }
+  </script>
+</body>
+</html>
