@@ -1,82 +1,80 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Diagnostic /api/chat (28 rubriques)</title>
-  <style>
-    :root{--bg:#0b1220;--panel:#0f172a;--muted:#94a3b8;--ok:#16a34a;--ko:#dc2626;--accent:#38bdf8}
-    html,body{margin:0;padding:0;background:var(--bg);color:#e5e7eb;font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
-    main{max-width:1100px;margin:24px auto;padding:0 16px}
-    h1{font-size:22px;margin:0 0 12px}
-    .card{background:var(--panel);border:1px solid #1f2937;border-radius:12px;padding:14px;margin:12px 0}
-    label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
-    input,button,select,textarea{border-radius:10px;border:1px solid #334155;background:#0b1220;color:#e5e7eb;padding:10px 12px}
-    button{cursor:pointer;font-weight:700}
-    button.primary{background:#0369a1;border-color:#075985;color:#fff}
-    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:8px 0}
-    .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
-    pre{white-space:pre-wrap;word-break:break-word;background:#0b1020;border:1px solid #1f2a44;border-radius:8px;padding:10px;max-height:360px;overflow:auto}
-    .ok{color:var(--ok)} .ko{color:var(--ko)}
-    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-    @media (max-width:900px){ .grid{grid-template-columns:1fr} }
-    .section{border:1px solid #1f2937;border-radius:10px;padding:10px}
-    .section h4{margin:0 0 6px;font-size:14px}
-    .section .content{font-size:13px;line-height:1.5}
-    .muted{color:#94a3b8}
-    a{color:var(--accent)}
-  </style>
+<meta charset="utf-8" />
+<title>🔎 Test /api/chat</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root { --bg:#0b1020; --fg:#e8edf8; --muted:#9fb0d0; --card:#131a33; }
+  body{background:var(--bg); color:var(--fg); font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:24px}
+  h1{font-size:20px; margin:0 0 12px}
+  .bar button{padding:8px 12px; margin:0 8px 8px 0; border-radius:10px; border:1px solid #2f3b66; background:#1b2550; color:#fff; cursor:pointer}
+  .bar button:hover{filter:brightness(1.15)}
+  textarea{width:100%; height:200px; background:var(--card); color:var(--fg); border:1px solid #2f3b66; border-radius:10px; padding:12px; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+  pre{background:var(--card); border:1px solid #2f3b66; border-radius:10px; padding:12px; overflow:auto; white-space:pre-wrap}
+  .hint{color:var(--muted); margin:6px 0 14px}
+</style>
 </head>
 <body>
-  <main>
-    <h1>🔎 Diagnostic <code>/api/chat</code> — 28 rubriques</h1>
-    <p class="mono muted">Étapes : 1) Probe → 2) 28 rubriques → 3) Source (canonical / openai(...)+fallback).</p>
+  <h1>🔎 Test /api/chat</h1>
+  <div class="bar">
+    <button id="btnProbe">Probe</button>
+    <button id="btnGen1">Genèse&nbsp;1</button>
+    <button id="btnJn316">Jean&nbsp;3:16</button>
+    <button id="btnClear">Effacer</button>
+    <a href="/test-chat-upload.html" style="margin-left:10px;color:#9dd3ff">➡ test upload JSON</a>
+  </div>
 
-    <section class="card">
-      <h2 style="margin:0 0 6px">0) Statut JS</h2>
-      <div class="mono">Chargement JS : <span id="js-status">en attente…</span></div>
-      <div class="mono" id="js-error" style="margin-top:6px;color:#94a3b8">—</div>
-    </section>
+  <div class="hint">Colle/édite le JSON ci-dessous puis clique « POST /api/chat ».</div>
+  <textarea id="payload"></textarea>
+  <p class="bar"><button id="send">POST /api/chat</button></p>
 
-    <section class="card">
-      <h2 style="margin:0 0 6px">1) Probe</h2>
-      <div class="row">
-        <button id="btn-probe" class="primary">POST /api/chat { probe:true }</button>
-        <span id="status-probe" class="mono" style="margin-left:8px"></span>
-      </div>
-      <pre id="raw-probe" class="mono">—</pre>
-    </section>
+  <h3>Réponse</h3>
+  <pre id="out">—</pre>
 
-    <section class="card">
-      <h2 style="margin:0 0 6px">2) 28 rubriques (POST)</h2>
-      <div class="row">
-        <div><label>Livre</label><input id="book" value="Genèse"></div>
-        <div><label>Chapitre</label><input id="chapter" type="number" value="1"></div>
-        <div><label>Versets (optionnel)</label><input id="verses" value=""></div>
-        <div>
-          <label>Version</label>
-          <select id="version">
-            <option value="LSG" selected>Louis Segond 1910 (LSG)</option>
-            <option value="JND">JND</option>
-          </select>
-        </div>
-        <button id="btn-chat" class="primary">Tester /api/chat</button>
-        <span id="status-chat" class="mono" style="margin-left:8px"></span>
-      </div>
-      <div id="meta" class="mono muted">—</div>
+<script>
+const el = (id)=>document.getElementById(id);
+const ta = el("payload"), out = el("out");
 
-      <div style="margin-top:10px" class="mono">
-        <div>Référence : <span id="ref" class="muted">—</span></div>
-        <div>Source : <span id="src" class="muted">—</span></div>
-        <div>Sections : <span id="count" class="muted">—</span> (attendu : 28)</div>
-      </div>
+const tplProbe = { probe:true };
+const tplGen1  = { book:"Genèse", chapter:1, verse:"", version:"LSG" };
+const tplJn316 = { book:"Jean", chapter:3, verse:"16", version:"LSG",
+  directives:{ priere_ouverture:"Faire court, centrer sur l'amour de Dieu et la foi, conclure par 'Amen.'" }
+};
 
-      <div id="sections" class="grid" style="margin-top:12px"></div>
-      <pre id="raw-chat" class="mono">—</pre>
-    </section>
-  </main>
+function set(v){ ta.value = JSON.stringify(v, null, 2); }
+set(tplGen1);
 
-  <!-- IMPORTANT : chemin absolu + cache-bust -->
-  <script defer src="/test-chat.js?v=3"></script>
+el("btnProbe").onclick = ()=>set(tplProbe);
+el("btnGen1").onclick  = ()=>set(tplGen1);
+el("btnJn316").onclick = ()=>set(tplJn316);
+el("btnClear").onclick = ()=>{ ta.value=""; out.textContent="—"; };
+
+el("send").onclick = async () => {
+  let payload;
+  try { payload = JSON.parse(ta.value || "{}"); }
+  catch (e) { out.textContent = "❌ JSON invalide : " + e.message; return; }
+
+  out.textContent = "Envoi...";
+  try {
+    const res = await fetch("/api/chat", {
+      method:"POST",
+      headers:{ "content-type":"application/json" },
+      body: JSON.stringify(payload)
+    });
+    const text = await res.text();
+    let pretty = text;
+    try {
+      const json = JSON.parse(text);
+      const sections = json?.data?.sections?.length;
+      const badge = (sections!=null) ? `Sections: ${sections}` : "";
+      pretty = `HTTP ${res.status} ${res.statusText}  ${badge}\n\n${JSON.stringify(json, null, 2)}`;
+    } catch { pretty = `HTTP ${res.status} ${res.statusText}\n\n${text}`; }
+    out.textContent = pretty;
+  } catch (e) {
+    out.textContent = "❌ Erreur réseau : " + e.message;
+  }
+};
+</script>
 </body>
 </html>
