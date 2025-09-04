@@ -3,6 +3,20 @@
   const esc = (s = "") =>
     String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 
+  // Statut JS + capture erreurs
+  const jsStatus = $('#js-status');
+  const jsError  = $('#js-error');
+  function setJS(ok, msg){
+    if (!jsStatus) return;
+    jsStatus.textContent = msg;
+    jsStatus.className = ok ? 'ok mono' : 'ko mono';
+  }
+  window.addEventListener('error', (ev)=>{
+    setJS(false, 'Erreur JS — voir détails ci-dessous');
+    if (jsError) jsError.textContent = (ev?.message||'') + ' @' + (ev?.filename||'') + ':' + (ev?.lineno||'');
+  });
+  setJS(true, 'JS chargé ✔ ' + new Date().toISOString());
+
   function set(id, txt, cls) {
     const el = $(id);
     if (!el) return;
@@ -21,10 +35,9 @@
     catch { return { ok: r.ok, data: text, status: r.status }; }
   }
 
-  // Étape 1: probe
+  // 1) Probe
   $('#btn-probe')?.addEventListener('click', async () => {
-    set('#status-probe', '…', 'mono');
-    set('#raw-probe', '…');
+    set('#status-probe', '…', 'mono'); set('#raw-probe', '…');
     try {
       const res = await postJSON('/api/chat', { probe: true });
       $('#raw-probe').textContent = typeof res.data === 'string' ? res.data : JSON.stringify(res.data, null, 2);
@@ -36,12 +49,10 @@
     }
   });
 
-  // Étape 2: chat
+  // 2) 28 rubriques
   $('#btn-chat')?.addEventListener('click', async () => {
-    set('#status-chat', '…', 'mono');
-    set('#raw-chat', '…');
-    $('#sections').innerHTML = '';
-    set('#ref', '—'); set('#src', '—'); set('#count', '—');
+    set('#status-chat', '…', 'mono'); set('#raw-chat', '…');
+    $('#sections').innerHTML = ''; set('#ref', '—'); set('#src', '—'); set('#count', '—');
 
     const payload = {
       book: $('#book')?.value || 'Genèse',
@@ -83,6 +94,5 @@
     }
   });
 
-  // Petit check visible si JS est bien chargé
-  console.log('test-chat.js chargé ✔');
+  console.log('test-chat.js: chargé ✔');
 })();
