@@ -1,14 +1,10 @@
-// pages/api/verse-bulk.js
+// /api/verse-bulk.js
 // Ajoute / met à jour plusieurs versets d'un coup dans le cache local.
-// ⚠️ Pour test/démo uniquement — en prod tu brancheras une vraie DB ou API externe.
+// ⚠️ Pour test/démo uniquement — en prod, utiliser un vrai stockage partagé (DB/Redis).
 
-import { config as verseConfig } from "./verse";
+import { config as verseConfig, LSG as LSG_CACHE } from "./verse.js";
 
 export const config = verseConfig;
-
-// ⚠️ Ici on importe le cache local depuis verse.js
-// Dans un vrai projet il faudrait un stockage partagé (DB, Redis…)
-import * as verseModule from "./verse";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -21,11 +17,11 @@ export default async function handler(req, res) {
 
     if (Array.isArray(entries)) {
       entries.forEach(e => {
-        const { book, chapter, verse, text } = e;
-        if (book && chapter && verse && text) {
-          const B = book.trim();
+        const { book, chapter, verse, text } = e || {};
+        if (book && chapter && verse && typeof text === "string" && text.trim()) {
+          const B = String(book).trim();
           const key = `${B}/${chapter}/${verse}`;
-          verseModule.LSG[key] = text;
+          LSG_CACHE[key] = text.trim();
           added++;
         }
       });
@@ -34,7 +30,7 @@ export default async function handler(req, res) {
     res.status(200).json({
       ok: true,
       added,
-      total: Object.keys(verseModule.LSG).length
+      total: Object.keys(LSG_CACHE).length
     });
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e?.message || e) });
