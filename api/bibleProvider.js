@@ -1,5 +1,5 @@
 // /api/bibleProvider.js — Provider API.Bible (propre, sans fallback query key)
-// ENV requises (Vercel -> Settings -> Environment Variables) :
+// ENV requises (Vercel → Settings → Environment Variables) :
 //   - API_BIBLE_KEY           (clé API.Bible)
 //   - API_BIBLE_BIBLE_ID      (ID de la Bible par défaut, ex: a93a92589195411f-01 pour JND FR)
 //
