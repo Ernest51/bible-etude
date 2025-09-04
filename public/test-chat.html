@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Diagnostic /api/chat (28 rubriques)</title>
+  <style>
+    :root{--bg:#0b1220;--panel:#0f172a;--muted:#94a3b8;--ok:#16a34a;--ko:#dc2626;--accent:#38bdf8}
+    html,body{margin:0;padding:0;background:var(--bg);color:#e5e7eb;font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
+    main{max-width:1100px;margin:24px auto;padding:0 16px}
+    h1{font-size:22px;margin:0 0 12px}
+    .card{background:var(--panel);border:1px solid #1f2937;border-radius:12px;padding:14px;margin:12px 0}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+    input,button,select,textarea{border-radius:10px;border:1px solid #334155;background:#0b1220;color:#e5e7eb;padding:10px 12px}
+    button{cursor:pointer;font-weight:700}
+    button.primary{background:#0369a1;border-color:#075985;color:#fff}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:8px 0}
+    .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+    pre{white-space:pre-wrap;word-break:break-word;background:#0b1020;border:1px solid #1f2a44;border-radius:8px;padding:10px;max-height:360px;overflow:auto}
+    .ok{color:var(--ok)} .ko{color:var(--ko)}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    @media (max-width:900px){ .grid{grid-template-columns:1fr} }
+    .section{border:1px solid #1f2937;border-radius:10px;padding:10px}
+    .section h4{margin:0 0 6px;font-size:14px}
+    .section .content{font-size:13px;line-height:1.5}
+    .muted{color:#94a3b8}
+    a{color:var(--accent)}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>🔎 Diagnostic <code>/api/chat</code> — 28 rubriques</h1>
+    <p class="mono muted">
+      Étapes : 1) Probe → 2) 28 rubriques → 3) Source (canonical / openai(...)+fallback).
+    </p>
+
+    <!-- Étape 1: probe -->
+    <section class="card">
+      <h2 style="margin:0 0 6px">1) Probe</h2>
+      <div class="row">
+        <button id="btn-probe" class="primary">POST /api/chat { probe:true }</button>
+        <span id="status-probe" class="mono" style="margin-left:8px"></span>
+      </div>
+      <pre id="raw-probe" class="mono">—</pre>
+    </section>
+
+    <!-- Étape 2: 28 rubriques -->
+    <section class="card">
+      <h2 style="margin:0 0 6px">2) 28 rubriques (POST)</h2>
+      <div class="row">
+        <div><label>Livre</label><input id="book" value="Genèse"></div>
+        <div><label>Chapitre</label><input id="chapter" type="number" value="1"></div>
+        <div><label>Versets (optionnel)</label><input id="verses" value=""></div>
+        <div>
+          <label>Version</label>
+          <select id="version">
+            <option value="LSG" selected>Louis Segond 1910 (LSG)</option>
+            <option value="JND">JND</option>
+          </select>
+        </div>
+        <button id="btn-chat" class="primary">Tester /api/chat</button>
+        <span id="status-chat" class="mono" style="margin-left:8px"></span>
+      </div>
+      <div id="meta" class="mono muted">—</div>
+
+      <div style="margin-top:10px" class="mono">
+        <div>Référence : <span id="ref" class="muted">—</span></div>
+        <div>Source : <span id="src" class="muted">—</span></div>
+        <div>Sections : <span id="count" class="muted">—</span> (attendu : 28)</div>
+      </div>
+
+      <div id="sections" class="grid" style="margin-top:12px"></div>
+      <pre id="raw-chat" class="mono">—</pre>
+    </section>
+  </main>
+
+  <script>
+    const $ = (s)=>document.querySelector(s);
+    const esc = (s='') => String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+
+    // Probe
+    $('#btn-probe').addEventListener('click', async()=>{
+      $('#status-probe').textContent = '…'; $('#raw-probe').textContent = '…';
+      try{
+        const r = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ probe:true }) });
+        const j = await r.json();
+        $('#raw-probe').textContent = JSON.stringify(j, null, 2);
+        if(j && j.ok){ $('#status-probe').textContent='OK'; $('#status-probe').className='mono ok'; }
+        else { $('#status-probe').textContent='ÉCHEC'; $('#status-probe').className='mono ko'; }
+      }catch(e){
+        $('#status-probe').textContent='ÉCHEC'; $('#status-probe').className='mono ko';
+        $('#raw-probe').textContent = String(e?.message || e);
+      }
+    });
+
+    // Chat (28 rubriques)
+    $('#btn-chat').addEventListener('click', async ()=>{
+      $('#status-chat').textContent='…'; $('#raw-chat').textContent='…';
+      $('#sections').innerHTML=''; $('#ref').textContent='—'; $('#src').textContent='—'; $('#count').textContent='—';
+      const payload = {
+        book: $('#book').value || 'Genèse',
+        chapter: $('#chapter').value || 1,
+        verse: $('#verses').value || '',
+        version: $('#version').value || 'LSG'
+      };
+      $('#meta').textContent = 'POST /api/chat ' + JSON.stringify(payload);
+      try{
+        const r = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        const j = await r.json();
+        $('#raw-chat').textContent = JSON.stringify(j, null, 2);
+        const ok = !!(j && j.ok && j.data && Array.isArray(j.data.sections));
+        if(!ok){ $('#status-chat').textContent='ÉCHEC'; $('#status-chat').className='mono ko'; return; }
+
+        const ref = j.data.reference || '';
+        const src = j.source || '';
+        const sections = j.data.sections || [];
+        $('#ref').textContent = ref;
+        $('#src').textContent = src || '(inconnu)';
+        $('#count').textContent = sections.length + (sections.length===28 ? ' ✅' : ' ❌');
+
+        // Rendu compact : titres + contenu (sanitisation côté API déjà faite)
+        sections.forEach(s=>{
+          const card = document.createElement('div');
+          card.className = 'section';
+          card.innerHTML = `<h4>${esc(String(s.id||''))}. ${esc(s.title||'')}</h4><div class="content">${s.content||''}</div>`;
+          $('#sections').appendChild(card);
+        });
+
+        $('#status-chat').textContent = sections.length===28 ? 'OK' : 'PARTIEL';
+        $('#status-chat').className = 'mono ' +
