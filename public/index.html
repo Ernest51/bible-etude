@@ -1,278 +1,612 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Étude Biblique — Méditation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Méditation</title>
+  <meta name="description" content="Étude biblique — 28 rubriques, une zone de saisie, liens cliquables automatiques." />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,600;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b;
+      --accent:#0891b2; --accent-soft:#e0f2fe;
+    }
+    /* Thèmes (la couleur d’accent est utilisée partout: boutons, liens, séparateurs, focus, etc.) */
+    [data-theme="cyan"]  { --accent:#0891b2; --accent-soft:#e0f2fe; }
+    [data-theme="violet"]{ --accent:#7c3aed; --accent-soft:#ede9fe; }
+    [data-theme="vert"]  { --accent:#059669; --accent-soft:#dcfce7; }
+    [data-theme="rouge"] { --accent:#dc2626; --accent-soft:#fee2e2; }
+    [data-theme="mauve"] { --accent:#a855f7; --accent-soft:#f3e8ff; }
+    [data-theme="indigo"]{ --accent:#4f46e5; --accent-soft:#e0e7ff; }
 
-  <!-- Tailwind (CDN) -->
-  <script src="https://cdn.tailwindcss.com"></script>
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    .progress-wrap{position:sticky;top:0;z-index:20}
+    .progress{height:4px;background:#e5e7eb}
+    .progress>.bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#16a34a);transition:width .2s}
+    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:14px 18px;position:sticky;top:4px;z-index:10}
+    h1{margin:0;font-size:28px;font-weight:800;letter-spacing:.2px;text-align:center}
+    main{max-width:1200px;margin:14px auto;padding:0 12px}
+    .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto auto auto;gap:10px;margin:12px 0}
+    @media (max-width:1100px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}.controls .wide{grid-column:1/-1}}
+    input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%}
+    .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
+    .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
+    .btn.warn{background:var(--accent)}
+    .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
+    @media (max-width:1000px){.layout{grid-template-columns:1fr}}
+    .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700;text-align:center}
+    .list{max-height:70vh;overflow:auto}
+    .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
+    .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
+    .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
+    .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+    .dot{width:8px;height:8px;border-radius:999px;background:#f59e0b;margin-left:auto}
+    .dot.ok{background:var(--ok)}
+    .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
+    .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+    .ed-title{font-weight:800;flex:1}.ed-body{padding:12px}
+    textarea#noteArea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;white-space:pre-wrap}
+    .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+    .mini{width:8px;height:8px;border-radius:999px;background:#d97706}.mini.ok{background:#16a34a}.mini.ko{background:#dc2626}
+    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
+    .links-panel{background:#fafafa;border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
+    .links-panel b{color:var(--accent)} .links-panel a{color:var(--accent);text-decoration:underline}
+    .links-panel.empty{display:none}
+    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:#64748b;font-size:14px}
+    #debugBtn{margin-left:6px;background:var(--dark);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
+    #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;font-size:12px}
+    @media print{.progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row,#debugPanel{display:none!important} textarea{min-height:unset}}
+
+    /* Vue enrichie */
+    #noteView{display:none; width:100%; min-height:460px; border:1px solid var(--border); border-radius:10px; padding:14px;
+      font-family:Spectral,Georgia,serif; line-height:1.6; background:#fff; outline:none}
+    #noteView p{margin:0 0 .75rem 0}
+    #noteView a{color:var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor:pointer}
+    #noteView strong{font-weight:700} #noteView em{font-style:italic}
+    #noteView ul, #noteView ol{padding-left:1.25rem}
+    #noteView h3{margin:1rem 0 .5rem 0}
+
+    /* === 3 LIGNES CSS DEMANDÉES === */
+    .ref-list li{margin-bottom:.25rem}
+    .ed-body a + a::before{content:" · "; color:var(--muted)}
+    .links-panel div a + a::before{content:" · "; color:var(--muted)}
+  </style>
+</head>
+<body data-theme="cyan">
+  <div class="progress-wrap"><div class="progress"><div id="progressBar" class="bar"></div></div></div>
+  <header><h1>Méditation</h1></header>
+
+  <main>
+    <div class="controls">
+      <input id="searchRef" class="wide" type="text" placeholder="Rechercher (ex : Marc 5:1, 1 Jean 2, Genèse 1:1-5)" />
+      <select id="bookSelect" title="Livre"></select>
+      <select id="chapterSelect" title="Chapitre"></select>
+      <select id="verseSelect" title="Verset"></select>
+      <select id="versionSelect" title="Version">
+        <option value="LSG" selected>Louis Segond 1910 (LSG)</option>
+        <option value="PDV">Parole de Vie (PDV)</option>
+        <option value="S21">Segond 21 (S21)</option>
+        <option value="BFC">Français Courant (BFC)</option>
+      </select>
+      <select id="themeSelect" title="Thème">
+        <option value="cyan" selected>Thème : Cyan</option>
+        <option value="violet">Thème : Violet</option>
+        <option value="vert">Thème : Vert</option>
+        <option value="rouge">Thème : Rouge</option>
+        <option value="mauve">Thème : Mauve</option>
+        <option value="indigo">Thème : Indigo</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:8px;">
+        <input id="enrichToggle" type="checkbox" checked />
+        <span>Mode enrichi</span>
+      </label>
+
+      <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
+      <button id="validate" class="btn" type="button">Valider</button>
+      <button id="generateBtn" class="btn warn" type="button">Générer</button>
+      <!-- 2) Bouton à côté de "Générer" → tchatgpt.com -->
+      <a id="chatgptBtn" class="btn secondary" href="https://tchatgpt.com" target="_blank" rel="noopener" title="Ouvrir tchatgpt.com">ChatGPT</a>
+    </div>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <!-- 6) Centrer le titre et enlever “28” -->
+        <div class="side-head">Rubriques</div>
+        <div id="pointsList" class="list"></div>
+      </aside>
+
+      <section class="editor">
+        <div class="ed-head">
+          <div class="ed-title" id="edTitle">—</div>
+          <button id="prev" class="btn secondary" type="button">◀ Précédent</button>
+          <button id="next" class="btn secondary" type="button">Suivant ▶</button>
+        </div>
+
+        <div class="ed-body">
+          <textarea id="noteArea" placeholder="Écris ici…"></textarea>
+          <div id="noteView" contenteditable="true" spellcheck="false" aria-label="Contenu enrichi"></div>
+
+          <div id="linksPanel" class="links-panel empty">
+            <b>Liens détectés :</b>
+            <div id="linksList"></div>
+          </div>
+        </div>
+
+        <div class="ed-foot">
+          <span class="small" id="metaInfo">Point — / 28</span>
+          <span class="small">Sauvegarde auto (2s) après saisie.</span>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    © <span id="y"></span> — Méditation
+    <div class="status-row" style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span class="badge"><span id="dot-health" class="mini"></span> health</span>
+      <span class="badge"><span id="dot-chat" class="mini"></span> chat(POST)</span>
+      <span class="badge"><span id="dot-ping" class="mini"></span> ping</span>
+      <button id="debugBtn" type="button">Debug</button>
+    </div>
+    <div id="debugPanel">[init]</div>
+  </footer>
+
+  <!-- Bump de version pour forcer le cache -->
+  <script src="/app.js?v=2025-09-03-injections-3" defer></script>
+
+  <!-- === Intégration API Bible + Plan 28 rubriques === -->
   <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: { brand: { DEFAULT: '#06b6d4', dark: '#0e7490' } }
+  (function(){
+    'use strict';
+
+    // ====== Utils
+    const $ = (s, r=document) => r.querySelector(s);
+    const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+    const log = (...a) => appendDebug(a.map(String).join(' '));
+
+    function escapeHtml(s=''){
+      return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    // Sanitize basic HTML (allows: p,strong,em,ul,ol,li,a,h3,h4)
+    function sanitizeHtml(html=''){
+      const allowed = new Set(['P','STRONG','EM','UL','OL','LI','A','H3','H4','BR']);
+      const div = document.createElement('div');
+      div.innerHTML = html;
+      // remove scripts/styles
+      $$('script,style,iframe', div).forEach(n => n.remove());
+      const walker = document.createTreeWalker(div, NodeFilter.SHOW_ELEMENT, null, false);
+      const rm = [];
+      while(walker.nextNode()){
+        const el = walker.currentNode;
+        if(!allowed.has(el.tagName)){
+          // unwrap node
+          const parent = el.parentNode;
+          while(el.firstChild) parent.insertBefore(el.firstChild, el);
+          rm.push(el);
+          continue;
+        }
+        // strip event handlers & unsafe attrs
+        [...el.attributes].forEach(a=>{
+          const name=a.name.toLowerCase();
+          if(name.startsWith('on') || ['style','srcset'].includes(name)) el.removeAttribute(a.name);
+          if(el.tagName==='A' && name==='href'){
+            try{
+              const u = new URL(a.value, location.origin);
+              // ok
+            }catch{ el.removeAttribute('href'); }
+          }
+        });
+        if(el.tagName==='A'){
+          el.setAttribute('rel','noopener noreferrer');
+          el.setAttribute('target','_blank');
         }
       }
+      rm.forEach(n=>n.remove());
+      return div.innerHTML;
     }
-  </script>
 
-  <meta name="color-scheme" content="light" />
-</head>
+    function setBadge(id, state){ // state: '', 'ok', 'ko'
+      const el = $('#'+id);
+      if(!el) return;
+      el.classList.remove('ok','ko');
+      if(state) el.classList.add(state);
+    }
 
-<body class="bg-slate-50 text-slate-900 antialiased">
-  <!-- Header -->
-  <header class="bg-white border-b border-slate-200">
-    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3">
-      <span class="inline-block w-2.5 h-2.5 rounded-full bg-brand"></span>
-      <h1 class="text-lg font-semibold">Étude Biblique — Méditation</h1>
-    </div>
-  </header>
+    function appendDebug(t){
+      const p = $('#debugPanel');
+      if(!p) return;
+      const time = new Date().toLocaleTimeString();
+      p.textContent += '\\n['+time+'] '+t;
+      p.scrollTop = p.scrollHeight;
+    }
 
-  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-    <!-- ======== TON APP EXISTANTE ======== -->
-    <section class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
-      <h2 class="text-base font-semibold mb-3 text-slate-800">Application</h2>
-      <div id="app"></div>
-    </section>
+    function buildGatewayURL({book, chapter, verses, version}){
+      const ref = book + ' ' + (chapter || '') + (verses ? (':' + verses) : '');
+      return 'https://www.biblegateway.com/passage/?search='+encodeURIComponent(ref)+'&version='+(version||'LSG');
+    }
 
-    <!-- Scripts de ton app (inchangés) -->
-    <script defer src="/app-loader.js"></script>
-    <script defer src="/app.js"></script>
+    function buildYouVersionSearch({book, chapter, verses, version}){
+      const q = (book + ' ' + (chapter||'') + (verses?':'+verses:'') + ' ' + (version||'LSG')).trim();
+      // Recherche YouVersion (plus robuste sans codes OSIS)
+      return 'https://www.google.com/search?q='+encodeURIComponent('site:bible.com '+q);
+    }
 
-    <!-- ======== CONTROLS (data-field) ======== -->
-    <section class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
-      <h2 class="text-base font-semibold mb-4 text-slate-800">Sélection</h2>
+    // ====== Elements
+    const els = {
+      searchRef:  $('#searchRef'),
+      book:       $('#bookSelect'),
+      chapter:    $('#chapterSelect'),
+      verse:      $('#verseSelect'),
+      version:    $('#versionSelect'),
+      theme:      $('#themeSelect'),
+      enrich:     $('#enrichToggle'),
+      readBtn:    $('#readBtn'),
+      validate:   $('#validate'),
+      genBtn:     $('#generateBtn'),
+      pointsList: $('#pointsList'),
+      edTitle:    $('#edTitle'),
+      noteArea:   $('#noteArea'),
+      noteView:   $('#noteView'),
+      linksPanel: $('#linksPanel'),
+      linksList:  $('#linksList'),
+      prev:       $('#prev'),
+      next:       $('#next'),
+      metaInfo:   $('#metaInfo'),
+      year:       $('#y'),
+      dbgBtn:     $('#debugBtn'),
+      dbgPanel:   $('#debugPanel'),
+      progress:   $('#progressBar')
+    };
 
-      <div class="flex flex-wrap items-end gap-3">
-        <!-- Livre -->
-        <div class="min-w-[220px]">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Livre</label>
-          <select data-field="book" aria-label="Livre"
-                  class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand">
-            <option value="">— Livre —</option>
-            <!-- AT -->
-            <option>Genèse</option><option>Exode</option><option>Lévitique</option>
-            <option>Nombres</option><option>Deutéronome</option>
-            <option>Josué</option><option>Juges</option><option>Ruth</option>
-            <option>1 Samuel</option><option>2 Samuel</option>
-            <option>1 Rois</option><option>2 Rois</option>
-            <option>1 Chroniques</option><option>2 Chroniques</option>
-            <option>Esdras</option><option>Néhémie</option><option>Esther</option>
-            <option>Job</option><option>Psaumes</option><option>Proverbes</option>
-            <option>Ecclésiaste</option><option>Cantique des cantiques</option>
-            <option>Ésaïe</option><option>Jérémie</option><option>Lamentations</option>
-            <option>Ézéchiel</option><option>Daniel</option>
-            <option>Osée</option><option>Joël</option><option>Amos</option><option>Abdias</option>
-            <option>Jonas</option><option>Michée</option><option>Nahoum</option>
-            <option>Habacuc</option><option>Sophonie</option><option>Aggée</option>
-            <option>Zacharie</option><option>Malachie</option>
-            <!-- NT -->
-            <option>Matthieu</option><option>Marc</option><option>Luc</option><option>Jean</option>
-            <option>Actes</option><option>Romains</option>
-            <option>1 Corinthiens</option><option>2 Corinthiens</option>
-            <option>Galates</option><option>Éphésiens</option><option>Philippiens</option>
-            <option>Colossiens</option>
-            <option>1 Thessaloniciens</option><option>2 Thessaloniciens</option>
-            <option>1 Timothée</option><option>2 Timothée</option>
-            <option>Tite</option><option>Philémon</option><option>Hébreux</option>
-            <option>Jacques</option>
-            <option>1 Pierre</option><option>2 Pierre</option>
-            <option>1 Jean</option><option>2 Jean</option><option>3 Jean</option>
-            <option>Jude</option><option>Apocalypse</option>
-          </select>
+    // ====== Data
+    const BOOKS = [
+      'Genèse','Exode','Lévitique','Nombres','Deutéronome','Josué','Juges','Ruth',
+      '1 Samuel','2 Samuel','1 Rois','2 Rois','1 Chroniques','2 Chroniques','Esdras','Néhémie','Esther',
+      'Job','Psaumes','Proverbes','Ecclésiaste','Cantique des cantiques','Ésaïe','Jérémie','Lamentations',
+      'Ézéchiel','Daniel','Osée','Joël','Amos','Abdias','Jonas','Michée','Nahoum','Habacuc','Sophonie',
+      'Aggée','Zacharie','Malachie','Matthieu','Marc','Luc','Jean','Actes','Romains',
+      '1 Corinthiens','2 Corinthiens','Galates','Éphésiens','Philippiens','Colossiens',
+      '1 Thessaloniciens','2 Thessaloniciens','1 Timothée','2 Timothée','Tite','Philémon','Hébreux','Jacques',
+      '1 Pierre','2 Pierre','1 Jean','2 Jean','3 Jean','Jude','Apocalypse'
+    ];
+
+    const state = {
+      sections: [],       // [{id,title,content}]
+      current: -1,        // index dans sections
+      autosaveTimer: null
+    };
+
+    // ====== Init
+    function init(){
+      // livres
+      els.book.innerHTML = '<option value="">Livre</option>' + BOOKS.map(b=>'<option value="'+b+'">'+b+'</option>').join('');
+      // chapitres (1..150 par défaut)
+      setChapters(150);
+      // versets (1..176 par défaut)
+      setVerses(176);
+
+      // thèmes
+      document.body.setAttribute('data-theme', els.theme.value);
+      els.theme.addEventListener('change', ()=>document.body.setAttribute('data-theme', els.theme.value));
+
+      // année
+      els.year.textContent = new Date().getFullYear();
+
+      // progress bar
+      window.addEventListener('scroll', ()=>{
+        const h = document.documentElement;
+        const percent = (h.scrollTop) / (h.scrollHeight - h.clientHeight) * 100;
+        els.progress.style.width = percent.toFixed(2)+'%';
+      });
+
+      // debug
+      els.dbgBtn.addEventListener('click', ()=>{ els.dbgPanel.style.display = (els.dbgPanel.style.display==='none'?'block':'none'); });
+
+      // enrich toggle
+      els.enrich.addEventListener('change', syncMode);
+
+      // autosave
+      els.noteArea.addEventListener('input', queueAutosave);
+      els.noteView.addEventListener('input', queueAutosave);
+
+      // selects
+      els.book.addEventListener('change', ()=>{ setChapters(150); setVerses(176); });
+      els.chapter.addEventListener('change', ()=>{ setVerses(176); });
+
+      // actions
+      els.readBtn.addEventListener('click', onRead);
+      els.validate.addEventListener('click', applyLinkPanel);
+      els.genBtn.addEventListener('click', onGeneratePlan);
+      els.prev.addEventListener('click', ()=>nav(-1));
+      els.next.addEventListener('click', ()=>nav(1));
+
+      // search box Enter
+      els.searchRef.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ onRead(); } });
+
+      // health/ping (facultatif si endpoints non présents)
+      quickPing();
+
+      // restore last note
+      restore();
+    }
+
+    function setChapters(n){
+      els.chapter.innerHTML = '<option value="">Chapitre</option>' + Array.from({length:n}, (_,i)=>'<option>'+ (i+1) +'</option>').join('');
+    }
+    function setVerses(n){
+      els.verse.innerHTML = '<option value="">Verset</option>' + Array.from({length:n}, (_,i)=>'<option>'+ (i+1) +'</option>').join('');
+    }
+
+    function syncMode(){
+      const enriched = els.enrich.checked;
+      els.noteView.style.display = enriched ? 'block' : 'none';
+      els.noteArea.style.display = enriched ? 'none' : 'block';
+      // si on bascule vers la vue enrichie, copier le texte courant
+      if(enriched && els.noteView.innerHTML.trim()==='' && els.noteArea.value.trim()!==''){
+        els.noteView.innerHTML = '<p>'+escapeHtml(els.noteArea.value).replace(/\\n\\n/g,'</p><p>').replace(/\\n/g,'<br>')+'</p>';
+      }
+    }
+
+    // ====== Parsing saisie
+    function parseSearch(str){
+      if(!str) return null;
+      const s = String(str).trim();
+      for(const b of BOOKS.sort((a,b)=>b.length-a.length)){
+        const re = new RegExp('^\\s*('+escapeReg(b)+')\\s+(\\d{1,3})(?::\\s*([0-9,\\-–;\\s]+))?\\s*$', 'i');
+        const m = s.match(re);
+        if(m){
+          return {book:b, chapter:m[2], verses:(m[3]||'').replace(/\\s+/g,'')};
+        }
+      }
+      return null;
+    }
+    function escapeReg(s){ return s.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'); }
+
+    function getSelection(){
+      let book = els.book.value || '';
+      let chapter = els.chapter.value || '';
+      let verses = '';
+      const vSel = els.verse.value || '';
+      if(vSel) verses = vSel;
+      if(!book || !chapter){
+        const parsed = parseSearch(els.searchRef.value);
+        if(parsed){ book=parsed.book; chapter=parsed.chapter; if(parsed.verses) verses=parsed.verses; }
+      }
+      const version = els.version.value || 'LSG';
+      return {book, chapter, verses, version};
+    }
+
+    // ====== API calls
+    async function apiBible(params){
+      const qs = new URLSearchParams({
+        book: params.book, chapter: params.chapter,
+        verses: params.verses || '', version: params.version || 'LSG'
+      });
+      const r = await fetch('/api/bible?'+qs.toString());
+      if(!r.ok) throw new Error('API Bible — HTTP '+r.status);
+      return r.json();
+    }
+
+    async function apiPlan(params){
+      const r = await fetch('/api/chat', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          book: params.book, chapter: params.chapter,
+          verse: params.verses || '', version: params.version || 'LSG'
+        })
+      });
+      if(!r.ok) throw new Error('API Plan — HTTP '+r.status);
+      return r.json();
+    }
+
+    // facultatifs
+    async function quickPing(){
+      try{
+        const r1 = await fetch('/api/ping').catch(()=>null);
+        setBadge('dot-ping', r1 && r1.ok ? 'ok' : 'ko');
+      }catch{ setBadge('dot-ping','ko'); }
+      try{
+        const r2 = await fetch('/api/health').catch(()=>null);
+        setBadge('dot-health', r2 && r2.ok ? 'ok' : 'ko');
+      }catch{ setBadge('dot-health','ko'); }
+    }
+
+    // ====== Rendering
+    function renderBiblePayload(payload, ctx){
+      // payload attendu: { ok, data:{ reference, html } } OU { ok, data:{ reference, items:[{v,text,html?}] } } OU { text }
+      let html = '';
+      const d = payload && payload.data ? payload.data : payload;
+      if(d && d.reference){
+        html += '<h3>'+escapeHtml(d.reference)+'</h3>';
+      }
+      if(d && typeof d.html === 'string' && d.html.trim()){
+        html += d.html;
+      }else if(d && Array.isArray(d.items)){
+        html += d.items.map(it=>{
+          const v = it.v ? '<strong>v.'+escapeHtml(String(it.v))+'</strong> ' : '';
+          const line = it.html ? it.html : escapeHtml(it.text || '');
+          return '<p>'+v+ line +'</p>';
+        }).join('');
+      }else if(d && d.text){
+        html += '<p>'+escapeHtml(d.text)+'</p>';
+      }else{
+        html += '<p><em>Aucun contenu trouvé.</em></p>';
+      }
+      const clean = sanitizeHtml(html);
+      if(els.enrich.checked){
+        els.noteView.innerHTML = clean;
+      }else{
+        els.noteArea.value = clean.replace(/<br\\s*\\/?>/gi,'\\n').replace(/<[^>]+>/g,'');
+      }
+      // liens utiles
+      installLinksPanel(ctx);
+      queueAutosave();
+    }
+
+    function installLinksPanel(ctx){
+      const list = els.linksList;
+      const g = buildGatewayURL(ctx);
+      const y = buildYouVersionSearch(ctx);
+      list.innerHTML = '';
+      list.insertAdjacentHTML('beforeend',
+        '<a href="'+g+'" target="_blank" rel="noopener">BibleGateway ('+escapeHtml(ctx.version)+')</a>');
+      list.insertAdjacentHTML('beforeend',
+        '<a href="'+y+'" target="_blank" rel="noopener">YouVersion (recherche)</a>');
+      els.linksPanel.classList.remove('empty');
+    }
+
+    function applyLinkPanel(){
+      // transforme les références explicites [Livre Chap:Verses] dans la note enrichie en liens BibleGateway
+      if(!els.enrich.checked) { syncMode(); }
+      const html = els.noteView.innerHTML;
+      const pattern = new RegExp('('+BOOKS.map(escapeReg).join('|')+')\\s+(\\d{1,3})(?::([0-9,\\-–;\\s]+))?', 'g');
+      const version = els.version.value || 'LSG';
+      const replaced = html.replace(pattern, (m,book,chap,verses)=>{
+        const url = buildGatewayURL({book, chapter:chap, verses:(verses||'').replace(/\\s+/g,''), version});
+        return '<a href="'+url+'" target="_blank" rel="noopener">'+escapeHtml(m)+'</a>';
+      });
+      els.noteView.innerHTML = sanitizeHtml(replaced);
+      queueAutosave();
+    }
+
+    // ====== Plan 28 rubriques
+    function populateList(sections){
+      els.pointsList.innerHTML = sections.map((s, i)=>`
+        <div class="item" data-i="${i}">
+          <span class="idx">${escapeHtml(String(s.id ?? (i+1)))}</span>
+          <div>
+            <div>${escapeHtml(String(s.title || ('Rubrique '+(i+1))))}</div>
+            <span class="desc">Rubrique ${i+1}</span>
+          </div>
+          <span class="dot ok"></span>
         </div>
-
-        <!-- Chapitre -->
-        <div class="w-[160px]">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Chapitre</label>
-          <select data-field="chapter" aria-label="Chapitre"
-                  class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand">
-            <option value="">— Chapitre —</option>
-            <script>
-              document.currentScript.insertAdjacentHTML(
-                'beforebegin',
-                Array.from({length:150}, (_,i)=>`<option value="${i+1}">${i+1}</option>`).join('')
-              );
-            </script>
-          </select>
-        </div>
-
-        <!-- Versets (optionnel) -->
-        <div class="w-[200px]">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Versets (ex : 1-3,7)</label>
-          <input data-field="verses" placeholder="ex : 1-3,7"
-                 class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
-        </div>
-
-        <!-- Boutons -->
-        <div class="flex items-center gap-2 pb-1">
-          <button id="btn-read"
-                  class="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-white text-sm font-semibold shadow-sm hover:bg-brand/90 focus:outline-none focus:ring-2 focus:ring-brand/30">
-            Lire la Bible
-          </button>
-          <button id="btn-plan"
-                  class="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-white text-sm font-semibold shadow-sm hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400/30">
-            Plan détaillé (28 rubriques)
-          </button>
-        </div>
-
-        <p id="sel-status" class="text-xs text-slate-500"></p>
-      </div>
-    </section>
-
-    <!-- ======== PANNEAU : Lecture + Explication ======== -->
-    <section class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
-      <div class="flex items-center justify-between mb-3">
-        <h2 class="text-base font-semibold text-slate-800">Lecture + Explication</h2>
-        <span class="text-xs text-slate-500">HTML sécurisé (p, strong, em, ul, ol, li, a)</span>
-      </div>
-      <div id="x-out" class="prose prose-slate max-w-none"></div>
-    </section>
-
-    <!-- ======== PANNEAU : Plan détaillé (28 rubriques) ======== -->
-    <section class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
-      <div class="flex items-center justify-between mb-3">
-        <h2 class="text-base font-semibold text-slate-800">Plan détaillé</h2>
-        <span class="text-xs text-slate-500">Extraits pédagogiques + renvois BibleGateway</span>
-      </div>
-      <div id="plan-out" class="space-y-3"></div>
-    </section>
-
-    <!-- ======== JS WIDGET EXPLICATION + API publique ======== -->
-    <script>
-      (function () {
-        const $ = (s, r = document) => r.querySelector(s);
-        const out = $("#x-out");
-
-        const card = (inner) =>
-          `<div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">${inner}</div>`;
-
-        function renderExplain(data) {
-          const { reference, items } = data;
-          const head =
-            `<h3 class="text-lg font-semibold text-brand-dark mb-3">${reference}</h3>`;
-          const blocks = items.map((it) => {
-            const v = it.v ? `<div class="text-slate-700 font-semibold">v.${it.v}</div>` : "";
-            return card(`
-              ${v}
-              <p class="mt-2 mb-3 text-slate-800">${it.text}</p>
-              <div class="prose prose-slate max-w-none">${it.html}</div>
-            `);
-          }).join("");
-          out.innerHTML = head + blocks;
-        }
-
-        async function runExplain({ book, chapter, verse }) {
-          out.innerHTML = card(`<p class="text-sm text-slate-500">Chargement…</p>`);
-          try {
-            const qs = new URLSearchParams({ book, chapter, verse });
-            const r = await fetch(`/api/explain?${qs.toString()}`);
-            if (!r.ok) throw new Error(await r.text());
-            const j = await r.json();
-            if (!j.ok) throw new Error(j.error || "Erreur inconnue");
-            renderExplain(j.data);
-          } catch (e) {
-            out.innerHTML = card(
-              `<p class="text-sm text-rose-700"><strong>Oops :</strong> ${String(e.message || e)}</p>`
-            );
-          }
-        }
-
-        // API publique pour ton app existante
-        window.renderMeditationExplain = (book, chapter, verse = "") =>
-          runExplain({ book, chapter, verse });
-      })();
-    </script>
-
-    <!-- ======== JS : BRIDGE Sélecteurs → Boutons ======== -->
-    <script>
-      (function () {
-        const $ = (s, r=document) => r.querySelector(s);
-        const status = $('#sel-status');
-
-        const getVal = (sel) => {
-          const el = $(sel);
-          return el ? String(el.value || el.textContent || "").trim() : "";
-        };
-
-        function getInputs(){
-          return {
-            book:    getVal('[data-field="book"]'),
-            chapter: getVal('[data-field="chapter"]'),
-            verse:   getVal('[data-field="verses"]')
-          };
-        }
-
-        function tryExplain(){
-          const { book, chapter, verse } = getInputs();
-          if (!book || !chapter) { status.textContent = "Livre et chapitre requis."; return; }
-          status.textContent = "";
-          if (typeof window.renderMeditationExplain !== "function") {
-            status.textContent = "Composant d'explication indisponible."; return;
-          }
-          window.renderMeditationExplain(book, chapter, verse || "");
-        }
-
-        async function tryPlan(){
-          const planOut = document.getElementById('plan-out');
-          const { book, chapter, verse } = getInputs();
-          if (!book || !chapter) { status.textContent = "Livre et chapitre requis."; return; }
-          status.textContent = "";
-          planOut.innerHTML =
-            `<div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-               <p class="text-sm text-slate-500">Chargement du plan…</p>
-             </div>`;
-
-          try {
-            // /api/chat.js attend POST { book, chapter, verse?, version?, directives? }
-            const r = await fetch('/api/chat', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ book, chapter, verse })
-            });
-            if (!r.ok) throw new Error(await r.text());
-            const j = await r.json();
-            if (!j.ok) throw new Error(j.error || 'Erreur inconnue');
-
-            const { reference, sections } = j.data || {};
-            const head =
-              `<h3 class="text-lg font-semibold text-brand-dark mb-3">${reference || (book + " " + chapter)}</h3>`;
-
-            const blocks = (sections || []).map(sec => {
-              // sec: { id, title, content (HTML sûr depuis l’API) }
-              return `
-                <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <div class="flex items-center gap-2 mb-2">
-                    <span class="inline-flex justify-center items-center w-6 h-6 text-xs font-semibold rounded-full bg-brand/10 text-brand">${sec.id}</span>
-                    <h4 class="text-base font-semibold text-slate-800">${sec.title}</h4>
-                  </div>
-                  <div class="prose prose-slate max-w-none text-sm leading-6">
-                    ${sec.content}
-                  </div>
-                </div>
-              `;
-            }).join('');
-
-            planOut.innerHTML = head + blocks;
-          } catch (e) {
-            planOut.innerHTML =
-              `<div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                 <p class="text-sm text-rose-700"><strong>Oops :</strong> ${String(e.message || e)}</p>
-               </div>`;
-          }
-        }
-
-        // Boutons
-        $('#btn-read')?.addEventListener('click', tryExplain);
-        $('#btn-plan')?.addEventListener('click', tryPlan);
-
-        // Entrée dans le champ versets => lecture
-        document.querySelector('[data-field="verses"]')?.addEventListener('keydown', (e)=>{
-          if(e.key==='Enter') tryExplain();
+      `).join('');
+      // click
+      $$('.item', els.pointsList).forEach(it=>{
+        it.addEventListener('click', ()=>{
+          const i = Number(it.getAttribute('data-i')||'-1');
+          openSection(i);
         });
-      })();
-    </script>
-  </main>
+      });
+      els.metaInfo.textContent = 'Point 1 / '+sections.length;
+      setBadge('dot-chat','ok');
+    }
+
+    function openSection(i){
+      if(i<0 || i>=state.sections.length) return;
+      state.current = i;
+      const sec = state.sections[i];
+      els.edTitle.textContent = sec.title || ('Rubrique '+(i+1));
+      const safe = sanitizeHtml(sec.content || '');
+      if(els.enrich.checked){
+        els.noteView.innerHTML = safe;
+      }else{
+        els.noteArea.value = safe.replace(/<br\\s*\\/?>/gi,'\\n').replace(/<[^>]+>/g,'');
+      }
+      els.metaInfo.textContent = 'Point '+(i+1)+' / '+state.sections.length;
+      // marquer actif
+      $$('.item', els.pointsList).forEach(n=>n.classList.remove('active'));
+      const active = $(`.item[data-i="${i}"]`, els.pointsList);
+      if(active) active.classList.add('active');
+      queueAutosave();
+    }
+
+    function nav(d){
+      if(state.sections.length===0) return;
+      const i = state.current<0 ? 0 : state.current + d;
+      const to = Math.max(0, Math.min(state.sections.length-1, i));
+      openSection(to);
+      const el = $(`.item[data-i="${to}"]`, els.pointsList);
+      if(el) el.scrollIntoView({block:'nearest'});
+    }
+
+    // ====== Handlers
+    async function onRead(){
+      try{
+        const sel = getSelection();
+        if(!sel.book || !sel.chapter){
+          alert('Sélectionne un livre et un chapitre, ou tape une référence (ex: Jean 3:16).');
+          return;
+        }
+        log('Lire', JSON.stringify(sel));
+        const j = await apiBible(sel);
+        if(!j || (j.ok===false && !j.data)) throw new Error(j && j.error ? j.error : 'Réponse invalide');
+        renderBiblePayload(j, sel);
+      }catch(e){
+        log('Erreur lecture: '+ (e && e.message ? e.message : e));
+        alert('Erreur: '+(e && e.message ? e.message : e));
+      }
+    }
+
+    async function onGeneratePlan(){
+      try{
+        const sel = getSelection();
+        if(!sel.book || !sel.chapter){
+          alert('Sélectionne un livre et un chapitre avant de générer le plan.');
+          return;
+        }
+        log('Plan POST', JSON.stringify(sel));
+        const j = await apiPlan(sel);
+        if(!j || j.ok===false) throw new Error(j && j.error ? j.error : 'Réponse invalide');
+        const data = j.data || {};
+        const sections = Array.isArray(data.sections) ? data.sections : [];
+        if(sections.length===0) throw new Error('Aucune section reçue.');
+        state.sections = sections;
+        populateList(sections);
+        openSection(0);
+      }catch(e){
+        setBadge('dot-chat','ko');
+        log('Erreur plan: '+ (e && e.message ? e.message : e));
+        alert('Erreur: '+(e && e.message ? e.message : e));
+      }
+    }
+
+    // ====== Autosave localStorage
+    function queueAutosave(){
+      if(state.autosaveTimer) clearTimeout(state.autosaveTimer);
+      state.autosaveTimer = setTimeout(save, 2000);
+    }
+    function save(){
+      try{
+        const payload = {
+          enriched: els.enrich.checked,
+          html: els.noteView.innerHTML,
+          text: els.noteArea.value,
+          current: state.current,
+          sections: state.sections,
+          ts: Date.now()
+        };
+        localStorage.setItem('meditation.save', JSON.stringify(payload));
+        log('Auto-save ok');
+      }catch(e){ log('Auto-save ko: '+e.message); }
+    }
+    function restore(){
+      try{
+        const raw = localStorage.getItem('meditation.save');
+        if(!raw) return;
+        const p = JSON.parse(raw);
+        els.enrich.checked = !!p.enriched;
+        syncMode();
+        if(p.enriched && p.html) els.noteView.innerHTML = sanitizeHtml(p.html);
+        if(!p.enriched && p.text) els.noteArea.value = p.text;
+        if(Array.isArray(p.sections) && p.sections.length){
+          state.sections = p.sections;
+          populateList(state.sections);
+          const idx = typeof p.current==='number' ? p.current : 0;
+          openSection(Math.max(0, Math.min(state.sections.length-1, idx)));
+        }
+        log('Restauré');
+      }catch(e){ log('Restore ko: '+e.message); }
+    }
+
+    // go!
+    document.addEventListener('DOMContentLoaded', init);
+  })();
+  </script>
 </body>
 </html>
