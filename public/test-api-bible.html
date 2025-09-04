@@ -84,4 +84,78 @@
 
   <script>
     const $ = (s)=>document.querySelector(s);
-    const esc = (s='') => String(s).replace(/[&<>"']/g, m=>({ '&':
+    const esc = (s='') => String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+
+    // --- Test 1
+    $('#btn-list').addEventListener('click', async ()=>{
+      $('#status-list').textContent='…';
+      $('#status-list').className='mono';
+      $('#raw-list').textContent='…';
+      $('#tbl-wrap').innerHTML='';
+      try{
+        const url = `/api/bibleProvider?action=bibles&language=${encodeURIComponent($('#lang').value||'fra')}`;
+        const r = await fetch(url); const j = await r.json();
+        $('#raw-list').textContent = JSON.stringify(j, null, 2);
+        if(j && j.ok && j.data && Array.isArray(j.data.bibles) && j.data.bibles.length){
+          $('#status-list').textContent='OK'; $('#status-list').className='mono ok';
+          renderBibles(j.data.bibles);
+        }else{
+          $('#status-list').textContent='ÉCHEC'; $('#status-list').className='mono ko';
+        }
+      }catch(e){
+        $('#status-list').textContent='ÉCHEC'; $('#status-list').className='mono ko';
+        $('#raw-list').textContent=String(e?.message||e);
+      }
+    });
+
+    function renderBibles(rows){
+      const wrap = $('#tbl-wrap');
+      const t = document.createElement('table');
+      t.innerHTML = `<thead><tr><th>abbr</th><th>name</th><th>id</th><th>lang</th><th></th></tr></thead><tbody></tbody>`;
+      wrap.appendChild(t);
+      const tb = t.querySelector('tbody');
+      rows.slice(0, 60).forEach(b=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${esc(b.abbreviation||'')}</td>
+          <td>${esc(b.name||'')}</td>
+          <td class="mono">${esc(b.id||'')}</td>
+          <td>${esc(b.language?.name || b.language || '')}</td>
+          <td><button data-id="${esc(b.id||'')}">→ utiliser</button></td>`;
+        tr.querySelector('button').addEventListener('click', ()=>{
+          $('#bibleId').value = b.id || '';
+          window.scrollTo({ top: document.body.scrollHeight, behavior:'smooth' });
+        });
+        tb.appendChild(tr);
+      });
+    }
+
+    // --- Test 2
+    $('#btn-pass').addEventListener('click', async ()=>{
+      $('#status-pass').textContent='…'; $('#status-pass').className='mono';
+      $('#raw-pass').textContent='…'; $('#preview').textContent='—';
+      try{
+        const qs = new URLSearchParams({
+          book: $('#book').value||'Jean',
+          chapter: $('#chapter').value||'3',
+          verse: $('#verses').value||''
+        });
+        const bid = $('#bibleId').value.trim(); if(bid) qs.set('bibleId', bid);
+        const r = await fetch('/api/bibleProvider?' + qs.toString());
+        const j = await r.json();
+        $('#raw-pass').textContent = JSON.stringify(j, null, 2);
+        if(j && j.ok && j.data && Array.isArray(j.data.items) && j.data.items.length && j.data.items[0].text){
+          $('#status-pass').textContent='OK'; $('#status-pass').className='mono ok';
+          const ex = j.data.items[0].text.slice(0, 300) + (j.data.items[0].text.length>300?'…':'');
+          $('#preview').innerHTML = `<strong>${esc(j.data.reference||'')}</strong><br/>Extrait : ${esc(ex)}`;
+        }else{
+          $('#status-pass').textContent='ÉCHEC'; $('#status-pass').className='mono ko';
+        }
+      }catch(e){
+        $('#status-pass').textContent='ÉCHEC'; $('#status-pass').className='mono ko';
+        $('#raw-pass').textContent=String(e?.message||e);
+      }
+    });
+  </script>
+</body>
+</html>
