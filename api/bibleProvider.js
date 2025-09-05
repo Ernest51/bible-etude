@@ -1,276 +1,100 @@
-// /api/bibleProvider.js — Provider API.Bible (texte propre + normalisation accents + fallback 400)
-// ENV (Vercel → Settings → Environment Variables) :
-//   - API_BIBLE_KEY           : clé API.Bible
-//   - API_BIBLE_BIBLE_ID      : ID de la Bible (ex: a93a92589195411f-01)
-//
-// Endpoints :
-//   GET /api/bibleProvider?action=bibles&language=fra
-//   GET /api/bibleProvider?book=Genèse&chapter=1
-//   GET /api/bibleProvider?book=Genèse&chapter=1&verse=1-5
-//   (+ optionnel) &bibleId=... pour surcharger la Bible
-//
-// Réponse passage :
-// { ok:true, data:{ reference:"Genèse 1", bibleId:"...", osis:"GEN.1", passageText:"...", items:[{v:0,text:"..."}], source:"api.bible" } }
+// api/bibleProvider.js
+export const config = { runtime: "edge" };
 
-export const config = { runtime: "nodejs" };
+// Correction : accepte les 2 variantes
+const BIBLE_API_KEY = process.env.BIBLE_API_KEY || process.env.API_BIBLE_KEY;
+const BIBLE_ID      = process.env.BIBLE_ID || process.env.API_BIBLE_BIBLE_ID;
 
-/* ───────────────────────── ENV ───────────────────────── */
+function jsonResponse(obj, status = 200) {
+  return new Response(JSON.stringify(obj, null, 2), {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8" }
+  });
+}
 
-const API_KEY  = process.env.API_BIBLE_KEY || "";
-const BIBLE_ID = process.env.API_BIBLE_BIBLE_ID || "";
-
-/* ───────────────────────── Utils ───────────────────────── */
-
-const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n || 1));
-const stripHtmlAndBrackets = (s = "") =>
-  String(s)
-    .replace(/<[^>]+>/g, " ")   // HTML
-    .replace(/\[[^\]]*\]/g, " ")// [12], [a], etc.
+// Strip balises HTML et numéros
+function stripHtml(html = "") {
+  return html
+    .replace(/<sup[^>]*>.*?<\/sup>/g, " ")
+    .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-
-function refString(book, chapter, verseSel) {
-  const ch = clamp(parseInt(chapter, 10), 1, 150);
-  return verseSel ? `${book} ${ch}:${verseSel}` : `${book} ${ch}`;
 }
 
-/* ─────────────── Mapping livres FR → OSIS (sans accents) ─────────────── */
-
-const FR2OSIS = {
-  "genese":"GEN","gen":"GEN",
-  "exode":"EXO","exo":"EXO",
-  "levitique":"LEV","lev":"LEV",
-  "nombres":"NUM","nom":"NUM","nbr":"NUM",
-  "deuteronome":"DEU","deut":"DEU","dt":"DEU",
-
-  "josue":"JOS","jos":"JOS",
-  "juges":"JDG","jgs":"JDG",
-  "ruth":"RUT","rut":"RUT",
-  "1 samuel":"1SA","1 sam":"1SA","1sa":"1SA",
-  "2 samuel":"2SA","2 sa":"2SA","2sam":"2SA",
-  "1 rois":"1KI","1 r":"1KI","1r":"1KI",
-  "2 rois":"2KI","2 r":"2KI","2r":"2KI",
-  "1 chroniques":"1CH","1 ch":"1CH",
-  "2 chroniques":"2CH","2 ch":"2CH",
-  "esdras":"EZR",
-  "nehemie":"NEH","neh":"NEH",
-  "esther":"EST","est":"EST",
-  "job":"JOB",
-  "psaumes":"PSA","psaume":"PSA","ps":"PSA",
-  "proverbes":"PRO","prov":"PRO",
-  "ecclesiaste":"ECC","eccl":"ECC","qohelet":"ECC",
-  "cantique":"SNG","cantiques":"SNG","ct":"SNG",
-
-  "esaie":"ISA","isaie":"ISA","isa":"ISA",
-  "jeremie":"JER","jer":"JER",
-  "lamentations":"LAM","lam":"LAM",
-  "ezechiel":"EZK","ezekiel":"EZK","ezk":"EZK",
-  "daniel":"DAN","dan":"DAN",
-  "osee":"HOS","hos":"HOS",
-  "joel":"JOL","jol":"JOL",
-  "amos":"AMO",
-  "abdias":"OBA","oba":"OBA",
-  "jonas":"JON","jon":"JON",
-  "michee":"MIC","mic":"MIC",
-  "nahum":"NAM",
-  "habacuc":"HAB","hab":"HAB",
-  "sophonie":"ZEP","soph":"ZEP",
-  "haggee":"HAG","hag":"HAG",
-  "zacharie":"ZEC","zac":"ZEC",
-  "malachie":"MAL","mal":"MAL",
-
-  "matthieu":"MAT","mt":"MAT",
-  "marc":"MRK","mc":"MRK",
-  "luc":"LUK","lc":"LUK",
-  "jean":"JHN","jn":"JHN",
-  "actes":"ACT","ac":"ACT",
-  "romains":"ROM","rom":"ROM","rm":"ROM",
-  "1 corinthiens":"1CO","1co":"1CO",
-  "2 corinthiens":"2CO","2co":"2CO",
-  "galates":"GAL","ga":"GAL",
-  "ephesiens":"EPH","ep":"EPH",
-  "philippiens":"PHP","php":"PHP",
-  "colossiens":"COL","col":"COL",
-  "1 thessaloniciens":"1TH","1th":"1TH",
-  "2 thessaloniciens":"2TH","2th":"2TH",
-  "1 timothee":"1TI","1ti":"1TI",
-  "2 timothee":"2TI","2ti":"2TI",
-  "tite":"TIT",
-  "philemon":"PHM",
-  "hebreux":"HEB","heb":"HEB",
-  "jacques":"JAS","jas":"JAS",
-  "1 pierre":"1PE","1pe":"1PE",
-  "2 pierre":"2PE","2pe":"2PE",
-  "1 jean":"1JN","1jn":"1JN",
-  "2 jean":"2JN","2jn":"2JN",
-  "3 jean":"3JN","3jn":"3JN",
-  "jude":"JUD","jud":"JUD",
-  "apocalypse":"REV","apoc":"REV","revelation":"REV","rev":"REV"
-};
-
-// Normalisation : supprime accents, minuscules, espaces simples
-function frToOsisBook(frBook = "") {
-  const k = String(frBook)
-    .trim()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-  return FR2OSIS[k] || null;
-}
-
-/* ─────────────── Construction d’un passage OSIS ─────────────── */
-
-function parseVerseSelector(sel = "") {
-  const parts = String(sel || "").split(",").map(p => p.trim()).filter(Boolean);
-  const out = [];
-  for (const p of parts) {
-    if (/[-–]/.test(p)) {
-      const [a, b] = p.split(/[-–]/).map(x => parseInt(x, 10));
-      const lo = Math.min(a || 1, b || a || 1);
-      const hi = Math.max(a || 1, b || a || 1);
-      out.push([lo, hi]);
-    } else {
-      const v = parseInt(p, 10);
-      if (!isNaN(v)) out.push([v, v]);
-    }
+// Récupère un passage
+async function fetchPassage(book, chapter, verses) {
+  if (!BIBLE_API_KEY || !BIBLE_ID) {
+    throw new Error("BIBLE_API_KEY ou BIBLE_ID manquant(s) dans les variables d’environnement.");
   }
-  return out;
-}
 
-function makeOsisPassage(bookFR, chapter, verseSel) {
-  const osisBook = frToOsisBook(bookFR);
-  if (!osisBook) return null;
-  const ch = clamp(parseInt(chapter, 10), 1, 150);
+  const osis = `${book.slice(0,3).toUpperCase()}.${chapter}`;
+  const url = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(
+    BIBLE_ID
+  )}/passages/${encodeURIComponent(osis)}${
+    verses ? `.${verses}` : ""
+  }?contentType=text&includeVerseNumbers=false&includeChapterNumbers=false&includeTitles=false&paragraphs=false`;
 
-  if (!verseSel) return `${osisBook}.${ch}`; // chapitre entier
-
-  const ranges = parseVerseSelector(verseSel);
-  if (!ranges.length) return `${osisBook}.${ch}`;
-
-  // ex: "GEN.1.1-GEN.1.5,GEN.1.7"
-  const segs = ranges.map(([a, b]) =>
-    a === b ? `${osisBook}.${ch}.${a}` : `${osisBook}.${ch}.${a}-${osisBook}.${ch}.${b}`
-  );
-  return segs.join(",");
-}
-
-/* ─────────────── Appels API.Bible ─────────────── */
-
-async function apiBible(path, params = {}) {
-  const base = "https://api.scripture.api.bible/v1";
-  const usp = new URLSearchParams(params);
-  const url = `${base}${path}${usp.toString() ? "?" + usp.toString() : ""}`;
-  const r = await fetch(url, { headers: { "api-key": API_KEY } });
+  const r = await fetch(url, { headers: { "api-key": BIBLE_API_KEY } });
   if (!r.ok) {
-    const t = await r.text().catch(() => "");
-    throw new Error(`API.Bible error ${r.status}: ${t || r.statusText}`);
+    const msg = await r.text();
+    throw new Error(`API.Bible ${r.status}: ${msg}`);
   }
-  return r.json();
+  const data = await r.json();
+
+  return {
+    reference: data?.data?.reference ?? `${book} ${chapter}`,
+    bibleId: BIBLE_ID,
+    osis,
+    passageText: stripHtml(data?.data?.content ?? ""),
+    items: [
+      {
+        v: 0,
+        text: stripHtml(data?.data?.content ?? "")
+      }
+    ],
+    source: "api.bible"
+  };
 }
 
-async function listBibles(language = "") {
-  const params = language ? { language } : {};
-  const j = await apiBible("/bibles", params);
-  return (j?.data || []).map(b => ({
-    id: b.id,
-    abbreviation: b.abbreviationLocal || b.abbreviation,
-    name: b.nameLocal || b.name,
-    language: b.language?.name || b.language,
-    description: b.description || ""
-  }));
-}
-
-// Version robuste : tente avec flags "propres", sinon retente en minimal si 400
-async function fetchPassageByOsis({ bibleId, osis }) {
-  async function run(params) {
-    const j = await apiBible(`/bibles/${bibleId}/passages/${encodeURIComponent(osis)}`, params);
-    const data = j?.data;
-    const content =
-      (Array.isArray(data) ? data?.[0]?.content : data?.content) ||
-      (Array.isArray(data?.passages) ? data?.passages?.[0]?.content : "");
-    const passageText = stripHtmlAndBrackets(content || "");
-    const items = passageText ? [{ v: 0, text: passageText }] : [];
-    return { passageText, items };
+// Liste des bibles FR
+async function fetchBibles(language = "fra") {
+  if (!BIBLE_API_KEY) {
+    throw new Error("BIBLE_API_KEY manquant");
   }
 
+  const url = `https://api.scripture.api.bible/v1/bibles?language=${language}`;
+  const r = await fetch(url, { headers: { "api-key": BIBLE_API_KEY } });
+  if (!r.ok) {
+    const msg = await r.text();
+    throw new Error(`API.Bible ${r.status}: ${msg}`);
+  }
+  const data = await r.json();
+  return data?.data ?? [];
+}
+
+// ---------------- handler ----------------
+export default async function handler(req) {
   try {
-    // Paramètres "propres" (souvent acceptés)
-    return await run({
-      "content-type": "text",
-      "include-notes": "false",
-      "include-titles": "false",
-      "include-chapter-numbers": "false",
-      "include-verse-numbers": "false"
-    });
-  } catch (e) {
-    // Fallback minimal si l’API refuse certains flags (400 Bad Request)
-    if (String(e?.message || "").includes("400")) {
-      return await run({ "content-type": "text" });
-    }
-    throw e;
-  }
-}
+    const { searchParams } = new URL(req.url);
+    const action = searchParams.get("action") || "passage";
 
-/* ───────────────────────── Handler ───────────────────────── */
-
-export default async function handler(req, res) {
-  try {
-    if (!API_KEY) {
-      return res.status(400).json({
-        ok: false,
-        error: "API_BIBLE_KEY manquante (Vercel → Settings → Environment Variables)."
-      });
-    }
-
-    const q = req.method === "GET" ? req.query : (req.body || {});
-    const action = String(q.action || "").toLowerCase();
-
-    // 1) Lister les bibles disponibles
     if (action === "bibles") {
-      const language = String(q.language || "");
-      const bibles = await listBibles(language);
-      return res.status(200).json({ ok: true, data: { bibles } });
+      const lang = searchParams.get("language") || "fra";
+      const bibles = await fetchBibles(lang);
+      return jsonResponse({ ok: true, data: bibles });
     }
 
-    // 2) Passage OSIS (book + chapter requis)
-    const book    = String(q.book || "");
-    const chapter = q.chapter ?? "";
-    const verse   = String(q.verse || "");
+    const book = searchParams.get("book");
+    const chapter = searchParams.get("chapter");
+    const verses = searchParams.get("verses");
 
     if (!book || !chapter) {
-      return res.status(400).json({ ok: false, error: "Paramètres requis: book, chapter (verse optionnel)." });
+      return jsonResponse({ ok: false, error: "Paramètres book et chapter requis" }, 400);
     }
 
-    const bibleId = String(q.bibleId || BIBLE_ID || "");
-    if (!bibleId) {
-      return res.status(400).json({
-        ok: false,
-        error:
-          "Aucun bibleId défini. Passe ?bibleId=<ID> ou configure API_BIBLE_BIBLE_ID. " +
-          "Utilise ?action=bibles&language=fra pour lister les IDs."
-      });
-    }
-
-    const osis = makeOsisPassage(book, chapter, verse);
-    if (!osis) {
-      return res.status(400).json({ ok: false, error: `Livre inconnu: "${book}".` });
-    }
-
-    const { passageText, items } = await fetchPassageByOsis({ bibleId, osis });
-
-    return res.status(200).json({
-      ok: true,
-      data: {
-        reference: refString(book, chapter, verse),
-        bibleId,
-        osis,
-        passageText,        // ← texte propre prêt pour /api/chat
-        items,              // ← compat si utilisé ailleurs
-        source: "api.bible"
-      }
-    });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+    const passage = await fetchPassage(book, chapter, verses);
+    return jsonResponse({ ok: true, data: passage });
+  } catch (err) {
+    return jsonResponse({ ok: false, error: err.message }, 500);
   }
 }
