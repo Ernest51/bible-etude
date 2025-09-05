@@ -1,15 +1,16 @@
-// /api/bibleProvider.js — Provider API.Bible (corrigé avec normalisation accents)
-// ENV requises (Vercel → Settings → Environment Variables) :
-//   - API_BIBLE_KEY           (clé API.Bible)
-//   - API_BIBLE_BIBLE_ID      (ID de la Bible par défaut, ex: a93a92589195411f-01 pour JND FR)
+// /api/bibleProvider.js — Provider API.Bible (texte propre + normalisation accents)
+// ENV (Vercel → Settings → Environment Variables) :
+//   - API_BIBLE_KEY           : clé API.Bible
+//   - API_BIBLE_BIBLE_ID      : ID de la Bible (ex: a93a92589195411f-01)
 //
 // Endpoints :
 //   GET /api/bibleProvider?action=bibles&language=fra
-//   GET /api/bibleProvider?book=Josué&chapter=1&verse=1-3
-//   (optionnel) ?bibleId=... pour surcharger l'ID par défaut
+//   GET /api/bibleProvider?book=Genèse&chapter=1
+//   GET /api/bibleProvider?book=Genèse&chapter=1&verse=1-5
+//   (+ optionnel) &bibleId=... pour surcharger la Bible
 //
 // Réponse passage :
-// { ok:true, data:{ reference:"Josué 1:1-3", bibleId:"...", osis:"JOS.1.1-3", items:[{ v:0, text:"..." }], source:"api.bible(osis)" } }
+// { ok:true, data:{ reference:"Genèse 1", bibleId:"...", osis:"GEN.1", passageText:"...", items:[{v:0,text:"..."}], source:"api.bible" } }
 
 export const config = { runtime: "nodejs" };
 
@@ -21,14 +22,19 @@ const BIBLE_ID = process.env.API_BIBLE_BIBLE_ID || "";
 /* ───────────────────────── Utils ───────────────────────── */
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n || 1));
-const clean = (s = "") => String(s).replace(/<[^>]+>/g, " ").replace(/\s{2,}/g, " ").trim();
+const stripHtmlAndBrackets = (s = "") =>
+  String(s)
+    .replace(/<[^>]+>/g, " ")   // HTML
+    .replace(/\[[^\]]*\]/g, " ")// [12], [a], etc.
+    .replace(/\s+/g, " ")
+    .trim();
 
 function refString(book, chapter, verseSel) {
   const ch = clamp(parseInt(chapter, 10), 1, 150);
   return verseSel ? `${book} ${ch}:${verseSel}` : `${book} ${ch}`;
 }
 
-/* ─────────────── Mapping livres FR → codes OSIS ─────────────── */
+/* ─────────────── Mapping livres FR → OSIS (sans accents) ─────────────── */
 
 const FR2OSIS = {
   "genese":"GEN","gen":"GEN",
@@ -102,12 +108,12 @@ const FR2OSIS = {
   "apocalypse":"REV","apoc":"REV","revelation":"REV","rev":"REV"
 };
 
-// Normalisation : supprime accents, met en minuscules
+// Normalisation : supprime accents, minuscules, espaces simples
 function frToOsisBook(frBook = "") {
   const k = String(frBook)
     .trim()
-    .normalize("NFD")             // décompose accents
-    .replace(/[\u0300-\u036f]/g, "") // supprime diacritiques
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/\s+/g, " ");
   return FR2OSIS[k] || null;
@@ -137,11 +143,12 @@ function makeOsisPassage(bookFR, chapter, verseSel) {
   if (!osisBook) return null;
   const ch = clamp(parseInt(chapter, 10), 1, 150);
 
-  if (!verseSel) return `${osisBook}.${ch}`;
+  if (!verseSel) return `${osisBook}.${ch}`; // chapitre entier
 
   const ranges = parseVerseSelector(verseSel);
   if (!ranges.length) return `${osisBook}.${ch}`;
 
+  // ex: "GEN.1.1-GEN.1.5,GEN.1.7"
   const segs = ranges.map(([a, b]) =>
     a === b ? `${osisBook}.${ch}.${a}` : `${osisBook}.${ch}.${a}-${osisBook}.${ch}.${b}`
   );
@@ -175,21 +182,24 @@ async function listBibles(language = "") {
 }
 
 async function fetchPassageByOsis({ bibleId, osis }) {
+  // on coupe tout le bruit pour un texte propre
   const j = await apiBible(`/bibles/${bibleId}/passages/${encodeURIComponent(osis)}`, {
     "content-type": "text",
     "include-notes": "false",
     "include-titles": "false",
-    "include-chapter-numbers": "true",
-    "include-verse-numbers": "true"
+    "include-chapter-numbers": "false",
+    "include-verse-numbers": "false",
+    "parallel": "" // pas de colonnes parallèles
   });
 
   const data = j?.data;
   const content =
     (Array.isArray(data) ? data?.[0]?.content : data?.content) ||
     (Array.isArray(data?.passages) ? data?.passages?.[0]?.content : "");
-  const text = clean(content || "");
-  const items = text ? [{ v: 0, text }] : [];
-  return { items };
+
+  const passageText = stripHtmlAndBrackets(content || "");
+  const items = passageText ? [{ v: 0, text: passageText }] : [];
+  return { passageText, items };
 }
 
 /* ───────────────────────── Handler ───────────────────────── */
@@ -204,7 +214,7 @@ export default async function handler(req, res) {
     }
 
     const q = req.method === "GET" ? req.query : (req.body || {});
-    const action   = String(q.action || "").toLowerCase();
+    const action = String(q.action || "").toLowerCase();
 
     // 1) Lister les bibles disponibles
     if (action === "bibles") {
@@ -237,7 +247,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: `Livre inconnu: "${book}".` });
     }
 
-    const { items } = await fetchPassageByOsis({ bibleId, osis });
+    const { passageText, items } = await fetchPassageByOsis({ bibleId, osis });
 
     return res.status(200).json({
       ok: true,
@@ -245,8 +255,9 @@ export default async function handler(req, res) {
         reference: refString(book, chapter, verse),
         bibleId,
         osis,
-        items,
-        source: "api.bible(osis)"
+        passageText,        // ← texte propre prêt pour /api/chat
+        items,              // ← compat si tu l’utilises ailleurs
+        source: "api.bible"
       }
     });
   } catch (e) {
