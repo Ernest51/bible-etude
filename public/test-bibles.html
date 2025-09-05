@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Test API.bible - Liste des Bibles FR</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; background: #f9f9f9; }
+    h1 { color: #333; }
+    button { padding: 0.5rem 1rem; margin-bottom: 1rem; }
+    ul { background: #fff; padding: 1rem; border-radius: 8px; }
+    li { margin: 0.3rem 0; }
+    code { background: #eee; padding: 2px 4px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Test API.bible - Versions en Français</h1>
+  <button id="btn">Charger les Bibles (fra)</button>
+  <div id="output">Clique sur le bouton...</div>
+
+  <script>
+    document.getElementById("btn").addEventListener("click", async () => {
+      const output = document.getElementById("output");
+      output.textContent = "⏳ Chargement...";
+
+      try {
+        const res = await fetch("https://api.scripture.api.bible/v1/bibles?language=fra", {
+          headers: {
+            "api-key": "0cff5d83f6852c3044a180cc4cdeb0fe" // 👈 ta clé insérée ici
+          }
+        });
+
+        if (!res.ok) {
+          output.textContent = "❌ Erreur: " + res.status + " → " + (await res.text());
+          return;
+        }
+
+        const data = await res.json();
+        const list = data?.data || [];
+
+        if (!list.length) {
+          output.textContent = "⚠️ Aucune Bible trouvée.";
+          return;
+        }
+
+        // Affichage clair
+        output.innerHTML = "<ul>" + list.map(b =>
+          `<li><strong>${b.name}</strong> — <code>${b.id}</code></li>`
+        ).join("") + "</ul>";
+
+      } catch (err) {
+        output.textContent = "Erreur JS: " + err.message;
+      }
+    });
+  </script>
+</body>
+</html>
