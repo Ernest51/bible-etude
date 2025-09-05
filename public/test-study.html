@@ -70,12 +70,12 @@
         return;
       }
 
-      // Référence affichée
+      // Référence et traduction
       const ref = data.data.reference || (data.data.meta?.book + " " + data.data.meta?.chapter);
       const ver = data.data.version || data.data.meta?.translation || "";
       out.innerHTML = `<h2>Étude de ${ref || ""} (${ver})</h2>`;
 
-      // Détection des sections
+      // Reconstruire les sections
       let sections = [];
       if (Array.isArray(data.data?.sections)) {
         sections = data.data.sections;
