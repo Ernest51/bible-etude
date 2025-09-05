@@ -2,11 +2,11 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <title>Test API /api/chat (28 sections)</title>
+  <title>Test API Bible & Chat</title>
   <style>
     body { font-family: sans-serif; margin: 2rem; background: #f7f7f7; }
-    h1 { font-size: 1.5rem; }
-    form { margin-bottom: 1rem; }
+    h1 { font-size: 1.6rem; margin-top: 2rem; }
+    form { margin-bottom: 1rem; padding: 1rem; background: #fff; border-radius: 8px; }
     label { display: block; margin-top: 0.5rem; }
     input { width: 100%; padding: 0.3rem; }
     button { margin-top: 1rem; padding: 0.5rem 1rem; }
@@ -16,12 +16,15 @@
     }
     .section h2 { margin: 0 0 0.5rem; font-size: 1.2rem; }
     pre { white-space: pre-wrap; word-wrap: break-word; }
-    #debug { margin-top: 2rem; background: #222; color: #eee; padding: 1rem; border-radius: 8px; }
+    #debug, #debug-bible {
+      margin-top: 2rem; background: #222; color: #eee;
+      padding: 1rem; border-radius: 8px;
+    }
   </style>
 </head>
 <body>
   <h1>Test rapide API Chat (28 sections)</h1>
-  <form id="form">
+  <form id="form-chat">
     <label>Livre :
       <input type="text" name="book" value="Genèse" required>
     </label>
@@ -31,24 +34,39 @@
     <label>Traduction :
       <input type="text" name="translation" value="LSG">
     </label>
-    <button type="submit">Lancer la requête</button>
+    <button type="submit">Lancer la requête Chat</button>
   </form>
 
-  <div id="output">Résultat…</div>
+  <div id="output-chat">Résultat…</div>
   <pre id="debug" style="display:none;"></pre>
 
-  <script>
-  const form = document.getElementById("form");
-  const out  = document.getElementById("output");
-  const dbg  = document.getElementById("debug");
+  <h1>Test rapide API BibleProvider (texte brut)</h1>
+  <form id="form-bible">
+    <label>Livre :
+      <input type="text" name="book" value="Genèse" required>
+    </label>
+    <label>Chapitre :
+      <input type="number" name="chapter" value="1" required>
+    </label>
+    <label>Versets (optionnel, ex: 1-5 ou 3,7) :
+      <input type="text" name="verse" placeholder="laisser vide pour le chapitre entier">
+    </label>
+    <button type="submit">Lancer la requête Bible</button>
+  </form>
 
-  form.addEventListener("submit", async (e) => {
+  <div id="output-bible">Résultat…</div>
+  <pre id="debug-bible" style="display:none;"></pre>
+
+  <script>
+  // ---- CHAT ----
+  document.getElementById("form-chat").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const out  = document.getElementById("output-chat");
+    const dbg  = document.getElementById("debug");
     out.textContent = "Chargement...";
     dbg.style.display = "none";
-    dbg.textContent = "";
 
-    const formData = new FormData(form);
+    const formData = new FormData(e.target);
     const payload = {
       book: formData.get("book"),
       chapter: formData.get("chapter"),
@@ -70,12 +88,10 @@
         return;
       }
 
-      // Référence et traduction
       const ref = data.data.reference || (data.data.meta?.book + " " + data.data.meta?.chapter);
       const ver = data.data.version || data.data.meta?.translation || "";
       out.innerHTML = `<h2>Étude de ${ref || ""} (${ver})</h2>`;
 
-      // Reconstruire les sections
       let sections = [];
       if (Array.isArray(data.data?.sections)) {
         sections = data.data.sections;
@@ -103,7 +119,41 @@
         out.appendChild(div);
       });
 
-      // Debug JSON brut
+      dbg.style.display = "block";
+      dbg.textContent = JSON.stringify(data, null, 2);
+    } catch (err) {
+      out.textContent = "Erreur: " + err.message;
+    }
+  });
+
+  // ---- BIBLE ----
+  document.getElementById("form-bible").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const out  = document.getElementById("output-bible");
+    const dbg  = document.getElementById("debug-bible");
+    out.textContent = "Chargement...";
+    dbg.style.display = "none";
+
+    const formData = new FormData(e.target);
+    const params = new URLSearchParams({
+      book: formData.get("book"),
+      chapter: formData.get("chapter"),
+      verse: formData.get("verse")
+    });
+
+    try {
+      const res = await fetch("/api/bibleProvider?" + params.toString());
+      const data = await res.json();
+
+      if (!data.ok || !data.data) {
+        out.innerHTML = `<p style="color:red">Erreur ou données manquantes</p>`;
+        dbg.style.display = "block";
+        dbg.textContent = JSON.stringify(data, null, 2);
+        return;
+      }
+
+      out.innerHTML = `<h2>${data.data.reference}</h2><pre>${data.data.items[0]?.text || ""}</pre>`;
+
       dbg.style.display = "block";
       dbg.textContent = JSON.stringify(data, null, 2);
     } catch (err) {
