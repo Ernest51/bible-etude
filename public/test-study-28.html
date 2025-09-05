@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Test /api/study-28 (28 sections)</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; background: #f7f7f7; }
+    h1 { font-size: 1.4rem; margin-bottom: 1rem; }
+    form { background:#fff; padding:1rem; border-radius:8px; margin-bottom:1rem; }
+    label { display:block; margin-top:0.5rem; }
+    input { width:100%; padding:0.35rem; }
+    button { margin-top:0.75rem; padding:0.5rem 1rem; }
+    .section { background:#fff; margin:0.75rem 0; padding:1rem; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+    .section h2 { margin:0 0 0.5rem; font-size:1.05rem; }
+    .muted { color:#666; font-size:0.9rem; }
+    #debug { background:#111; color:#eee; padding:1rem; border-radius:8px; white-space:pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Test rapide : /api/study-28 → JSON (28 sections)</h1>
+
+  <form id="form">
+    <label>Livre :
+      <input name="book" value="Genèse" required>
+    </label>
+    <label>Chapitre :
+      <input name="chapter" value="1" required>
+    </label>
+    <label>Versets (optionnel, ex: 1-5 ou 3,7) :
+      <input name="verse" placeholder="laisser vide pour tout le chapitre">
+    </label>
+    <label>Traduction :
+      <input name="translation" value="LSG">
+    </label>
+    <button type="submit">Lancer l’étude (28 points)</button>
+  </form>
+
+  <div id="out">Résultat…</div>
+  <p class="muted">Astuce : le JSON brut s’affiche plus bas si besoin de debug.</p>
+  <pre id="debug" style="display:none;"></pre>
+
+  <script>
+  const form  = document.getElementById("form");
+  const out   = document.getElementById("out");
+  const debug = document.getElementById("debug");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    out.textContent = "⏳ Requête en cours…";
+    debug.style.display = "none";
+    debug.textContent = "";
+
+    const fd = new FormData(form);
+    const payload = {};
+    fd.forEach((v,k) => { if (v) payload[k] = v; });
+
+    try {
+      const res = await fetch("/api/study-28", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const txt = await res.text();
+
+      let json;
+      try { json = JSON.parse(txt); }
+      catch { out.innerHTML = "⚠️ Réponse non-JSON<br><br><pre>"+txt+"</pre>"; return; }
+
+      // Affiche le JSON brut pour debug
+      debug.style.display = "block";
+      debug.textContent = JSON.stringify(json, null, 2);
+
+      if (!json.ok || !json.data) {
+        out.innerHTML = `<p style="color:#c00">Erreur : réponse vide ou invalide</p>`;
+        return;
+      }
+
+      // Attendu : { ok:true, data:{ reference, translation, sections:[] } }
+      const ref = json.data.reference || "";
+      const tr  = json.data.translation || "";
+      const sections = Array.isArray(json.data.sections) ? json.data.sections : [];
+
+      out.innerHTML = `<h2>${ref ? "Étude de "+ref : "Étude" } ${tr ? "("+tr+")":""}</h2>`;
+      if (!sections.length) {
+        out.innerHTML += `<p style="color:#b36">⚠️ Aucune section trouvée (json.data.sections est vide)</p>`;
+        return;
+      }
+
+      sections.forEach(s => {
+        const div = document.createElement("div");
+        div.className = "section";
+        const v = Array.isArray(s.verses) ? s.verses.join(", ") : "";
+        div.innerHTML = `
+          <h2>${s.index}. ${s.title}</h2>
+          <div>${s.content}</div>
+          ${v ? `<div class="muted">Versets : ${v}</div>` : ""}
+        `;
+        out.appendChild(div);
+      });
+
+    } catch (err) {
+      out.textContent = "❌ " + err.message;
+    }
+  });
+  </script>
+</body>
+</html>
