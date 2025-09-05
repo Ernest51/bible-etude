@@ -8,13 +8,15 @@
     h1 { font-size: 1.5rem; }
     form { margin-bottom: 1rem; }
     label { display: block; margin-top: 0.5rem; }
-    textarea { width: 100%; height: 200px; }
+    textarea, input { width: 100%; }
+    textarea { height: 200px; }
     .section {
       background: #fff; margin: 1rem 0; padding: 1rem;
       border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     .section h2 { margin: 0 0 0.5rem; font-size: 1.2rem; }
     pre { white-space: pre-wrap; word-wrap: break-word; }
+    #debug { margin-top: 2rem; background: #222; color: #eee; padding: 1rem; border-radius: 8px; }
   </style>
 </head>
 <body>
@@ -33,14 +35,19 @@
   </form>
 
   <div id="output">Résultat…</div>
+  <pre id="debug" style="display:none;"></pre>
 
   <script>
   const form = document.getElementById("form");
   const out  = document.getElementById("output");
+  const dbg  = document.getElementById("debug");
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     out.textContent = "Chargement...";
+    dbg.style.display = "none";
+    dbg.textContent = "";
+
     const formData = new FormData(form);
     const payload = {
       book: formData.get("book"),
@@ -56,19 +63,32 @@
       });
       const data = await res.json();
 
-      if (!data.ok) {
-        out.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+      if (!data.ok || !data.data) {
+        out.innerHTML = `<p style="color:red">Erreur ou données manquantes</p>`;
+        dbg.style.display = "block";
+        dbg.textContent = JSON.stringify(data, null, 2);
         return;
       }
 
-      const sections = data.data?.sections || [];
-      out.innerHTML = `<h2>Étude de ${data.data?.reference || ""}</h2>`;
+      const ref = data.data.reference || "";
+      const ver = data.data.version || "";
+      const sections = data.data.sections || [];
+
+      out.innerHTML = `<h2>Étude de ${ref} (${ver})</h2>`;
+      if (sections.length === 0) {
+        out.innerHTML += "<p style='color:orange'>⚠️ Aucune section trouvée</p>";
+      }
+
       sections.forEach(sec => {
         const div = document.createElement("div");
         div.className = "section";
-        div.innerHTML = `<h2>${sec.index}. ${sec.title}</h2><pre>${sec.content}</pre>`;
+        div.innerHTML = `<h2>${sec.id || sec.index}. ${sec.title}</h2><pre>${sec.content}</pre>`;
         out.appendChild(div);
       });
+
+      // Debug JSON brut (toujours dispo en bas)
+      dbg.style.display = "block";
+      dbg.textContent = JSON.stringify(data, null, 2);
     } catch (err) {
       out.textContent = "Erreur: " + err.message;
     }
