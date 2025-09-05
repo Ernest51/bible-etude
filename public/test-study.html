@@ -8,8 +8,8 @@
     h1 { font-size: 1.5rem; }
     form { margin-bottom: 1rem; }
     label { display: block; margin-top: 0.5rem; }
-    textarea, input { width: 100%; }
-    textarea { height: 200px; }
+    input { width: 100%; padding: 0.3rem; }
+    button { margin-top: 1rem; padding: 0.5rem 1rem; }
     .section {
       background: #fff; margin: 1rem 0; padding: 1rem;
       border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
@@ -70,11 +70,28 @@
         return;
       }
 
-      const ref = data.data.reference || "";
-      const ver = data.data.version || "";
-      const sections = data.data.sections || [];
+      // Référence affichée
+      const ref = data.data.reference || (data.data.meta?.book + " " + data.data.meta?.chapter);
+      const ver = data.data.version || data.data.meta?.translation || "";
+      out.innerHTML = `<h2>Étude de ${ref || ""} (${ver})</h2>`;
 
-      out.innerHTML = `<h2>Étude de ${ref} (${ver})</h2>`;
+      // Détection des sections
+      let sections = [];
+      if (Array.isArray(data.data?.sections)) {
+        sections = data.data.sections;
+      } else {
+        for (let i = 1; i <= 28; i++) {
+          const key = "p" + String(i).padStart(2, "0");
+          if (data.data[key]) {
+            sections.push({
+              index: i,
+              title: data.data[key].titre,
+              content: data.data[key].contenu
+            });
+          }
+        }
+      }
+
       if (sections.length === 0) {
         out.innerHTML += "<p style='color:orange'>⚠️ Aucune section trouvée</p>";
       }
@@ -82,11 +99,11 @@
       sections.forEach(sec => {
         const div = document.createElement("div");
         div.className = "section";
-        div.innerHTML = `<h2>${sec.id || sec.index}. ${sec.title}</h2><pre>${sec.content}</pre>`;
+        div.innerHTML = `<h2>${sec.index}. ${sec.title}</h2><pre>${sec.content}</pre>`;
         out.appendChild(div);
       });
 
-      // Debug JSON brut (toujours dispo en bas)
+      // Debug JSON brut
       dbg.style.display = "block";
       dbg.textContent = JSON.stringify(data, null, 2);
     } catch (err) {
