@@ -1,13 +1,10 @@
-// /api/study-28.js
 export const config = { runtime: "edge" };
 
 // ---------- ENV ----------
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;                 // ta clé OpenAI
-const OPENAI_MODEL   = process.env.OPENAI_MODEL || "gpt-4o-mini";  // optionnel
-const BIBLE_API_KEY  = process.env.BIBLE_API_KEY;                  // ta clé api.bible
-const BIBLE_ID       = process.env.BIBLE_ID;                       // ID Bible API.bible (ex: LSG)
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY; // ta clé OpenAI
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini"; // modèle par défaut
 
-// ---------- 28 points (modifie si besoin pour coller à ta trame) ----------
+// ---------- 28 points (titres fixes de ta trame) ----------
 const STUDY_TITLES = [
   "Thème central",
   "Résumé en une phrase",
@@ -47,40 +44,29 @@ function jsonResponse(obj, status = 200) {
   });
 }
 
-function stripHtml(html = "") {
-  return html
-    .replace(/<sup[^>]*>.*?<\/sup>/g, " ") // supprime numéros de versets
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+// Appelle ton API interne BibleProvider
+async function fetchPassage({ book, chapter, verse }) {
+  const qs = new URLSearchParams({ book, chapter: String(chapter) });
+  if (verse) qs.set("verse", verse);
 
-// ---------- API.Bible fetch ----------
-async function fetchPassageText(osis) {
-  if (!BIBLE_API_KEY || !BIBLE_ID) {
-    throw new Error("BIBLE_API_KEY ou BIBLE_ID manquant(s) dans les variables d’environnement.");
-  }
+  const url = `${process.env.VERCEL_URL
+    ? "https://" + process.env.VERCEL_URL
+    : "http://localhost:3000"}/api/bibleProvider?${qs.toString()}`;
 
-  const url = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(
-    BIBLE_ID
-  )}/passages/${encodeURIComponent(
-    osis
-  )}?contentType=text&includeVerseNumbers=false&includeChapterNumbers=false&includeTitles=false&paragraphs=false`;
-
-  const r = await fetch(url, { headers: { "api-key": BIBLE_API_KEY } });
+  const r = await fetch(url);
   if (!r.ok) {
-    const msg = await r.text();
-    throw new Error(`API.Bible ${r.status}: ${msg}`);
+    throw new Error(`BibleProvider ${r.status}: ${await r.text()}`);
   }
-  const data = await r.json();
-  const text = stripHtml(data?.data?.content ?? "");
-  const ref  = data?.data?.reference ?? osis;
-  return { text, ref };
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || "BibleProvider error");
+  return { passageText: j.data.passageText, reference: j.data.reference };
 }
 
-// ---------- Prompt builder ----------
+// Construit le prompt pour OpenAI
 function buildPrompt({ passageText, passageRef, translation }) {
-  const titlesNumbered = STUDY_TITLES.map((t, i) => `${i + 1}. ${t}`).join("\n");
+  const titlesNumbered = STUDY_TITLES.map(
+    (t, i) => `${i + 1}. ${t}`
+  ).join("\n");
 
   return [
     {
@@ -89,15 +75,15 @@ function buildPrompt({ passageText, passageRef, translation }) {
         "Tu es un bibliste pédagogue.",
         "Produis une étude *structurée et concise* en **28 sections fixes**.",
         "Langue: **français**, ton pastoral mais rigoureux.",
-        "NE PAS inventer de versets; cite uniquement le passage fourni.",
-        "La sortie DOIT être STRICTEMENT du JSON conforme au schéma."
+        "Ne pas inventer de versets; cite uniquement le passage fourni.",
+        "Ta sortie doit être STRICTEMENT du JSON conforme au schéma demandé."
       ].join(" ")
     },
     {
       role: "user",
       content: [
         `Passage: ${passageRef} (${translation}).`,
-        "Texte ci-dessous (base unique pour l’exégèse) :",
+        "Texte ci-dessous (utilise-le comme base unique pour l’exégèse):",
         "```",
         passageText,
         "```",
@@ -106,7 +92,7 @@ function buildPrompt({ passageText, passageRef, translation }) {
         titlesNumbered,
         "",
         "Contraintes de sortie JSON:",
-        "- root object:",
+        "- Root object:",
         '  { "reference": string, "translation": string, "sections": Section[] }',
         "- Section:",
         '  { "index": number (1..28), "title": string, "content": string, "verses": string[] }',
@@ -118,71 +104,66 @@ function buildPrompt({ passageText, passageRef, translation }) {
   ];
 }
 
-// ---------- OpenAI call ----------
+// Appel OpenAI
 async function callOpenAI(messages) {
-  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY manquant.");
-  const body = {
-    model: OPENAI_MODEL,
-    temperature: 0.2,
-    messages,
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "study28",
-        schema: {
-          type: "object",
-          properties: {
-            reference: { type: "string" },
-            translation: { type: "string" },
-            sections: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  index: { type: "integer" },
-                  title: { type: "string" },
-                  content: { type: "string" },
-                  verses: { type: "array", items: { type: "string" } }
-                },
-                required: ["index", "title", "content", "verses"]
-              }
-            }
-          },
-          required: ["reference", "translation", "sections"]
-        }
-      }
-    }
-  };
-
   const r = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${OPENAI_API_KEY}`
+      "Authorization": `Bearer ${OPENAI_API_KEY}`,
+      "Content-Type": "application/json"
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      temperature: 0.2,
+      messages,
+      response_format: { type: "json" }
+    })
   });
 
   if (!r.ok) {
-    const msg = await r.text();
-    throw new Error(`OpenAI ${r.status}: ${msg}`);
+    throw new Error(`OpenAI ${r.status}: ${await r.text()}`);
   }
   const j = await r.json();
-  return j.choices?.[0]?.message?.content;
+  return j.choices[0]?.message?.content || "{}";
 }
 
-// ---------- Handler principal ----------
+// ---------- Handler ----------
 export default async function handler(req) {
   try {
     if (req.method !== "POST") {
-      return jsonResponse({ ok: false, error: "Method Not Allowed" }, 405);
+      return jsonResponse({ ok: false, error: "Use POST only" }, 405);
     }
-    const { osis = "GEN.1", translation = "LSG" } = await req.json();
-    const { text, ref } = await fetchPassageText(osis);
-    const messages = buildPrompt({ passageText: text, passageRef: ref, translation });
-    const content = await callOpenAI(messages);
-    return jsonResponse(JSON.parse(content));
+
+    const body = await req.json();
+    const { book, chapter, verse = "", translation = "LSG" } = body || {};
+
+    if (!book || !chapter) {
+      return jsonResponse({
+        ok: false,
+        error: "Paramètres requis: book, chapter (verse optionnel)."
+      }, 400);
+    }
+
+    // 1) Récupère le texte biblique
+    const { passageText, reference } = await fetchPassage({ book, chapter, verse });
+
+    // 2) Construit le prompt
+    const messages = buildPrompt({ passageText, passageRef: reference, translation });
+
+    // 3) Appelle OpenAI
+    const raw = await callOpenAI(messages);
+
+    // 4) Parse le JSON renvoyé
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e) {
+      return jsonResponse({ ok: false, error: "JSON parsing error", raw }, 500);
+    }
+
+    return jsonResponse({ ok: true, data: parsed });
+
   } catch (e) {
-    return jsonResponse({ ok: false, error: String(e?.message || e) }, 500);
+    return jsonResponse({ ok: false, error: e.message || String(e) }, 500);
   }
 }
