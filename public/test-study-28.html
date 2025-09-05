@@ -1,107 +1,81 @@
-<!doctype html>
-<meta charset="utf-8" />
-<title>Test rapide : /api/study-28 → 28 sections</title>
-<style>
-  body { font-family: system-ui, sans-serif; margin: 24px; background:#f8f9fb; }
-  form { display:grid; gap:8px; grid-template-columns: 160px 1fr; max-width: 760px; background:#fff; padding:16px; border-radius:12px; border:1px solid #e9e9ef}
-  label { color:#444; font-size:14px; align-self:center;}
-  input, select, button { padding:10px; font-size:14px; border:1px solid #ddd; border-radius:8px; }
-  button { grid-column: 1 / -1; background:#111; color:#fff; cursor:pointer; }
-  .row { display:contents; }
-  h2 { margin-top: 24px; }
-  pre { background:#0a0a0a; color:#d5eaff; padding:16px; border-radius:12px; overflow:auto; }
-  .sections { margin-top:16px; background:#fff; border:1px solid #e9e9ef; border-radius:12px; padding:12px; }
-  .item { padding:8px 0; border-top:1px dashed #eee; }
-  .item:first-child { border-top:none; }
-  .title { font-weight:600; }
-  .ref { color:#666; font-size:12px; }
-</style>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Test rapide : /api/study-28 (28 sections)</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    textarea { width: 100%; height: 200px; }
+    pre { background: #f4f4f4; padding: 10px; white-space: pre-wrap; word-wrap: break-word; }
+  </style>
+</head>
+<body>
+  <h1>Test rapide : /api/study-28 → JSON (28 sections)</h1>
+  <form id="form">
+    <label>Livre :</label><br/>
+    <input type="text" id="book" value="Genèse"/><br/><br/>
 
-<h1>Test rapide : /api/study-28 → JSON (28 sections)</h1>
+    <label>Chapitre :</label><br/>
+    <input type="text" id="chapter" value="1"/><br/><br/>
 
-<form id="f">
-  <div class="row">
-    <label>Livre :</label>
-    <input id="book" value="Genèse" />
-  </div>
-  <div class="row">
-    <label>Chapitre :</label>
-    <input id="chapter" value="1" />
-  </div>
-  <div class="row">
-    <label>Versets (optionnel) :</label>
-    <input id="verses" placeholder="ex: 1-5 ou 3,7 (laisser vide = chapitre entier)" />
-  </div>
-  <div class="row">
-    <label>Traduction (label libre) :</label>
-    <input id="translation" value="JND" />
-  </div>
-  <div class="row">
-    <label>Bible ID (override) :</label>
-    <input id="bibleId" placeholder="ex: a93a92589195411f-01 (JND) / ID LSG quand dispo" />
-  </div>
-  <button>🧪 Lancer l’étude (28 points)</button>
-</form>
+    <label>Versets (optionnel) :</label><br/>
+    <input type="text" id="verses" placeholder="ex: 1-5 ou 3,7"/><br/><br/>
 
-<h2>Résumé sections</h2>
-<div id="summary" class="sections">—</div>
+    <label>Traduction :</label><br/>
+    <input type="text" id="translation" value="JND" readonly/><br/><br/>
 
-<h2>JSON brut</h2>
-<pre id="raw">—</pre>
+    <label>Bible ID :</label><br/>
+    <input type="text" id="bibleId" value="a93a92589195411f-01" readonly/><br/><br/>
 
-<script>
-  const form = document.getElementById("f");
-  const out  = document.getElementById("raw");
-  const sum  = document.getElementById("summary");
+    <button type="submit">🧪 Lancer l’étude (28 points)</button>
+  </form>
 
-  function renderSummary(data) {
-    try {
-      const ref = data?.reference || "";
-      const tr  = data?.translation || "";
-      const sections = Array.isArray(data?.sections) ? data.sections : [];
-      if (!sections.length) { sum.textContent = "⚠️ Aucune section trouvée"; return; }
-      sum.innerHTML = `<div class="ref"><strong>Étude de ${ref} (${tr})</strong></div>` +
-        sections.map(s => `<div class="item"><div class="title">${s.index}. ${s.title}</div><div>${s.content}</div></div>`).join("");
-    } catch {
-      sum.textContent = "⚠️ Affichage résumé impossible";
-    }
-  }
+  <h2>Résumé sections</h2>
+  <div id="summary"></div>
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    out.textContent = "Chargement…";
-    sum.textContent = "Chargement…";
+  <h2>JSON brut</h2>
+  <pre id="output"></pre>
 
-    const payload = {
-      book: document.getElementById("book").value.trim(),
-      chapter: document.getElementById("chapter").value.trim(),
-      verses: document.getElementById("verses").value.trim(),
-      translation: document.getElementById("translation").value.trim(),
-      bibleId: document.getElementById("bibleId").value.trim()
-    };
+  <script>
+    document.getElementById("form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const book = document.getElementById("book").value;
+      const chapter = document.getElementById("chapter").value;
+      const verses = document.getElementById("verses").value;
+      const translation = document.getElementById("translation").value;
+      const bibleId = document.getElementById("bibleId").value;
 
-    try {
-      const res = await fetch("/api/study-28", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const t = await res.text();
-      out.textContent = t;
+      const body = { book, chapter, verse: verses, translation, bibleId };
 
-      let j = {};
-      try { j = JSON.parse(t); } catch {}
-      if (j?.ok && j?.data) {
-        renderSummary(j.data);
-      } else if (j?.reference || j?.sections) {
-        // Si l’API renvoie directement l’objet étude (ok non présent)
-        renderSummary(j);
-      } else {
-        sum.textContent = "⚠️ Réponse vide ou invalide";
+      try {
+        const r = await fetch("/api/study-28", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await r.json();
+        document.getElementById("output").textContent = JSON.stringify(data, null, 2);
+
+        // résumé sections
+        if (data?.ok && data?.data) {
+          let summary = "";
+          const sections = data.data.sections || Object.values(data.data).filter(x => x?.titre);
+          if (sections && sections.length) {
+            sections.forEach((s, i) => {
+              summary += `<p><b>${i + 1}. ${s.title || s.titre}</b><br/>${s.content || s.contenu}</p>`;
+            });
+          } else {
+            summary = "<p>⚠️ Aucune section trouvée</p>";
+          }
+          document.getElementById("summary").innerHTML = summary;
+        } else {
+          document.getElementById("summary").innerHTML = "<p>⚠️ Erreur</p>";
+        }
+      } catch (err) {
+        document.getElementById("output").textContent = "Erreur JS: " + err.message;
+        document.getElementById("summary").innerHTML = "<p>⚠️ Exception</p>";
       }
-    } catch (err) {
-      out.textContent = "Erreur réseau: " + err.message;
-      sum.textContent = "⚠️ Erreur réseau";
-    }
-  });
-</script>
+    });
+  </script>
+</body>
+</html>
