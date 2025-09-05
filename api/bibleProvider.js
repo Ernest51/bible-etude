@@ -1,4 +1,4 @@
-// /api/bibleProvider.js — Provider API.Bible (texte propre + normalisation accents)
+// /api/bibleProvider.js — Provider API.Bible (texte propre + normalisation accents + fallback 400)
 // ENV (Vercel → Settings → Environment Variables) :
 //   - API_BIBLE_KEY           : clé API.Bible
 //   - API_BIBLE_BIBLE_ID      : ID de la Bible (ex: a93a92589195411f-01)
@@ -181,25 +181,35 @@ async function listBibles(language = "") {
   }));
 }
 
+// Version robuste : tente avec flags "propres", sinon retente en minimal si 400
 async function fetchPassageByOsis({ bibleId, osis }) {
-  // on coupe tout le bruit pour un texte propre
-  const j = await apiBible(`/bibles/${bibleId}/passages/${encodeURIComponent(osis)}`, {
-    "content-type": "text",
-    "include-notes": "false",
-    "include-titles": "false",
-    "include-chapter-numbers": "false",
-    "include-verse-numbers": "false",
-    "parallel": "" // pas de colonnes parallèles
-  });
+  async function run(params) {
+    const j = await apiBible(`/bibles/${bibleId}/passages/${encodeURIComponent(osis)}`, params);
+    const data = j?.data;
+    const content =
+      (Array.isArray(data) ? data?.[0]?.content : data?.content) ||
+      (Array.isArray(data?.passages) ? data?.passages?.[0]?.content : "");
+    const passageText = stripHtmlAndBrackets(content || "");
+    const items = passageText ? [{ v: 0, text: passageText }] : [];
+    return { passageText, items };
+  }
 
-  const data = j?.data;
-  const content =
-    (Array.isArray(data) ? data?.[0]?.content : data?.content) ||
-    (Array.isArray(data?.passages) ? data?.passages?.[0]?.content : "");
-
-  const passageText = stripHtmlAndBrackets(content || "");
-  const items = passageText ? [{ v: 0, text: passageText }] : [];
-  return { passageText, items };
+  try {
+    // Paramètres "propres" (souvent acceptés)
+    return await run({
+      "content-type": "text",
+      "include-notes": "false",
+      "include-titles": "false",
+      "include-chapter-numbers": "false",
+      "include-verse-numbers": "false"
+    });
+  } catch (e) {
+    // Fallback minimal si l’API refuse certains flags (400 Bad Request)
+    if (String(e?.message || "").includes("400")) {
+      return await run({ "content-type": "text" });
+    }
+    throw e;
+  }
 }
 
 /* ───────────────────────── Handler ───────────────────────── */
@@ -256,7 +266,7 @@ export default async function handler(req, res) {
         bibleId,
         osis,
         passageText,        // ← texte propre prêt pour /api/chat
-        items,              // ← compat si tu l’utilises ailleurs
+        items,              // ← compat si utilisé ailleurs
         source: "api.bible"
       }
     });
