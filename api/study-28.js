@@ -1,7 +1,7 @@
 // /api/study-28.js
 export const config = { runtime: "edge" };
 
-/** ENV attendues
+/** ENV
  * - OPENAI_API_KEY (obligatoire)
  * - OPENAI_MODEL (optionnel) -> défaut: gpt-4o-mini-2024-07-18
  */
@@ -129,10 +129,7 @@ function buildJsonSchema({ expectedSections }) {
               index: { type: "integer", minimum: 1, maximum: expectedSections },
               title: { type: "string" },
               content: { type: "string" },
-              verses: {
-                type: "array",
-                items: { type: "string" }
-              }
+              verses: { type: "array", items: { type: "string" } }
             },
             required: ["index", "title", "content", "verses"]
           }
@@ -153,7 +150,6 @@ async function callOpenAI({ sys, user, maxtok, oaitimeout, expectedSections }) {
   const schema = buildJsonSchema({ expectedSections });
 
   try {
-    // ⚠️ Nouveau format Responses : on met le schéma sous "text.format"
     const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       signal: controller.signal,
@@ -165,8 +161,7 @@ async function callOpenAI({ sys, user, maxtok, oaitimeout, expectedSections }) {
         model: OPENAI_MODEL,
         temperature: 0.1,
         max_output_tokens: Number.isFinite(maxtok) ? Math.max(500, maxtok) : 1500,
-        // important pour forcer le JSON au bon endroit
-        modalities: ["text"],
+        // ⚠️ Pas de "modalities" ici.
         text: {
           format: "json_schema",
           json_schema: schema
@@ -198,13 +193,11 @@ async function callOpenAI({ sys, user, maxtok, oaitimeout, expectedSections }) {
     try {
       out = JSON.parse(outputText);
     } catch {
-      // tentative de rattrapage si le modèle a enveloppé le JSON
       const m = outputText.match(/\{[\s\S]*\}$/m);
       if (!m) throw new Error("Sortie OpenAI non-JSON.");
       out = JSON.parse(m[0]);
     }
 
-    // vérification minimum
     if (!Array.isArray(out.sections) || out.sections.length !== expectedSections) {
       throw new Error(
         `Sections attendues: ${expectedSections}, reçues: ${Array.isArray(out.sections) ? out.sections.length : "?"}`
@@ -222,7 +215,7 @@ export default async function handler(req) {
     const { book, chapter, verse, translation, bibleId, mode, maxtok, oaitimeout } = qs(req);
     if (!book || !chapter) return json(400, { ok: false, error: "Paramètres requis: book, chapter" });
 
-    // 1) Récupération du passage via notre provider
+    // 1) Passage via /api/bibleProvider
     const origin = new URL(req.url).origin;
     const sp = new URLSearchParams();
     sp.set("book", book);
@@ -245,15 +238,15 @@ export default async function handler(req) {
     const osis = bp.data?.osis || "";
     if (!passageText) return json(500, { ok: false, error: "Passage vide depuis BibleProvider" });
 
-    // 2) Prépare prompts & schéma
+    // 2) Prompts & schéma
     const expectedSections = mode === "mini" ? 3 : 28;
     const sys = systemPrompt();
     const user = userPrompt({ reference, translation, passageText, mode });
 
-    // 3) Appel OpenAI (Responses + text.format=json_schema)
+    // 3) OpenAI Responses
     const out = await callOpenAI({ sys, user, maxtok, oaitimeout, expectedSections });
 
-    // 4) Normalisation meta
+    // 4) Meta normalisée
     const metaIn = out.meta || {};
     out.meta = {
       book: String(metaIn.book || book),
