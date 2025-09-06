@@ -1,12 +1,10 @@
 // /api/study-28.js
 export const config = { runtime: "edge" };
 
-/** ENV :
- *  - OPENAI_API_KEY (obligatoire)
- *  - OPENAI_MODEL (optionnel, défaut gpt-4o-mini-2024-07-18)
- *  - API_BIBLE_KEY / (utilisé par /api/bibleProvider côté serveur déjà OK)
+/** ENV attendues
+ * - OPENAI_API_KEY (obligatoire)
+ * - OPENAI_MODEL (optionnel) -> défaut: gpt-4o-mini-2024-07-18
  */
-
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
 
@@ -42,7 +40,7 @@ const STUDY_TITLES = [
   "Ressources complémentaires"
 ];
 
-// ---------- helpers ----------
+// -------- helpers I/O --------
 function json(status, body) {
   return new Response(JSON.stringify(body), {
     status,
@@ -59,19 +57,20 @@ function qs(req) {
     verse: g("verse"),
     translation: g("translation", "LSG"),
     bibleId: g("bibleId", ""),
-    mode: g("mode", "full"), // "mini" (3) or "full" (28)
+    mode: g("mode", "full"),        // "mini" (3) ou "full" (28)
     maxtok: parseInt(g("maxtok", "1500"), 10),
     oaitimeout: parseInt(g("oaitimeout", "30000"), 10)
   };
 }
 
+// -------- prompts --------
 function systemPrompt() {
   return [
     "Tu es un bibliste pédagogue.",
     "Langue: français.",
-    "Base seule: le passage fourni (ne complète pas avec d'autres versets).",
-    "Sortie STRICTE: JSON valide conforme au schéma (aucun autre texte).",
-    "Concision: 4–10 phrases par section (mini: 2–6).",
+    "Base unique: le passage fourni par l’utilisateur (ne pas inventer).",
+    "Sortie STRICTEMENT en JSON valide conforme au schéma fourni (aucun texte hors JSON).",
+    "Concision: 4–10 phrases par section (mini: 2–6)."
   ].join(" ");
 }
 
@@ -81,26 +80,26 @@ function userPrompt({ reference, translation, passageText, mode }) {
     : STUDY_TITLES;
 
   const expected = titles.length;
-  const numbered = titles.map((t, i) => `${i + 1}. ${t}`).join("\n");
+  const ordered = titles.map((t, i) => `${i + 1}. ${t}`).join("\n");
 
   return [
-    `Passage: ${reference} (${translation})`,
+    `Passage: ${reference} (${translation}).`,
     "Texte (base unique) :",
     "```",
     passageText,
     "```",
     "",
-    `Tu dois produire exactement ${expected} sections dans cet ordre strict :`,
-    numbered,
+    `Produis exactement ${expected} sections dans cet ordre strict :`,
+    ordered,
     "",
-    "IMPORTANT: sors UNIQUEMENT le JSON conforme au schéma imposé.",
+    "IMPORTANT: sors UNIQUEMENT le JSON conforme au schéma imposé."
   ].join("\n");
 }
 
-// JSON Schema strict pour Responses API
+// -------- JSON Schema pour Responses API --------
 function buildJsonSchema({ expectedSections }) {
   return {
-    name: "etude_28_points",
+    name: "etude_biblique",
     strict: true,
     schema: {
       type: "object",
@@ -144,7 +143,7 @@ function buildJsonSchema({ expectedSections }) {
   };
 }
 
-// Robust parsing for Responses API
+// -------- appel OpenAI (Responses API) --------
 async function callOpenAI({ sys, user, maxtok, oaitimeout, expectedSections }) {
   if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY manquant");
 
@@ -154,6 +153,7 @@ async function callOpenAI({ sys, user, maxtok, oaitimeout, expectedSections }) {
   const schema = buildJsonSchema({ expectedSections });
 
   try {
+    // ⚠️ Nouveau format Responses : on met le schéma sous "text.format"
     const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       signal: controller.signal,
@@ -165,44 +165,50 @@ async function callOpenAI({ sys, user, maxtok, oaitimeout, expectedSections }) {
         model: OPENAI_MODEL,
         temperature: 0.1,
         max_output_tokens: Number.isFinite(maxtok) ? Math.max(500, maxtok) : 1500,
-        response_format: { type: "json_schema", json_schema: schema },
+        // important pour forcer le JSON au bon endroit
+        modalities: ["text"],
+        text: {
+          format: "json_schema",
+          json_schema: schema
+        },
         input: [
           { role: "system", content: sys },
           { role: "user", content: user }
         ],
-        // stabilité
         seed: 7
       })
     });
 
-    const txt = await r.text();
-    if (!r.ok) throw new Error(`OpenAI ${r.status}: ${txt}`);
+    const bodyText = await r.text();
+    if (!r.ok) throw new Error(`OpenAI ${r.status}: ${bodyText}`);
 
     let payload;
-    try { payload = JSON.parse(txt); } catch { throw new Error("OpenAI: réponse non-JSON API"); }
+    try { payload = JSON.parse(bodyText); } catch { throw new Error("OpenAI: réponse non-JSON (API)"); }
 
-    // Responses API offre output_text ET content[].text
-    const output_text = payload.output_text || payload.output?.[0]?.content?.[0]?.text || payload.content?.[0]?.text;
-    if (typeof output_text !== "string" || !output_text.trim()) {
+    const outputText =
+      payload.output_text ||
+      payload.output?.[0]?.content?.[0]?.text ||
+      payload.content?.[0]?.text;
+
+    if (typeof outputText !== "string" || !outputText.trim()) {
       throw new Error("OpenAI: contenu vide");
     }
 
     let out;
     try {
-      out = JSON.parse(output_text);
+      out = JSON.parse(outputText);
     } catch {
-      // dernier filet : isole le premier bloc JSON
-      const m = output_text.match(/\{[\s\S]*\}$/m);
-      if (m) {
-        out = JSON.parse(m[0]);
-      } else {
-        throw new Error("Sortie OpenAI non-JSON.");
-      }
+      // tentative de rattrapage si le modèle a enveloppé le JSON
+      const m = outputText.match(/\{[\s\S]*\}$/m);
+      if (!m) throw new Error("Sortie OpenAI non-JSON.");
+      out = JSON.parse(m[0]);
     }
 
-    // validation rapide
+    // vérification minimum
     if (!Array.isArray(out.sections) || out.sections.length !== expectedSections) {
-      throw new Error(`Sections attendues: ${expectedSections}, reçues: ${Array.isArray(out.sections) ? out.sections.length : "?"}`);
+      throw new Error(
+        `Sections attendues: ${expectedSections}, reçues: ${Array.isArray(out.sections) ? out.sections.length : "?"}`
+      );
     }
 
     return out;
@@ -216,7 +222,7 @@ export default async function handler(req) {
     const { book, chapter, verse, translation, bibleId, mode, maxtok, oaitimeout } = qs(req);
     if (!book || !chapter) return json(400, { ok: false, error: "Paramètres requis: book, chapter" });
 
-    // 1) Récupère le passage depuis notre provider (même domaine)
+    // 1) Récupération du passage via notre provider
     const origin = new URL(req.url).origin;
     const sp = new URLSearchParams();
     sp.set("book", book);
@@ -227,29 +233,27 @@ export default async function handler(req) {
     const rBP = await fetch(`${origin}/api/bibleProvider?${sp.toString()}`, {
       headers: { accept: "application/json" }
     });
-
-    const bpTxt = await rBP.text();
-    if (!rBP.ok) return json(500, { ok: false, error: `BibleProvider ${rBP.status}: ${bpTxt}` });
+    const bpText = await rBP.text();
+    if (!rBP.ok) return json(500, { ok: false, error: `BibleProvider ${rBP.status}: ${bpText}` });
 
     let bp;
-    try { bp = JSON.parse(bpTxt); } catch { return json(500, { ok: false, error: "BibleProvider: réponse non-JSON" }); }
+    try { bp = JSON.parse(bpText); } catch { return json(500, { ok: false, error: "BibleProvider: réponse non-JSON" }); }
     if (!bp.ok) return json(500, { ok: false, error: bp.error || "BibleProvider: échec" });
 
     const passageText = (bp.data?.passageText || "").trim();
     const reference = bp.data?.reference || `${book} ${chapter}${verse ? ":" + verse : ""}`;
     const osis = bp.data?.osis || "";
-
     if (!passageText) return json(500, { ok: false, error: "Passage vide depuis BibleProvider" });
 
-    // 2) Messages & JSON Schema strict
+    // 2) Prépare prompts & schéma
     const expectedSections = mode === "mini" ? 3 : 28;
     const sys = systemPrompt();
     const user = userPrompt({ reference, translation, passageText, mode });
 
-    // 3) Appel OpenAI (Responses + json_schema strict)
+    // 3) Appel OpenAI (Responses + text.format=json_schema)
     const out = await callOpenAI({ sys, user, maxtok, oaitimeout, expectedSections });
 
-    // 4) Complète/normalise meta
+    // 4) Normalisation meta
     const metaIn = out.meta || {};
     out.meta = {
       book: String(metaIn.book || book),
