@@ -1,81 +1,64 @@
-// /api/chat.js — Proxy vers /api/study-28 (LLM-FREE, api.bible only)
-export const config = { runtime: "nodejs18.x" };
+// /api/chat.js — proxy vers /api/study-28 (LLM-free)
+// Compatible Vercel (runtime nodejs)
 
-function send(res, status, payload) {
-  try {
-    res.statusCode = status;
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader("X-Handler", "chat-proxy-study28");
-    res.end(JSON.stringify(payload, null, 2));
-  } catch {
-    try { res.end('{"ok":false,"warn":"send_failed"}'); } catch {}
-  }
-}
-
-async function readJsonBody(req) {
-  if (req && req.body && typeof req.body === "object") return req.body;
-  return new Promise((resolve) => {
-    let data = "";
-    req.on("data", (c) => (data += c));
-    req.on("end", () => {
-      if (!data) return resolve({});
-      try { resolve(JSON.parse(data)); }
-      catch (e) { resolve({ __parse_error: e.message, __raw: data }); }
-    });
-    req.on("error", (err) => resolve({ __stream_error: err?.message || String(err) }));
-  });
-}
+export const config = { runtime: "nodejs" };
 
 export default async function handler(req, res) {
   try {
     if (req.method !== "POST") {
-      return send(res, 405, { ok: false, error: "Use POST" });
+      res.status(405).json({ ok: false, error: "Méthode non autorisée (POST requis)" });
+      return;
     }
 
+    // lit le corps JSON
     const body = await readJsonBody(req);
-    if (body && body.__parse_error) {
-      return send(res, 400, { ok: false, error: "JSON parse error", detail: body.__parse_error });
-    }
-    if (body && body.probe) {
-      return send(res, 200, { ok: true, source: "study-28-proxy", probe: true });
-    }
 
-    const {
-      book = "", chapter = "", verse = "",
-      version = "LSG", translation = "", mode = "full", bibleId = ""
-    } = body || {};
-    if (!book || !chapter) {
-      return send(res, 400, { ok: false, error: "book et chapter requis" });
-    }
-
+    // reconstruit l’URL de l’endpoint study-28
     const proto = req.headers["x-forwarded-proto"] || "https";
-    const host  = req.headers["x-forwarded-host"] || req.headers["host"];
-    const base  = `${proto}://${host}`;
+    const host = req.headers["x-forwarded-host"] || req.headers["host"];
+    const base = `${proto}://${host}`;
 
-    const sp = new URLSearchParams({
-      book: String(book),
-      chapter: String(chapter),
-      translation: String(translation || version || "LSG"),
-      mode: String(mode || "full")
+    const r = await fetch(`${base}/api/study-28`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {})
     });
-    if (verse)   sp.set("verse", String(verse));
-    if (bibleId) sp.set("bibleId", String(bibleId));
 
-    const url = `${base}/api/study-28?${sp.toString()}`;
-    const r = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
-
-    if (!r.ok) {
-      const txt = await r.text().catch(() => "");
-      return send(res, 502, { ok: false, error: `study-28 ${r.status}`, detail: txt.slice(0, 1200) });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { raw: text };
     }
 
-    const j = await r.json().catch(() => ({}));
-    if (!j || j.ok === false) {
-      return send(res, 502, { ok: false, error: j?.error || "study-28 invalid response" });
-    }
-
-    return send(res, 200, { ok: true, data: j.data, source: "study-28-proxy" });
+    res.status(r.status).json({
+      ok: true,
+      source: "study-28-proxy",
+      status: r.status,
+      data
+    });
   } catch (e) {
-    return send(res, 500, { ok: false, error: "proxy_failed", detail: String(e?.message || e) });
+    res.status(500).json({
+      ok: false,
+      error: "chat.js_failed",
+      detail: e?.message || String(e)
+    });
   }
+}
+
+// utilitaire pour lire le body JSON
+async function readJsonBody(req) {
+  return new Promise((resolve) => {
+    let data = "";
+    req.on("data", (chunk) => (data += chunk));
+    req.on("end", () => {
+      try {
+        resolve(data ? JSON.parse(data) : {});
+      } catch (e) {
+        resolve({ __parse_error: e.message, __raw: data });
+      }
+    });
+    req.on("error", (err) => resolve({ __stream_error: err?.message || String(err) }));
+  });
 }
