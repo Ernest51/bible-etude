@@ -3,159 +3,228 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Diagnostic API.Bible</title>
+  <title>Test API Bible — etude</title>
   <style>
-    :root{--bg:#0b1220;--panel:#0f172a;--muted:#94a3b8;--ok:#16a34a;--ko:#dc2626;--accent:#38bdf8}
-    html,body{margin:0;padding:0;background:var(--bg);color:#e5e7eb;font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
-    main{max-width:980px;margin:24px auto;padding:0 16px}
-    h1{font-size:22px;margin:0 0 12px}
-    .card{background:var(--panel);border:1px solid #1f2937;border-radius:12px;padding:14px;margin:12px 0}
-    label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
-    input,select,button{border-radius:10px;border:1px solid #334155;background:#0b1220;color:#e5e7eb;padding:10px 12px}
-    button{cursor:pointer;font-weight:700}
-    button.primary{background:#0369a1;border-color:#075985;color:#fff}
-    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:8px 0}
-    .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
-    pre{white-space:pre-wrap;word-break:break-word;background:#0b1020;border:1px solid #1f2a44;border-radius:8px;padding:10px;max-height:360px;overflow:auto}
-    .ok{color:var(--ok)} .ko{color:var(--ko)}
-    table{width:100%;border-collapse:collapse;margin-top:8px}
-    th,td{border-bottom:1px solid #1f2937;padding:6px 6px;text-align:left}
-    a{color:var(--accent)}
+    :root{--ok:#16a34a;--ko:#dc2626;--muted:#64748b;--bg:#f7fafc}
+    html,body{margin:0;background:var(--bg);font-family:system-ui,Segoe UI,Inter,Arial,sans-serif;color:#0f172a}
+    header{padding:12px 16px;background:#fff;border-bottom:1px solid #e5e7eb;position:sticky;top:0;z-index:10}
+    h1{margin:0;font-size:18px}
+    main{max-width:1100px;margin:16px auto;padding:0 12px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media (max-width:900px){.row{grid-template-columns:1fr}}
+    fieldset{border:1px solid #e5e7eb;border-radius:10px;background:#fff}
+    legend{font-weight:700;color:#111}
+    .p{padding:12px}
+    label{display:block;font-size:13px;color:#111;margin:8px 0 4px}
+    input,select,button{padding:10px;border:1px solid #e5e7eb;border-radius:8px;width:100%}
+    button{background:#111;color:#fff;cursor:pointer}
+    .btn-row{display:flex;gap:8px;flex-wrap:wrap}
+    .status{font-size:13px;color:#111}
+    .ok{color:var(--ok)} .ko{color:var(--ko)} .muted{color:var(--muted)}
+    pre{background:#0b1020;color:#e2e8f0;border-radius:8px;padding:10px;overflow:auto;max-height:360px}
+    .small{font-size:12px;color:#475569}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .tag{display:inline-block;padding:2px 8px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;font-size:12px;margin-right:6px}
   </style>
 </head>
 <body>
-  <main>
-    <h1>🔎 Diagnostic API.Bible (via /api/bibleProvider)</h1>
-    <p class="mono" style="color:var(--muted)">
-      Objectif : vérifier la clé API.Bible et la récupération de texte, sans toucher le reste de l’appli.
-    </p>
-
-    <!-- Test 1 : la clé fonctionne (liste bibles FR) -->
-    <section class="card">
-      <h2 style="margin:0 0 6px">1) Lister les Bibles (FR)</h2>
-      <div class="row">
-        <div>
-          <label>Langue</label>
-          <input id="lang" value="fra" />
+<header>
+  <h1>Diagnostic API Bible — (front)</h1>
+</header>
+<main>
+  <div class="row">
+    <fieldset>
+      <legend>1) Santé & variables</legend>
+      <div class="p">
+        <div class="btn-row">
+          <button id="btnHealth">Tester /api/health</button>
         </div>
-        <button id="btn-list" class="primary">Lister</button>
-        <span id="status-list" class="mono" style="margin-left:8px"></span>
+        <div id="healthStatus" class="status muted">–</div>
+        <pre id="healthOut">[en attente]</pre>
       </div>
-      <div id="tbl-wrap"></div>
-      <pre id="raw-list" class="mono">—</pre>
-    </section>
+    </fieldset>
 
-    <!-- Test 2 : un passage (avec ou sans bibleId si ENV par défaut est réglé) -->
-    <section class="card">
-      <h2 style="margin:0 0 6px">2) Passage (book + chapter + [verse])</h2>
+    <fieldset>
+      <legend>2) Bibles disponibles</legend>
+      <div class="p">
+        <label>Langue (DBL)</label>
+        <select id="lang">
+          <option value="">(toutes)</option>
+          <option value="fra" selected>fra (Français)</option>
+          <option value="eng">eng (English)</option>
+        </select>
+        <label>Recherche (ex: Segond, Darby…)</label>
+        <input id="q" type="text" placeholder="ex: Segond" />
+        <div class="btn-row" style="margin-top:8px">
+          <button id="btnBibles">Lister /api/bibles</button>
+        </div>
+        <div id="biblesStatus" class="status muted">–</div>
+        <pre id="biblesOut">[en attente]</pre>
+      </div>
+    </fieldset>
+  </div>
+
+  <fieldset style="margin-top:12px">
+    <legend>3) Passage & étude 28 points</legend>
+    <div class="p">
       <div class="row">
         <div>
-          <label>Bible ID (laisser vide si API_BIBLE_BIBLE_ID est configurée)</label>
-          <input id="bibleId" placeholder="ex: a93a92589195411f-01" style="min-width:280px" />
-        </div>
-        <div>
-          <label>Livre (FR)</label>
-          <input id="book" value="Jean" />
+          <label>Livre</label>
+          <input id="book" value="Genèse" />
         </div>
         <div>
           <label>Chapitre</label>
-          <input id="chapter" type="number" value="3" />
+          <input id="chapter" value="1" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div>
+          <label>Verset (facultatif)</label>
+          <input id="verse" placeholder="ex: 1, 1-5…" />
         </div>
         <div>
-          <label>Versets (ex: 16 ou 1-3,7) — optionnel</label>
-          <input id="verses" value="16" />
+          <label>bibleId (facultatif)</label>
+          <input id="bibleId" placeholder="ex: a93a92589195411f-01" />
         </div>
-        <button id="btn-pass" class="primary">Tester passage</button>
-        <span id="status-pass" class="mono" style="margin-left:8px"></span>
       </div>
-      <div id="preview" class="mono" style="margin:6px 0;color:#cbd5e1">—</div>
-      <pre id="raw-pass" class="mono">—</pre>
-    </section>
+      <div class="row" style="margin-top:8px">
+        <div>
+          <label>Mode</label>
+          <select id="mode">
+            <option value="full" selected>full (28 rubriques)</option>
+            <option value="mini">mini (3 rubriques)</option>
+          </select>
+        </div>
+        <div>
+          <label>Translation (affichage/meta)</label>
+          <select id="translation">
+            <option value="LSG" selected>LSG</option>
+            <option value="JND">JND</option>
+            <option value="PDV">PDV</option>
+            <option value="S21">S21</option>
+            <option value="BFC">BFC</option>
+          </select>
+        </div>
+      </div>
 
-    <section class="card">
-      <h2 style="margin:0 0 6px">Notes d’interprétation</h2>
-      <ul>
-        <li>Si <strong>Liste Bibles</strong> renvoie des lignes, ta variable <code>API_BIBLE_KEY</code> est valide.</li>
-        <li>Si <strong>Passage</strong> renvoie <code>ok:true</code> avec un <code>items[0].text</code> non vide, tout est opérationnel.</li>
-        <li>Erreur « Aucun bibleId défini » : ajoute <code>API_BIBLE_BIBLE_ID</code> côté Vercel ou renseigne <em>Bible ID</em> ci-dessus.</li>
-      </ul>
-    </section>
-  </main>
+      <div class="btn-row" style="margin-top:10px">
+        <button id="btnStudyDry">/api/study-28 (dry=1, hors-ligne)</button>
+        <button id="btnStudyLive">/api/study-28 (live api.bible)</button>
+        <button id="btnChat">/api/chat (POST → study-28)</button>
+      </div>
 
-  <script>
-    const $ = (s)=>document.querySelector(s);
-    const esc = (s='') => String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+      <div id="studyStatus" class="status muted" style="margin-top:8px">–</div>
+      <div class="small" style="margin:6px 0">
+        <span class="tag" id="tagStatus">status: —</span>
+        <span class="tag" id="tagHandler">x-handler: —</span>
+        <span class="tag" id="tagLen">bytes: —</span>
+      </div>
+      <pre id="studyOut">[en attente]</pre>
+    </div>
+  </fieldset>
+</main>
 
-    // --- Test 1
-    $('#btn-list').addEventListener('click', async ()=>{
-      $('#status-list').textContent='…';
-      $('#status-list').className='mono';
-      $('#raw-list').textContent='…';
-      $('#tbl-wrap').innerHTML='';
-      try{
-        const url = `/api/bibleProvider?action=bibles&language=${encodeURIComponent($('#lang').value||'fra')}`;
-        const r = await fetch(url); const j = await r.json();
-        $('#raw-list').textContent = JSON.stringify(j, null, 2);
-        if(j && j.ok && j.data && Array.isArray(j.data.bibles) && j.data.bibles.length){
-          $('#status-list').textContent='OK'; $('#status-list').className='mono ok';
-          renderBibles(j.data.bibles);
-        }else{
-          $('#status-list').textContent='ÉCHEC'; $('#status-list').className='mono ko';
-        }
-      }catch(e){
-        $('#status-list').textContent='ÉCHEC'; $('#status-list').className='mono ko';
-        $('#raw-list').textContent=String(e?.message||e);
-      }
+<script>
+(function(){
+  const $ = (s) => document.querySelector(s);
+  const healthOut = $("#healthOut"), healthStatus = $("#healthStatus");
+  const biblesOut = $("#biblesOut"), biblesStatus = $("#biblesStatus");
+  const studyOut = $("#studyOut"), studyStatus = $("#studyStatus");
+  const tagStatus = $("#tagStatus"), tagHandler = $("#tagHandler"), tagLen = $("#tagLen");
+
+  async function fetchText(url, opts={}){
+    const r = await fetch(url, { cache:"no-store", ...opts });
+    const txt = await r.text();
+    return { r, txt };
+  }
+  function pretty(s){
+    try{ return JSON.stringify(JSON.parse(s), null, 2); }
+    catch{ return s; }
+  }
+  function setTags(r, txt){
+    tagStatus.textContent = "status: " + r.status + " " + (r.statusText||"");
+    tagHandler.textContent = "x-handler: " + (r.headers.get("x-handler") || "—");
+    tagLen.textContent = "bytes: " + (txt||"").length;
+  }
+
+  // 1) health
+  $("#btnHealth").addEventListener("click", async ()=>{
+    healthStatus.textContent = "…";
+    const { r, txt } = await fetchText("/api/health");
+    setTags(r, txt);
+    healthStatus.innerHTML = r.ok ? '<span class="ok">OK</span>' : '<span class="ko">KO</span>';
+    healthOut.textContent = pretty(txt);
+  });
+
+  // 2) bibles
+  $("#btnBibles").addEventListener("click", async ()=>{
+    biblesStatus.textContent = "…";
+    const lang = $("#lang").value.trim();
+    const q = $("#q").value.trim();
+    const qs = new URLSearchParams();
+    if (lang) qs.set("lang", lang);
+    if (q) qs.set("q", q);
+    const { r, txt } = await fetchText("/api/bibles?" + qs.toString());
+    setTags(r, txt);
+    biblesStatus.innerHTML = r.ok ? '<span class="ok">OK</span>' : '<span class="ko">KO</span>';
+    biblesOut.textContent = pretty(txt);
+  });
+
+  // helpers pour les tests study
+  function makeQS(dry){
+    const qs = new URLSearchParams();
+    qs.set("book", $("#book").value.trim() || "Genèse");
+    qs.set("chapter", $("#chapter").value.trim() || "1");
+    const v = $("#verse").value.trim(); if (v) qs.set("verse", v);
+    const b = $("#bibleId").value.trim(); if (b) qs.set("bibleId", b);
+    qs.set("mode", $("#mode").value);
+    qs.set("translation", $("#translation").value || "LSG");
+    if (dry) qs.set("dry", "1");
+    return qs;
+  }
+
+  // 3a) study-28 dry
+  $("#btnStudyDry").addEventListener("click", async ()=>{
+    studyStatus.textContent = "…";
+    const qs = makeQS(true);
+    const { r, txt } = await fetchText("/api/study-28?" + qs.toString());
+    setTags(r, txt);
+    studyStatus.innerHTML = r.ok ? '<span class="ok">OK</span> (hors-ligne, aucune requête api.bible)' : '<span class="ko">KO</span>';
+    studyOut.textContent = pretty(txt);
+  });
+
+  // 3b) study-28 live
+  $("#btnStudyLive").addEventListener("click", async ()=>{
+    studyStatus.textContent = "…";
+    const qs = makeQS(false);
+    const { r, txt } = await fetchText("/api/study-28?" + qs.toString());
+    setTags(r, txt);
+    studyStatus.innerHTML = r.ok ? '<span class="ok">OK</span> (live api.bible)' : '<span class="ko">KO</span>';
+    studyOut.textContent = pretty(txt);
+  });
+
+  // 3c) chat proxy (POST)
+  $("#btnChat").addEventListener("click", async ()=>{
+    studyStatus.textContent = "…";
+    const body = {
+      book: $("#book").value.trim() || "Genèse",
+      chapter: $("#chapter").value.trim() || "1",
+      verse: $("#verse").value.trim() || "",
+      bibleId: $("#bibleId").value.trim() || "",
+      mode: $("#mode").value,
+      translation: $("#translation").value || "LSG"
+    };
+    const { r, txt } = await fetchText("/api/chat", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(body)
     });
+    setTags(r, txt);
+    studyStatus.innerHTML = r.ok ? '<span class="ok">OK</span> (proxy /api/chat)' : '<span class="ko">KO</span>';
+    studyOut.textContent = pretty(txt);
+  });
 
-    function renderBibles(rows){
-      const wrap = $('#tbl-wrap');
-      const t = document.createElement('table');
-      t.innerHTML = `<thead><tr><th>abbr</th><th>name</th><th>id</th><th>lang</th><th></th></tr></thead><tbody></tbody>`;
-      wrap.appendChild(t);
-      const tb = t.querySelector('tbody');
-      rows.slice(0, 60).forEach(b=>{
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${esc(b.abbreviation||'')}</td>
-          <td>${esc(b.name||'')}</td>
-          <td class="mono">${esc(b.id||'')}</td>
-          <td>${esc(b.language?.name || b.language || '')}</td>
-          <td><button data-id="${esc(b.id||'')}">→ utiliser</button></td>`;
-        tr.querySelector('button').addEventListener('click', ()=>{
-          $('#bibleId').value = b.id || '';
-          window.scrollTo({ top: document.body.scrollHeight, behavior:'smooth' });
-        });
-        tb.appendChild(tr);
-      });
-    }
-
-    // --- Test 2
-    $('#btn-pass').addEventListener('click', async ()=>{
-      $('#status-pass').textContent='…'; $('#status-pass').className='mono';
-      $('#raw-pass').textContent='…'; $('#preview').textContent='—';
-      try{
-        const qs = new URLSearchParams({
-          book: $('#book').value||'Jean',
-          chapter: $('#chapter').value||'3',
-          verse: $('#verses').value||''
-        });
-        const bid = $('#bibleId').value.trim(); if(bid) qs.set('bibleId', bid);
-        const r = await fetch('/api/bibleProvider?' + qs.toString());
-        const j = await r.json();
-        $('#raw-pass').textContent = JSON.stringify(j, null, 2);
-        if(j && j.ok && j.data && Array.isArray(j.data.items) && j.data.items.length && j.data.items[0].text){
-          $('#status-pass').textContent='OK'; $('#status-pass').className='mono ok';
-          const ex = j.data.items[0].text.slice(0, 300) + (j.data.items[0].text.length>300?'…':'');
-          $('#preview').innerHTML = `<strong>${esc(j.data.reference||'')}</strong><br/>Extrait : ${esc(ex)}`;
-        }else{
-          $('#status-pass').textContent='ÉCHEC'; $('#status-pass').className='mono ko';
-        }
-      }catch(e){
-        $('#status-pass').textContent='ÉCHEC'; $('#status-pass').className='mono ko';
-        $('#raw-pass').textContent=String(e?.message||e);
-      }
-    });
-  </script>
+})();
+</script>
 </body>
 </html>
