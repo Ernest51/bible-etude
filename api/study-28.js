@@ -1,15 +1,16 @@
 // api/study-28.js
 import { NextResponse } from "next/server";
 
-// ----------- CONFIG -----------
+// ---------- CONFIG ----------
 export const config = { runtime: "nodejs" };
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
 
-// jetons par PASSE (gardés <1000 pour éviter incomplete)
-const TOKENS_PER_PASS = 900;
+// Moins de jetons / passe pour éviter incomplete
+const TOKENS_PER_PASS = 600; // ~600 suffit pour 7 sections compactes
+const WORDS_PER_SECTION = "35–45"; // sections plus courtes
 
-// ----------- JSON SCHEMAS -----------
+// ---------- JSON SCHEMAS ----------
 const META_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -76,14 +77,14 @@ function miniSchema() {
   };
 }
 
-// ----------- PROMPTS -----------
+// ---------- PROMPTS ----------
 function sysPrompt(mode, range) {
   const slice = range ? ` Génère UNIQUEMENT les sections ${range[0]} à ${range[1]}.` : "";
   return (
-    "Tu es un bibliste pédagogue. Réponds STRICTEMENT en JSON selon le schéma." +
+    "Tu es un bibliste pédagogue. Réponds STRICTEMENT en JSON conforme au schéma." +
     " Langue: français. N'invente pas de versets. Cite uniquement le passage fourni." +
-    (mode === "mini" ? " Format MINI: exactement 3 sections." : " Format FULL: exactement 28 sections.") +
-    " Chaque section ≈50–70 mots." +
+    (mode === "mini" ? " Format MINI: exactement 3 sections." : " Format FULL: exactement 28 sections au total.") +
+    ` Chaque section ≈${WORDS_PER_SECTION} mots, style direct, sans puces.` +
     slice +
     " Réponds UNIQUEMENT par l'objet JSON."
   );
@@ -116,15 +117,15 @@ function userPrompt(ctx) {
 
   const constraints = [
     "Contraintes :",
-    "- EXACTEMENT le nombre de sections attendu.",
-    "- Chaque section contient: index, title, content (≈50–70 mots), verses (string[]).",
+    "- EXACTEMENT le nombre de sections attendu pour l'intervalle demandé.",
+    "- Chaque section contient: index, title, content (≈" + WORDS_PER_SECTION + " mots), verses (string[]).",
     "- Utilise UNIQUEMENT le passage fourni."
   ];
 
   return [head, body, "", "Titres attendus :", ...titles, "", ...constraints].join("\n");
 }
 
-// ----------- HELPERS -----------
+// ---------- HELPERS ----------
 function respond(payload, status = 200) {
   return NextResponse.json(payload, { status });
 }
@@ -140,7 +141,7 @@ function safeParseJson(txt) {
   return null;
 }
 
-// ----------- OPENAI ADAPTATIF -----------
+// ---------- OPENAI ADAPTATIF ----------
 async function callOpenAIAdaptive({ sys, user, schemaName, schemaObj, tokens, timeoutMs }) {
   const headers = {
     "Content-Type": "application/json",
@@ -153,7 +154,7 @@ async function callOpenAIAdaptive({ sys, user, schemaName, schemaObj, tokens, ti
 
   const attempts = [];
 
-  // A) Responses API (format objet - spec récente)
+  // A) Responses API (format objet)
   attempts.push({
     endpoint: "https://api.openai.com/v1/responses",
     body: {
@@ -190,7 +191,7 @@ async function callOpenAIAdaptive({ sys, user, schemaName, schemaObj, tokens, ti
     }
   });
 
-  // B) Responses API (legacy json_schema au 1er niveau de text)
+  // B) Responses API (legacy format)
   attempts.push({
     endpoint: "https://api.openai.com/v1/responses",
     body: {
@@ -227,7 +228,7 @@ async function callOpenAIAdaptive({ sys, user, schemaName, schemaObj, tokens, ti
     }
   });
 
-  // C) Chat Completions fallback (réponse formatée JSON via "response_format")
+  // C) Chat Completions fallback
   attempts.push({
     endpoint: "https://api.openai.com/v1/chat/completions",
     body: {
@@ -277,7 +278,7 @@ async function callOpenAIAdaptive({ sys, user, schemaName, schemaObj, tokens, ti
   return { ok: false, error: String(lastErr) };
 }
 
-// ----------- GENERATION -----------
+// ---------- GENERATION ----------
 async function genMini(ctx, timeoutMs) {
   const sys = sysPrompt("mini");
   const user = userPrompt({ ...ctx, mode: "mini" });
@@ -304,24 +305,31 @@ async function genFullSlice(ctx, range, timeoutMs) {
   });
 }
 
-async function genFullTwoPass(ctx, timeoutMs) {
-  const p1 = await genFullSlice(ctx, [1, 14], timeoutMs);
-  if (!p1.ok || !p1.parsed?.sections) return { ok: false, debug: { p1 } };
-  const p2 = await genFullSlice(ctx, [15, 28], timeoutMs);
-  if (!p2.ok || !p2.parsed?.sections) return { ok: false, debug: { p1, p2 } };
-
-  const meta = p1.parsed.meta || {
+async function genFullFourPass(ctx, timeoutMs) {
+  const ranges = [[1,7],[8,14],[15,21],[22,28]];
+  const parts = [];
+  const debug = {};
+  for (const rg of ranges) {
+    const r = await genFullSlice(ctx, rg, timeoutMs);
+    debug[`p${rg[0]}_${rg[1]}`] = r.raw || r.error || null;
+    if (!r.ok || !r.parsed?.sections) {
+      return { ok: false, debug };
+    }
+    parts.push(r.parsed);
+  }
+  // Fusion
+  const meta = parts[0].meta || {
     book: ctx.book, chapter: ctx.chapter, verse: ctx.verse || "",
     translation: ctx.translation, reference: ctx.reference, osis: ctx.osis || ""
   };
-  const data = {
-    meta,
-    sections: [...p1.parsed.sections, ...p2.parsed.sections].sort((a, b) => a.index - b.index)
-  };
-  return { ok: true, data, debug: { p1: p1.raw, p2: p2.raw } };
+  const sections = parts.flatMap(p => p.sections).sort((a,b)=>a.index-b.index);
+  if (sections.length !== 28) {
+    return { ok: false, debug: { ...debug, mergedCount: sections.length } };
+  }
+  return { ok: true, data: { meta, sections }, debug };
 }
 
-// ----------- ROUTE -----------
+// ---------- ROUTE ----------
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const book = searchParams.get("book") || "Genèse";
@@ -336,15 +344,13 @@ export async function GET(req) {
   const timeout = parseInt(searchParams.get("oaitimeout") || "30000", 10);
 
   try {
-    // ✅ SELFTEST avant toute dépendance
     if (selftest) {
       return respond({
         ok: true,
-        version: "study-28@adaptive-two-pass",
+        version: "study-28@adaptive-4pass",
         model: MODEL,
-        adaptive: ["responses.format.object", "responses.format.legacy", "chat.response_format"],
-        twoPass: true,
-        tokensPerPass: TOKENS_PER_PASS
+        tokensPerPass: TOKENS_PER_PASS,
+        wordsPerSection: WORDS_PER_SECTION
       });
     }
 
@@ -352,7 +358,7 @@ export async function GET(req) {
       return respond({ ok: false, error: "OPENAI_API_KEY manquante." }, 500);
     }
 
-    // DRY pour l’UI
+    // DRY pour UI
     if (dry) {
       const reference = verse ? `${book} ${chapter}:${verse}` : `${book} ${chapter}`;
       if (mode === "mini") {
@@ -379,7 +385,7 @@ export async function GET(req) {
       });
     }
 
-    // Passage (serveur → serveur)
+    // Passage (serveur->serveur)
     const base = req.headers.get("x-forwarded-host")
       ? `https://${req.headers.get("x-forwarded-host")}`
       : "http://localhost:3000";
@@ -409,7 +415,7 @@ export async function GET(req) {
           ? { ok: false, error: "Sortie OpenAI non-JSON (mini).", debug: r }
           : { ok: false, error: "Sortie OpenAI non-JSON (mini)." }, 502);
       }
-      // compléter meta si absent
+      // compléter meta
       r.parsed.meta = r.parsed.meta || {};
       r.parsed.meta.book = r.parsed.meta.book || String(book);
       r.parsed.meta.chapter = r.parsed.meta.chapter || String(chapter);
@@ -420,23 +426,28 @@ export async function GET(req) {
       return respond({ ok: true, data: r.parsed });
     }
 
-    // FULL → 2 passes
-    const two = await genFullTwoPass(ctx, timeout);
-    if (!two.ok) {
+    // FULL → 4 passes
+    const four = await genFullFourPass(ctx, timeout);
+    if (!four.ok) {
       return respond(debug
-        ? { ok: false, error: "Sortie OpenAI non-JSON (full).", debug: two.debug }
+        ? { ok: false, error: "Sortie OpenAI non-JSON (full).", debug: four.debug }
         : { ok: false, error: "Sortie OpenAI non-JSON (full)." }, 502);
     }
-
     // compléter meta
-    two.data.meta.book = two.data.meta.book || String(book);
-    two.data.meta.chapter = two.data.meta.chapter || String(chapter);
-    two.data.meta.verse = two.data.meta.verse ?? String(verse || "");
-    two.data.meta.translation = two.data.meta.translation || String(translation);
-    two.data.meta.reference = two.data.meta.reference || reference;
-    two.data.meta.osis = two.data.meta.osis || ctx.osis;
+    four.data.meta.book = four.data.meta.book || String(book);
+    four.data.meta.chapter = four.data.meta.chapter || String(chapter);
+    four.data.meta.verse = four.data.meta.verse ?? String(verse || "");
+    four.data.meta.translation = four.data.meta.translation || String(translation);
+    four.data.meta.reference = four.data.meta.reference || reference;
+    four.data.meta.osis = four.data.meta.osis || ctx.osis;
 
-    return respond({ ok: true, data: two.data });
+    // Sanity check final: 28 sections, index 1..28
+    const idxs = new Set(four.data.sections.map(s => s.index));
+    if (four.data.sections.length !== 28 || idxs.size !== 28 || !idxs.has(1) || !idxs.has(28)) {
+      return respond({ ok: false, error: "Assemblage incomplet des 28 sections (full)." }, 502);
+    }
+
+    return respond({ ok: true, data: four.data });
   } catch (e) {
     return respond({ ok: false, error: String(e) }, 500);
   }
