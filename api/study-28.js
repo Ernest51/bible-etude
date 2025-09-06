@@ -1,4 +1,4 @@
-// /api/study-28.js — Étude 28 points LLM-FREE (api.bible uniquement)
+// /api/study-28.js — Étude 28 points (LLM-FREE, api.bible only)
 export const config = { runtime: "nodejs18.x" };
 
 function send(req, res, status, payload) {
@@ -7,10 +7,9 @@ function send(req, res, status, payload) {
     res.statusCode = status;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.end(JSON.stringify(payload, null, 2));
-  } catch {
-    try { res.end('{"ok":false,"warn":"send_failed"}'); } catch {}
-  }
+  } catch { try { res.end('{"ok":false}'); } catch {} }
 }
+
 const clip = (s, max=240) => {
   const t = String(s||"").replace(/\s+/g," ").trim();
   return t.length > max ? t.slice(0,max-1).trimEnd()+"…" : t;
@@ -24,7 +23,8 @@ const firstSentence = (s) => {
 // --- api.bible ---
 const API_ROOT = "https://api.scripture.api.bible/v1";
 const KEY = process.env.API_BIBLE_KEY || "";
-const DEFAULT_BIBLE_ID = process.env.API_BIBLE_ID || "";
+// supporte les deux noms (tu as API_BIBLE_BIBLE_ID dans Vercel)
+const DEFAULT_BIBLE_ID = process.env.API_BIBLE_ID || process.env.API_BIBLE_BIBLE_ID || "";
 
 async function callApi(endpoint, { params={} } = {}) {
   if (!KEY) { const e = new Error("API_BIBLE_KEY missing"); e.status = 500; throw e; }
@@ -38,7 +38,6 @@ async function callApi(endpoint, { params={} } = {}) {
   if (!r.ok) { const e = new Error(j?.error?.message || `api.bible ${r.status}`); e.status = r.status; e.details = j; throw e; }
   return j?.data ?? j;
 }
-
 async function resolveBibleId(explicitId) {
   if (explicitId) return explicitId;
   if (DEFAULT_BIBLE_ID) return DEFAULT_BIBLE_ID;
@@ -47,22 +46,17 @@ async function resolveBibleId(explicitId) {
   const fr = bibles.find(b => (b.language?.name||"").toLowerCase().startsWith("fr"));
   return (fr && fr.id) || bibles[0].id;
 }
-
-const norm = (s) => String(s||"")
-  .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-  .toLowerCase().replace(/[^a-z0-9 ]+/g," ")
-  .replace(/\s+/g," ").trim();
-
+const norm = (s) => String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+  .toLowerCase().replace(/[^a-z0-9 ]+/g," ").replace(/\s+/g," ").trim();
 async function resolveBookId(bibleId, bookName) {
   const books = await callApi(`/bibles/${bibleId}/books`);
   const target = norm(bookName);
-  let hit = books.find(b => norm(b.name) === target || norm(b.abbreviationLocal) === target || norm(b.abbreviation) === target);
+  let hit = books.find(b => norm(b.name)===target || norm(b.abbreviationLocal)===target || norm(b.abbreviation)===target);
   if (!hit) hit = books.find(b => norm(b.name).startsWith(target) || norm(b.abbreviationLocal).startsWith(target));
   if (!hit) hit = books.find(b => norm(b.name).includes(target));
   if (!hit) throw new Error(`Book not found: ${bookName}`);
   return hit.id;
 }
-
 async function getPassage({ bibleId, bookName, chapter, verse="" }) {
   const bookId = await resolveBookId(bibleId, bookName);
   const ref = `${bookId}.${String(chapter)}` + (verse ? `.${String(verse)}` : "");
@@ -76,10 +70,10 @@ async function getPassage({ bibleId, bookName, chapter, verse="" }) {
     "use-org-id": false,
   };
   const data = await callApi(`/bibles/${bibleId}/passages/${encodeURIComponent(ref)}`, { params });
-  const contentHtml = data?.content || "";
+  const html = data?.content || "";
   const reference = data?.reference || `${bookName} ${chapter}${verse?':'+verse:''}`;
-  const plain = contentHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  return { osis: ref, reference, html: contentHtml, text: plain };
+  const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return { osis: ref, reference, text };
 }
 
 // --- 28 rubriques ---
@@ -100,7 +94,7 @@ function makeMiniSections(reference, passageText) {
   return [
     { index:1, title:TITLES_MINI[0], content: clip(`Passage étudié : ${reference}. ${s1}`), verses:[] },
     { index:2, title:TITLES_MINI[1], content: clip(`Idées maîtresses observables dans ${reference} : ordre du texte, thèmes récurrents, progression interne, sans extrapoler.`), verses:[] },
-    { index:3, title:TITLES_MINI[2], content: clip(`À partir de ${reference}, pistes d’application pratiques (prière, obéissance, prudence herméneutique).`), verses:[] },
+    { index:3, title:TITLES_MINI[2], content: clip(`Applications pratiques tirées de ${reference} (prière, obéissance, sobriété herméneutique).`), verses:[] },
   ];
 }
 function makeFullSections(reference, passageText) {
@@ -112,12 +106,12 @@ function makeFullSections(reference, passageText) {
     generic("Résumé factuel très bref du passage"),
     generic("Contexte littéraire immédiat que laisse entrevoir le texte"),
     generic("Attribution traditionnelle mentionnée prudemment"),
-    generic("Nature du texte (récit, poésie, discours, prophétie) selon sa forme"),
+    generic("Nature du texte (récit, poésie, discours, prophétie)"),
     generic("Découpage interne visible à la lecture"),
-    generic("Plan de lecture sobre (étapes logiques internes)"),
+    generic("Plan de lecture sobre"),
     generic("Termes/expressions saillants relevés"),
     generic("Courtes définitions d’expressions récurrentes"),
-    generic("Acteurs et lieux tels qu’ils apparaissent"),
+    generic("Acteurs et lieux"),
     qn("Question directrice"),
     generic("Développement des idées émergentes"),
     generic("Point culminant interne (pivot)"),
@@ -135,7 +129,7 @@ function makeFullSections(reference, passageText) {
     generic("Méditation courte"),
     generic("Versets à mémoriser"),
     generic("Difficultés possibles & pistes"),
-    generic("Ressources complémentaires")
+    generic("Ressources complémentaires"),
   ];
   return contents.map((content, i) => ({ index:i+1, title: TITLES_FULL[i], content, verses: [] }));
 }
