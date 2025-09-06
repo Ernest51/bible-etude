@@ -1,12 +1,15 @@
 // api/study-28.js
 import { NextResponse } from "next/server";
 
+// ----------- CONFIG -----------
 export const config = { runtime: "nodejs" };
-
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
+const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
 
-/* ---------------- JSON Schemas ---------------- */
+// jetons par PASSE (gardés <1000 pour éviter incomplete)
+const TOKENS_PER_PASS = 900;
+
+// ----------- JSON SCHEMAS -----------
 const META_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -21,13 +24,13 @@ const META_SCHEMA = {
   required: ["book", "chapter", "verse", "translation", "reference", "osis"]
 };
 
-function sectionSchema(rangeStart, rangeEnd) {
-  const allowed = Array.from({ length: rangeEnd - rangeStart + 1 }, (_, i) => rangeStart + i);
+function sectionSchema(start, end) {
+  const enums = Array.from({ length: end - start + 1 }, (_, i) => start + i);
   return {
     type: "object",
     additionalProperties: false,
     properties: {
-      index: { type: "integer", enum: allowed },
+      index: { type: "integer", enum: enums },
       title: { type: "string" },
       content: { type: "string" },
       verses: { type: "array", items: { type: "string" } }
@@ -36,13 +39,13 @@ function sectionSchema(rangeStart, rangeEnd) {
   };
 }
 
-function fullSchema(rangeStart, rangeEnd) {
+function fullSchema(start, end) {
   return {
     type: "object",
     additionalProperties: false,
     properties: {
       meta: META_SCHEMA,
-      sections: { type: "array", items: sectionSchema(rangeStart, rangeEnd) }
+      sections: { type: "array", items: sectionSchema(start, end) }
     },
     required: ["meta", "sections"]
   };
@@ -73,35 +76,24 @@ function miniSchema() {
   };
 }
 
-function textFormat(schemaName, schemaObj) {
-  return {
-    name: "json_schema",
-    strict: true,
-    schema: { name: schemaName, schema: schemaObj }
-  };
-}
-
-function respond(res, status = 200) {
-  return NextResponse.json(res, { status });
-}
-
-/* ---------------- Prompts ---------------- */
+// ----------- PROMPTS -----------
 function sysPrompt(mode, range) {
-  const slice = range ? `Génère UNIQUEMENT les sections ${range[0]} à ${range[1]}.` : "";
-  const len = "≈50–70 mots";
-  return [
-    "Tu es un bibliste pédagogue. Réponds STRICTEMENT en JSON selon le schéma fourni.",
-    "Langue: français. N'invente pas de versets. Cite uniquement le passage fourni.",
-    mode === "mini" ? "Format MINI: exactement 3 sections." : "Format FULL: exactement 28 sections.",
-    `Chaque section: ${len}.`,
-    slice,
-    "Réponds UNIQUEMENT par l'objet JSON (aucun texte autour)."
-  ].filter(Boolean).join(" ");
+  const slice = range ? ` Génère UNIQUEMENT les sections ${range[0]} à ${range[1]}.` : "";
+  return (
+    "Tu es un bibliste pédagogue. Réponds STRICTEMENT en JSON selon le schéma." +
+    " Langue: français. N'invente pas de versets. Cite uniquement le passage fourni." +
+    (mode === "mini" ? " Format MINI: exactement 3 sections." : " Format FULL: exactement 28 sections.") +
+    " Chaque section ≈50–70 mots." +
+    slice +
+    " Réponds UNIQUEMENT par l'objet JSON."
+  );
 }
 
-function userPrompt({ reference, translation, osis, passageText, mode, range }) {
-  const header = `Passage : ${reference} (${translation})\nOSIS : ${osis || ""}`;
-  const body = "Texte source :\n```\n" + passageText + "\n```";
+function userPrompt(ctx) {
+  const { reference, translation, osis, passageText, mode, range } = ctx;
+  const head = `Passage : ${reference} (${translation})\nOSIS : ${osis || ""}`;
+  const body = "Texte :\n```\n" + passageText + "\n```";
+
   const titlesFull = [
     "1. Thème central","2. Résumé en une phrase","3. Contexte historique","4. Auteur et date",
     "5. Genre littéraire","6. Structure du passage","7. Plan détaillé","8. Mots-clés",
@@ -116,24 +108,27 @@ function userPrompt({ reference, translation, osis, passageText, mode, range }) 
   const titlesMini = [
     "1. Thème central","2. Idées majeures (développement)","3. Applications personnelles"
   ];
-
-  const list = (mode === "mini" ? titlesMini : titlesFull).filter((t) => {
+  const titles = (mode === "mini" ? titlesMini : titlesFull).filter(t => {
     if (!range) return true;
-    const idx = parseInt(t.split(".")[0], 10);
-    return idx >= range[0] && idx <= range[1];
+    const i = parseInt(t.split(".")[0], 10);
+    return i >= range[0] && i <= range[1];
   });
 
   const constraints = [
     "Contraintes :",
     "- EXACTEMENT le nombre de sections attendu.",
-    "- Chaque section inclut: index, title, content (≈50–70 mots), verses (string[]).",
+    "- Chaque section contient: index, title, content (≈50–70 mots), verses (string[]).",
     "- Utilise UNIQUEMENT le passage fourni."
   ];
 
-  return [header, body, "", "Titres attendus :", ...list, "", ...constraints].join("\n");
+  return [head, body, "", "Titres attendus :", ...titles, "", ...constraints].join("\n");
 }
 
-/* ---------------- Utils ---------------- */
+// ----------- HELPERS -----------
+function respond(payload, status = 200) {
+  return NextResponse.json(payload, { status });
+}
+
 function safeParseJson(txt) {
   if (!txt) return null;
   try { return JSON.parse(txt); } catch {}
@@ -145,104 +140,188 @@ function safeParseJson(txt) {
   return null;
 }
 
-async function callResponses({ model, sys, user, schemaName, schemaObj, maxtok, timeoutMs }) {
+// ----------- OPENAI ADAPTATIF -----------
+async function callOpenAIAdaptive({ sys, user, schemaName, schemaObj, tokens, timeoutMs }) {
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${OPENAI_API_KEY}`
+  };
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Math.max(5000, timeoutMs || 30000));
-  const body = {
-    model,
-    input: [
-      { role: "system", content: sys },
-      { role: "user", content: user }
-    ],
-    text: { format: textFormat(schemaName, schemaObj) },
-    temperature: 0.1,
-    // IMPORTANT: laisser <= 1000 par passe pour éviter l'incomplete
-    max_output_tokens: Math.max(700, Math.min(1000, Number.isFinite(maxtok) ? maxtok : 950))
-  };
+  const signal = controller.signal;
 
-  const r = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${OPENAI_API_KEY}` },
-    body: JSON.stringify(body),
-    signal: controller.signal
-  }).catch((e) => { throw e; });
-  clearTimeout(timer);
+  const attempts = [];
 
-  if (!r.ok) throw new Error(`OpenAI ${r.status}: ${await r.text()}`);
-
-  const raw = await r.json();
-
-  // extractions
-  const parts = [];
-  if (typeof raw.output_text === "string") parts.push(raw.output_text);
-  if (Array.isArray(raw.output)) {
-    for (const msg of raw.output) {
-      if (Array.isArray(msg.content)) {
-        for (const c of msg.content) {
-          if (typeof c?.text === "string") parts.push(c.text);
-          if (typeof c?.output_text === "string") parts.push(c.output_text);
+  // A) Responses API (format objet - spec récente)
+  attempts.push({
+    endpoint: "https://api.openai.com/v1/responses",
+    body: {
+      model: MODEL,
+      input: [
+        { role: "system", content: sys },
+        { role: "user", content: user }
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: schemaName,
+          schema: schemaObj,
+          strict: true
+        }
+      },
+      temperature: 0.1,
+      max_output_tokens: tokens
+    },
+    extractor: raw => {
+      const out = [];
+      if (typeof raw.output_text === "string") out.push(raw.output_text);
+      if (Array.isArray(raw.output)) {
+        for (const msg of raw.output) {
+          if (Array.isArray(msg.content)) {
+            for (const c of msg.content) {
+              if (typeof c?.text === "string") out.push(c.text);
+              if (typeof c?.output_text === "string") out.push(c.output_text);
+            }
+          }
         }
       }
+      return out.join("\n").trim();
+    }
+  });
+
+  // B) Responses API (legacy json_schema au 1er niveau de text)
+  attempts.push({
+    endpoint: "https://api.openai.com/v1/responses",
+    body: {
+      model: MODEL,
+      input: [
+        { role: "system", content: sys },
+        { role: "user", content: user }
+      ],
+      text: {
+        format: "json_schema",
+        json_schema: {
+          name: schemaName,
+          schema: schemaObj,
+          strict: true
+        }
+      },
+      temperature: 0.1,
+      max_output_tokens: tokens
+    },
+    extractor: raw => {
+      const out = [];
+      if (typeof raw.output_text === "string") out.push(raw.output_text);
+      if (Array.isArray(raw.output)) {
+        for (const msg of raw.output) {
+          if (Array.isArray(msg.content)) {
+            for (const c of msg.content) {
+              if (typeof c?.text === "string") out.push(c.text);
+              if (typeof c?.output_text === "string") out.push(c.output_text);
+            }
+          }
+        }
+      }
+      return out.join("\n").trim();
+    }
+  });
+
+  // C) Chat Completions fallback (réponse formatée JSON via "response_format")
+  attempts.push({
+    endpoint: "https://api.openai.com/v1/chat/completions",
+    body: {
+      model: MODEL,
+      messages: [
+        { role: "system", content: sys },
+        { role: "user", content: user }
+      ],
+      temperature: 0.1,
+      max_tokens: tokens,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: schemaName,
+          schema: schemaObj,
+          strict: true
+        }
+      }
+    },
+    extractor: raw => raw?.choices?.[0]?.message?.content || ""
+  });
+
+  let lastErr = null;
+  for (const att of attempts) {
+    try {
+      const r = await fetch(att.endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(att.body),
+        signal
+      });
+      if (!r.ok) {
+        lastErr = new Error(`OpenAI ${r.status}: ${await r.text()}`);
+        continue;
+      }
+      const raw = await r.json();
+      const text = att.extractor(raw);
+      const parsed = safeParseJson(text);
+      clearTimeout(timer);
+      return { ok: true, raw, text, parsed };
+    } catch (e) {
+      lastErr = e;
+      continue;
     }
   }
-  const text = parts.join("\n").trim();
-  const incomplete = raw?.status === "incomplete";
-  const reason = raw?.incomplete_details?.reason || null;
-
-  return { raw, text, incomplete, reason };
+  clearTimeout(timer);
+  return { ok: false, error: String(lastErr) };
 }
 
-/* ---------------- Generation ---------------- */
-async function generateMini({ reference, translation, osis, passageText, maxtok, timeoutMs }) {
+// ----------- GENERATION -----------
+async function genMini(ctx, timeoutMs) {
   const sys = sysPrompt("mini");
-  const user = userPrompt({ reference, translation, osis, passageText, mode: "mini" });
-  const schema = miniSchema();
-  return await callResponses({
-    model: OPENAI_MODEL, sys, user,
-    schemaName: "study_28_mini", schemaObj: schema,
-    maxtok: Number.isFinite(maxtok) ? maxtok : 850, timeoutMs
+  const user = userPrompt({ ...ctx, mode: "mini" });
+  return await callOpenAIAdaptive({
+    sys,
+    user,
+    schemaName: "study_28_mini",
+    schemaObj: miniSchema(),
+    tokens: TOKENS_PER_PASS,
+    timeoutMs
   });
 }
 
-async function generateFullSlice({ range, reference, translation, osis, passageText, maxtok, timeoutMs }) {
+async function genFullSlice(ctx, range, timeoutMs) {
   const sys = sysPrompt("full", range);
-  const user = userPrompt({ reference, translation, osis, passageText, mode: "full", range });
-  const schema = fullSchema(range[0], range[1]);
-  return await callResponses({
-    model: OPENAI_MODEL, sys, user,
-    schemaName: `study_28_${range[0]}_${range[1]}`, schemaObj: schema,
-    maxtok: Number.isFinite(maxtok) ? maxtok : 950, timeoutMs
+  const user = userPrompt({ ...ctx, mode: "full", range });
+  return await callOpenAIAdaptive({
+    sys,
+    user,
+    schemaName: `study_28_${range[0]}_${range[1]}`,
+    schemaObj: fullSchema(range[0], range[1]),
+    tokens: TOKENS_PER_PASS,
+    timeoutMs
   });
 }
 
-async function generateFullTwoPass(ctx, timeoutMs) {
-  const p1 = await generateFullSlice({
-    range: [1, 14],
-    reference: ctx.reference, translation: ctx.translation, osis: ctx.osis,
-    passageText: ctx.passageText, maxtok: 950, timeoutMs
-  });
-  const j1 = p1.text ? safeParseJson(p1.text) : null;
-  if (!j1 || !Array.isArray(j1.sections)) return { ok: false, debug: { p1 } };
+async function genFullTwoPass(ctx, timeoutMs) {
+  const p1 = await genFullSlice(ctx, [1, 14], timeoutMs);
+  if (!p1.ok || !p1.parsed?.sections) return { ok: false, debug: { p1 } };
+  const p2 = await genFullSlice(ctx, [15, 28], timeoutMs);
+  if (!p2.ok || !p2.parsed?.sections) return { ok: false, debug: { p1, p2 } };
 
-  const p2 = await generateFullSlice({
-    range: [15, 28],
-    reference: ctx.reference, translation: ctx.translation, osis: ctx.osis,
-    passageText: ctx.passageText, maxtok: 950, timeoutMs
-  });
-  const j2 = p2.text ? safeParseJson(p2.text) : null;
-  if (!j2 || !Array.isArray(j2.sections)) return { ok: false, debug: { p1, p2 } };
-
-  const merged = {
-    meta: j1.meta || {
-      book: ctx.book, chapter: ctx.chapter, verse: ctx.verse || "",
-      translation: ctx.translation, reference: ctx.reference, osis: ctx.osis || ""
-    },
-    sections: [...j1.sections, ...j2.sections].sort((a, b) => a.index - b.index)
+  const meta = p1.parsed.meta || {
+    book: ctx.book, chapter: ctx.chapter, verse: ctx.verse || "",
+    translation: ctx.translation, reference: ctx.reference, osis: ctx.osis || ""
   };
-  return { ok: true, data: merged, debug: { p1: p1.raw, p2: p2.raw } };
+  const data = {
+    meta,
+    sections: [...p1.parsed.sections, ...p2.parsed.sections].sort((a, b) => a.index - b.index)
+  };
+  return { ok: true, data, debug: { p1: p1.raw, p2: p2.raw } };
 }
 
-/* ---------------- Route ---------------- */
+// ----------- ROUTE -----------
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const book = searchParams.get("book") || "Genèse";
@@ -250,30 +329,30 @@ export async function GET(req) {
   const verse = searchParams.get("verse") || "";
   const translation = searchParams.get("translation") || "JND";
   const bibleId = searchParams.get("bibleId") || "";
-  const mode = (searchParams.get("mode") || "full").toLowerCase(); // full | mini
-  const maxtok = parseInt(searchParams.get("maxtok") || "", 10);
-  const timeout = parseInt(searchParams.get("oaitimeout") || "30000", 10);
+  const mode = (searchParams.get("mode") || "full").toLowerCase(); // mini | full
   const dry = searchParams.get("dry") || "";
   const debug = searchParams.get("debug") === "1";
   const selftest = searchParams.get("selftest") === "1";
+  const timeout = parseInt(searchParams.get("oaitimeout") || "30000", 10);
 
   try {
+    // ✅ SELFTEST avant toute dépendance
+    if (selftest) {
+      return respond({
+        ok: true,
+        version: "study-28@adaptive-two-pass",
+        model: MODEL,
+        adaptive: ["responses.format.object", "responses.format.legacy", "chat.response_format"],
+        twoPass: true,
+        tokensPerPass: TOKENS_PER_PASS
+      });
+    }
+
     if (!OPENAI_API_KEY) {
       return respond({ ok: false, error: "OPENAI_API_KEY manquante." }, 500);
     }
 
-    // 🔎 Self-test pour vérifier que cette version est bien déployée
-    if (selftest) {
-      return respond({
-        ok: true,
-        version: "study-28@two-pass-compact-50-70w",
-        model: OPENAI_MODEL,
-        twoPass: true,
-        maxPerPass: 950
-      });
-    }
-
-    // DRY-RUN pour l'UI
+    // DRY pour l’UI
     if (dry) {
       const reference = verse ? `${book} ${chapter}:${verse}` : `${book} ${chapter}`;
       if (mode === "mini") {
@@ -300,7 +379,7 @@ export async function GET(req) {
       });
     }
 
-    // 1) Récupération du passage (via bibleProvider)
+    // Passage (serveur → serveur)
     const base = req.headers.get("x-forwarded-host")
       ? `https://${req.headers.get("x-forwarded-host")}`
       : "http://localhost:3000";
@@ -317,37 +396,32 @@ export async function GET(req) {
 
     const passage = pJson.data;
     const reference = verse ? `${book} ${chapter}:${verse}` : `${book} ${chapter}`;
-    const osis = passage.osis || "";
-    const passageText = passage.passageText || "";
+    const ctx = {
+      book, chapter, verse, translation, reference,
+      osis: passage.osis || "",
+      passageText: passage.passageText || ""
+    };
 
-    // 2) MINI : un seul appel
     if (mode === "mini") {
-      const res = await generateMini({
-        reference, translation, osis, passageText,
-        maxtok: Number.isFinite(maxtok) ? maxtok : 850,
-        timeoutMs: timeout
-      });
-      const parsed = res.text ? safeParseJson(res.text) : null;
-      if (!parsed || !parsed.meta || !Array.isArray(parsed.sections)) {
+      const r = await genMini(ctx, timeout);
+      if (!r.ok || !r.parsed?.sections) {
         return respond(debug
-          ? { ok: false, error: "Sortie OpenAI non-JSON (mini).", debug: { raw: res.raw } }
+          ? { ok: false, error: "Sortie OpenAI non-JSON (mini).", debug: r }
           : { ok: false, error: "Sortie OpenAI non-JSON (mini)." }, 502);
       }
-      parsed.meta.book = parsed.meta.book || String(book);
-      parsed.meta.chapter = parsed.meta.chapter || String(chapter);
-      parsed.meta.verse = parsed.meta.verse ?? String(verse || "");
-      parsed.meta.translation = parsed.meta.translation || String(translation);
-      parsed.meta.reference = parsed.meta.reference || reference;
-      parsed.meta.osis = parsed.meta.osis || osis;
-
-      return respond({ ok: true, data: parsed });
+      // compléter meta si absent
+      r.parsed.meta = r.parsed.meta || {};
+      r.parsed.meta.book = r.parsed.meta.book || String(book);
+      r.parsed.meta.chapter = r.parsed.meta.chapter || String(chapter);
+      r.parsed.meta.verse = r.parsed.meta.verse ?? String(verse || "");
+      r.parsed.meta.translation = r.parsed.meta.translation || String(translation);
+      r.parsed.meta.reference = r.parsed.meta.reference || reference;
+      r.parsed.meta.osis = r.parsed.meta.osis || ctx.osis;
+      return respond({ ok: true, data: r.parsed });
     }
 
-    // 3) FULL : deux passes obligatoires
-    const two = await generateFullTwoPass(
-      { book, chapter, verse, translation, reference, osis, passageText },
-      timeout
-    );
+    // FULL → 2 passes
+    const two = await genFullTwoPass(ctx, timeout);
     if (!two.ok) {
       return respond(debug
         ? { ok: false, error: "Sortie OpenAI non-JSON (full).", debug: two.debug }
@@ -360,7 +434,7 @@ export async function GET(req) {
     two.data.meta.verse = two.data.meta.verse ?? String(verse || "");
     two.data.meta.translation = two.data.meta.translation || String(translation);
     two.data.meta.reference = two.data.meta.reference || reference;
-    two.data.meta.osis = two.data.meta.osis || osis;
+    two.data.meta.osis = two.data.meta.osis || ctx.osis;
 
     return respond({ ok: true, data: two.data });
   } catch (e) {
