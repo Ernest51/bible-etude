@@ -1,118 +1,271 @@
+<!-- /public/test-mini.html -->
 <!doctype html>
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Mini tests (BibleProvider / OpenAI / Study-28)</title>
+  <title>Mini tests — OpenAI / BibleProvider / Study-28</title>
   <style>
-    body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;max-width:900px;margin:24px auto;padding:0 12px;}
-    h1{margin:0 0 12px;}
-    fieldset{border:1px solid #ddd;border-radius:8px;margin:16px 0;padding:12px;}
-    label{display:block;margin:6px 0 2px;color:#444}
-    input{width:100%;padding:8px;border:1px solid #ccc;border-radius:6px}
-    button{padding:10px 14px;border:0;border-radius:8px;background:#111;color:#fff;cursor:pointer}
-    button:disabled{opacity:.6;cursor:progress}
-    pre{background:#f6f6f6;border:1px solid #eee;border-radius:8px;padding:12px;overflow:auto}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    :root { --fg:#111; --muted:#666; --ok:#0a7; --err:#c00; --bg:#fafafa; --card:#fff; --bd:#e4e4e7; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, sans-serif; color:var(--fg); background:var(--bg); }
+    header { padding:18px 16px; border-bottom:1px solid var(--bd); background:#fff; position:sticky; top:0; z-index:5; }
+    h1 { margin:0 0 4px; font-size:20px; }
+    p.sub { margin:0; color:var(--muted); font-size:13px; }
+    main { max-width: 980px; margin: 18px auto; padding: 0 16px 40px; }
+    fieldset { background:var(--card); border:1px solid var(--bd); border-radius: 12px; padding:16px; margin:12px 0 18px; }
+    legend { font-weight:600; padding:0 6px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; }
+    .row > div { flex:1 1 220px; min-width:220px; }
+    label { display:block; font-size:12px; color:var(--muted); margin:8px 0 6px; }
+    input, select { width:100%; height:40px; padding:0 10px; border:1px solid var(--bd); border-radius:8px; font:inherit; background:#fff; }
+    button { height:40px; padding:0 14px; border:1px solid var(--bd); border-radius:8px; background:#fff; cursor:pointer; font-weight:600; }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+    .actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .ok { color:var(--ok); font-weight:600; }
+    .err { color:var(--err); white-space:pre-wrap; }
+    pre { background:#0a0a0a; color:#f5f5f5; padding:12px; border-radius:8px; overflow:auto; font-size:12px; }
+    .hint { color:var(--muted); font-size:12px; margin:6px 0 0; }
+    .badge { display:inline-block; padding:3px 8px; border-radius:999px; border:1px solid var(--bd); font-size:12px; color:#333; background:#fff; }
+    .kpi { font-size:13px; color:var(--muted); }
+    .hr { height:1px; background:var(--bd); margin:10px 0; }
+    .success { border:1px dashed var(--ok); border-radius:8px; padding:8px 10px; color:var(--ok); }
   </style>
 </head>
 <body>
-  <h1>Mini tests (pas à pas)</h1>
+  <header>
+    <h1>Mini tests — OpenAI / BibleProvider / Study-28</h1>
+    <p class="sub">Vérifie pas à pas que tout fonctionne avant d’industrialiser.</p>
+  </header>
 
-  <fieldset>
-    <legend>1) Ping OpenAI (clé + latence)</legend>
-    <button id="btn-oai">Tester /api/oai-quick</button>
-    <pre id="out-oai">—</pre>
-  </fieldset>
+  <main>
+    <!-- 1) Ping OpenAI -->
+    <fieldset>
+      <legend>1) Ping OpenAI (clé + latence)</legend>
+      <div class="actions">
+        <button id="btn-oai">Tester /api/oai-quick</button>
+        <span id="oai-kpi" class="kpi">—</span>
+      </div>
+      <div id="oai-msg" class="hint">Vérifie OPENAI_API_KEY et le modèle côté serveur.</div>
+      <pre id="out-oai">—</pre>
+    </fieldset>
 
-  <fieldset>
-    <legend>2) BibleProvider (texte brut)</legend>
-    <div class="row">
-      <div>
-        <label>Livre</label>
-        <input id="book" value="Genèse" />
+    <!-- 2) BibleProvider -->
+    <fieldset>
+      <legend>2) BibleProvider (texte brut)</legend>
+      <div class="row">
+        <div>
+          <label>Livre</label>
+          <input id="book" value="Genèse" />
+        </div>
+        <div>
+          <label>Chapitre</label>
+          <input id="chapter" value="1" />
+        </div>
+        <div>
+          <label>Versets (optionnel, ex: 1-5)</label>
+          <input id="verse" placeholder="laisser vide pour tout le chapitre" />
+        </div>
+        <div>
+          <label>Bible ID (optionnel)</label>
+          <input id="bibleId" placeholder="ex: a93a92589195411f-01" />
+        </div>
       </div>
-      <div>
-        <label>Chapitre</label>
-        <input id="chapter" value="1" />
+      <div class="actions" style="margin-top:8px;">
+        <button id="btn-bp">Tester /api/bibleProvider</button>
+        <span id="bp-kpi" class="kpi">—</span>
       </div>
-    </div>
-    <div class="row">
-      <div>
-        <label>Versets (optionnel, ex: 1-5)</label>
-        <input id="verse" placeholder="laisser vide pour tout le chapitre" />
-      </div>
-      <div>
-        <label>Bible ID (optionnel)</label>
-        <input id="bibleId" value="a93a92589195411f-01" />
-      </div>
-    </div>
-    <button id="btn-prov">Tester /api/bibleProvider</button>
-    <pre id="out-prov">—</pre>
-  </fieldset>
+      <div class="hint">Doit renvoyer <span class="badge">ok:true</span> + <code>passageText</code> sans balises.</div>
+      <pre id="out-bp">—</pre>
+    </fieldset>
 
-  <fieldset>
-    <legend>3) Study-28 (mode mini ou complet)</legend>
-    <div class="row">
-      <div>
-        <label>Traduction (label libre)</label>
-        <input id="translation" value="JND" />
+    <!-- 3) Study-28 -->
+    <fieldset>
+      <legend>3) Study-28 (mini / full)</legend>
+      <div class="row">
+        <div>
+          <label>Traduction (label libre)</label>
+          <input id="translation" value="JND" />
+        </div>
+        <div>
+          <label>Mode</label>
+          <select id="mode">
+            <option value="mini">mini (3 sections)</option>
+            <option value="full" selected>full (28 sections)</option>
+          </select>
+        </div>
+        <div>
+          <label>Max tokens (optionnel)</label>
+          <input id="maxtok" value="1500" />
+        </div>
+        <div>
+          <label>Timeout OpenAI (ms)</label>
+          <input id="oaitimeout" value="25000" />
+        </div>
       </div>
-      <div>
-        <label>Mode</label>
-        <input id="mode" value="mini" />
+      <div class="actions" style="margin-top:8px;">
+        <button id="btn-study">Tester /api/study-28</button>
+        <button id="btn-copy" title="Copier l’URL de la requête">Copier le lien</button>
+        <span id="study-kpi" class="kpi">—</span>
       </div>
-    </div>
-    <button id="btn-study">Tester /api/study-28</button>
-    <pre id="out-study">—</pre>
-  </fieldset>
+      <div id="study-msg" class="hint">✔ En mode <b>full</b>, ajuste <i>Max tokens</i> (ex: 1500 → 1300) si besoin.</div>
+      <div id="study-summary" class="success" style="display:none; margin-top:8px;"></div>
+      <pre id="out-study">—</pre>
+    </fieldset>
+
+    <div class="hr"></div>
+    <p class="hint">
+      Rappel : <code>/api/study-28</code> utilise <code>/api/bibleProvider</code> côté serveur. Si 2) fonctionne, 3) ne devrait échouer que par timeout ou format.
+    </p>
+  </main>
 
   <script>
-    async function call(url, outEl, btn) {
+    const $ = (id) => document.getElementById(id);
+    const fmtMs = (ms) => `${ms} ms`;
+
+    // 1) Ping OpenAI
+    $('btn-oai').onclick = async () => {
+      const btn = $('btn-oai'); const out = $('out-oai'); const kpi = $('oai-kpi'); const msg = $('oai-msg');
+      btn.disabled = true; out.textContent = '…';
       try {
-        btn && (btn.disabled = true);
-        const r = await fetch(url);
-        const t = await r.text();
-        outEl.textContent = t;
+        const t0 = performance.now();
+        const r = await fetch('/api/oai-quick');
+        const txt = await r.text();
+        const t1 = performance.now();
+        out.textContent = txt;
+        try {
+          const j = JSON.parse(txt);
+          if (j.ok) {
+            kpi.textContent = `OK • latence ~ ${fmtMs(Math.round(j.latencyMs ?? (t1-t0)))}`;
+            msg.innerHTML = '<span class="ok">✅ OpenAI répond.</span>';
+          } else {
+            kpi.textContent = 'ERREUR';
+            msg.innerHTML = '<span class="err">❌ ' + (j.error || 'Erreur inconnue') + '</span>';
+          }
+        } catch {
+          kpi.textContent = 'ERREUR';
+          msg.innerHTML = '<span class="err">❌ Réponse non-JSON</span>';
+        }
       } catch (e) {
-        outEl.textContent = "ERREUR: " + e;
-      } finally {
-        btn && (btn.disabled = false);
-      }
+        out.textContent = String(e);
+        kpi.textContent = 'ERREUR';
+        $('oai-msg').innerHTML = '<span class="err">❌ ' + e + '</span>';
+      } finally { btn.disabled = false; }
+    };
+
+    // 2) BibleProvider
+    $('btn-bp').onclick = async () => {
+      const book = $('book').value.trim();
+      const chapter = $('chapter').value.trim();
+      const verse = $('verse').value.trim();
+      const bibleId = $('bibleId').value.trim();
+
+      const qs = new URLSearchParams();
+      qs.set('book', book);
+      qs.set('chapter', chapter);
+      if (verse) qs.set('verse', verse);
+      if (bibleId) qs.set('bibleId', bibleId);
+
+      const btn = $('btn-bp'); const out = $('out-bp'); const kpi = $('bp-kpi');
+      btn.disabled = true; out.textContent = '…';
+      const t0 = performance.now();
+      try {
+        const r = await fetch('/api/bibleProvider?' + qs.toString());
+        const txt = await r.text();
+        const t1 = performance.now();
+        out.textContent = txt;
+        try {
+          const j = JSON.parse(txt);
+          if (j.ok) {
+            kpi.textContent = `OK • ${fmtMs(Math.round(t1 - t0))}`;
+          } else {
+            kpi.textContent = 'ERREUR';
+          }
+        } catch {
+          kpi.textContent = 'ERREUR (non-JSON)';
+        }
+      } catch (e) {
+        out.textContent = String(e);
+        kpi.textContent = 'ERREUR';
+      } finally { btn.disabled = false; }
+    };
+
+    // 3) Study-28
+    function buildStudyQS() {
+      const book = $('book').value.trim();
+      const chapter = $('chapter').value.trim();
+      const verse = $('verse').value.trim();
+      const bibleId = $('bibleId').value.trim();
+      const translation = $('translation').value.trim();
+      const mode = $('mode').value.trim();
+      const maxtok = $('maxtok').value.trim();
+      const oaitimeout = $('oaitimeout').value.trim();
+
+      const qs = new URLSearchParams();
+      qs.set('book', book);
+      qs.set('chapter', chapter);
+      if (verse) qs.set('verse', verse);
+      if (bibleId) qs.set('bibleId', bibleId);
+      if (translation) qs.set('translation', translation);
+      if (mode) qs.set('mode', mode);
+      if (maxtok) qs.set('maxtok', maxtok);
+      if (oaitimeout) qs.set('oaitimeout', oaitimeout);
+      return qs;
     }
 
-    document.getElementById('btn-oai').onclick = () => {
-      call('/api/oai-quick', document.getElementById('out-oai'), document.getElementById('btn-oai'));
+    $('btn-copy').onclick = () => {
+      const url = new URL(location.origin + '/api/study-28?' + buildStudyQS().toString());
+      navigator.clipboard.writeText(url.toString());
+      const k = $('study-kpi'); k.textContent = 'Lien copié';
+      setTimeout(()=>{ k.textContent = '—'; }, 1200);
     };
 
-    document.getElementById('btn-prov').onclick = () => {
-      const book = encodeURIComponent(document.getElementById('book').value.trim());
-      const chapter = encodeURIComponent(document.getElementById('chapter').value.trim());
-      const verse = encodeURIComponent(document.getElementById('verse').value.trim());
-      const bibleId = encodeURIComponent(document.getElementById('bibleId').value.trim());
-      const qs = new URLSearchParams();
-      qs.set('book', decodeURIComponent(book));
-      qs.set('chapter', decodeURIComponent(chapter));
-      if (verse) qs.set('verse', decodeURIComponent(verse));
-      if (bibleId) qs.set('bibleId', decodeURIComponent(bibleId));
-      call('/api/bibleProvider?' + qs.toString(), document.getElementById('out-prov'), document.getElementById('btn-prov'));
-    };
+    $('btn-study').onclick = async () => {
+      const qs = buildStudyQS();
+      const btn = $('btn-study'); const out = $('out-study'); const kpi = $('study-kpi');
+      const summary = $('study-summary'); const msg = $('study-msg');
+      btn.disabled = true; out.textContent = '…'; summary.style.display = 'none';
+      const t0 = performance.now();
+      try {
+        const r = await fetch('/api/study-28?' + qs.toString());
+        const txt = await r.text();
+        const t1 = performance.now();
+        out.textContent = txt;
 
-    document.getElementById('btn-study').onclick = () => {
-      const book = encodeURIComponent(document.getElementById('book').value.trim());
-      const chapter = encodeURIComponent(document.getElementById('chapter').value.trim());
-      const verse = encodeURIComponent(document.getElementById('verse').value.trim());
-      const bibleId = encodeURIComponent(document.getElementById('bibleId').value.trim());
-      const translation = encodeURIComponent(document.getElementById('translation').value.trim());
-      const mode = encodeURIComponent(document.getElementById('mode').value.trim());
-      const qs = new URLSearchParams();
-      qs.set('book', decodeURIComponent(book));
-      qs.set('chapter', decodeURIComponent(chapter));
-      if (verse) qs.set('verse', decodeURIComponent(verse));
-      if (bibleId) qs.set('bibleId', decodeURIComponent(bibleId));
-      if (translation) qs.set('translation', decodeURIComponent(translation));
-      if (mode) qs.set('mode', decodeURIComponent(mode));
-      call('/api/study-28?' + qs.toString(), document.getElementById('out-study'), document.getElementById('btn-study'));
+        let ok = false, details = '';
+        try {
+          const j = JSON.parse(txt);
+          if (j.ok) {
+            const sections = j?.data?.sections || [];
+            const meta = j?.data?.meta || {};
+            const count = Array.isArray(sections) ? sections.length : 0;
+            const expect = ( ($('mode').value === 'mini') ? 3 : 28 );
+            ok = (count === expect);
+            details = `Étude de ${meta.reference || (meta.book + ' ' + meta.chapter)} — ${count} section(s)`;
+
+            if (ok) {
+              summary.innerHTML = `✅ ${details}<br><span class="badge">OSIS: ${meta.osis || '—'}</span> · <span class="badge">Trad: ${meta.translation || '—'}</span>`;
+              summary.style.display = 'block';
+              kpi.textContent = `OK • ${fmtMs(Math.round(t1 - t0))}`;
+              msg.innerHTML = 'Si ça échoue en full, diminue <i>Max tokens</i> (1500 → 1300 → 1200).';
+            } else {
+              summary.style.display = 'none';
+              kpi.textContent = 'ERREUR (compte sections)';
+              msg.innerHTML = `<span class="err">❌ Attendu ${expect}, reçu ${count}.</span>`;
+            }
+          } else {
+            kpi.textContent = 'ERREUR (serveur)';
+            msg.innerHTML = `<span class="err">❌ ${j.error || 'Erreur inconnue'}</span>`;
+          }
+        } catch {
+          kpi.textContent = 'ERREUR (non-JSON)';
+          msg.innerHTML = '<span class="err">❌ Réponse non-JSON</span>';
+        }
+      } catch (e) {
+        out.textContent = String(e);
+        kpi.textContent = 'ERREUR';
+        $('study-msg').innerHTML = '<span class="err">❌ ' + e + '</span>';
+      } finally { btn.disabled = false; }
     };
   </script>
 </body>
