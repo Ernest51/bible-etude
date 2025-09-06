@@ -1,12 +1,11 @@
-// /api/study-28.js  — Pages API (Next.js "pages")
-// Répond toujours en JSON (même en cas d’erreur).
+// /api/study-28.js — Next.js (pages/api) — renvoie toujours du JSON
 
 export const config = { runtime: "nodejs" };
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const DEFAULT_MODEL  = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
 
-/* ===== Schéma JSON (full 28) ===== */
+/* ========= Schéma JSON (full 28) ========= */
 const schemaFull = {
   name: "study_28",
   schema: {
@@ -43,7 +42,7 @@ const schemaFull = {
   strict: true
 };
 
-/* ===== helpers ===== */
+/* ========= helpers ========= */
 function jOk(res, data)  { res.status(200).json({ ok: true, data }); }
 function jErr(res, error){ res.status(200).json({ ok: false, error: String(error) }); }
 
@@ -62,7 +61,7 @@ function mkAbort(ms) {
   return { ctrl, t };
 }
 
-/* ===== OpenAI (mini) ===== */
+/* ========= OpenAI (mini) ========= */
 async function oaiMini({ model, prompt, maxtok, timeoutMs, debug }) {
   if (!OPENAI_API_KEY) return { error: "OPENAI_API_KEY manquante." };
 
@@ -71,7 +70,8 @@ async function oaiMini({ model, prompt, maxtok, timeoutMs, debug }) {
     model,
     temperature: 0.15,
     max_output_tokens: Number.isFinite(maxtok) ? Math.max(300, maxtok) : 700,
-    text: { format: "json_object" },   // OK pour mini
+    // ⬇️ CORRECTION : text.format est un objet avec { type: "json_object" }
+    text: { format: { type: "json_object" } },
     input: prompt
   };
 
@@ -98,7 +98,7 @@ async function oaiMini({ model, prompt, maxtok, timeoutMs, debug }) {
   }
 
   const out = await res.json().catch(() => null);
-  if (debug) out && (out._req = body);
+  if (debug && out) out._req = body;
 
   if (out?.output_parsed) return { data: out.output_parsed, _raw: debug ? out : undefined };
 
@@ -116,7 +116,7 @@ async function oaiMini({ model, prompt, maxtok, timeoutMs, debug }) {
   return { error: "Sortie OpenAI vide (mini).", _raw: debug ? out : undefined };
 }
 
-/* ===== OpenAI (full 28) ===== */
+/* ========= OpenAI (full 28) ========= */
 async function oaiFull({ model, prompt, maxtok, timeoutMs, debug }) {
   if (!OPENAI_API_KEY) return { error: "OPENAI_API_KEY manquante." };
 
@@ -125,8 +125,8 @@ async function oaiFull({ model, prompt, maxtok, timeoutMs, debug }) {
     model,
     temperature: 0.12,
     max_output_tokens: Number.isFinite(maxtok) ? Math.max(900, maxtok) : 1500,
-    // CORRECTION ICI : le schéma se passe dans text.schema (pas text.json_schema)
-    text: { format: "json_schema", schema: schemaFull },
+    // ⬇️ CORRECTION : text.format => objet { type: "json_schema", schema: ... }
+    text: { format: { type: "json_schema", schema: schemaFull } },
     input: prompt
   };
 
@@ -153,7 +153,7 @@ async function oaiFull({ model, prompt, maxtok, timeoutMs, debug }) {
   }
 
   const out = await res.json().catch(() => null);
-  if (debug) out && (out._req = body);
+  if (debug && out) out._req = body;
 
   if (out?.output_parsed) return { data: out.output_parsed, _raw: debug ? out : undefined };
 
@@ -171,7 +171,7 @@ async function oaiFull({ model, prompt, maxtok, timeoutMs, debug }) {
   return { error: "Sortie OpenAI vide (full).", _raw: debug ? out : undefined };
 }
 
-/* ===== Handler ===== */
+/* ========= Handler principal ========= */
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store, max-age=0");
 
