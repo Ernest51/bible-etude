@@ -2,7 +2,9 @@
 // - MetaInfo : "Point X / 28"
 // - Auto-séparation des références collées (ex: "Jean 1:1-3Hébreux 11:3" -> "Jean 1:1-3 · Hébreux 11:3")
 // - Filtre commentaires HTML / &nbsp;
-// - ✅ Ajout : références bibliques automatiquement en **gras** dans la vue enrichie
+// - ✅ Références bibliques automatiquement en **gras** dans la vue enrichie
+// - ✅ WHOAMI : découverte du bibleId par défaut côté serveur (API_BIBLE_ID)
+// - ✅ Injection de bibleId dans /api/chat → /api/study-28
 
 (function () {
   // ---------- helpers UI ----------
@@ -29,6 +31,20 @@
         dotHealth = $("dot-health"), dotChat = $("dot-chat"), dotPing = $("dot-ping"),
         linksPanel = $("linksPanel"), linksList = $("linksList");
   $("y").textContent = new Date().getFullYear();
+
+  // WHOAMI: bibleId par défaut (récupéré côté serveur)
+  window.__DEFAULT_BIBLE_ID = ""; // sera rempli au chargement
+  fetch("/api/whoami", { cache: "no-store" })
+    .then(r => r.json())
+    .then(j => {
+      if (j && j.ok && j.defaultBibleId) {
+        window.__DEFAULT_BIBLE_ID = j.defaultBibleId;
+        dlog(`[WHOAMI] defaultBibleId=${j.defaultBibleId}`);
+      } else {
+        dlog(`[WHOAMI] aucun defaultBibleId`);
+      }
+    })
+    .catch(err => dlog(`[WHOAMI] erreur: ${err && err.message ? err.message : err}`));
 
   // ---------- livres / chapitres ----------
   const BOOKS = [
@@ -390,7 +406,15 @@
     const chapter = Number(chapterSelect?.value || 1);
     const verse = (verseSelect && verseSelect.value) || "";
 
-    const r = await postJSON("/api/chat", { book, chapter, version: ver, verse, reference: `${book} ${chapter}${verse?':'+verse:''}` }, 3);
+    // 👉 Injection du bibleId connu côté serveur
+    const r = await postJSON("/api/chat", {
+      book, chapter,
+      version: ver,
+      verse,
+      reference: `${book} ${chapter}${verse?':'+verse:''}`,
+      bibleId: window.__DEFAULT_BIBLE_ID || ""
+    }, 3);
+
     const ct = r.headers.get("Content-Type") || "";
     if (/application\/json/i.test(ct)) {
       const j = await r.json().catch(() => ({}));
