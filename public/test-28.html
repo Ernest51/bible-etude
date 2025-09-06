@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Test — Étude 28 points (api.bible)</title>
+<style>
+  :root{ --bg:#0b1020; --panel:#0f172a; --txt:#e5e7eb; --muted:#94a3b8; --accent:#22d3ee; --ok:#22c55e; --ko:#ef4444; --bd:#1e293b }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial}
+  header{padding:16px 20px;border-bottom:1px solid var(--bd)}
+  h1{margin:0;font-size:20px}
+  main{max-width:1100px;margin:0 auto;padding:18px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .card{background:var(--panel);border:1px solid var(--bd);border-radius:10px;padding:12px}
+  label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
+  input,select{width:100%;padding:10px;border:1px solid var(--bd);border-radius:8px;background:#0b1222;color:var(--txt)}
+  .row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  .row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  button{background:#111827;border:1px solid var(--bd);color:var(--txt);border-radius:8px;padding:9px 12px;cursor:pointer}
+  button.primary{background:var(--accent);color:#00121a;border-color:transparent;font-weight:700}
+  button.warn{background:#1f2937}
+  .status{display:flex;align-items:center;gap:8px;font-size:13px;margin-top:8px}
+  .dot{width:10px;height:10px;border-radius:999px;background:#64748b}
+  .dot.ok{background:var(--ok)} .dot.ko{background:var(--ko)}
+  .meta{font-size:13px;color:var(--muted)}
+  .sections{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+  .sec{background:#0b1222;border:1px solid var(--bd);border-radius:10px;padding:10px}
+  .sec h3{margin:0 0 6px 0;font-size:14px}
+  .idx{display:inline-block;min-width:24px;height:24px;border-radius:999px;background:#0f172a;border:1px solid var(--bd);text-align:center;line-height:24px;margin-right:6px}
+  .oktag{color:var(--ok);font-weight:700}
+  pre{background:#06101c;border:1px solid var(--bd);border-radius:10px;padding:10px;overflow:auto}
+  .small{font-size:12px;color:var(--muted)}
+  @media (max-width:1000px){ .sections{grid-template-columns:1fr} .grid{grid-template-columns:1fr} .row{grid-template-columns:1fr 1fr;}}
+</style>
+</head>
+<body>
+<header><h1>Diagnostic — Étude 28 points (api.bible)</h1></header>
+<main>
+  <div class="grid">
+    <section class="card">
+      <div class="row">
+        <div>
+          <label>Livre</label>
+          <input id="book" value="Genèse" />
+        </div>
+        <div>
+          <label>Chapitre</label>
+          <input id="chapter" type="number" value="1" />
+        </div>
+        <div>
+          <label>Verset (optionnel)</label>
+          <input id="verse" placeholder="ex: 1, 1-5…" />
+        </div>
+        <div>
+          <label>Mode</label>
+          <select id="mode">
+            <option value="full" selected>full (28 rubriques)</option>
+            <option value="mini">mini</option>
+          </select>
+        </div>
+        <div>
+          <label>Traduction (meta)</label>
+          <select id="translation">
+            <option value="JND" selected>JND</option>
+            <option value="LSG">LSG</option>
+            <option value="S21">S21</option>
+            <option value="BFC">BFC</option>
+          </select>
+        </div>
+        <div>
+          <label>bibleId (optionnel)</label>
+          <input id="bibleId" placeholder="ex: a93a92589195411f-01" />
+        </div>
+      </div>
+
+      <div class="btns">
+        <button class="primary" id="runLive">Lancer (live api.bible)</button>
+        <button class="warn" id="runDry">Dry-run (hors-ligne)</button>
+        <button id="selftest">Selftest</button>
+        <button id="whoami">WhoAmI (defaultBibleId)</button>
+      </div>
+
+      <div class="status">
+        <span class="dot" id="dot"></span>
+        <span id="statusText">–</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row-2">
+        <div>
+          <div class="meta">Meta</div>
+          <pre id="meta">–</pre>
+        </div>
+        <div>
+          <div class="meta">Réponse brute</div>
+          <pre id="raw">–</pre>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:12px">
+    <div class="meta">28 rubriques</div>
+    <div id="sections" class="sections"></div>
+  </section>
+
+  <p class="small" style="margin-top:12px">
+    Astuce : en cas d’erreur 500 <em>FUNCTION_INVOCATION_FAILED</em>, vérifie la variable <strong>API_BIBLE_KEY</strong> (et éventuellement <strong>API_BIBLE_ID</strong>) dans Vercel.
+  </p>
+</main>
+
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const dot = $("dot"), statusText = $("statusText");
+  const elBook=$("book"), elChap=$("chapter"), elVerse=$("verse"), elMode=$("mode"), elTr=$("translation"), elBibleId=$("bibleId");
+  const meta=$("meta"), raw=$("raw"), secWrap=$("sections");
+
+  function setStatus(ok, txt){
+    dot.classList.remove("ok","ko");
+    dot.classList.add(ok ? "ok":"ko");
+    statusText.textContent = txt || (ok ? "OK":"KO");
+  }
+
+  function renderSections(sections){
+    secWrap.innerHTML="";
+    if(!Array.isArray(sections)||!sections.length){
+      secWrap.innerHTML = "<div class='small'>Aucune section.</div>";
+      return;
+    }
+    for(const s of sections){
+      const div = document.createElement("div");
+      const ok = (s.content||"").trim().length>0;
+      div.className = "sec";
+      div.innerHTML = `
+        <h3><span class="idx">${s.index}</span>${escapeHtml(s.title||"")}${ok?` <span class="oktag">•</span>`:""}</h3>
+        <div>${escapeHtml(String(s.content||"")).replace(/\n/g,"<br>")}</div>
+      `;
+      secWrap.appendChild(div);
+    }
+  }
+
+  function escapeHtml(s=""){
+    return String(s).replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+  }
+
+  async function runLive(){
+    try{
+      setStatus(false,"…");
+      const body = {
+        book: elBook.value.trim(),
+        chapter: String(elChap.value||"1"),
+        verse: elVerse.value.trim(),
+        translation: elTr.value,
+        bibleId: elBibleId.value.trim(),
+        mode: elMode.value || "full"
+      };
+      const r = await fetch("/api/study-28", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        cache:"no-store",
+        body: JSON.stringify(body)
+      });
+      const txt = await r.text();
+      raw.textContent = txt;
+      let j={}; try{ j=JSON.parse(txt); }catch{}
+      if(!r.ok || j.ok===false){
+        setStatus(false, `HTTP ${r.status}`);
+        meta.textContent = JSON.stringify({error:j.error||"HTTP error", status:r.status}, null, 2);
+        renderSections([]);
+        return;
+      }
+      setStatus(true, `HTTP ${r.status} (live)`);
+      meta.textContent = JSON.stringify(j.data?.meta||{}, null, 2);
+      renderSections(j.data?.sections||[]);
+    }catch(e){
+      setStatus(false, "Exception");
+      raw.textContent = String(e?.message||e);
+      meta.textContent = "{}";
+      renderSections([]);
+    }
+  }
+
+  async function runDry(){
+    try{
+      setStatus(false,"…");
+      const qs = new URLSearchParams({
+        book: elBook.value.trim(),
+        chapter: String(elChap.value||"1"),
+        verse: elVerse.value.trim(),
+        translation: elTr.value,
+        mode: elMode.value || "full",
+        dry: "1"
+      });
+      const r = await fetch("/api/study-28?"+qs.toString(), { cache:"no-store" });
+      const txt = await r.text();
+      raw.textContent = txt;
+      let j={}; try{ j=JSON.parse(txt); }catch{}
+      if(!r.ok || j.ok===false){
+        setStatus(false, `HTTP ${r.status}`);
+        meta.textContent = JSON.stringify({error:j.error||"HTTP error", status:r.status}, null, 2);
+        renderSections([]);
+        return;
+      }
+      setStatus(true, `HTTP ${r.status} (dry)`);
+      meta.textContent = JSON.stringify(j.data?.meta||{}, null, 2);
+      renderSections(j.data?.sections||[]);
+    }catch(e){
+      setStatus(false, "Exception");
+      raw.textContent = String(e?.message||e);
+      meta.textContent = "{}";
+      renderSections([]);
+    }
+  }
+
+  async function runSelftest(){
+    try{
+      setStatus(false,"…");
+      const r = await fetch("/api/study-28?selftest=1", { cache:"no-store" });
+      const txt = await r.text();
+      raw.textContent = txt;
+      let j={}; try{ j=JSON.parse(txt); }catch{}
+      const ok = r.ok && j.ok===true;
+      setStatus(ok, ok?`HTTP ${r.status} (selftest)`:`HTTP ${r.status}`);
+      meta.textContent = JSON.stringify(j, null, 2);
+      renderSections([]);
+    }catch(e){
+      setStatus(false, "Exception");
+      raw.textContent = String(e?.message||e);
+      meta.textContent = "{}";
+      renderSections([]);
+    }
+  }
+
+  async function runWhoAmI(){
+    try{
+      const r = await fetch("/api/utils?action=whoami", { cache:"no-store" });
+      const j = await r.json().catch(()=>({}));
+      if (j && j.ok && j.defaultBibleId) {
+        elBibleId.value = j.defaultBibleId;
+      }
+      raw.textContent = JSON.stringify(j, null, 2);
+      meta.textContent = JSON.stringify({ picked:j.defaultBibleId||null }, null, 2);
+    }catch(e){
+      raw.textContent = String(e?.message||e);
+    }
+  }
+
+  $("runLive").addEventListener("click", runLive);
+  $("runDry").addEventListener("click", runDry);
+  $("selftest").addEventListener("click", runSelftest);
+  $("whoami").addEventListener("click", runWhoAmI);
+
+  // Préremplir la Darby via whoami si dispo
+  runWhoAmI();
+})();
+</script>
+</body>
+</html>
