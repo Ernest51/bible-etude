@@ -1,27 +1,29 @@
-// /api/study-28.js — Next.js (pages/api)
+// /api/study-28.js — Next.js (pages/api) ou app/api avec route handler par défaut
 
 export const config = { runtime: "nodejs" };
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const DEFAULT_MODEL  = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
 
-/* ========= Schéma JSON (full 28) ========= */
+/* ========= Schéma JSON (full 28) =========
+   NOTE: L'API Responses exige additionalProperties:false au minimum à la racine.
+         On le place aussi dans les objets internes pour verrouiller la structure. */
 const schemaFull = {
-  // ATTENTION : on n’utilise plus cet objet tel quel dans text.format.
-  // On va décomposer les champs (name, schema, strict) à l’endroit attendu.
   name: "study_28",
   schema: {
     type: "object",
+    additionalProperties: false,
     properties: {
       meta: {
         type: "object",
+        additionalProperties: false,
         properties: {
-          book: { type: "string" },
-          chapter: { type: "string" },
-          verse: { type: "string" },
+          book:        { type: "string" },
+          chapter:     { type: "string" },
+          verse:       { type: "string" },
           translation: { type: "string" },
-          reference: { type: "string" },
-          osis: { type: "string" }
+          reference:   { type: "string" },
+          osis:        { type: "string" }
         },
         required: ["book", "chapter", "translation", "reference", "osis"]
       },
@@ -29,11 +31,15 @@ const schemaFull = {
         type: "array",
         items: {
           type: "object",
+          additionalProperties: false,
           properties: {
-            index: { type: "integer" },
-            title: { type: "string" },
+            index:   { type: "integer" },
+            title:   { type: "string" },
             content: { type: "string" },
-            verses: { type: "array", items: { type: "string" } }
+            verses:  {
+              type: "array",
+              items: { type: "string" }
+            }
           },
           required: ["index", "title", "content"]
         }
@@ -46,7 +52,7 @@ const schemaFull = {
 
 /* ========= helpers ========= */
 function jOk(res, data)  { res.status(200).json({ ok: true, data }); }
-function jErr(res, error){ res.status(200).json({ ok: false, error: String(error) }); }
+function jErr(res, error){ res.status(200).json({ ok: false, error: typeof error === "string" ? error : JSON.stringify(error) }); }
 
 function getBaseUrl(req) {
   try {
@@ -72,7 +78,7 @@ async function oaiMini({ model, prompt, maxtok, timeoutMs, debug }) {
     model,
     temperature: 0.15,
     max_output_tokens: Number.isFinite(maxtok) ? Math.max(300, maxtok) : 700,
-    // json_object ne requiert pas name, mais on peut en fournir un, c’est accepté.
+    // mini : format "json_object" (pas besoin de schema complet)
     text: { format: { type: "json_object", name: "study_28_mini" } },
     input: prompt
   };
@@ -127,7 +133,7 @@ async function oaiFull({ model, prompt, maxtok, timeoutMs, debug }) {
     model,
     temperature: 0.12,
     max_output_tokens: Number.isFinite(maxtok) ? Math.max(900, maxtok) : 1500,
-    // ⬇️ La correction clé : fournir name + schema + strict au bon niveau.
+    // Correction : fournir name + schema + strict au bon niveau ET schema.additionalProperties=false
     text: {
       format: {
         type: "json_schema",
@@ -320,6 +326,7 @@ ${schemaHint}`;
       return jErr(res, "Sortie OpenAI invalide.");
     }
 
+    // Normalisation meta
     parsed.meta = {
       book, chapter, verse, translation,
       reference: passage.reference,
@@ -328,12 +335,10 @@ ${schemaHint}`;
     };
 
     if (isFull) {
-      if (!Array.isArray(parsed.sections)) {
+      if (!Array.isArray(parsed.sections))
         return jErr(res, "Le modèle n’a pas renvoyé de tableau 'sections'.");
-      }
-      if (parsed.sections.length !== 28) {
+      if (parsed.sections.length !== 28)
         return jErr(res, `Le modèle n’a pas renvoyé 28 sections (reçu: ${parsed.sections.length}).`);
-      }
     }
 
     return jOk(res, parsed);
