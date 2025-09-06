@@ -1,12 +1,14 @@
 // /api/study-28.js
 export const config = { runtime: "edge" };
+// Augmente la durée maximale autorisée par Vercel pour cette Edge Function
+export const maxDuration = 60; // secondes
 
 /**
  * Étude exégétique en 28 sections
  * - Input: ?book=Genèse&chapter=1[&verse=1-5][&translation=JND][&bibleId=a93...]
  * - S'appuie sur /api/bibleProvider pour récupérer le texte propre (passageText)
  * - Force la sortie JSON (response_format: json_object)
- * - Fallback: injecte "verses" = ["v.<plage>"] si manquant et si verse=... fourni
+ * - Timeout applicatif + retry court pour éviter 504
  */
 
 // ---------- ENV ----------
@@ -20,13 +22,9 @@ function jsonResponse(obj, status = 200) {
     headers: { "content-type": "application/json; charset=utf-8" }
   });
 }
-
-function badRequest(msg)  { return jsonResponse({ ok: false, error: msg }, 400); }
-function serverError(msg) { return jsonResponse({ ok: false, error: msg }, 500); }
-
-function safeParse(jsonText) {
-  try { return JSON.parse(jsonText); } catch { return null; }
-}
+function badRequest(msg){ return jsonResponse({ ok:false, error: msg }, 400); }
+function serverError(msg){ return jsonResponse({ ok:false, error: msg }, 500); }
+function safeParse(s){ try { return JSON.parse(s); } catch { return null; } }
 
 // Patch "verses" si vides et si une plage a été demandée
 function addVersesFallback(sections, meta) {
@@ -40,34 +38,14 @@ function addVersesFallback(sections, meta) {
 
 // ---------- Prompt ----------
 const STUDY_TITLES = [
-  "Thème central",
-  "Résumé en une phrase",
-  "Contexte historique",
-  "Auteur et date",
-  "Genre littéraire",
-  "Structure du passage",
-  "Plan détaillé",
-  "Mots-clés",
-  "Termes clés (définis)",
-  "Personnages et lieux",
-  "Problème / Question de départ",
-  "Idées majeures (développement)",
-  "Verset pivot (climax)",
-  "Références croisées (AT)",
-  "Références croisées (NT)",
-  "Parallèles bibliques",
-  "Lien avec l’Évangile (Christocentrique)",
-  "Vérités doctrinales (3–5)",
-  "Promesses et avertissements",
-  "Principes intemporels",
-  "Applications personnelles (3–5)",
-  "Applications communautaires",
-  "Questions pour petits groupes (6)",
-  "Prière guidée",
-  "Méditation courte",
-  "Versets à mémoriser (2–3)",
-  "Difficultés/objections & réponses",
-  "Ressources complémentaires"
+  "Thème central","Résumé en une phrase","Contexte historique","Auteur et date","Genre littéraire",
+  "Structure du passage","Plan détaillé","Mots-clés","Termes clés (définis)","Personnages et lieux",
+  "Problème / Question de départ","Idées majeures (développement)","Verset pivot (climax)",
+  "Références croisées (AT)","Références croisées (NT)","Parallèles bibliques",
+  "Lien avec l’Évangile (Christocentrique)","Vérités doctrinales (3–5)","Promesses et avertissements",
+  "Principes intemporels","Applications personnelles (3–5)","Applications communautaires",
+  "Questions pour petits groupes (6)","Prière guidée","Méditation courte",
+  "Versets à mémoriser (2–3)","Difficultés/objections & réponses","Ressources complémentaires"
 ];
 
 function buildPrompt({ passageText, passageRef, translation, meta }) {
@@ -75,10 +53,11 @@ function buildPrompt({ passageText, passageRef, translation, meta }) {
 
   const system = [
     "Tu es un bibliste pédagogue.",
-    "Produis une étude structurée et concise en 28 sections fixes.",
+    "Produis une étude structurée en 28 sections fixes.",
     "Langue: français, ton pastoral mais rigoureux.",
     "NE PAS inventer de versets; cite uniquement le passage fourni.",
-    "Ta sortie DOIT être STRICTEMENT du JSON conforme au schéma demandé."
+    "Ta sortie DOIT être STRICTEMENT du JSON conforme au schéma demandé.",
+    "Chaque section = 2–5 phrases concises (pour limiter la taille)."
   ].join(" ");
 
   const constraints = [
@@ -88,13 +67,10 @@ function buildPrompt({ passageText, passageRef, translation, meta }) {
     "Contraintes de sortie JSON :",
     '- root object: { "reference": string, "translation": string, "sections": Section[] }',
     '- Section: { "index": number (1..28), "title": string, "content": string, "verses": string[] }',
-    "- `content` doit être clair et actionnable (4–10 phrases max par section).",
-    '- `verses` = liste de références locales au passage (ex: ["v.1-3", "v.26"]).',
-    "- Chaque section DOIT fournir au moins 1 entrée dans `verses` au format local,",
-    '  sauf si vraiment inapplicable (alors "verses": []).',
+    "- `content` doit être clair, 2–5 phrases max par section.",
+    '- `verses` = références locales au passage (ex: ["v.1-3", "v.26"]).',
     "- Si une plage de versets est fournie (ex: \"1-5\"), NE PAS citer hors plage ;",
     '  utiliser "v.1-5" ou des sous-plages (ex: "v.3").',
-    "- Utilise la plage fournie comme référence par défaut si tu hésites.",
   ].join("\n");
 
   const user = [
@@ -114,7 +90,18 @@ function buildPrompt({ passageText, passageRef, translation, meta }) {
   ];
 }
 
-// ---------- OpenAI ----------
+// ---------- OpenAI avec timeout + retry ----------
+async function fetchWithTimeout(url, options = {}, timeoutMs = 25000) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { ...options, signal: controller.signal });
+    return r;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function callOpenAI(messages) {
   if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY manquante.");
 
@@ -122,34 +109,50 @@ async function callOpenAI(messages) {
     model: OPENAI_MODEL,
     temperature: 0.2,
     messages,
-    response_format: { type: "json_object" } // << IMPORTANT (fixe l'erreur 'json' non supporté)
+    response_format: { type: "json_object" },
+    // Limite de tokens de sortie pour rester rapide (28 sections * ~60 tokens ≈ 1680)
+    max_tokens: 1900
   };
 
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "authorization": `Bearer ${OPENAI_API_KEY}`
-    },
-    body: JSON.stringify(body)
-  });
+  // 1 essai + 1 retry rapide en cas de timeout/5xx
+  let lastErr;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const r = await fetchWithTimeout(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "authorization": `Bearer ${OPENAI_API_KEY}`
+          },
+          body: JSON.stringify(body)
+        },
+        25000 // 25s par tentative
+      );
 
-  if (!r.ok) {
-    const t = await r.text();
-    throw new Error(`OpenAI ${r.status}: ${t}`);
+      if (!r.ok) {
+        const txt = await r.text();
+        throw new Error(`OpenAI ${r.status}: ${txt}`);
+      }
+
+      const data = await r.json();
+      const content = data?.choices?.[0]?.message?.content;
+      if (!content) throw new Error("OpenAI a renvoyé une réponse vide.");
+      const json = safeParse(content);
+      if (!json) throw new Error("La sortie OpenAI n’est pas un JSON valide.");
+
+      if (!Array.isArray(json.sections) || json.sections.length !== 28) {
+        throw new Error("Le modèle n’a pas produit exactement 28 sections.");
+      }
+      return json;
+    } catch (e) {
+      lastErr = e;
+      // petit backoff entre les tentatives
+      if (attempt === 1) await new Promise(res => setTimeout(res, 400));
+    }
   }
-
-  const data = await r.json();
-  const content = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error("OpenAI a renvoyé une réponse vide.");
-  const json = safeParse(content);
-  if (!json) throw new Error("La sortie OpenAI n’est pas un JSON valide.");
-
-  // Validation minimale
-  if (!Array.isArray(json.sections) || json.sections.length !== 28) {
-    throw new Error("Le modèle n’a pas produit exactement 28 sections.");
-  }
-  return json;
+  throw lastErr;
 }
 
 // ---------- BibleProvider (même domaine) ----------
@@ -163,7 +166,7 @@ async function fetchPassageViaProvider(req, { book, chapter, verse, bibleId }) {
   if (bibleId) params.set("bibleId", bibleId);
   base.search = params.toString();
 
-  const r = await fetch(base.toString(), { method: "GET" });
+  const r = await fetchWithTimeout(base.toString(), { method: "GET" }, 8000);
   const txt = await r.text();
   const payload = safeParse(txt) || { ok: false, error: txt };
 
@@ -174,7 +177,6 @@ async function fetchPassageViaProvider(req, { book, chapter, verse, bibleId }) {
   }
 
   const data = payload.data;
-  // attendu: { reference, osis, passageText }
   if (!data?.passageText) {
     throw new Error("BibleProvider: passageText manquant.");
   }
@@ -191,7 +193,7 @@ export default async function handler(req) {
     const translation = (url.searchParams.get("translation") || "").trim(); // label libre
     const bibleId     = (url.searchParams.get("bibleId") || "").trim();     // optionnel
 
-    if (!book)    return badRequest('Paramètre "book" manquant.');
+    if (!book)       return badRequest('Paramètre "book" manquant.');
     if (!chapterRaw) return badRequest('Paramètre "chapter" manquant.');
 
     const chapter = Number(chapterRaw);
@@ -199,8 +201,10 @@ export default async function handler(req) {
       return badRequest('Paramètre "chapter" invalide (entier > 0 requis).');
     }
 
-    // Récupère le passage via le provider interne
+    // 1) Récupère le passage (rapide)
     const passage = await fetchPassageViaProvider(req, { book, chapter, verse, bibleId });
+
+    // 2) Prépare le prompt
     const meta = {
       book,
       chapter: String(chapter),
@@ -209,7 +213,6 @@ export default async function handler(req) {
       reference: passage?.reference || `${book} ${chapter}${verse ? `:${verse}` : ""}`,
       osis: passage?.osis || ""
     };
-
     const messages = buildPrompt({
       passageText: passage.passageText || "",
       passageRef: meta.reference,
@@ -217,23 +220,21 @@ export default async function handler(req) {
       meta
     });
 
-    // Appel OpenAI
+    // 3) Appel OpenAI (avec timeout + retry)
     let ai = await callOpenAI(messages);
 
-    // Filet de sécurité : injection de verses par défaut quand une plage est fournie
+    // 4) Filet de sécurité : verses par défaut quand une plage est fournie
     ai.sections = addVersesFallback(ai.sections, meta);
 
-    // Réponse finale normalisée
     return jsonResponse({
       ok: true,
-      data: {
-        meta,
-        sections: ai.sections
-      }
+      data: { meta, sections: ai.sections }
     });
 
   } catch (err) {
-    const msg = err?.message || String(err);
+    const msg = err?.name === "AbortError"
+      ? "Timeout côté fonction. Réessaie ou réduis la plage de texte."
+      : (err?.message || String(err));
     return serverError(msg);
   }
 }
