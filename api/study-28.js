@@ -1,12 +1,10 @@
-// /api/study28.js
-// Clone LLM-FREE de study-28 (api.bible only) + en-tête de diagnostic
+// /api/study-28.js — Étude 28 points LLM-FREE (api.bible uniquement)
 
 export const config = { runtime: "nodejs18.x" };
 
 function send(req, res, status, payload) {
   try {
-    // petite signature de diag pour vérifier qui répond vraiment
-    res.setHeader("X-Handler", "pages-study28-llmfree");
+    res.setHeader("X-Handler", "pages-study-28-llmfree");
     res.statusCode = status;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.end(JSON.stringify(payload, null, 2));
@@ -25,7 +23,7 @@ const firstSentence = (s) => {
   return m ? m[1].trim() : clip(clean, 180);
 };
 
-// --- api.bible minimal ---
+// --- api.bible ---
 const API_ROOT = "https://api.scripture.api.bible/v1";
 const KEY = process.env.API_BIBLE_KEY || "";
 const DEFAULT_BIBLE_ID = process.env.API_BIBLE_ID || "";
@@ -70,7 +68,7 @@ async function resolveBookId(bibleId, bookName) {
   if (!hit) hit = books.find(b => norm(b.name).startsWith(target) || norm(b.abbreviationLocal).startsWith(target));
   if (!hit) hit = books.find(b => norm(b.name).includes(target));
   if (!hit) throw new Error(`Book not found: ${bookName}`);
-  return hit.id; // e.g., GEN
+  return hit.id;
 }
 
 async function getPassage({ bibleId, bookName, chapter, verse="" }) {
@@ -92,6 +90,7 @@ async function getPassage({ bibleId, bookName, chapter, verse="" }) {
   return { osis: ref, reference, html: contentHtml, text: plain };
 }
 
+// --- 28 rubriques ---
 const TITLES_FULL = [
   "Thème central","Résumé en une phrase","Contexte historique","Auteur et date","Genre littéraire",
   "Structure du passage","Plan détaillé","Mots-clés","Termes clés (définis)","Personnages et lieux",
