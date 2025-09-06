@@ -4,118 +4,132 @@ import { NextResponse } from "next/server";
 export const config = { runtime: "nodejs" };
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-// Choisis un modèle Responses API (ex: gpt-4.1-mini, gpt-4o-mini-2024-07-18, o4-mini)
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
 
-// ---------- Schéma JSON strict -----------
-const STUDY_SCHEMA = {
+// ---------- Schémas JSON ----------
+const META_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
-    meta: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        book: { type: "string" },
-        chapter: { type: "string" },
-        verse: { type: "string" },
-        translation: { type: "string" },
-        reference: { type: "string" },
-        osis: { type: "string" }
-      },
-      required: ["book", "chapter", "verse", "translation", "reference", "osis"]
-    },
-    sections: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          index: { type: "integer" },
-          title: { type: "string" },
-          content: { type: "string" },
-          verses: { type: "array", items: { type: "string" } }
-        },
-        required: ["index", "title", "content", "verses"]
-      }
-    }
+    book: { type: "string" },
+    chapter: { type: "string" },
+    verse: { type: "string" },
+    translation: { type: "string" },
+    reference: { type: "string" },
+    osis: { type: "string" }
   },
-  required: ["meta", "sections"]
+  required: ["book", "chapter", "verse", "translation", "reference", "osis"]
 };
+
+function sectionSchema(rangeStart = 1, rangeEnd = 28) {
+  const allowed = Array.from({ length: rangeEnd - rangeStart + 1 }, (_, i) => rangeStart + i);
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      index: { type: "integer", enum: allowed },
+      title: { type: "string" },
+      content: { type: "string" },
+      verses: { type: "array", items: { type: "string" } }
+    },
+    required: ["index", "title", "content", "verses"]
+  };
+}
+
+function fullSchema(rangeStart = 1, rangeEnd = 28) {
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      meta: META_SCHEMA,
+      sections: { type: "array", items: sectionSchema(rangeStart, rangeEnd) }
+    },
+    required: ["meta", "sections"]
+  };
+}
+
+function makeTextFormat(name, schema) {
+  return {
+    name: "json_schema",
+    strict: true,
+    schema: { name, schema }
+  };
+}
 
 function json(res, status = 200) {
   return NextResponse.json(res, { status });
 }
 
-function sysPrompt(mode) {
+function sysPrompt(mode, range) {
   const isMini = mode === "mini";
+  const wordBand = "90–120 mots";
+  const rangeNote = range ? `Génère UNIQUEMENT les sections ${range[0]} à ${range[1]}.` : "";
   return [
-    "Tu es un bibliste pédagogue. Réponds STRICTEMENT en JSON conforme au schéma fourni.",
-    "Langue: français. Ton pastoral mais rigoureux. N'invente pas de versets.",
+    "Tu es un bibliste pédagogue. Réponds STRICTEMENT en JSON (schéma strict).",
+    "Langue: français. Ton pastoral, concis, rigoureux. N'invente pas de versets.",
     isMini
-      ? "Format MINI: exactement 3 sections. 90–120 mots max par section."
-      : "Format FULL: exactement 28 sections. 90–120 mots max par section. Sois concis.",
-    "Respecte le schéma strict (clés, types)."
-  ].join(" ");
+      ? `Format MINI: exactement 3 sections. ${wordBand} par section.`
+      : `Format FULL: exactement 28 sections. ${wordBand} par section.`,
+    rangeNote,
+    "Réponds UNIQUEMENT par l'objet JSON (pas de prose autour)."
+  ].filter(Boolean).join(" ");
 }
 
-function userPrompt({ reference, translation, osis, passageText, mode }) {
+function userPrompt({ reference, translation, osis, passageText, mode, range }) {
   const header = `Passage : ${reference} (${translation})\nOSIS : ${osis || ""}`;
-  const body = "Texte (source unique) :\n```\n" + passageText + "\n```";
-  const sections =
-    mode === "mini"
-      ? [
-          "1. Thème central",
-          "2. Idées majeures (développement)",
-          "3. Applications personnelles"
-        ]
-      : [
-          "1. Thème central",
-          "2. Résumé en une phrase",
-          "3. Contexte historique",
-          "4. Auteur et date",
-          "5. Genre littéraire",
-          "6. Structure du passage",
-          "7. Plan détaillé",
-          "8. Mots-clés",
-          "9. Termes clés (définis)",
-          "10. Personnages et lieux",
-          "11. Problème / Question de départ",
-          "12. Idées majeures (développement)",
-          "13. Verset pivot (climax)",
-          "14. Références croisées (AT)",
-          "15. Références croisées (NT)",
-          "16. Parallèles bibliques",
-          "17. Lien avec l’Évangile (Christocentrique)",
-          "18. Vérités doctrinales (3–5)",
-          "19. Promesses et avertissements",
-          "20. Principes intemporels",
-          "21. Applications personnelles (3–5)",
-          "22. Applications communautaires",
-          "23. Questions pour petits groupes (6)",
-          "24. Prière guidée",
-          "25. Méditation courte",
-          "26. Versets à mémoriser (2–3)",
-          "27. Difficultés/objections & réponses",
-          "28. Ressources complémentaires"
-        ];
+  const body = "Texte source :\n```\n" + passageText + "\n```";
+
+  const titlesFull = [
+    "1. Thème central",
+    "2. Résumé en une phrase",
+    "3. Contexte historique",
+    "4. Auteur et date",
+    "5. Genre littéraire",
+    "6. Structure du passage",
+    "7. Plan détaillé",
+    "8. Mots-clés",
+    "9. Termes clés (définis)",
+    "10. Personnages et lieux",
+    "11. Problème / Question de départ",
+    "12. Idées majeures (développement)",
+    "13. Verset pivot (climax)",
+    "14. Références croisées (AT)",
+    "15. Références croisées (NT)",
+    "16. Parallèles bibliques",
+    "17. Lien avec l’Évangile (Christocentrique)",
+    "18. Vérités doctrinales (3–5)",
+    "19. Promesses et avertissements",
+    "20. Principes intemporels",
+    "21. Applications personnelles (3–5)",
+    "22. Applications communautaires",
+    "23. Questions pour petits groupes (6)",
+    "24. Prière guidée",
+    "25. Méditation courte",
+    "26. Versets à mémoriser (2–3)",
+    "27. Difficultés/objections & réponses",
+    "28. Ressources complémentaires"
+  ];
+
+  const titlesMini = [
+    "1. Thème central",
+    "2. Idées majeures (développement)",
+    "3. Applications personnelles"
+  ];
+
+  const rangeTitles = (mode === "mini" ? titlesMini : titlesFull).filter((t) => {
+    if (!range) return true;
+    const idx = parseInt(t.split(".")[0], 10);
+    return idx >= range[0] && idx <= range[1];
+  });
 
   const constraints = [
     "Contraintes :",
-    "- EXACTEMENT le nombre de sections attendu selon le mode.",
-    "- Chaque section contient: index (1..N), title, content (90–120 mots), verses (tableau de chaînes).",
-    "- Réponds UNIQUEMENT par l’objet JSON final (pas de texte autour)."
+    "- EXACTEMENT le nombre de sections attendu.",
+    "- Chaque section: index (1..N), title, content (90–120 mots), verses (string[]).",
+    "- Respecte les titres/indices ci-dessous."
   ];
 
-  return [header, body, "", "Titres attendus :", ...sections, "", ...constraints].join("\n");
-}
-
-function makeTextFormat() {
-  return {
-    name: "json_schema",
-    strict: true,
-    schema: { name: "study_28", schema: STUDY_SCHEMA }
-  };
+  return [header, body, "", "Titres attendus :", ...rangeTitles, "", ...constraints].join("\n");
 }
 
 function safeParseJson(txt) {
@@ -125,29 +139,24 @@ function safeParseJson(txt) {
     const i = txt.indexOf("{");
     const j = txt.lastIndexOf("}");
     if (i >= 0 && j > i) {
-      try {
-        return JSON.parse(txt.slice(i, j + 1));
-      } catch {
-        return null;
-      }
+      try { return JSON.parse(txt.slice(i, j + 1)); } catch { return null; }
     }
     return null;
   }
 }
 
-async function callOpenAIOnce({ sys, user, maxtok, timeoutMs }) {
+async function callResponses({ model, sys, user, schemaName, schemaObj, maxtok, timeoutMs }) {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), Math.max(1000, timeoutMs || 30000));
-
+  const t = setTimeout(() => ctrl.abort(), Math.max(1000, timeoutMs || 30000));
   const body = {
-    model: OPENAI_MODEL,
+    model,
     input: [
       { role: "system", content: sys },
       { role: "user", content: user }
     ],
-    text: { format: makeTextFormat() },
+    text: { format: makeTextFormat(schemaName, schemaObj) },
     temperature: 0.12,
-    max_output_tokens: Math.max(800, Number.isFinite(maxtok) ? maxtok : 3500)
+    max_output_tokens: Math.max(800, Number.isFinite(maxtok) ? maxtok : 3000)
   };
 
   let raw;
@@ -156,62 +165,76 @@ async function callOpenAIOnce({ sys, user, maxtok, timeoutMs }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`
+        "Authorization": `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify(body),
       signal: ctrl.signal
     });
+    clearTimeout(t);
 
-    clearTimeout(timer);
-
-    if (!r.ok) {
-      throw new Error(`OpenAI ${r.status}: ${await r.text()}`);
-    }
+    if (!r.ok) throw new Error(`OpenAI ${r.status}: ${await r.text()}`);
     raw = await r.json();
 
-    // voie courte
-    if (typeof raw.output_text === "string" && raw.output_text.trim()) {
-      return { raw, text: raw.output_text, incomplete: raw.status === "incomplete" };
+    const chunks = [];
+    if (typeof raw.output_text === "string") chunks.push(raw.output_text);
+    if (Array.isArray(raw.output)) {
+      for (const msg of raw.output) {
+        if (Array.isArray(msg.content)) {
+          for (const c of msg.content) {
+            if (typeof c?.text === "string") chunks.push(c.text);
+            if (typeof c?.output_text === "string") chunks.push(c.output_text);
+          }
+        }
+      }
     }
-
-    // concat des blocs
-    const chunks = Array.isArray(raw.output)
-      ? raw.output.flatMap(msg =>
-          Array.isArray(msg.content)
-            ? msg.content
-                .filter(c => typeof c?.text === "string" || typeof c?.output_text === "string")
-                .map(c => c.text ?? c.output_text)
-            : []
-        )
-      : [];
     const text = chunks.join("\n").trim();
-    return { raw, text, incomplete: raw.status === "incomplete" };
+    return { raw, text, incomplete: raw.status === "incomplete", reason: raw?.incomplete_details?.reason };
   } catch (e) {
-    clearTimeout(timer);
+    clearTimeout(t);
     throw e;
   }
 }
 
-async function callOpenAIAdaptive({ sys, user, mode, maxtok, timeoutMs }) {
-  // stratégie : pour FULL, par défaut 3500 ; pour MINI, 900 ; on remonte si incomplete/max_output_tokens
-  const initialTok = Number.isFinite(maxtok)
-    ? maxtok
-    : mode === "mini"
-    ? 900
-    : 3500;
+async function generateOnce({ mode, range, reference, translation, osis, passageText, maxtok, timeoutMs }) {
+  const sys = sysPrompt(mode, range);
+  const user = userPrompt({ reference, translation, osis, passageText, mode, range });
+  const schemaName = range ? `study_28_part_${range[0]}_${range[1]}` : "study_28";
+  const schemaObj = fullSchema(range ? range[0] : 1, range ? range[1] : (mode === "mini" ? 3 : 28));
 
-  let attempt = await callOpenAIOnce({ sys, user, maxtok: initialTok, timeoutMs });
-  let parsed = attempt.text ? safeParseJson(attempt.text) : null;
+  return await callResponses({
+    model: OPENAI_MODEL,
+    sys, user,
+    schemaName, schemaObj,
+    maxtok,
+    timeoutMs
+  });
+}
 
-  // si incomplet pour cause de max_output_tokens : on retente une fois +2000 (limite 6000)
-  const reason = attempt.raw?.incomplete_details?.reason;
-  if ((!parsed || attempt.incomplete) && reason === "max_output_tokens") {
-    const bump = Math.min((initialTok || 0) + 2000, 6000);
-    attempt = await callOpenAIOnce({ sys, user, maxtok: bump, timeoutMs });
-    parsed = attempt.text ? safeParseJson(attempt.text) : null;
+async function generateFullPaged(ctx, timeoutMs) {
+  // 2 passes : 1–14 puis 15–28 (avec 1400–1800 tokens de sortie chacun)
+  const pass1 = await generateOnce({ ...ctx, range: [1, 14], maxtok: 1800, timeoutMs });
+  let part1 = pass1.text ? safeParseJson(pass1.text) : null;
+
+  if (!part1 || !Array.isArray(part1.sections)) {
+    return { parsed: null, raw: { pass1 } };
   }
 
-  return { parsed, raw: attempt.raw };
+  const pass2 = await generateOnce({ ...ctx, range: [15, 28], maxtok: 1800, timeoutMs });
+  let part2 = pass2.text ? safeParseJson(pass2.text) : null;
+
+  if (!part2 || !Array.isArray(part2.sections)) {
+    return { parsed: null, raw: { pass1, pass2 } };
+  }
+
+  // fusion
+  const merged = {
+    meta: part1.meta || ctx.meta || {
+      book: ctx.book, chapter: ctx.chapter, verse: ctx.verse ?? "",
+      translation: ctx.translation, reference: ctx.reference, osis: ctx.osis || ""
+    },
+    sections: [...part1.sections, ...part2.sections].sort((a, b) => a.index - b.index)
+  };
+  return { parsed: merged, raw: { pass1, pass2 } };
 }
 
 export async function GET(req) {
@@ -228,11 +251,9 @@ export async function GET(req) {
   const debug = searchParams.get("debug") === "1";
 
   try {
-    if (!OPENAI_API_KEY) {
-      return json({ ok: false, error: "OPENAI_API_KEY manquante." });
-    }
+    if (!OPENAI_API_KEY) return json({ ok: false, error: "OPENAI_API_KEY manquante." });
 
-    // --- DRY RUN pour tests UI ---
+    // DRY
     if (dry) {
       if (mode === "mini") {
         return json({
@@ -266,7 +287,7 @@ export async function GET(req) {
       });
     }
 
-    // --- fetch passage via bibleProvider ---
+    // Passage via bibleProvider
     const base = req.headers.get("x-forwarded-host")
       ? `https://${req.headers.get("x-forwarded-host")}`
       : "http://localhost:3000";
@@ -277,40 +298,69 @@ export async function GET(req) {
       (bibleId ? `&bibleId=${encodeURIComponent(bibleId)}` : "");
 
     const pRes = await fetch(passageUrl);
-    if (!pRes.ok) {
-      return json({ ok: false, error: `BibleProvider HTTP ${pRes.status}: ${await pRes.text()}` });
-    }
+    if (!pRes.ok) return json({ ok: false, error: `BibleProvider HTTP ${pRes.status}: ${await pRes.text()}` });
     const pJson = await pRes.json();
-    if (!pJson.ok) {
-      return json({ ok: false, error: pJson.error || "BibleProvider error" });
-    }
+    if (!pJson.ok) return json({ ok: false, error: pJson.error || "BibleProvider error" });
 
     const passage = pJson.data;
     const reference = verse ? `${book} ${chapter}:${verse}` : `${book} ${chapter}`;
     const osis = passage.osis || "";
 
-    const sys = sysPrompt(mode);
-    const user = userPrompt({
-      reference, translation, osis, passageText: passage.passageText || "", mode
-    });
+    // MINI — simple
+    if (mode === "mini") {
+      const one = await generateOnce({
+        mode,
+        reference, translation, osis, passageText: passage.passageText || "",
+        maxtok: Number.isFinite(maxtok) ? maxtok : 900,
+        timeoutMs: timeout
+      });
+      const parsed = one.text ? safeParseJson(one.text) : null;
+      if (!parsed || !parsed.meta || !Array.isArray(parsed.sections)) {
+        if (debug) return json({ ok: false, error: "Sortie OpenAI non-JSON (mini).", debug: { raw: one.raw } });
+        return json({ ok: false, error: "Sortie OpenAI non-JSON (mini)." });
+      }
+      parsed.meta.book = parsed.meta.book || String(book);
+      parsed.meta.chapter = parsed.meta.chapter || String(chapter);
+      parsed.meta.verse = parsed.meta.verse ?? String(verse || "");
+      parsed.meta.translation = parsed.meta.translation || String(translation);
+      parsed.meta.reference = parsed.meta.reference || reference;
+      parsed.meta.osis = parsed.meta.osis || osis;
+      return json({ ok: true, data: parsed });
+    }
 
-    const { parsed, raw } = await callOpenAIAdaptive({
-      sys,
-      user,
+    // FULL — tentative 1 shot
+    const oneShot = await generateOnce({
       mode,
-      // si full et pas de maxtok explicite, on pousse à 3500
-      maxtok: Number.isFinite(maxtok) ? maxtok : (mode === "full" ? 3500 : 900),
+      reference, translation, osis, passageText: passage.passageText || "",
+      maxtok: Number.isFinite(maxtok) ? maxtok : 3500,
       timeoutMs: timeout
     });
 
-    if (!parsed || !parsed.meta || !Array.isArray(parsed.sections)) {
-      if (debug) {
-        return json({ ok: false, error: "Sortie OpenAI non-JSON (full).", debug: { raw } });
+    let parsed = oneShot.text ? safeParseJson(oneShot.text) : null;
+
+    // si coupé/non JSON → bascule en 2 passes
+    if (!parsed || !parsed.meta || !Array.isArray(parsed.sections) || oneShot.incomplete) {
+      const paged = await generateFullPaged(
+        {
+          mode,
+          reference, translation, osis, passageText: passage.passageText || "",
+          meta: { book, chapter, verse: verse || "", translation, reference, osis }
+        },
+        timeout
+      );
+
+      if (!paged.parsed) {
+        if (debug) return json({
+          ok: false,
+          error: "Sortie OpenAI non-JSON (full, paged).",
+          debug: { oneShot: oneShot.raw, paged: paged.raw }
+        });
+        return json({ ok: false, error: "Sortie OpenAI non-JSON (full)." });
       }
-      return json({ ok: false, error: `Sortie OpenAI non-JSON (${mode}).` });
+      parsed = paged.parsed;
     }
 
-    // compléter meta si besoin
+    // compléter meta
     parsed.meta.book = parsed.meta.book || String(book);
     parsed.meta.chapter = parsed.meta.chapter || String(chapter);
     parsed.meta.verse = parsed.meta.verse ?? String(verse || "");
