@@ -1,5 +1,8 @@
-// api/study-28.js
+// /api/study-28.js
 import { NextResponse } from "next/server";
+
+/** ===== Runtime ===== */
+export const runtime = "edge";
 
 /** ====== CONFIG ====== */
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -67,7 +70,6 @@ async function callOpenAImini({ prompt, maxtok, timeoutMs, debug }) {
     temperature: 0.15,
     max_output_tokens: Number.isFinite(maxtok) ? Math.max(300, maxtok) : 700,
     text: { format: "json_object" },
-    // Un seul input texte, c’est la voie la plus sûre et la plus tolérante
     input: prompt
   };
 
@@ -88,21 +90,17 @@ async function callOpenAImini({ prompt, maxtok, timeoutMs, debug }) {
 
   if (!r.ok) {
     const errText = await r.text().catch(() => "");
-    // remonte l’erreur brute si debug
     throw new Error(debug ? `OpenAI ${r.status}: ${errText}` : `OpenAI ${r.status}`);
   }
 
   const out = await r.json();
 
-  // Chemin le plus fiable en json_object : output_parsed
   if (out?.output_parsed) return out.output_parsed;
 
-  // Fallback si le provider renvoie du texte JSON dans output_text
   if (typeof out?.output_text === "string" && out.output_text.trim()) {
     try { return JSON.parse(out.output_text); } catch {}
   }
 
-  // Ultra-fallback legacy
   const maybeText = out?.output?.[0]?.content?.[0]?.text;
   if (typeof maybeText === "string" && maybeText.trim()) {
     try { return JSON.parse(maybeText); } catch {
@@ -152,10 +150,8 @@ async function callOpenAIfull({ prompt, maxtok, timeoutMs, debug }) {
 
   const out = await r.json();
 
-  // Chemin officiel Responses+json_schema
   if (out?.output_parsed) return out.output_parsed;
 
-  // Fallback si jamais on reçoit du texte JSON
   if (typeof out?.output_text === "string" && out.output_text.trim()) {
     try { return JSON.parse(out.output_text); } catch {}
   }
@@ -185,7 +181,7 @@ export async function GET(req) {
     const timeout     = parseInt(searchParams.get("oaitimeout") || "30000", 10);
     const debug       = searchParams.get("debug") === "1";
 
-    // 1) Passage via notre provider
+    // 1) Passage via notre provider (même domaine)
     const base = absoluteBaseUrl(req);
     const url =
       `${base}/api/bibleProvider?book=${encodeURIComponent(book)}` +
@@ -205,7 +201,7 @@ export async function GET(req) {
 
     const passage = pJson.data; // { reference, osis, passageText }
 
-    // 2) Prépare le prompt (uniquement du texte → stable)
+    // 2) Prompt unique (texte) → stable et compatible
     const must28 = mode === "full";
     const header =
       `Tu es un bibliste pédagogue. Réponds STRICTEMENT en JSON ${must28 ? "(schéma 28 sections)" : "(3 sections)"}.\n` +
@@ -268,7 +264,6 @@ ${schemaHint}
     return NextResponse.json({ ok: true, data: parsed });
 
   } catch (err) {
-    // Message clair côté client (et activable en détail avec ?debug=1)
     return NextResponse.json({ ok: false, error: String(err?.message || err) });
   }
 }
