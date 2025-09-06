@@ -1,13 +1,13 @@
 // api/study-28.js
 import { NextResponse } from "next/server";
 
-export const config = { runtime: "nodejs" }; // Serverless (pas Edge)
+export const config = { runtime: "nodejs" };
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL =
-  process.env.OPENAI_MODEL || "gpt-4.1-mini"; // compatible Responses API
+// Choisis un modèle Responses API (ex: gpt-4.1-mini, gpt-4o-mini-2024-07-18, o4-mini)
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
 
-// ---------- Schéma JSON strict pour 28 sections ----------
+// ---------- Schéma JSON strict -----------
 const STUDY_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -34,10 +34,7 @@ const STUDY_SCHEMA = {
           index: { type: "integer" },
           title: { type: "string" },
           content: { type: "string" },
-          verses: {
-            type: "array",
-            items: { type: "string" }
-          }
+          verses: { type: "array", items: { type: "string" } }
         },
         required: ["index", "title", "content", "verses"]
       }
@@ -46,97 +43,101 @@ const STUDY_SCHEMA = {
   required: ["meta", "sections"]
 };
 
-// ---------- petits utilitaires ----------
-function asJson(obj, status = 200) {
-  return NextResponse.json(obj, { status });
+function json(res, status = 200) {
+  return NextResponse.json(res, { status });
 }
 
-function buildSystemPrompt(mode) {
+function sysPrompt(mode) {
   const isMini = mode === "mini";
   return [
-    "Tu es un bibliste pédagogue.",
+    "Tu es un bibliste pédagogue. Réponds STRICTEMENT en JSON conforme au schéma fourni.",
+    "Langue: français. Ton pastoral mais rigoureux. N'invente pas de versets.",
     isMini
-      ? "Produit une synthèse **court format** (3 sections) conforme au schéma JSON strict fourni."
-      : "Produit une étude **complète** en **28 sections** conforme au schéma JSON strict fourni.",
-    "Langue: français. Ton pastoral mais rigoureux.",
-    "Ne réécris pas le passage biblique intégral, résume et structure. N'invente pas d'autres versets que le passage fourni.",
+      ? "Format MINI: exactement 3 sections. 90–120 mots max par section."
+      : "Format FULL: exactement 28 sections. 90–120 mots max par section. Sois concis.",
+    "Respecte le schéma strict (clés, types)."
   ].join(" ");
 }
 
-function buildUserPrompt({ reference, translation, passageText, mode }) {
-  const header = `Passage: ${reference} (${translation})`;
-  const body = "Texte (source unique pour l’analyse):\n```\n" + passageText + "\n```";
+function userPrompt({ reference, translation, osis, passageText, mode }) {
+  const header = `Passage : ${reference} (${translation})\nOSIS : ${osis || ""}`;
+  const body = "Texte (source unique) :\n```\n" + passageText + "\n```";
+  const sections =
+    mode === "mini"
+      ? [
+          "1. Thème central",
+          "2. Idées majeures (développement)",
+          "3. Applications personnelles"
+        ]
+      : [
+          "1. Thème central",
+          "2. Résumé en une phrase",
+          "3. Contexte historique",
+          "4. Auteur et date",
+          "5. Genre littéraire",
+          "6. Structure du passage",
+          "7. Plan détaillé",
+          "8. Mots-clés",
+          "9. Termes clés (définis)",
+          "10. Personnages et lieux",
+          "11. Problème / Question de départ",
+          "12. Idées majeures (développement)",
+          "13. Verset pivot (climax)",
+          "14. Références croisées (AT)",
+          "15. Références croisées (NT)",
+          "16. Parallèles bibliques",
+          "17. Lien avec l’Évangile (Christocentrique)",
+          "18. Vérités doctrinales (3–5)",
+          "19. Promesses et avertissements",
+          "20. Principes intemporels",
+          "21. Applications personnelles (3–5)",
+          "22. Applications communautaires",
+          "23. Questions pour petits groupes (6)",
+          "24. Prière guidée",
+          "25. Méditation courte",
+          "26. Versets à mémoriser (2–3)",
+          "27. Difficultés/objections & réponses",
+          "28. Ressources complémentaires"
+        ];
 
-  if (mode === "mini") {
-    return [
-      header,
-      body,
-      "",
-      "Produit une **synthèse courte** conforme au schéma JSON (3 sections fixes):",
-      "- 1) Thème central",
-      "- 2) Idées majeures (développement)",
-      "- 3) Applications personnelles",
-      "Respecte exactement les clés demandées par le schéma.",
-    ].join("\n");
-  }
+  const constraints = [
+    "Contraintes :",
+    "- EXACTEMENT le nombre de sections attendu selon le mode.",
+    "- Chaque section contient: index (1..N), title, content (90–120 mots), verses (tableau de chaînes).",
+    "- Réponds UNIQUEMENT par l’objet JSON final (pas de texte autour)."
+  ];
 
-  // full (28)
-  return [
-    header,
-    body,
-    "",
-    "Produit une **étude complète** en **28 sections**. Les titres attendus :",
-    "1. Thème central",
-    "2. Résumé en une phrase",
-    "3. Contexte historique",
-    "4. Auteur et date",
-    "5. Genre littéraire",
-    "6. Structure du passage",
-    "7. Plan détaillé",
-    "8. Mots-clés",
-    "9. Termes clés (définis)",
-    "10. Personnages et lieux",
-    "11. Problème / Question de départ",
-    "12. Idées majeures (développement)",
-    "13. Verset pivot (climax)",
-    "14. Références croisées (AT)",
-    "15. Références croisées (NT)",
-    "16. Parallèles bibliques",
-    "17. Lien avec l’Évangile (Christocentrique)",
-    "18. Vérités doctrinales (3–5)",
-    "19. Promesses et avertissements",
-    "20. Principes intemporels",
-    "21. Applications personnelles (3–5)",
-    "22. Applications communautaires",
-    "23. Questions pour petits groupes (6)",
-    "24. Prière guidée",
-    "25. Méditation courte",
-    "26. Versets à mémoriser (2–3)",
-    "27. Difficultés/objections & réponses",
-    "28. Ressources complémentaires",
-    "",
-    "Respecte exactement les clés demandées par le schéma.",
-  ].join("\n");
+  return [header, body, "", "Titres attendus :", ...sections, "", ...constraints].join("\n");
 }
 
-// ---------- OpenAI call (Responses API v1) ----------
-async function callOpenAI({ sys, user, maxtok = 1500, timeoutMs = 30000, debug = false }) {
-  if (!OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY manquante.");
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), Math.max(1000, timeoutMs));
-
-  // format pour forcer un JSON strict selon le schéma
-  const textFormat = {
+function makeTextFormat() {
+  return {
     name: "json_schema",
     strict: true,
-    schema: {
-      name: "study_28",
-      schema: STUDY_SCHEMA
-    }
+    schema: { name: "study_28", schema: STUDY_SCHEMA }
   };
+}
+
+function safeParseJson(txt) {
+  try {
+    return JSON.parse(txt);
+  } catch {
+    const i = txt.indexOf("{");
+    const j = txt.lastIndexOf("}");
+    if (i >= 0 && j > i) {
+      try {
+        return JSON.parse(txt.slice(i, j + 1));
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
+async function callOpenAIOnce({ sys, user, maxtok, timeoutMs }) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), Math.max(1000, timeoutMs || 30000));
 
   const body = {
     model: OPENAI_MODEL,
@@ -144,11 +145,9 @@ async function callOpenAI({ sys, user, maxtok = 1500, timeoutMs = 30000, debug =
       { role: "system", content: sys },
       { role: "user", content: user }
     ],
-    text: {
-      format: textFormat
-    },
-    temperature: 0.1,
-    max_output_tokens: Number.isFinite(maxtok) ? Math.max(400, maxtok) : 1500
+    text: { format: makeTextFormat() },
+    temperature: 0.12,
+    max_output_tokens: Math.max(800, Number.isFinite(maxtok) ? maxtok : 3500)
   };
 
   let raw;
@@ -160,94 +159,83 @@ async function callOpenAI({ sys, user, maxtok = 1500, timeoutMs = 30000, debug =
         Authorization: `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify(body),
-      signal: controller.signal
+      signal: ctrl.signal
     });
 
     clearTimeout(timer);
 
     if (!r.ok) {
-      const errText = await r.text();
-      const msg = `OpenAI ${r.status}: ${errText}`;
-      throw new Error(msg);
+      throw new Error(`OpenAI ${r.status}: ${await r.text()}`);
     }
-
     raw = await r.json();
 
-    // 1) voie rapide : output_text (champ pratique des Responses)
+    // voie courte
     if (typeof raw.output_text === "string" && raw.output_text.trim()) {
-      return { parsed: safeParseJson(raw.output_text), raw };
+      return { raw, text: raw.output_text, incomplete: raw.status === "incomplete" };
     }
 
-    // 2) concatène tous les blocs de texte
-    const textChunks =
-      Array.isArray(raw.output)
-        ? raw.output.flatMap(item =>
-            Array.isArray(item.content)
-              ? item.content
-                  .filter(c => c && (typeof c.text === "string" || typeof c.output_text === "string"))
-                  .map(c => c.text ?? c.output_text)
-              : []
-          )
-        : [];
-
-    const allText = textChunks.join("\n").trim();
-
-    if (allText) {
-      return { parsed: safeParseJson(allText), raw };
-    }
-
-    // 3) rien de textuel -> erreur
-    return { parsed: null, raw };
-  } catch (err) {
+    // concat des blocs
+    const chunks = Array.isArray(raw.output)
+      ? raw.output.flatMap(msg =>
+          Array.isArray(msg.content)
+            ? msg.content
+                .filter(c => typeof c?.text === "string" || typeof c?.output_text === "string")
+                .map(c => c.text ?? c.output_text)
+            : []
+        )
+      : [];
+    const text = chunks.join("\n").trim();
+    return { raw, text, incomplete: raw.status === "incomplete" };
+  } catch (e) {
     clearTimeout(timer);
-    const prefix = err.name === "AbortError" ? "OpenAI fetch error: This operation was aborted" : String(err);
-    if (debug) {
-      throw new Error(prefix + (raw ? ` | raw=${JSON.stringify(raw).slice(0, 1200)}` : ""));
-    }
-    throw new Error(prefix);
+    throw e;
   }
 }
 
-function safeParseJson(txt) {
-  // tentative directe
-  try {
-    return JSON.parse(txt);
-  } catch (_) {
-    // essaie d’extraire le plus grand bloc {...} JSON
-    const i = txt.indexOf("{");
-    const j = txt.lastIndexOf("}");
-    if (i >= 0 && j > i) {
-      const slice = txt.slice(i, j + 1);
-      try {
-        return JSON.parse(slice);
-      } catch (_) {
-        return null;
-      }
-    }
-    return null;
+async function callOpenAIAdaptive({ sys, user, mode, maxtok, timeoutMs }) {
+  // stratégie : pour FULL, par défaut 3500 ; pour MINI, 900 ; on remonte si incomplete/max_output_tokens
+  const initialTok = Number.isFinite(maxtok)
+    ? maxtok
+    : mode === "mini"
+    ? 900
+    : 3500;
+
+  let attempt = await callOpenAIOnce({ sys, user, maxtok: initialTok, timeoutMs });
+  let parsed = attempt.text ? safeParseJson(attempt.text) : null;
+
+  // si incomplet pour cause de max_output_tokens : on retente une fois +2000 (limite 6000)
+  const reason = attempt.raw?.incomplete_details?.reason;
+  if ((!parsed || attempt.incomplete) && reason === "max_output_tokens") {
+    const bump = Math.min((initialTok || 0) + 2000, 6000);
+    attempt = await callOpenAIOnce({ sys, user, maxtok: bump, timeoutMs });
+    parsed = attempt.text ? safeParseJson(attempt.text) : null;
   }
+
+  return { parsed, raw: attempt.raw };
 }
 
-// ---------- Handler ----------
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
-
   const book = searchParams.get("book") || "Genèse";
   const chapter = searchParams.get("chapter") || "1";
   const verse = searchParams.get("verse") || "";
   const translation = searchParams.get("translation") || "JND";
   const bibleId = searchParams.get("bibleId") || "";
-  const mode = (searchParams.get("mode") || "full").toLowerCase(); // "mini" | "full"
-  const maxtok = parseInt(searchParams.get("maxtok") || "1500", 10);
+  const mode = (searchParams.get("mode") || "full").toLowerCase(); // mini | full
+  const maxtok = parseInt(searchParams.get("maxtok") || "", 10);
   const timeout = parseInt(searchParams.get("oaitimeout") || "30000", 10);
   const dry = searchParams.get("dry") || "";
   const debug = searchParams.get("debug") === "1";
 
   try {
-    // 1) dry-run (pour tests UI)
+    if (!OPENAI_API_KEY) {
+      return json({ ok: false, error: "OPENAI_API_KEY manquante." });
+    }
+
+    // --- DRY RUN pour tests UI ---
     if (dry) {
       if (mode === "mini") {
-        return asJson({
+        return json({
           ok: true,
           data: {
             meta: {
@@ -263,8 +251,7 @@ export async function GET(req) {
           }
         });
       }
-      // full
-      return asJson({
+      return json({
         ok: true,
         data: {
           meta: {
@@ -272,77 +259,67 @@ export async function GET(req) {
             reference: verse ? `${book} ${chapter}:${verse}` : `${book} ${chapter}`,
             osis: ""
           },
-          sections: Array.from({ length: 28 }, (_, k) => ({
-            index: k + 1,
-            title: `Section ${k + 1}`,
-            content: "Exemple FULL.",
-            verses: []
+          sections: Array.from({ length: 28 }, (_, i) => ({
+            index: i + 1, title: `Section ${i + 1}`, content: "Exemple FULL.", verses: []
           }))
         }
       });
     }
 
-    // 2) on va chercher le passage côté serveur via /api/bibleProvider
+    // --- fetch passage via bibleProvider ---
     const base = req.headers.get("x-forwarded-host")
       ? `https://${req.headers.get("x-forwarded-host")}`
       : "http://localhost:3000";
 
-    const passageUrl = `${base}/api/bibleProvider?book=${encodeURIComponent(book)}&chapter=${encodeURIComponent(
-      chapter
-    )}${verse ? `&verse=${encodeURIComponent(verse)}` : ""}${bibleId ? `&bibleId=${encodeURIComponent(bibleId)}` : ""}`;
+    const passageUrl =
+      `${base}/api/bibleProvider?book=${encodeURIComponent(book)}&chapter=${encodeURIComponent(chapter)}` +
+      (verse ? `&verse=${encodeURIComponent(verse)}` : "") +
+      (bibleId ? `&bibleId=${encodeURIComponent(bibleId)}` : "");
 
     const pRes = await fetch(passageUrl);
     if (!pRes.ok) {
-      const msg = await pRes.text();
-      return asJson({ ok: false, error: `BibleProvider HTTP ${pRes.status}: ${msg}` }, 200);
+      return json({ ok: false, error: `BibleProvider HTTP ${pRes.status}: ${await pRes.text()}` });
     }
     const pJson = await pRes.json();
     if (!pJson.ok) {
-      return asJson({ ok: false, error: pJson.error || "BibleProvider error" }, 200);
+      return json({ ok: false, error: pJson.error || "BibleProvider error" });
     }
 
     const passage = pJson.data;
     const reference = verse ? `${book} ${chapter}:${verse}` : `${book} ${chapter}`;
+    const osis = passage.osis || "";
 
-    // 3) prompts
-    const sys = buildSystemPrompt(mode);
-    const user = buildUserPrompt({
-      reference,
-      translation,
-      passageText: passage.passageText || "",
-      mode
+    const sys = sysPrompt(mode);
+    const user = userPrompt({
+      reference, translation, osis, passageText: passage.passageText || "", mode
     });
 
-    // 4) Appel OpenAI
-    const { parsed, raw } = await callOpenAI({
+    const { parsed, raw } = await callOpenAIAdaptive({
       sys,
       user,
-      maxtok,
-      timeoutMs: timeout,
-      debug
+      mode,
+      // si full et pas de maxtok explicite, on pousse à 3500
+      maxtok: Number.isFinite(maxtok) ? maxtok : (mode === "full" ? 3500 : 900),
+      timeoutMs: timeout
     });
 
     if (!parsed || !parsed.meta || !Array.isArray(parsed.sections)) {
       if (debug) {
-        return asJson({
-          ok: false,
-          error: "Sortie OpenAI non-JSON (ou invalide).",
-          rawOpenAI: raw
-        });
+        return json({ ok: false, error: "Sortie OpenAI non-JSON (full).", debug: { raw } });
       }
-      return asJson({ ok: false, error: `Sortie OpenAI non-JSON (${mode}).` }, 200);
+      return json({ ok: false, error: `Sortie OpenAI non-JSON (${mode}).` });
     }
 
-    // 5) compléter meta si vide
+    // compléter meta si besoin
     parsed.meta.book = parsed.meta.book || String(book);
     parsed.meta.chapter = parsed.meta.chapter || String(chapter);
     parsed.meta.verse = parsed.meta.verse ?? String(verse || "");
     parsed.meta.translation = parsed.meta.translation || String(translation);
     parsed.meta.reference = parsed.meta.reference || reference;
-    parsed.meta.osis = parsed.meta.osis || (passage.osis || "");
+    parsed.meta.osis = parsed.meta.osis || osis;
 
-    return asJson({ ok: true, data: parsed });
-  } catch (err) {
-    return asJson({ ok: false, error: String(err) }, 200);
+    return json({ ok: true, data: parsed });
+  } catch (e) {
+    return json({ ok: false, error: String(e) });
   }
 }
