@@ -1,15 +1,12 @@
-// /api/study-28.js  (Pages API – handler(req,res))
-// Pas d'import NextResponse : on répond avec res.status(...).json(...)
+// /api/study-28.js  — Pages API (Next.js "pages")
+// Répond toujours en JSON (même en cas d’erreur).
 
-export const config = {
-  // force l’exécution Node (pas Edge) pour éviter certains plantages
-  runtime: "nodejs",
-};
+export const config = { runtime: "nodejs" };
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const DEFAULT_MODEL  = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
 
-/** ===== Schéma JSON (full 28) ===== */
+/* ===== Schéma JSON (full 28) ===== */
 const schemaFull = {
   name: "study_28",
   schema: {
@@ -46,8 +43,8 @@ const schemaFull = {
   strict: true
 };
 
-/** ===== Helpers ===== */
-function jOk(res, data)  { res.status(200).json({ ok: true,  data }); }
+/* ===== helpers ===== */
+function jOk(res, data)  { res.status(200).json({ ok: true, data }); }
 function jErr(res, error){ res.status(200).json({ ok: false, error: String(error) }); }
 
 function getBaseUrl(req) {
@@ -65,7 +62,7 @@ function mkAbort(ms) {
   return { ctrl, t };
 }
 
-/** ===== OpenAI (mini) ===== */
+/* ===== OpenAI (mini) ===== */
 async function oaiMini({ model, prompt, maxtok, timeoutMs, debug }) {
   if (!OPENAI_API_KEY) return { error: "OPENAI_API_KEY manquante." };
 
@@ -74,7 +71,7 @@ async function oaiMini({ model, prompt, maxtok, timeoutMs, debug }) {
     model,
     temperature: 0.15,
     max_output_tokens: Number.isFinite(maxtok) ? Math.max(300, maxtok) : 700,
-    text: { format: "json_object" },
+    text: { format: "json_object" },   // OK pour mini
     input: prompt
   };
 
@@ -119,7 +116,7 @@ async function oaiMini({ model, prompt, maxtok, timeoutMs, debug }) {
   return { error: "Sortie OpenAI vide (mini).", _raw: debug ? out : undefined };
 }
 
-/** ===== OpenAI (full 28) ===== */
+/* ===== OpenAI (full 28) ===== */
 async function oaiFull({ model, prompt, maxtok, timeoutMs, debug }) {
   if (!OPENAI_API_KEY) return { error: "OPENAI_API_KEY manquante." };
 
@@ -128,7 +125,8 @@ async function oaiFull({ model, prompt, maxtok, timeoutMs, debug }) {
     model,
     temperature: 0.12,
     max_output_tokens: Number.isFinite(maxtok) ? Math.max(900, maxtok) : 1500,
-    text: { format: "json_schema", json_schema: schemaFull },
+    // CORRECTION ICI : le schéma se passe dans text.schema (pas text.json_schema)
+    text: { format: "json_schema", schema: schemaFull },
     input: prompt
   };
 
@@ -173,9 +171,8 @@ async function oaiFull({ model, prompt, maxtok, timeoutMs, debug }) {
   return { error: "Sortie OpenAI vide (full).", _raw: debug ? out : undefined };
 }
 
-/** ===== Handler Pages API ===== */
+/* ===== Handler ===== */
 export default async function handler(req, res) {
-  // éviter tout cache CDN
   res.setHeader("Cache-Control", "no-store, max-age=0");
 
   try {
@@ -193,7 +190,6 @@ export default async function handler(req, res) {
     const debug       = sp.debug === "1";
     const dry         = sp.dry === "1";
 
-    // 0) Dry-run : prouve que la route ne plante pas côté Vercel
     if (dry) {
       return jOk(res, {
         meta: { book, chapter, verse, translation, reference: `${book} ${chapter}${verse ? ":"+verse : ""}`, osis: "" },
@@ -207,7 +203,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 1) Récupérer le passage via /api/bibleProvider (même domaine)
+    // 1) Passage via /api/bibleProvider
     const base = getBaseUrl(req);
     const url =
       `${base}/api/bibleProvider?book=${encodeURIComponent(book)}` +
@@ -232,7 +228,7 @@ export default async function handler(req, res) {
     }
     const passage = passageJson.data;
 
-    // 2) Prompts
+    // 2) Prompt
     const isFull = mode === "full";
     const header =
 `Tu es un bibliste pédagogue. Réponds STRICTEMENT en JSON ${isFull ? "(schéma 28 sections)" : "(3 sections)"}.
@@ -299,7 +295,7 @@ ${isFull ? guideFull : guideMini}
 
 ${schemaHint}`;
 
-    // 3) Appel OpenAI
+    // 3) OpenAI
     const resOai = isFull
       ? await oaiFull({ model: DEFAULT_MODEL, prompt, maxtok: Number.isFinite(maxtok) ? maxtok : 1500, timeoutMs: timeout, debug })
       : await oaiMini({ model: DEFAULT_MODEL, prompt, maxtok: Number.isFinite(maxtok) ? maxtok : 700,  timeoutMs: timeout, debug });
@@ -315,7 +311,6 @@ ${schemaHint}`;
       return jErr(res, "Sortie OpenAI invalide.");
     }
 
-    // 4) compléter meta et vérifier le nombre de sections
     parsed.meta = {
       book, chapter, verse, translation,
       reference: passage.reference,
@@ -335,7 +330,6 @@ ${schemaHint}`;
     return jOk(res, parsed);
 
   } catch (e) {
-    // aucun 500 non maîtrisé : on renvoie toujours du JSON
     return jErr(res, e?.message || e);
   }
 }
