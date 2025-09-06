@@ -5,34 +5,15 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
 
 const STUDY_TITLES = [
-  "Thème central",
-  "Résumé en une phrase",
-  "Contexte historique",
-  "Auteur et date",
-  "Genre littéraire",
-  "Structure du passage",
-  "Plan détaillé",
-  "Mots-clés",
-  "Termes clés (définis)",
-  "Personnages et lieux",
-  "Problème / Question de départ",
-  "Idées majeures (développement)",
-  "Verset pivot (climax)",
-  "Références croisées (AT)",
-  "Références croisées (NT)",
-  "Parallèles bibliques",
-  "Lien avec l’Évangile (Christocentrique)",
-  "Vérités doctrinales (3–5)",
-  "Promesses et avertissements",
-  "Principes intemporels",
-  "Applications personnelles (3–5)",
-  "Applications communautaires",
-  "Questions pour petits groupes (6)",
-  "Prière guidée",
-  "Méditation courte",
-  "Versets à mémoriser (2–3)",
-  "Difficultés/objections & réponses",
-  "Ressources complémentaires"
+  "Thème central", "Résumé en une phrase", "Contexte historique", "Auteur et date",
+  "Genre littéraire", "Structure du passage", "Plan détaillé", "Mots-clés",
+  "Termes clés (définis)", "Personnages et lieux", "Problème / Question de départ",
+  "Idées majeures (développement)", "Verset pivot (climax)", "Références croisées (AT)",
+  "Références croisées (NT)", "Parallèles bibliques", "Lien avec l’Évangile (Christocentrique)",
+  "Vérités doctrinales (3–5)", "Promesses et avertissements", "Principes intemporels",
+  "Applications personnelles (3–5)", "Applications communautaires", "Questions pour petits groupes (6)",
+  "Prière guidée", "Méditation courte", "Versets à mémoriser (2–3)",
+  "Difficultés/objections & réponses", "Ressources complémentaires"
 ];
 
 function json(status, body, extraHeaders) {
@@ -40,7 +21,7 @@ function json(status, body, extraHeaders) {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "x-study28-build": "v6-no-modalities",
+      "x-study28-build": "v7-no-seed",
       ...(extraHeaders || {})
     }
   });
@@ -58,7 +39,7 @@ function qs(req) {
     mode: g("mode", "full"),
     maxtok: parseInt(g("maxtok", "1500"), 10),
     oaitimeout: parseInt(g("oaitimeout", "30000"), 10),
-    debug: g("debug", "") // "1" pour activer le retour du body envoyé à OpenAI (sans clé)
+    debug: g("debug", "")
   };
 }
 
@@ -149,7 +130,6 @@ async function callOpenAI({ sys, user, maxtok, oaitimeout, expectedSections, deb
     model: OPENAI_MODEL,
     temperature: 0.1,
     max_output_tokens: Number.isFinite(maxtok) ? Math.max(500, maxtok) : 1500,
-    // ⚠️ PAS de "modalities" ici.
     text: {
       format: "json_schema",
       json_schema: schema
@@ -157,14 +137,11 @@ async function callOpenAI({ sys, user, maxtok, oaitimeout, expectedSections, deb
     input: [
       { role: "system", content: sys },
       { role: "user", content: user }
-    ],
-    seed: 7
+    ]
+    // ⚠️ seed supprimé
   };
 
-  if (debug === "1") {
-    // On renvoie le body (sans l’Authorization) pour vérifier qu’aucun "modalities" ne part
-    throw Object.assign(new Error("DEBUG_BODY"), { _debug_body: body });
-  }
+  if (debug === "1") throw Object.assign(new Error("DEBUG_BODY"), { _debug_body: body });
 
   try {
     const r = await fetch("https://api.openai.com/v1/responses", {
@@ -188,23 +165,17 @@ async function callOpenAI({ sys, user, maxtok, oaitimeout, expectedSections, deb
       payload.output?.[0]?.content?.[0]?.text ||
       payload.content?.[0]?.text;
 
-    if (typeof outputText !== "string" || !outputText.trim()) {
-      throw new Error("OpenAI: contenu vide");
-    }
+    if (typeof outputText !== "string" || !outputText.trim()) throw new Error("OpenAI: contenu vide");
 
     let out;
-    try {
-      out = JSON.parse(outputText);
-    } catch {
+    try { out = JSON.parse(outputText); } catch {
       const m = outputText.match(/\{[\s\S]*\}$/m);
       if (!m) throw new Error("Sortie OpenAI non-JSON.");
       out = JSON.parse(m[0]);
     }
 
     if (!Array.isArray(out.sections) || out.sections.length !== expectedSections) {
-      throw new Error(
-        `Sections attendues: ${expectedSections}, reçues: ${Array.isArray(out.sections) ? out.sections.length : "?"}`
-      );
+      throw new Error(`Sections attendues: ${expectedSections}, reçues: ${Array.isArray(out.sections) ? out.sections.length : "?"}`);
     }
 
     return out;
@@ -218,7 +189,6 @@ export default async function handler(req) {
     const { book, chapter, verse, translation, bibleId, mode, maxtok, oaitimeout, debug } = qs(req);
     if (!book || !chapter) return json(400, { ok: false, error: "Paramètres requis: book, chapter" });
 
-    // 1) Récupère le passage via /api/bibleProvider (serveur)
     const origin = new URL(req.url).origin;
     const sp = new URLSearchParams();
     sp.set("book", book);
@@ -234,32 +204,4 @@ export default async function handler(req) {
     try { bp = JSON.parse(bpText); } catch { return json(500, { ok: false, error: "BibleProvider: réponse non-JSON" }); }
     if (!bp.ok) return json(500, { ok: false, error: bp.error || "BibleProvider: échec" });
 
-    const passageText = (bp.data?.passageText || "").trim();
-    const reference = bp.data?.reference || `${book} ${chapter}${verse ? ":" + verse : ""}`;
-    const osis = bp.data?.osis || "";
-    if (!passageText) return json(500, { ok: false, error: "Passage vide depuis BibleProvider" });
-
-    const expectedSections = mode === "mini" ? 3 : 28;
-    const sys = systemPrompt();
-    const user = userPrompt({ reference, translation, passageText, mode });
-
-    const out = await callOpenAI({ sys, user, maxtok, oaitimeout, expectedSections, debug });
-
-    const metaIn = out.meta || {};
-    out.meta = {
-      book: String(metaIn.book || book),
-      chapter: String(metaIn.chapter || chapter),
-      verse: String(metaIn.verse || (verse || "")),
-      translation: String(metaIn.translation || translation || ""),
-      reference: String(metaIn.reference || reference),
-      osis: String(metaIn.osis || osis)
-    };
-
-    return json(200, { ok: true, data: out });
-  } catch (err) {
-    if (err && err.message === "DEBUG_BODY" && err._debug_body) {
-      return json(200, { ok: true, debug: err._debug_body });
-    }
-    return json(500, { ok: false, error: String(err?.message || err) });
-  }
-}
+    const passageText = (bp.data?.passageText || "").trim
