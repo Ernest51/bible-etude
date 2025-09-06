@@ -23,7 +23,6 @@ const schemaFull = {
           reference:   { type: "string" },
           osis:        { type: "string" }
         },
-        // ✅ FIX: 'verse' ajouté ici
         required: ["book", "chapter", "verse", "translation", "reference", "osis"]
       },
       sections: {
@@ -40,7 +39,8 @@ const schemaFull = {
               items: { type: "string" }
             }
           },
-          required: ["index", "title", "content"]
+          // ✅ FIX: l’API exige que required couvre TOUTES les propriétés (dont 'verses')
+          required: ["index", "title", "content", "verses"]
         }
       }
     },
@@ -287,7 +287,7 @@ Langue: français. N'invente pas de versets. Cite uniquement le passage fourni.`
 `Schéma JSON :
 {
   "meta": { "book": string, "chapter": string, "verse": string, "translation": string, "reference": string, "osis": string },
-  "sections": [ { "index": number, "title": string, "content": string, "verses": string[]? }, ... ]
+  "sections": [ { "index": number, "title": string, "content": string, "verses": string[] }, ... ]
 }
 Réponds UNIQUEMENT par l'objet JSON.`;
 
@@ -330,6 +330,14 @@ ${schemaHint}`;
       osis: passage.osis,
       ...(parsed.meta || {})
     };
+
+    // Normalisation sections: garantir verses: []
+    if (Array.isArray(parsed.sections)) {
+      parsed.sections = parsed.sections.map(s => ({
+        ...s,
+        verses: Array.isArray(s?.verses) ? s.verses : []
+      }));
+    }
 
     if (isFull) {
       if (!Array.isArray(parsed.sections))
