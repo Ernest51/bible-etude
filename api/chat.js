@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     const host  = req.headers["x-forwarded-host"] || req.headers["host"];
     const base  = `${proto}://${host}`;
 
-    // On passe tel quel (book, chapter, verse, mode, translation…)
+    // on passe les paramètres en query pour /api/study-28
     const sp = new URLSearchParams();
     for (const [k,v] of Object.entries(body || {})) if (v !== undefined && v !== null && v !== "") sp.set(k, String(v));
 
@@ -29,7 +29,12 @@ export default async function handler(req, res) {
     const txt = await r.text().catch(()=> "");
     let j; try { j = txt ? JSON.parse(txt) : {}; } catch { j = { raw: txt }; }
 
-    return res.status(r.status).json({ ok: r.ok && j?.ok !== false, source:"study-28-proxy", data: j });
+    // 🔴 important : renvoyer j.data (et pas j entier), car le front attend data.sections directement
+    return res.status(r.status).json({
+      ok: r.ok && j?.ok !== false,
+      source: "study-28-proxy",
+      data: j?.data ?? {}
+    });
   } catch (e) {
     return res.status(500).json({ ok:false, error:"proxy_failed", detail: String(e?.message || e) });
   }
