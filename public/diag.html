@@ -1,203 +1,227 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Diagnostic FRONT — Bible Étude</title>
-  <style>
-    :root{--border:#e5e7eb;--ok:#10b981;--okbg:#e8fff2;--ko:#ef4444;--kobg:#fff1f2;--warn:#f59e0b;--warnbg:#fff7ed}
-    body{font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:24px;background:#f9fafb;color:#111827}
-    h1{margin:0 0 12px;font-size:20px}
-    .card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px;margin:12px 0}
-    .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .hr{height:1px;background:var(--border);margin:12px 0}
-    code{background:#f3f4f6;padding:2px 6px;border-radius:6px}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-    .badge{display:inline-block;border-radius:999px;font-size:12px;padding:3px 9px;border:1px solid}
-    .ok{color:#065f46;background:var(--okbg);border-color:var(--ok)}
-    .ko{color:#991b1b;background:var(--kobg);border-color:var(--ko)}
-    .warn{color:#9a3412;background:var(--warnbg);border-color:var(--warn)}
-    button{background:#111827;color:#fff;border:0;border-radius:8px;padding:10px 14px;cursor:pointer}
-    button:disabled{opacity:.6;cursor:default}
-    a.btn{display:inline-block;text-decoration:none;background:#111827;color:#fff;border-radius:8px;padding:10px 14px}
-    .small{font-size:12px;color:#6b7280}
-    .log{white-space:pre-wrap;font-size:12px;background:#0b1020;color:#e2e8f0;border-radius:8px;padding:8px;margin-top:8px;max-height:260px;overflow:auto}
-    @media (max-width:900px){.grid{grid-template-columns:1fr}}
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Diag API — bible-etude</title>
+<style>
+  :root{--bg:#0b1220;--panel:#0f172a;--muted:#8aa0be;--ok:#22c55e;--ko:#ef4444;--warn:#f59e0b;--h:#60a5fa;}
+  html,body{margin:0;background:var(--bg);color:#dbeafe;font:14px/1.45 system-ui,Segoe UI,Roboto,Arial,sans-serif}
+  header{padding:16px 18px;border-bottom:1px solid #1f2a44;background:linear-gradient(180deg,#0f172a,#0b1220)}
+  h1{margin:0 0 6px 0;font-size:20px}
+  .muted{color:var(--muted)}
+  main{max-width:1100px;margin:0 auto;padding:16px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid #1f2a44;border-radius:10px;overflow:hidden}
+  .card h3{margin:0;padding:10px 12px;border-bottom:1px solid #1f2a44;background:#0c1426}
+  .body{padding:10px 12px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
+  input,select,button{background:#0b1326;color:#e5e7eb;border:1px solid #1e293b;border-radius:8px;padding:8px 10px}
+  button{cursor:pointer;font-weight:700}
+  button.run{background:#1d4ed8}
+  button.sec{background:#0b1326}
+  .kv{display:grid;grid-template-columns:160px 1fr;gap:6px 10px}
+  .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid #1f2a44;border-radius:999px;padding:4px 8px}
+  .ok{color:var(--ok)} .ko{color:var(--ko)} .warn{color:var(--warn)}
+  .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; white-space:pre-wrap; background:#0a0f1f; border:1px solid #1f2a44; border-radius:8px; padding:8px; max-height:320px; overflow:auto}
+  .head{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .small{font-size:12px}
+</style>
 </head>
 <body>
-  <h1>Diagnostic FRONT — Bible Étude</h1>
+<header>
+  <h1>Diagnostic API — <span class="muted">bible-etude</span></h1>
+  <div class="muted small">Outil local (public/diag.html) pour vérifier qui répond et ce que renvoient les endpoints.</div>
+</header>
 
-  <!-- 1) app.js (refetch en no-store) -->
+<main>
   <div class="card">
-    <div class="row">
-      <strong>1) Vérifier <code>/app.js</code> (refetch en <code>no-store</code>)</strong>
-      <span id="jsBadge" class="badge warn">…</span>
-    </div>
-    <div class="hr"></div>
-    <div class="grid">
-      <div>
-        <div>Hash actuel de <code>/app.js</code> : <code id="jsHash" class="mono">—</code></div>
-        <div class="small">Cette page ne charge pas <code>app.js</code>. Elle le télécharge juste pour mesurer un hash et vérifier l’accessibilité.</div>
-        <div class="small">Dans <strong>index.html</strong>, utilise <code>&lt;script src="/app-loader.js"&gt;</code> (le loader pose <code>?v=…</code> sur <code>app.js</code>).</div>
+    <h3>Paramètres</h3>
+    <div class="body">
+      <div class="row">
+        <label>Base URL</label>
+        <input id="base" style="min-width:320px"/>
+        <button class="sec" id="useCurrent">Utiliser l’hôte courant</button>
       </div>
-      <div>
-        <button id="btnRefetch">Re-télécharger /app.js (no-store)</button>
-        <a class="btn" href="/" target="_blank" rel="noopener">Ouvrir la page principale</a>
+      <div class="row">
+        <label>Livre</label><input id="book" value="Genèse" style="min-width:160px"/>
+        <label>Chapitre</label><input id="chapter" value="1" style="width:90px"/>
+        <label>Verset</label><input id="verse" placeholder="(optionnel)" style="width:110px"/>
+        <label>Mode</label>
+        <select id="mode"><option value="full">full</option><option value="mini">mini</option></select>
       </div>
-    </div>
-    <div id="jsLog" class="log" hidden></div>
-  </div>
-
-  <!-- 2) API -->
-  <div class="card">
-    <div class="row">
-      <strong>2) API</strong>
-      <span id="apiBadge" class="badge warn">…</span>
-    </div>
-    <div class="hr"></div>
-    <div class="grid">
-      <div>
-        <div>/api/health : <span id="healthStatus">—</span></div>
-        <div>/api/chat (POST) : <span id="chatStatus">—</span></div>
-        <div>sections : <code id="chatSections">—</code> &nbsp; source : <code id="chatSource">—</code> &nbsp; warn : <code id="chatWarn">—</code></div>
-      </div>
-      <div>
-        <button id="btnHealth">Tester /api/health</button>
-        <button id="btnChat">Tester /api/chat (POST)</button>
-      </div>
-    </div>
-    <div id="apiLog" class="log" hidden></div>
-  </div>
-
-  <!-- 3) localStorage -->
-  <div class="card">
-    <div class="row">
-      <strong>3) LocalStorage (<code>be_notes</code>)</strong>
-      <span id="storeBadge" class="badge warn">…</span>
-    </div>
-    <div class="hr"></div>
-    <div class="grid">
-      <div>
-        <div>État actuel : <code id="storeState">—</code></div>
-        <div class="small">Tu peux injecter une étude de test (28 rubriques), puis revenir sur l’app principale et cliquer « Générer ».</div>
-      </div>
-      <div>
-        <button id="btnFill">Remplir 28 rubriques (exemple)</button>
-        <button id="btnClear">Vider be_notes</button>
+      <div class="row">
+        <button class="run" id="runAll">Lancer tous les tests</button>
+        <span class="badge" id="statusAll">prêt</span>
       </div>
     </div>
   </div>
+
+  <div class="grid" style="margin-top:12px">
+    <div class="card">
+      <h3>/api/study-28</h3>
+      <div class="body">
+        <div class="row">
+          <button class="sec" id="tStudySelf">selftest</button>
+          <button class="sec" id="tStudyMini">mini</button>
+          <button class="sec" id="tStudyFull">full</button>
+        </div>
+        <div class="kv small">
+          <div>status</div><div id="study_status">—</div>
+          <div>x-handler</div><div id="study_handler">—</div>
+        </div>
+        <div class="mono" id="study_out">[en attente]</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>/api/chat (proxy → study-28)</h3>
+      <div class="body">
+        <div class="row">
+          <button class="sec" id="tChatProbe">probe</button>
+          <button class="sec" id="tChatGen">génération</button>
+        </div>
+        <div class="kv small">
+          <div>status</div><div id="chat_status">—</div>
+          <div>x-handler</div><div id="chat_handler">—</div>
+        </div>
+        <div class="mono" id="chat_out">[en attente]</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>/api/diag & /api/whoami</h3>
+      <div class="body">
+        <div class="row">
+          <button class="sec" id="tDiag">/api/diag</button>
+          <button class="sec" id="tWho">/api/whoami</button>
+        </div>
+        <div class="mono" id="diag_out">[en attente]</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Autres endpoints</h3>
+      <div class="body">
+        <div class="row">
+          <button class="sec" id="tHealth">/api/health</button>
+          <button class="sec" id="tPing">/api/ping</button>
+          <button class="sec" id="tProvider">/api/bibleProvider (passage)</button>
+          <button class="sec" id="tBooks">/api/bibleBooks</button>
+          <button class="sec" id="tChapters">/api/bibleChapters</button>
+        </div>
+        <div class="mono" id="misc_out">[en attente]</div>
+      </div>
+    </div>
+  </div>
+</main>
 
 <script>
 (function(){
   const $ = (id)=>document.getElementById(id);
+  const base = $("base");
+  const book = $("book"); const chapter = $("chapter"); const verse = $("verse");
+  const mode = $("mode");
+  const statusAll = $("statusAll");
 
-  // helpers
-  function setBadge(el, kind){ el.className = "badge " + kind; el.textContent = (kind==="ok"?"OK":kind==="ko"?"KO":"…"); }
-  function showLog(el, text){ if(!text){ el.hidden = true; el.textContent = ""; return; } el.hidden = false; el.textContent = text; }
+  function now(){ return new Date().toLocaleTimeString(); }
+  function setBadge(el, cls, txt){ el.classList.remove("ok","ko","warn"); if(cls) el.classList.add(cls); if(txt) el.textContent = txt; }
+  function j(obj){ try{return JSON.stringify(obj,null,2);}catch{return String(obj);} }
 
-  async function sha256Hex(text){
-    const enc = new TextEncoder().encode(text);
-    const buf = await crypto.subtle.digest("SHA-256", enc);
-    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("").slice(0,12);
-  }
+  $("useCurrent").onclick = ()=>{ base.value = location.origin; };
 
-  // 1) /app.js refetch (no-store)
-  async function refetchJS(){
-    const log = $("jsLog");
+  async function get(url, outEl, statusEl, handlerEl){
     try{
-      const r = await fetch("/app.js", { cache:"no-store" });
-      const t = await r.text();
-      if(!r.ok) throw new Error("HTTP " + r.status);
-      const hash = await sha256Hex(t);
-      $("jsHash").textContent = hash;
-      setBadge($("jsBadge"), "ok");
-      showLog(log, "[/app.js] status="+r.status+"\nbytes="+t.length+"\nhash="+hash);
+      const r = await fetch(url, {cache:"no-store"});
+      const ct = (r.headers.get("content-type")||"").toLowerCase();
+      const xh = r.headers.get("x-handler") || "";
+      if(statusEl) statusEl.textContent = `${r.status} ${r.statusText}`;
+      if(handlerEl) handlerEl.textContent = xh || "—";
+      let payload;
+      if(ct.includes("application/json")) payload = await r.json().catch(()=>({raw:"<json parse error>"}));
+      else payload = { text: (await r.text()).slice(0,1200) };
+      if(outEl) outEl.textContent = `[${now()}] GET ${url}\n\n` + j(payload);
+      return { ok:r.ok, status:r.status, headers:{'x-handler':xh}, body:payload };
     }catch(e){
-      $("jsHash").textContent = "Erreur";
-      setBadge($("jsBadge"), "ko");
-      showLog(log, "Erreur /app.js → " + (e && e.message ? e.message : e));
+      if(outEl) outEl.textContent = `[${now()}] GET ${url}\n\n` + String(e);
+      if(statusEl) statusEl.textContent = "failed";
+      if(handlerEl) handlerEl.textContent = "—";
+      return { ok:false, error:String(e) };
     }
   }
-  $("btnRefetch").addEventListener("click", refetchJS);
-
-  // 2) API tests
-  async function testHealth(){
-    const log = $("apiLog");
+  async function post(url, data, outEl, statusEl, handlerEl){
     try{
-      const r = await fetch("/api/health", { cache:"no-store" });
-      const j = await r.json();
-      const ok = j && j.ok === true && j.env && j.env.hasOpenAIKey;
-      $("healthStatus").innerHTML = ok ? '<span class="badge ok">OK</span>' : '<span class="badge ko">KO</span>';
-      showLog(log, "[/api/health] "+JSON.stringify(j,null,2));
-      return ok;
+      const r = await fetch(url, {method:"POST", headers:{'content-type':'application/json'}, body:JSON.stringify(data)});
+      const ct = (r.headers.get("content-type")||"").toLowerCase();
+      const xh = r.headers.get("x-handler") || "";
+      if(statusEl) statusEl.textContent = `${r.status} ${r.statusText}`;
+      if(handlerEl) handlerEl.textContent = xh || "—";
+      let payload;
+      if(ct.includes("application/json")) payload = await r.json().catch(()=>({raw:"<json parse error>"}));
+      else payload = { text: (await r.text()).slice(0,1200) };
+      if(outEl) outEl.textContent = `[${now()}] POST ${url}\n\n` + j(payload);
+      return { ok:r.ok, status:r.status, headers:{'x-handler':xh}, body:payload };
     }catch(e){
-      $("healthStatus").innerHTML = '<span class="badge ko">KO</span>';
-      showLog(log, "[/api/health] ERREUR → " + (e && e.message ? e.message : e));
-      return false;
+      if(outEl) outEl.textContent = `[${now()}] POST ${url}\n\n` + String(e);
+      if(statusEl) statusEl.textContent = "failed";
+      if(handlerEl) handlerEl.textContent = "—";
+      return { ok:false, error:String(e) };
     }
   }
 
-  async function testChat(){
-    const log = $("apiLog");
-    const S=(id,v)=>($(id).textContent = (v==null?"—":v));
-    try{
-      const r = await fetch("/api/chat", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        cache:"no-store",
-        body: JSON.stringify({ book:"Genèse", chapter:1, version:"LSG" })
-      });
-      const j = await r.json();
-      const ok = j && j.ok === true && j.data && Array.isArray(j.data.sections);
-      $("chatStatus").innerHTML = ok ? '<span class="badge ok">OK</span>' : '<span class="badge ko">KO</span>';
-      S("chatSections", ok? j.data.sections.length : "—");
-      S("chatSource", j && j.source || "—");
-      S("chatWarn", j && j.warn || "—");
-      showLog(log, "[/api/chat] "+JSON.stringify(j,null,2));
-      // badge global API
-      setBadge($("apiBadge"), (ok && j.data.sections.length===28) ? "ok" : "ko");
-      return ok;
-    }catch(e){
-      $("chatStatus").innerHTML = '<span class="badge ko">KO</span>';
-      setBadge($("apiBadge"), "ko");
-      showLog(log, "[/api/chat] ERREUR → " + (e && e.message ? e.message : e));
-      return false;
-    }
-  }
-  $("btnHealth").addEventListener("click", testHealth);
-  $("btnChat").addEventListener("click", testChat);
+  // Buttons
+  $("tStudySelf").onclick = ()=>get(`${base.value}/api/study-28?selftest=1`, $("study_out"), $("study_status"), $("study_handler"));
+  $("tStudyMini").onclick = ()=>{
+    const q = new URLSearchParams({book:book.value, chapter:chapter.value, verse:verse.value, mode:'mini'}); 
+    return get(`${base.value}/api/study-28?${q}`, $("study_out"), $("study_status"), $("study_handler"));
+  };
+  $("tStudyFull").onclick = ()=>{
+    const q = new URLSearchParams({book:book.value, chapter:chapter.value, verse:verse.value, mode:'full'}); 
+    return get(`${base.value}/api/study-28?${q}`, $("study_out"), $("study_status"), $("study_handler"));
+  };
 
-  // 3) localStorage
-  function refreshStore(){
-    try{
-      const raw = localStorage.getItem("be_notes");
-      $("storeState").textContent = raw ? (raw.length + " octets") : "(vide)";
-      setBadge($("storeBadge"), "ok");
-    }catch(e){
-      $("storeState").textContent = "Erreur: " + e.message;
-      setBadge($("storeBadge"), "ko");
-    }
-  }
-  $("btnFill").addEventListener("click", ()=>{
-    try{
-      const notes={}; for(let i=0;i<28;i++){ notes[i]=`Contenu de test #${i+1}\n\n(Diagnostic)`; }
-      localStorage.setItem("be_notes", JSON.stringify(notes));
-      refreshStore();
-      alert("OK : 28 rubriques injectées dans be_notes. Retourne sur l’app et clique « Générer ».");
-    }catch(e){ alert("Échec localStorage : "+e.message); }
-  });
-  $("btnClear").addEventListener("click", ()=>{
-    try{ localStorage.removeItem("be_notes"); refreshStore(); alert("be_notes vidé."); }
-    catch(e){ alert("Échec : "+e.message); }
-  });
+  $("tChatProbe").onclick = ()=>post(`${base.value}/api/chat`, {probe:true}, $("chat_out"), $("chat_status"), $("chat_handler"));
+  $("tChatGen").onclick = ()=>{
+    const payload = { book:book.value, chapter:chapter.value, verse:verse.value, version:"LSG", mode: mode.value };
+    return post(`${base.value}/api/chat`, payload, $("chat_out"), $("chat_status"), $("chat_handler"));
+  };
 
-  // lancer automatiquement
-  refreshStore();
-  refetchJS();
-  testHealth().then(()=>testChat());
+  $("tDiag").onclick = ()=>get(`${base.value}/api/diag`, $("diag_out"));
+  $("tWho").onclick  = ()=>get(`${base.value}/api/whoami`, $("diag_out"));
+
+  $("tHealth").onclick = ()=>get(`${base.value}/api/health`, $("misc_out"));
+  $("tPing").onclick   = ()=>get(`${base.value}/api/ping`, $("misc_out"));
+  $("tProvider").onclick = ()=>{
+    const q = new URLSearchParams({book:book.value, chapter:chapter.value, verse:verse.value});
+    return get(`${base.value}/api/bibleProvider?${q}`, $("misc_out"));
+  };
+  $("tBooks").onclick = ()=>{
+    const q = new URLSearchParams({bibleId:""});
+    return get(`${base.value}/api/bibleBooks?${q}`, $("misc_out"));
+  };
+  $("tChapters").onclick = ()=>{
+    const q = new URLSearchParams({bibleId:"", bookId:"GEN"});
+    return get(`${base.value}/api/bibleChapters?${q}`, $("misc_out"));
+  };
+
+  $("runAll").onclick = async ()=>{
+    setBadge(statusAll, "", "en cours…");
+    const tasks = [];
+    tasks.push(get(`${base.value}/api/study-28?selftest=1`, $("study_out"), $("study_status"), $("study_handler")));
+    const q = new URLSearchParams({book:book.value, chapter:chapter.value, mode:mode.value});
+    tasks.push(get(`${base.value}/api/study-28?${q}`, $("study_out"), $("study_status"), $("study_handler")));
+    tasks.push(post(`${base.value}/api/chat`, {probe:true}, $("chat_out"), $("chat_status"), $("chat_handler")));
+    tasks.push(post(`${base.value}/api/chat`, {book:book.value, chapter:chapter.value, version:"LSG", mode:mode.value}, $("chat_out"), $("chat_status"), $("chat_handler")));
+    tasks.push(get(`${base.value}/api/health`, $("misc_out")));
+    tasks.push(get(`${base.value}/api/ping`, $("misc_out")));
+    const rs = await Promise.allSettled(tasks);
+    const ok = rs.every(x => x.status === "fulfilled" && x.value && x.value.ok !== false);
+    setBadge(statusAll, ok ? "ok" : "ko", ok ? "OK" : "KO");
+  };
+
+  // init
+  base.value = location.origin;
 })();
 </script>
 </body>
