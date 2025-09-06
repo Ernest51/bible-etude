@@ -1,4 +1,5 @@
-// /api/chat.js
+// /api/chat.js — Proxy vers /api/study-28.js
+
 export const config = { runtime: "nodejs18.x" };
 
 function send(res, status, payload) {
@@ -26,7 +27,7 @@ export default async function handler(req, res) {
 
     const body = await readJsonBody(req);
     if (body && body.__parse_error) return send(res, 400, { ok: false, error: "JSON parse error", detail: body.__parse_error });
-    if (body && body.probe) return send(res, 200, { ok: true, source: "study28-proxy", probe: true });
+    if (body && body.probe) return send(res, 200, { ok: true, source: "study-28-proxy", probe: true });
 
     const {
       book = "", chapter = "", verse = "", version = "LSG",
@@ -47,16 +48,16 @@ export default async function handler(req, res) {
     if (verse)   sp.set("verse", String(verse));
     if (bibleId) sp.set("bibleId", String(bibleId));
 
-    const url = `${base}/api/study28?${sp.toString()}`;
+    const url = `${base}/api/study-28?${sp.toString()}`;
     const r = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
     if (!r.ok) {
       const txt = await r.text().catch(() => "");
-      return send(res, 502, { ok: false, error: `study28 ${r.status}`, detail: txt.slice(0, 1200) });
+      return send(res, 502, { ok: false, error: `study-28 ${r.status}`, detail: txt.slice(0, 1200) });
     }
     const j = await r.json().catch(() => ({}));
-    if (!j || j.ok === false) return send(res, 502, { ok: false, error: j?.error || "study28 invalid response" });
+    if (!j || j.ok === false) return send(res, 502, { ok: false, error: j?.error || "study-28 invalid response" });
 
-    return send(res, 200, { ok: true, data: j.data, source: "study28-proxy" });
+    return send(res, 200, { ok: true, data: j.data, source: "study-28-proxy" });
   } catch (e) {
     return send(res, 500, { ok: false, error: "proxy_failed", detail: String(e?.message || e) });
   }
