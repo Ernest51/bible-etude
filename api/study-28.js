@@ -1,387 +1,348 @@
-// /api/study-28.js — Next.js API Route (Node.js runtime)
+// api/study-28.js
+import { NextResponse } from "next/server";
 
-export const config = { runtime: "nodejs" };
+export const config = { runtime: "nodejs" }; // Serverless (pas Edge)
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const DEFAULT_MODEL  = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
+const OPENAI_MODEL =
+  process.env.OPENAI_MODEL || "gpt-4.1-mini"; // compatible Responses API
 
-/* ========= Schéma JSON (full 28) ========= */
-const schemaFull = {
-  name: "study_28",
-  schema: {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      meta: {
+// ---------- Schéma JSON strict pour 28 sections ----------
+const STUDY_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    meta: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        book: { type: "string" },
+        chapter: { type: "string" },
+        verse: { type: "string" },
+        translation: { type: "string" },
+        reference: { type: "string" },
+        osis: { type: "string" }
+      },
+      required: ["book", "chapter", "verse", "translation", "reference", "osis"]
+    },
+    sections: {
+      type: "array",
+      items: {
         type: "object",
         additionalProperties: false,
         properties: {
-          book:        { type: "string" },
-          chapter:     { type: "string" },
-          verse:       { type: "string" },
-          translation: { type: "string" },
-          reference:   { type: "string" },
-          osis:        { type: "string" }
+          index: { type: "integer" },
+          title: { type: "string" },
+          content: { type: "string" },
+          verses: {
+            type: "array",
+            items: { type: "string" }
+          }
         },
-        required: ["book", "chapter", "verse", "translation", "reference", "osis"]
-      },
-      sections: {
-        type: "array",
-        items: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            index:   { type: "integer" },
-            title:   { type: "string" },
-            content: { type: "string" },
-            verses:  {
-              type: "array",
-              items: { type: "string" }
-            }
-          },
-          // IMPORTANT: required couvre TOUTES les props, y compris 'verses'
-          required: ["index", "title", "content", "verses"]
-        }
+        required: ["index", "title", "content", "verses"]
       }
-    },
-    required: ["meta", "sections"]
+    }
   },
-  strict: true
+  required: ["meta", "sections"]
 };
 
-/* ========= helpers JSON ========= */
-function jOk(res, data)  { res.status(200).json({ ok: true, data }); }
-function jErr(res, error){ res.status(200).json({ ok: false, error: typeof error === "string" ? error : JSON.stringify(error) }); }
-
-function getBaseUrl(req) {
-  try {
-    const proto = req.headers["x-forwarded-proto"] || "https";
-    const host  = req.headers["x-forwarded-host"] || req.headers.host;
-    if (host) return `${proto}://${host}`;
-  } catch {}
-  return "http://localhost:3000";
+// ---------- petits utilitaires ----------
+function asJson(obj, status = 200) {
+  return NextResponse.json(obj, { status });
 }
 
-/* ========= Abort utils ========= */
-function mkAbort(ms) {
-  if (!ms || ms <= 0) return { ctrl: undefined, clear: () => {} };
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), ms);
-  return { ctrl, clear: () => clearTimeout(timer) };
+function buildSystemPrompt(mode) {
+  const isMini = mode === "mini";
+  return [
+    "Tu es un bibliste pédagogue.",
+    isMini
+      ? "Produit une synthèse **court format** (3 sections) conforme au schéma JSON strict fourni."
+      : "Produit une étude **complète** en **28 sections** conforme au schéma JSON strict fourni.",
+    "Langue: français. Ton pastoral mais rigoureux.",
+    "Ne réécris pas le passage biblique intégral, résume et structure. N'invente pas d'autres versets que le passage fourni.",
+  ].join(" ");
 }
 
-/* ========= fetch avec retry (429/5xx/AbortError) ========= */
-async function fetchWithRetry(url, opts, { tries = 2, backoffMs = 800 } = {}) {
-  let lastErr, attempt = 0;
-  while (attempt <= tries) {
-    try {
-      const r = await fetch(url, opts);
-      if (r.status === 429 || (r.status >= 500 && r.status <= 599)) {
-        lastErr = new Error(`HTTP ${r.status}: ${await r.text().catch(()=> "")}`);
-        if (attempt === tries) throw lastErr;
-      } else {
-        return r;
-      }
-    } catch (e) {
-      const aborted = e?.name === "AbortError";
-      if (attempt === tries) throw new Error(aborted ? "AbortError" : (e?.message || e));
-      lastErr = e;
-    }
-    await new Promise(res => setTimeout(res, backoffMs * Math.pow(2, attempt)));
-    attempt++;
+function buildUserPrompt({ reference, translation, passageText, mode }) {
+  const header = `Passage: ${reference} (${translation})`;
+  const body = "Texte (source unique pour l’analyse):\n```\n" + passageText + "\n```";
+
+  if (mode === "mini") {
+    return [
+      header,
+      body,
+      "",
+      "Produit une **synthèse courte** conforme au schéma JSON (3 sections fixes):",
+      "- 1) Thème central",
+      "- 2) Idées majeures (développement)",
+      "- 3) Applications personnelles",
+      "Respecte exactement les clés demandées par le schéma.",
+    ].join("\n");
   }
-  throw lastErr || new Error("fetchWithRetry: unknown error");
+
+  // full (28)
+  return [
+    header,
+    body,
+    "",
+    "Produit une **étude complète** en **28 sections**. Les titres attendus :",
+    "1. Thème central",
+    "2. Résumé en une phrase",
+    "3. Contexte historique",
+    "4. Auteur et date",
+    "5. Genre littéraire",
+    "6. Structure du passage",
+    "7. Plan détaillé",
+    "8. Mots-clés",
+    "9. Termes clés (définis)",
+    "10. Personnages et lieux",
+    "11. Problème / Question de départ",
+    "12. Idées majeures (développement)",
+    "13. Verset pivot (climax)",
+    "14. Références croisées (AT)",
+    "15. Références croisées (NT)",
+    "16. Parallèles bibliques",
+    "17. Lien avec l’Évangile (Christocentrique)",
+    "18. Vérités doctrinales (3–5)",
+    "19. Promesses et avertissements",
+    "20. Principes intemporels",
+    "21. Applications personnelles (3–5)",
+    "22. Applications communautaires",
+    "23. Questions pour petits groupes (6)",
+    "24. Prière guidée",
+    "25. Méditation courte",
+    "26. Versets à mémoriser (2–3)",
+    "27. Difficultés/objections & réponses",
+    "28. Ressources complémentaires",
+    "",
+    "Respecte exactement les clés demandées par le schéma.",
+  ].join("\n");
 }
 
-/* ========= OpenAI (mini) ========= */
-async function oaiMini({ model, prompt, maxtok, timeoutMs, debug }) {
-  if (!OPENAI_API_KEY) return { error: "OPENAI_API_KEY manquante." };
+// ---------- OpenAI call (Responses API v1) ----------
+async function callOpenAI({ sys, user, maxtok = 1500, timeoutMs = 30000, debug = false }) {
+  if (!OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY manquante.");
+  }
 
-  const { ctrl, clear } = mkAbort(timeoutMs || 55000);
-  const body = {
-    model,
-    temperature: 0.15,
-    max_output_tokens: Number.isFinite(maxtok) ? Math.max(300, maxtok) : 700,
-    text: { format: { type: "json_object", name: "study_28_mini" } },
-    input: prompt
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Math.max(1000, timeoutMs));
+
+  // format pour forcer un JSON strict selon le schéma
+  const textFormat = {
+    name: "json_schema",
+    strict: true,
+    schema: {
+      name: "study_28",
+      schema: STUDY_SCHEMA
+    }
   };
 
-  try {
-    const r = await fetchWithRetry(
-      "https://api.openai.com/v1/responses",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${OPENAI_API_KEY}`
-        },
-        body: JSON.stringify(body),
-        ...(ctrl ? { signal: ctrl.signal } : {})
-      }
-    );
-    clear();
-
-    if (!r.ok) {
-      const txt = await r.text().catch(() => "");
-      return { error: `OpenAI ${r.status}: ${txt}`, _req: debug ? body : undefined, _raw: debug ? txt : undefined };
-    }
-
-    const out = await r.json().catch(() => null);
-    if (debug && out) out._req = body;
-
-    if (out?.output_parsed) return { data: out.output_parsed, _raw: debug ? out : undefined };
-
-    if (typeof out?.output_text === "string" && out.output_text.trim()) {
-      try { return { data: JSON.parse(out.output_text), _raw: debug ? out : undefined }; }
-      catch { return { error: "Sortie OpenAI non-JSON (mini).", _raw: debug ? out : undefined }; }
-    }
-
-    const maybe = out?.output?.[0]?.content?.[0]?.text;
-    if (typeof maybe === "string" && maybe.trim()) {
-      try { return { data: JSON.parse(maybe), _raw: debug ? out : undefined }; }
-      catch { return { error: "Sortie OpenAI non-JSON (mini).", _raw: debug ? out : undefined }; }
-    }
-
-    return { error: "Sortie OpenAI vide (mini).", _raw: debug ? out : undefined };
-
-  } catch (e) {
-    clear();
-    if (e?.message === "AbortError") return { error: "OpenAI fetch error: This operation was aborted" };
-    return { error: `OpenAI fetch error: ${e?.message || e}` };
-  }
-}
-
-/* ========= OpenAI (full 28) ========= */
-async function oaiFull({ model, prompt, maxtok, timeoutMs, debug }) {
-  if (!OPENAI_API_KEY) return { error: "OPENAI_API_KEY manquante." };
-
-  const { ctrl, clear } = mkAbort(timeoutMs || 55000);
   const body = {
-    model,
-    temperature: 0.12,
-    max_output_tokens: Number.isFinite(maxtok) ? Math.max(900, maxtok) : 1500,
+    model: OPENAI_MODEL,
+    input: [
+      { role: "system", content: sys },
+      { role: "user", content: user }
+    ],
     text: {
-      format: {
-        type: "json_schema",
-        name: schemaFull.name,
-        schema: schemaFull.schema,
-        strict: schemaFull.strict
-      }
+      format: textFormat
     },
-    input: prompt
+    temperature: 0.1,
+    max_output_tokens: Number.isFinite(maxtok) ? Math.max(400, maxtok) : 1500
   };
 
+  let raw;
   try {
-    const r = await fetchWithRetry(
-      "https://api.openai.com/v1/responses",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${OPENAI_API_KEY}`
-        },
-        body: JSON.stringify(body),
-        ...(ctrl ? { signal: ctrl.signal } : {})
-      }
-    );
-    clear();
+    const r = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+
+    clearTimeout(timer);
 
     if (!r.ok) {
-      const txt = await r.text().catch(() => "");
-      return { error: `OpenAI ${r.status}: ${txt}`, _req: debug ? body : undefined, _raw: debug ? txt : undefined };
+      const errText = await r.text();
+      const msg = `OpenAI ${r.status}: ${errText}`;
+      throw new Error(msg);
     }
 
-    const out = await r.json().catch(() => null);
-    if (debug && out) out._req = body;
+    raw = await r.json();
 
-    if (out?.output_parsed) return { data: out.output_parsed, _raw: debug ? out : undefined };
-
-    if (typeof out?.output_text === "string" && out.output_text.trim()) {
-      try { return { data: JSON.parse(out.output_text), _raw: debug ? out : undefined }; }
-      catch { return { error: "Sortie OpenAI non-JSON (full).", _raw: debug ? out : undefined }; }
+    // 1) voie rapide : output_text (champ pratique des Responses)
+    if (typeof raw.output_text === "string" && raw.output_text.trim()) {
+      return { parsed: safeParseJson(raw.output_text), raw };
     }
 
-    const maybe = out?.output?.[0]?.content?.[0]?.text;
-    if (typeof maybe === "string" && maybe.trim()) {
-      try { return { data: JSON.parse(maybe), _raw: debug ? out : undefined }; }
-      catch { return { error: "Sortie OpenAI non-JSON (full).", _raw: debug ? out : undefined }; }
+    // 2) concatène tous les blocs de texte
+    const textChunks =
+      Array.isArray(raw.output)
+        ? raw.output.flatMap(item =>
+            Array.isArray(item.content)
+              ? item.content
+                  .filter(c => c && (typeof c.text === "string" || typeof c.output_text === "string"))
+                  .map(c => c.text ?? c.output_text)
+              : []
+          )
+        : [];
+
+    const allText = textChunks.join("\n").trim();
+
+    if (allText) {
+      return { parsed: safeParseJson(allText), raw };
     }
 
-    return { error: "Sortie OpenAI vide (full).", _raw: debug ? out : undefined };
-
-  } catch (e) {
-    clear();
-    if (e?.message === "AbortError") return { error: "OpenAI fetch error: This operation was aborted" };
-    return { error: `OpenAI fetch error: ${e?.message || e}` };
+    // 3) rien de textuel -> erreur
+    return { parsed: null, raw };
+  } catch (err) {
+    clearTimeout(timer);
+    const prefix = err.name === "AbortError" ? "OpenAI fetch error: This operation was aborted" : String(err);
+    if (debug) {
+      throw new Error(prefix + (raw ? ` | raw=${JSON.stringify(raw).slice(0, 1200)}` : ""));
+    }
+    throw new Error(prefix);
   }
 }
 
-/* ========= Handler principal ========= */
-export default async function handler(req, res) {
-  res.setHeader("Cache-Control", "no-store, max-age=0");
+function safeParseJson(txt) {
+  // tentative directe
+  try {
+    return JSON.parse(txt);
+  } catch (_) {
+    // essaie d’extraire le plus grand bloc {...} JSON
+    const i = txt.indexOf("{");
+    const j = txt.lastIndexOf("}");
+    if (i >= 0 && j > i) {
+      const slice = txt.slice(i, j + 1);
+      try {
+        return JSON.parse(slice);
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
+// ---------- Handler ----------
+export async function GET(req) {
+  const { searchParams } = new URL(req.url);
+
+  const book = searchParams.get("book") || "Genèse";
+  const chapter = searchParams.get("chapter") || "1";
+  const verse = searchParams.get("verse") || "";
+  const translation = searchParams.get("translation") || "JND";
+  const bibleId = searchParams.get("bibleId") || "";
+  const mode = (searchParams.get("mode") || "full").toLowerCase(); // "mini" | "full"
+  const maxtok = parseInt(searchParams.get("maxtok") || "1500", 10);
+  const timeout = parseInt(searchParams.get("oaitimeout") || "30000", 10);
+  const dry = searchParams.get("dry") || "";
+  const debug = searchParams.get("debug") === "1";
 
   try {
-    const sp = req.query || {};
-
-    const book        = sp.book        || "Genèse";
-    const chapter     = sp.chapter     || "1";
-    const verse       = sp.verse       || "";
-    const translation = sp.translation || "JND";
-    const bibleId     = sp.bibleId     || "";
-    const mode        = (sp.mode || "full").toLowerCase(); // mini | full
-    const model       = sp.model || DEFAULT_MODEL;
-    const maxtok      = parseInt(sp.maxtok || (mode === "mini" ? "700" : "1500"), 10);
-    const timeout     = parseInt(sp.oaitimeout || "55000", 10); // ← par défaut 55s
-    const debug       = sp.debug === "1";
-    const dry         = sp.dry === "1";
-
+    // 1) dry-run (pour tests UI)
     if (dry) {
-      return jOk(res, {
-        meta: { book, chapter, verse, translation, reference: `${book} ${chapter}${verse ? ":"+verse : ""}`, osis: "" },
-        sections: (mode === "mini")
-          ? [
+      if (mode === "mini") {
+        return asJson({
+          ok: true,
+          data: {
+            meta: {
+              book, chapter, verse, translation,
+              reference: verse ? `${book} ${chapter}:${verse}` : `${book} ${chapter}`,
+              osis: ""
+            },
+            sections: [
               { index: 1, title: "Thème central", content: "Exemple MINI.", verses: [] },
               { index: 2, title: "Idées majeures (développement)", content: "Exemple MINI.", verses: [] },
               { index: 3, title: "Applications personnelles", content: "Exemple MINI.", verses: [] }
             ]
-          : Array.from({length:28}, (_,i)=>({ index:i+1, title:`Section ${i+1}`, content:"Exemple FULL.", verses:[] }))
+          }
+        });
+      }
+      // full
+      return asJson({
+        ok: true,
+        data: {
+          meta: {
+            book, chapter, verse, translation,
+            reference: verse ? `${book} ${chapter}:${verse}` : `${book} ${chapter}`,
+            osis: ""
+          },
+          sections: Array.from({ length: 28 }, (_, k) => ({
+            index: k + 1,
+            title: `Section ${k + 1}`,
+            content: "Exemple FULL.",
+            verses: []
+          }))
+        }
       });
     }
 
-    // 1) Passage via /api/bibleProvider
-    const base = getBaseUrl(req);
-    const url =
-      `${base}/api/bibleProvider?book=${encodeURIComponent(book)}` +
-      `&chapter=${encodeURIComponent(chapter)}` +
-      (verse ? `&verse=${encodeURIComponent(verse)}` : "") +
-      (bibleId ? `&bibleId=${encodeURIComponent(bibleId)}` : "");
+    // 2) on va chercher le passage côté serveur via /api/bibleProvider
+    const base = req.headers.get("x-forwarded-host")
+      ? `https://${req.headers.get("x-forwarded-host")}`
+      : "http://localhost:3000";
 
-    let passageJson;
-    try {
-      const pRes = await fetchWithRetry(url, { headers: { Accept: "application/json" } }, { tries: 1 });
-      if (!pRes.ok) {
-        const txt = await pRes.text().catch(() => "");
-        return jErr(res, `BibleProvider ${pRes.status}: ${txt}`);
+    const passageUrl = `${base}/api/bibleProvider?book=${encodeURIComponent(book)}&chapter=${encodeURIComponent(
+      chapter
+    )}${verse ? `&verse=${encodeURIComponent(verse)}` : ""}${bibleId ? `&bibleId=${encodeURIComponent(bibleId)}` : ""}`;
+
+    const pRes = await fetch(passageUrl);
+    if (!pRes.ok) {
+      const msg = await pRes.text();
+      return asJson({ ok: false, error: `BibleProvider HTTP ${pRes.status}: ${msg}` }, 200);
+    }
+    const pJson = await pRes.json();
+    if (!pJson.ok) {
+      return asJson({ ok: false, error: pJson.error || "BibleProvider error" }, 200);
+    }
+
+    const passage = pJson.data;
+    const reference = verse ? `${book} ${chapter}:${verse}` : `${book} ${chapter}`;
+
+    // 3) prompts
+    const sys = buildSystemPrompt(mode);
+    const user = buildUserPrompt({
+      reference,
+      translation,
+      passageText: passage.passageText || "",
+      mode
+    });
+
+    // 4) Appel OpenAI
+    const { parsed, raw } = await callOpenAI({
+      sys,
+      user,
+      maxtok,
+      timeoutMs: timeout,
+      debug
+    });
+
+    if (!parsed || !parsed.meta || !Array.isArray(parsed.sections)) {
+      if (debug) {
+        return asJson({
+          ok: false,
+          error: "Sortie OpenAI non-JSON (ou invalide).",
+          rawOpenAI: raw
+        });
       }
-      passageJson = await pRes.json().catch(() => null);
-    } catch (e) {
-      return jErr(res, `BibleProvider fetch error: ${e?.message || e}`);
+      return asJson({ ok: false, error: `Sortie OpenAI non-JSON (${mode}).` }, 200);
     }
 
-    if (!passageJson?.ok || !passageJson?.data?.passageText) {
-      return jErr(res, passageJson?.error || "BibleProvider: réponse invalide.");
-    }
-    const passage = passageJson.data;
+    // 5) compléter meta si vide
+    parsed.meta.book = parsed.meta.book || String(book);
+    parsed.meta.chapter = parsed.meta.chapter || String(chapter);
+    parsed.meta.verse = parsed.meta.verse ?? String(verse || "");
+    parsed.meta.translation = parsed.meta.translation || String(translation);
+    parsed.meta.reference = parsed.meta.reference || reference;
+    parsed.meta.osis = parsed.meta.osis || (passage.osis || "");
 
-    // 2) Prompt
-    const isFull = mode === "full";
-    const header =
-`Tu es un bibliste pédagogue. Réponds STRICTEMENT en JSON ${isFull ? "(schéma 28 sections)" : "(3 sections)"}.
-Langue: français. N'invente pas de versets. Cite uniquement le passage fourni.`;
-
-    const guideFull =
-`Structure 28 sections (index 1..28, titres exacts) :
-1.Thème central
-2.Résumé en une phrase
-3.Contexte historique
-4.Auteur et date
-5.Genre littéraire
-6.Structure du passage
-7.Plan détaillé
-8.Mots-clés
-9.Termes clés (définis)
-10.Personnages et lieux
-11.Problème / Question de départ
-12.Idées majeures (développement)
-13.Verset pivot (climax)
-14.Références croisées (AT)
-15.Références croisées (NT)
-16.Parallèles bibliques
-17.Lien avec l’Évangile (Christocentrique)
-18.Vérités doctrinales (3–5)
-19.Promesses et avertissements
-20.Principes intemporels
-21.Applications personnelles (3–5)
-22.Applications communautaires
-23.Questions pour petits groupes (6)
-24.Prière guidée
-25.Méditation courte
-26.Versets à mémoriser (2–3)
-27.Difficultés/objections & réponses
-28.Ressources complémentaires`;
-
-    const guideMini =
-`Structure 3 sections EXACTES :
-1) Thème central
-2) Idées majeures (développement)
-3) Applications personnelles`;
-
-    const schemaHint =
-`Schéma JSON :
-{
-  "meta": { "book": string, "chapter": string, "verse": string, "translation": string, "reference": string, "osis": string },
-  "sections": [ { "index": number, "title": string, "content": string, "verses": string[] }, ... ]
-}
-Réponds UNIQUEMENT par l'objet JSON.`;
-
-    const prompt =
-`${header}
-
-Passage : ${passage.reference} (${translation})
-OSIS : ${passage.osis}
-
-Texte (entre triples backticks) :
-\`\`\`
-${passage.passageText}
-\`\`\`
-
-Contraintes :
-${isFull ? guideFull : guideMini}
-
-${schemaHint}`;
-
-    // 3) OpenAI (avec retry & timeout souple)
-    const resOai = isFull
-      ? await oaiFull({ model: DEFAULT_MODEL, prompt, maxtok: Number.isFinite(maxtok) ? maxtok : 1500, timeoutMs: timeout, debug })
-      : await oaiMini({ model: DEFAULT_MODEL, prompt, maxtok: Number.isFinite(maxtok) ? maxtok : 700,  timeoutMs: timeout, debug });
-
-    if (resOai.error) {
-      if (debug) return jErr(res, { message: resOai.error, debug: { request: resOai._req, raw: resOai._raw } });
-      return jErr(res, resOai.error);
-    }
-
-    const parsed = resOai.data;
-    if (!parsed || typeof parsed !== "object") {
-      if (debug) return jErr(res, { message: "Sortie OpenAI invalide.", debug: { request: resOai._req, raw: resOai._raw } });
-      return jErr(res, "Sortie OpenAI invalide.");
-    }
-
-    // Normalisation meta
-    parsed.meta = {
-      book, chapter, verse, translation,
-      reference: passage.reference,
-      osis: passage.osis,
-      ...(parsed.meta || {})
-    };
-
-    // Normalisation sections: garantir verses: []
-    if (Array.isArray(parsed.sections)) {
-      parsed.sections = parsed.sections.map(s => ({
-        ...s,
-        verses: Array.isArray(s?.verses) ? s.verses : []
-      }));
-    }
-
-    if (isFull) {
-      if (!Array.isArray(parsed.sections))
-        return jErr(res, "Le modèle n’a pas renvoyé de tableau 'sections'.");
-      if (parsed.sections.length !== 28)
-        return jErr(res, `Le modèle n’a pas renvoyé 28 sections (reçu: ${parsed.sections.length}).`);
-    }
-
-    return jOk(res, parsed);
-
-  } catch (e) {
-    return jErr(res, e?.message || e);
+    return asJson({ ok: true, data: parsed });
+  } catch (err) {
+    return asJson({ ok: false, error: String(err) }, 200);
   }
 }
