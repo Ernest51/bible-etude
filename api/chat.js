@@ -1,64 +1,36 @@
-// /api/chat.js — proxy vers /api/study-28 (LLM-free)
-// Compatible Vercel (runtime nodejs)
-
+// /api/chat.js — Proxy vers /api/study-28 (LLM-free, api.bible)
 export const config = { runtime: "nodejs" };
+
+async function readJsonBody(req) {
+  if (req && req.body && typeof req.body === "object") return req.body;
+  return new Promise((resolve) => {
+    let data = "";
+    req.on("data", (c) => (data += c));
+    req.on("end", () => { try { resolve(data ? JSON.parse(data) : {}); } catch (e) { resolve({ __parse_error: e.message, __raw: data }); } });
+    req.on("error", (err) => resolve({ __stream_error: err?.message || String(err) }));
+  });
+}
 
 export default async function handler(req, res) {
   try {
-    if (req.method !== "POST") {
-      res.status(405).json({ ok: false, error: "Méthode non autorisée (POST requis)" });
-      return;
-    }
-
-    // lit le corps JSON
+    if (req.method !== "POST") return res.status(405).json({ ok:false, error:"Use POST" });
     const body = await readJsonBody(req);
+    if (body && body.probe) return res.status(200).json({ ok:true, source:"study-28-proxy", probe:true });
 
-    // reconstruit l’URL de l’endpoint study-28
     const proto = req.headers["x-forwarded-proto"] || "https";
-    const host = req.headers["x-forwarded-host"] || req.headers["host"];
-    const base = `${proto}://${host}`;
+    const host  = req.headers["x-forwarded-host"] || req.headers["host"];
+    const base  = `${proto}://${host}`;
 
-    const r = await fetch(`${base}/api/study-28`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body || {})
-    });
+    // On passe tel quel (book, chapter, verse, mode, translation…)
+    const sp = new URLSearchParams();
+    for (const [k,v] of Object.entries(body || {})) if (v !== undefined && v !== null && v !== "") sp.set(k, String(v));
 
-    const text = await r.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { raw: text };
-    }
+    const r = await fetch(`${base}/api/study-28?${sp.toString()}`, { headers:{accept:"application/json"} });
+    const txt = await r.text().catch(()=> "");
+    let j; try { j = txt ? JSON.parse(txt) : {}; } catch { j = { raw: txt }; }
 
-    res.status(r.status).json({
-      ok: true,
-      source: "study-28-proxy",
-      status: r.status,
-      data
-    });
+    return res.status(r.status).json({ ok: r.ok && j?.ok !== false, source:"study-28-proxy", data: j });
   } catch (e) {
-    res.status(500).json({
-      ok: false,
-      error: "chat.js_failed",
-      detail: e?.message || String(e)
-    });
+    return res.status(500).json({ ok:false, error:"proxy_failed", detail: String(e?.message || e) });
   }
-}
-
-// utilitaire pour lire le body JSON
-async function readJsonBody(req) {
-  return new Promise((resolve) => {
-    let data = "";
-    req.on("data", (chunk) => (data += chunk));
-    req.on("end", () => {
-      try {
-        resolve(data ? JSON.parse(data) : {});
-      } catch (e) {
-        resolve({ __parse_error: e.message, __raw: data });
-      }
-    });
-    req.on("error", (err) => resolve({ __stream_error: err?.message || String(err) }));
-  });
 }
