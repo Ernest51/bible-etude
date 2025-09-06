@@ -1,11 +1,11 @@
 // /api/chat.js — Proxy vers /api/study-28 (LLM-FREE, api.bible only)
 export const config = { runtime: "nodejs18.x" };
 
-// ---------- utils ----------
 function send(res, status, payload) {
   try {
     res.statusCode = status;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("X-Handler", "chat-proxy-study28");
     res.end(JSON.stringify(payload, null, 2));
   } catch {
     try { res.end('{"ok":false,"warn":"send_failed"}'); } catch {}
@@ -13,7 +13,6 @@ function send(res, status, payload) {
 }
 
 async function readJsonBody(req) {
-  // Supporte body déjà parsé (vercel dev) ou flux brut (prod)
   if (req && req.body && typeof req.body === "object") return req.body;
   return new Promise((resolve) => {
     let data = "";
@@ -27,7 +26,6 @@ async function readJsonBody(req) {
   });
 }
 
-// ---------- handler ----------
 export default async function handler(req, res) {
   try {
     if (req.method !== "POST") {
@@ -38,27 +36,18 @@ export default async function handler(req, res) {
     if (body && body.__parse_error) {
       return send(res, 400, { ok: false, error: "JSON parse error", detail: body.__parse_error });
     }
-
-    // Sonde du panneau debug (frontend)
     if (body && body.probe) {
       return send(res, 200, { ok: true, source: "study-28-proxy", probe: true });
     }
 
     const {
-      book = "",
-      chapter = "",
-      verse = "",
-      version = "LSG",      // depuis le front
-      translation = "",     // alias accepté
-      mode = "full",        // "mini" ou "full"
-      bibleId = ""          // si transmis par le front
+      book = "", chapter = "", verse = "",
+      version = "LSG", translation = "", mode = "full", bibleId = ""
     } = body || {};
-
     if (!book || !chapter) {
       return send(res, 400, { ok: false, error: "book et chapter requis" });
     }
 
-    // Construit l’URL absolue vers /api/study-28
     const proto = req.headers["x-forwarded-proto"] || "https";
     const host  = req.headers["x-forwarded-host"] || req.headers["host"];
     const base  = `${proto}://${host}`;
