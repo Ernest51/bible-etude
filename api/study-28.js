@@ -1,13 +1,11 @@
-// /api/study-28.js — Next.js (pages/api) ou app/api avec route handler par défaut
+// /api/study-28.js — Next.js API Route
 
 export const config = { runtime: "nodejs" };
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const DEFAULT_MODEL  = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
 
-/* ========= Schéma JSON (full 28) =========
-   NOTE: L'API Responses exige additionalProperties:false au minimum à la racine.
-         On le place aussi dans les objets internes pour verrouiller la structure. */
+/* ========= Schéma JSON (full 28) ========= */
 const schemaFull = {
   name: "study_28",
   schema: {
@@ -25,7 +23,8 @@ const schemaFull = {
           reference:   { type: "string" },
           osis:        { type: "string" }
         },
-        required: ["book", "chapter", "translation", "reference", "osis"]
+        // ✅ FIX: 'verse' ajouté ici
+        required: ["book", "chapter", "verse", "translation", "reference", "osis"]
       },
       sections: {
         type: "array",
@@ -78,7 +77,6 @@ async function oaiMini({ model, prompt, maxtok, timeoutMs, debug }) {
     model,
     temperature: 0.15,
     max_output_tokens: Number.isFinite(maxtok) ? Math.max(300, maxtok) : 700,
-    // mini : format "json_object" (pas besoin de schema complet)
     text: { format: { type: "json_object", name: "study_28_mini" } },
     input: prompt
   };
@@ -133,7 +131,6 @@ async function oaiFull({ model, prompt, maxtok, timeoutMs, debug }) {
     model,
     temperature: 0.12,
     max_output_tokens: Number.isFinite(maxtok) ? Math.max(900, maxtok) : 1500,
-    // Correction : fournir name + schema + strict au bon niveau ET schema.additionalProperties=false
     text: {
       format: {
         type: "json_schema",
