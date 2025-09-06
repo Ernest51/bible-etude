@@ -1,12 +1,12 @@
-// /api/study-28.js
-// Étude en 28 rubriques — LLM-FREE — basé uniquement sur api.bible
-// ENV requis: API_BIBLE_KEY  | optionnel: API_BIBLE_ID (bible par défaut)
+// /api/study28.js
+// Clone LLM-FREE de study-28 (api.bible only) + en-tête de diagnostic
 
 export const config = { runtime: "nodejs18.x" };
 
-// ---------- utils HTTP ----------
-function send(res, status, payload) {
+function send(req, res, status, payload) {
   try {
+    // petite signature de diag pour vérifier qui répond vraiment
+    res.setHeader("X-Handler", "pages-study28-llmfree");
     res.statusCode = status;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.end(JSON.stringify(payload, null, 2));
@@ -14,6 +14,7 @@ function send(res, status, payload) {
     try { res.end('{"ok":false,"warn":"send_failed"}'); } catch {}
   }
 }
+
 const clip = (s, max=240) => {
   const t = String(s||"").replace(/\s+/g," ").trim();
   return t.length > max ? t.slice(0,max-1).trimEnd()+"…" : t;
@@ -24,7 +25,7 @@ const firstSentence = (s) => {
   return m ? m[1].trim() : clip(clean, 180);
 };
 
-// ---------- api.bible client minimal ----------
+// --- api.bible minimal ---
 const API_ROOT = "https://api.scripture.api.bible/v1";
 const KEY = process.env.API_BIBLE_KEY || "";
 const DEFAULT_BIBLE_ID = process.env.API_BIBLE_ID || "";
@@ -57,7 +58,6 @@ async function resolveBibleId(explicitId) {
   return (fr && fr.id) || bibles[0].id;
 }
 
-// normalisation douce pour faire matcher le nom FR du livre
 const norm = (s) => String(s||"")
   .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
   .toLowerCase().replace(/[^a-z0-9 ]+/g," ")
@@ -66,23 +66,15 @@ const norm = (s) => String(s||"")
 async function resolveBookId(bibleId, bookName) {
   const books = await callApi(`/bibles/${bibleId}/books`);
   const target = norm(bookName);
-  // match exact title
   let hit = books.find(b => norm(b.name) === target || norm(b.abbreviationLocal) === target || norm(b.abbreviation) === target);
-  if (!hit) {
-    // match startsWith
-    hit = books.find(b => norm(b.name).startsWith(target) || norm(b.abbreviationLocal).startsWith(target));
-  }
-  if (!hit) {
-    // includes (dernier recours)
-    hit = books.find(b => norm(b.name).includes(target));
-  }
+  if (!hit) hit = books.find(b => norm(b.name).startsWith(target) || norm(b.abbreviationLocal).startsWith(target));
+  if (!hit) hit = books.find(b => norm(b.name).includes(target));
   if (!hit) throw new Error(`Book not found: ${bookName}`);
-  return hit.id; // OSIS ex: GEN
+  return hit.id; // e.g., GEN
 }
 
 async function getPassage({ bibleId, bookName, chapter, verse="" }) {
   const bookId = await resolveBookId(bibleId, bookName);
-  // Ref OSIS: GEN.1  ou  GEN.1.1-5
   const ref = `${bookId}.${String(chapter)}` + (verse ? `.${String(verse)}` : "");
   const params = {
     "content-type": "html",
@@ -96,14 +88,10 @@ async function getPassage({ bibleId, bookName, chapter, verse="" }) {
   const data = await callApi(`/bibles/${bibleId}/passages/${encodeURIComponent(ref)}`, { params });
   const contentHtml = data?.content || "";
   const reference = data?.reference || `${bookName} ${chapter}${verse?':'+verse:''}`;
-  const plain = contentHtml
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const plain = contentHtml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   return { osis: ref, reference, html: contentHtml, text: plain };
 }
 
-// ---------- Génération des rubriques (sans IA) ----------
 const TITLES_FULL = [
   "Thème central","Résumé en une phrase","Contexte historique","Auteur et date","Genre littéraire",
   "Structure du passage","Plan détaillé","Mots-clés","Termes clés (définis)","Personnages et lieux",
@@ -161,54 +149,42 @@ function makeFullSections(reference, passageText) {
   return contents.map((content, i) => ({ index:i+1, title: TITLES_FULL[i], content, verses: [] }));
 }
 
-// ---------- handler ----------
 export default async function handler(req, res) {
   try {
-    if (req.method !== "GET") {
-      return send(res, 405, { ok:false, error:"Use GET" });
-    }
+    if (req.method !== "GET") return send(req, res, 405, { ok:false, error:"Use GET" });
+
     const url = new URL(req.url, `http://${req.headers.host}`);
     const sp = url.searchParams;
 
-    // Entrées
     const book = sp.get("book") || "Genèse";
     const chapter = sp.get("chapter") || "1";
     const verse = sp.get("verse") || "";
     const translation = sp.get("translation") || "LSG";
     const bibleIdParam = sp.get("bibleId") || "";
-    const mode = (sp.get("mode") || "full").toLowerCase(); // full | mini
+    const mode = (sp.get("mode") || "full").toLowerCase();
     const dry = sp.has("dry");
     const selftest = sp.get("selftest") === "1";
 
-    if (selftest) {
-      return send(res, 200, { ok:true, engine:"LLM-FREE", modes:["mini","full"], source:"api.bible" });
-    }
+    if (selftest) return send(req, res, 200, { ok:true, engine:"LLM-FREE", modes:["mini","full"], source:"api.bible" });
 
-    // Dry-run
     const referenceDry = verse ? `${book} ${chapter}:${verse}` : `${book} ${chapter}`;
     if (dry) {
       const sections = mode === "mini"
         ? makeMiniSections(referenceDry, "Exemple de texte.")
         : makeFullSections(referenceDry, "Exemple de texte.");
-      return send(res, 200, { ok:true, data:{ meta:{ book, chapter, verse, translation, reference: referenceDry, osis:"" }, sections } });
+      return send(req, res, 200, { ok:true, data:{ meta:{ book, chapter, verse, translation, reference: referenceDry, osis:"" }, sections } });
     }
 
-    // api.bible
     const bibleId = await resolveBibleId(bibleIdParam);
     const pass = await getPassage({ bibleId, bookName: book, chapter, verse });
-
     const reference = pass.reference || referenceDry;
-    const passageText = pass.text || "";
-    const sections = mode === "mini"
-      ? makeMiniSections(reference, passageText)
-      : makeFullSections(reference, passageText);
+    const sections = mode === "mini" ? makeMiniSections(reference, pass.text) : makeFullSections(reference, pass.text);
 
-    const data = {
-      meta: { book, chapter, verse, translation, reference, osis: pass.osis || "" },
-      sections
-    };
-    return send(res, 200, { ok:true, data });
+    return send(req, res, 200, {
+      ok:true,
+      data:{ meta:{ book, chapter, verse, translation, reference, osis: pass.osis || "" }, sections }
+    });
   } catch (e) {
-    return send(res, e.status || 500, { ok:false, error: String(e.message || e) });
+    return send(req, res, e.status || 500, { ok:false, error: String(e.message || e) });
   }
 }
