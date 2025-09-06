@@ -1,17 +1,16 @@
 // /api/study-28.js
 export const config = { runtime: "edge" };
 
-/**
- * ENV attendues (déjà validées via /api/env) :
- * - OPENAI_API_KEY
- * - OPENAI_MODEL (optionnel, défaut: gpt-4o-mini-2024-07-18)
- * - API_BIBLE_KEY (pour /api/bibleProvider côté serveur déjà OK)
+/** ENV :
+ *  - OPENAI_API_KEY (obligatoire)
+ *  - OPENAI_MODEL (optionnel, défaut gpt-4o-mini-2024-07-18)
+ *  - API_BIBLE_KEY / (utilisé par /api/bibleProvider côté serveur déjà OK)
  */
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
 
-// 28 titres fixes (ordre strict)
+// Titres fixes pour le mode "full"
 const STUDY_TITLES = [
   "Thème central",
   "Résumé en une phrase",
@@ -43,7 +42,7 @@ const STUDY_TITLES = [
   "Ressources complémentaires"
 ];
 
-// --------- utils ----------
+// ---------- helpers ----------
 function json(status, body) {
   return new Response(JSON.stringify(body), {
     status,
@@ -51,215 +50,214 @@ function json(status, body) {
   });
 }
 
-function getQS(reqUrl) {
-  const u = new URL(reqUrl);
+function qs(req) {
+  const u = new URL(req.url);
   const g = (k, d = "") => u.searchParams.get(k)?.trim() || d;
   return {
     book: g("book"),
     chapter: g("chapter"),
-    verse: g("verse"), // vide = chapitre entier
+    verse: g("verse"),
     translation: g("translation", "LSG"),
-    bibleId: g("bibleId", ""), // si vide => provider prendra défaut
-    mode: g("mode", "full"), // "mini" (3) ou "full" (28)
+    bibleId: g("bibleId", ""),
+    mode: g("mode", "full"), // "mini" (3) or "full" (28)
     maxtok: parseInt(g("maxtok", "1500"), 10),
-    oaitimeout: parseInt(g("oaitimeout", "25000"), 10)
+    oaitimeout: parseInt(g("oaitimeout", "30000"), 10)
   };
 }
 
-function strictSystemInstruction() {
+function systemPrompt() {
   return [
     "Tu es un bibliste pédagogue.",
     "Langue: français.",
-    "Tu dois produire STRICTEMENT un JSON conforme au schéma, sans aucun texte hors JSON.",
-    "N'invente aucun verset; cite seulement selon les bornes fournies.",
-    "Si le passage est trop court, reste concis mais respecte le schéma."
+    "Base seule: le passage fourni (ne complète pas avec d'autres versets).",
+    "Sortie STRICTE: JSON valide conforme au schéma (aucun autre texte).",
+    "Concision: 4–10 phrases par section (mini: 2–6).",
   ].join(" ");
 }
 
-function userInstruction({ reference, translation, passageText, mode }) {
-  const expectedCount = mode === "mini" ? 3 : 28;
+function userPrompt({ reference, translation, passageText, mode }) {
+  const titles = mode === "mini"
+    ? ["Thème central", "Idées majeures (développement)", "Applications personnelles"]
+    : STUDY_TITLES;
 
-  const schemaText = `
-Schéma JSON à respecter à la lettre (aucune autre clé) :
-{
-  "meta": { "book": string, "chapter": string, "verse": string, "translation": string, "reference": string, "osis": string },
-  "sections": Section[ ${expectedCount} ]
-}
-Section = {
-  "index": number,                // 1..${expectedCount}
-  "title": string,                // selon la liste imposée
-  "content": string,              // 4–10 phrases, clair et actionnable
-  "verses": string[]              // ex: ["v.1-3", "v.26"]
-}
-  `.trim();
-
-  const titles =
-    mode === "mini"
-      ? ["Thème central", "Idées majeures (développement)", "Applications personnelles"]
-      : STUDY_TITLES;
-
-  const titlesNumbered = titles.map((t, i) => `${i + 1}. ${t}`).join("\n");
+  const expected = titles.length;
+  const numbered = titles.map((t, i) => `${i + 1}. ${t}`).join("\n");
 
   return [
-    `Passage : ${reference} (${translation})`,
-    "Base unique pour l’exégèse (n'ajoute pas d'autres sources) :",
+    `Passage: ${reference} (${translation})`,
+    "Texte (base unique) :",
     "```",
     passageText,
     "```",
     "",
-    `Tu dois produire exactement ${expectedCount} sections, dans cet ordre strict :`,
-    titlesNumbered,
+    `Tu dois produire exactement ${expected} sections dans cet ordre strict :`,
+    numbered,
     "",
-    schemaText,
-    "",
-    "IMPORTANT : la sortie doit être UNIQUEMENT le JSON valide, sans commentaire ni balise."
+    "IMPORTANT: sors UNIQUEMENT le JSON conforme au schéma imposé.",
   ].join("\n");
 }
 
-// --------- appels internes ----------
-async function fetchPassage({ book, chapter, verse, bibleId }) {
-  const qs = new URLSearchParams();
-  qs.set("book", book);
-  qs.set("chapter", chapter);
-  if (verse) qs.set("verse", verse);
-  if (bibleId) qs.set("bibleId", bibleId);
-
-  const r = await fetch(new URL("/api/bibleProvider?" + qs.toString(), "http://internal").toString());
-  // NOTE: sur Vercel Edge, URL absolue : on reconstruit avec l'origine de la requête
-  // mais ici on va remplacer "http://internal" par l'origin réelle en runtime:
-  // on ne la connaît pas ici, donc on fait un fetch relatif depuis le handler principal.
-  // => Ce helper n'est pas utilisé directement; voir handle() plus bas.
-  return r;
+// JSON Schema strict pour Responses API
+function buildJsonSchema({ expectedSections }) {
+  return {
+    name: "etude_28_points",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        meta: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            book: { type: "string" },
+            chapter: { type: "string" },
+            verse: { type: "string" },
+            translation: { type: "string" },
+            reference: { type: "string" },
+            osis: { type: "string" }
+          },
+          required: ["book", "chapter", "verse", "translation", "reference", "osis"]
+        },
+        sections: {
+          type: "array",
+          minItems: expectedSections,
+          maxItems: expectedSections,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              index: { type: "integer", minimum: 1, maximum: expectedSections },
+              title: { type: "string" },
+              content: { type: "string" },
+              verses: {
+                type: "array",
+                items: { type: "string" }
+              }
+            },
+            required: ["index", "title", "content", "verses"]
+          }
+        }
+      },
+      required: ["meta", "sections"]
+    }
+  };
 }
 
-async function callOpenAI({ messages, maxtok, oaitimeout }) {
+// Robust parsing for Responses API
+async function callOpenAI({ sys, user, maxtok, oaitimeout, expectedSections }) {
   if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY manquant");
 
   const controller = new AbortController();
-  const to = setTimeout(() => controller.abort(), Math.max(1000, oaitimeout || 25000));
+  const timeout = setTimeout(() => controller.abort(), Math.max(1000, oaitimeout || 30000));
+
+  const schema = buildJsonSchema({ expectedSections });
 
   try {
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
+      signal: controller.signal,
       headers: {
         "authorization": `Bearer ${OPENAI_API_KEY}`,
         "content-type": "application/json"
       },
-      signal: controller.signal,
       body: JSON.stringify({
         model: OPENAI_MODEL,
         temperature: 0.1,
-        max_tokens: Number.isFinite(maxtok) ? Math.max(300, maxtok) : 1500,
-        response_format: { type: "json_object" }, // <-- clé : force un JSON parsable
-        messages
+        max_output_tokens: Number.isFinite(maxtok) ? Math.max(500, maxtok) : 1500,
+        response_format: { type: "json_schema", json_schema: schema },
+        input: [
+          { role: "system", content: sys },
+          { role: "user", content: user }
+        ],
+        // stabilité
+        seed: 7
       })
     });
 
     const txt = await r.text();
-    if (!r.ok) {
-      // propage l’erreur brute pour debug
-      throw new Error(`OpenAI ${r.status}: ${txt}`);
-    }
-    let payload;
-    try { payload = JSON.parse(txt); } catch { throw new Error("OpenAI: réponse non-JSON (niveau 1)"); }
+    if (!r.ok) throw new Error(`OpenAI ${r.status}: ${txt}`);
 
-    const content = payload?.choices?.[0]?.message?.content;
-    if (typeof content !== "string" || !content.trim()) {
+    let payload;
+    try { payload = JSON.parse(txt); } catch { throw new Error("OpenAI: réponse non-JSON API"); }
+
+    // Responses API offre output_text ET content[].text
+    const output_text = payload.output_text || payload.output?.[0]?.content?.[0]?.text || payload.content?.[0]?.text;
+    if (typeof output_text !== "string" || !output_text.trim()) {
       throw new Error("OpenAI: contenu vide");
     }
 
-    // Parse du JSON retourné dans "content"
     let out;
     try {
-      out = JSON.parse(content);
+      out = JSON.parse(output_text);
     } catch {
-      // fallback : extrait le premier bloc {...}
-      const m = content.match(/\{[\s\S]*\}$/m);
+      // dernier filet : isole le premier bloc JSON
+      const m = output_text.match(/\{[\s\S]*\}$/m);
       if (m) {
-        try { out = JSON.parse(m[0]); } catch { /* ignore */ }
+        out = JSON.parse(m[0]);
+      } else {
+        throw new Error("Sortie OpenAI non-JSON.");
       }
     }
 
-    if (!out || typeof out !== "object") {
-      throw new Error("Sortie OpenAI non-JSON.");
+    // validation rapide
+    if (!Array.isArray(out.sections) || out.sections.length !== expectedSections) {
+      throw new Error(`Sections attendues: ${expectedSections}, reçues: ${Array.isArray(out.sections) ? out.sections.length : "?"}`);
     }
+
     return out;
   } finally {
-    clearTimeout(to);
+    clearTimeout(timeout);
   }
 }
 
-// --------- handler ----------
 export default async function handler(req) {
   try {
-    const { book, chapter, verse, translation, bibleId, mode, maxtok, oaitimeout } = getQS(req.url);
+    const { book, chapter, verse, translation, bibleId, mode, maxtok, oaitimeout } = qs(req);
+    if (!book || !chapter) return json(400, { ok: false, error: "Paramètres requis: book, chapter" });
 
-    if (!book || !chapter) {
-      return json(400, { ok: false, error: "Paramètres requis: book, chapter" });
-    }
-
-    // ----- fetch passage via /api/bibleProvider (même domaine) -----
+    // 1) Récupère le passage depuis notre provider (même domaine)
     const origin = new URL(req.url).origin;
-    const qs = new URLSearchParams();
-    qs.set("book", book);
-    qs.set("chapter", chapter);
-    if (verse) qs.set("verse", verse);
-    if (bibleId) qs.set("bibleId", bibleId);
+    const sp = new URLSearchParams();
+    sp.set("book", book);
+    sp.set("chapter", chapter);
+    if (verse) sp.set("verse", verse);
+    if (bibleId) sp.set("bibleId", bibleId);
 
-    const rBP = await fetch(`${origin}/api/bibleProvider?${qs.toString()}`, { headers: { "accept": "application/json" } });
+    const rBP = await fetch(`${origin}/api/bibleProvider?${sp.toString()}`, {
+      headers: { accept: "application/json" }
+    });
+
     const bpTxt = await rBP.text();
-    if (!rBP.ok) {
-      return json(500, { ok: false, error: `BibleProvider ${rBP.status}: ${bpTxt}` });
-    }
+    if (!rBP.ok) return json(500, { ok: false, error: `BibleProvider ${rBP.status}: ${bpTxt}` });
+
     let bp;
     try { bp = JSON.parse(bpTxt); } catch { return json(500, { ok: false, error: "BibleProvider: réponse non-JSON" }); }
-    if (!bp.ok) {
-      return json(500, { ok: false, error: bp.error || "BibleProvider: échec" });
-    }
+    if (!bp.ok) return json(500, { ok: false, error: bp.error || "BibleProvider: échec" });
 
-    const { reference, osis } = bp.data || {};
     const passageText = (bp.data?.passageText || "").trim();
-    if (!passageText) {
-      return json(500, { ok: false, error: "Passage vide depuis BibleProvider" });
-    }
+    const reference = bp.data?.reference || `${book} ${chapter}${verse ? ":" + verse : ""}`;
+    const osis = bp.data?.osis || "";
 
-    // ----- messages pour OpenAI -----
-    const messages = [
-      { role: "system", content: strictSystemInstruction() },
-      {
-        role: "user",
-        content: userInstruction({
-          reference: reference || `${book} ${chapter}${verse ? ":" + verse : ""}`,
-          translation,
-          passageText,
-          mode
-        })
-      }
-    ];
+    if (!passageText) return json(500, { ok: false, error: "Passage vide depuis BibleProvider" });
 
-    // ----- appel OpenAI -----
-    const out = await callOpenAI({ messages, maxtok, oaitimeout });
+    // 2) Messages & JSON Schema strict
+    const expectedSections = mode === "mini" ? 3 : 28;
+    const sys = systemPrompt();
+    const user = userPrompt({ reference, translation, passageText, mode });
 
-    // Validation minimale (compte des sections)
-    const sections = Array.isArray(out?.sections) ? out.sections : [];
-    const expected = mode === "mini" ? 3 : 28;
-    if (sections.length !== expected) {
-      return json(200, {
-        ok: false,
-        error: `Sections attendues: ${expected}, reçues: ${sections.length}`,
-        data: out
-      });
-    }
+    // 3) Appel OpenAI (Responses + json_schema strict)
+    const out = await callOpenAI({ sys, user, maxtok, oaitimeout, expectedSections });
 
-    // Inject meta normale si absente/incomplète
-    const meta = out.meta || {};
+    // 4) Complète/normalise meta
+    const metaIn = out.meta || {};
     out.meta = {
-      book: String(meta.book || book),
-      chapter: String(meta.chapter || chapter),
-      verse: String(meta.verse || (verse || "")),
-      translation: String(meta.translation || translation || ""),
-      reference: String(meta.reference || reference || `${book} ${chapter}${verse ? ":" + verse : ""}`),
-      osis: String(meta.osis || osis || "")
+      book: String(metaIn.book || book),
+      chapter: String(metaIn.chapter || chapter),
+      verse: String(metaIn.verse || (verse || "")),
+      translation: String(metaIn.translation || translation || ""),
+      reference: String(metaIn.reference || reference),
+      osis: String(metaIn.osis || osis)
     };
 
     return json(200, { ok: true, data: out });
