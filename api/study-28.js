@@ -1,4 +1,4 @@
-// /api/study-28.js — Next.js API Route
+// /api/study-28.js — Next.js API Route (Node.js runtime)
 
 export const config = { runtime: "nodejs" };
 
@@ -39,7 +39,7 @@ const schemaFull = {
               items: { type: "string" }
             }
           },
-          // ✅ FIX: l’API exige que required couvre TOUTES les propriétés (dont 'verses')
+          // IMPORTANT: required couvre TOUTES les props, y compris 'verses'
           required: ["index", "title", "content", "verses"]
         }
       }
@@ -49,7 +49,7 @@ const schemaFull = {
   strict: true
 };
 
-/* ========= helpers ========= */
+/* ========= helpers JSON ========= */
 function jOk(res, data)  { res.status(200).json({ ok: true, data }); }
 function jErr(res, error){ res.status(200).json({ ok: false, error: typeof error === "string" ? error : JSON.stringify(error) }); }
 
@@ -62,17 +62,42 @@ function getBaseUrl(req) {
   return "http://localhost:3000";
 }
 
+/* ========= Abort utils ========= */
 function mkAbort(ms) {
+  if (!ms || ms <= 0) return { ctrl: undefined, clear: () => {} };
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), Math.max(1000, ms || 30000));
-  return { ctrl, t };
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return { ctrl, clear: () => clearTimeout(timer) };
+}
+
+/* ========= fetch avec retry (429/5xx/AbortError) ========= */
+async function fetchWithRetry(url, opts, { tries = 2, backoffMs = 800 } = {}) {
+  let lastErr, attempt = 0;
+  while (attempt <= tries) {
+    try {
+      const r = await fetch(url, opts);
+      if (r.status === 429 || (r.status >= 500 && r.status <= 599)) {
+        lastErr = new Error(`HTTP ${r.status}: ${await r.text().catch(()=> "")}`);
+        if (attempt === tries) throw lastErr;
+      } else {
+        return r;
+      }
+    } catch (e) {
+      const aborted = e?.name === "AbortError";
+      if (attempt === tries) throw new Error(aborted ? "AbortError" : (e?.message || e));
+      lastErr = e;
+    }
+    await new Promise(res => setTimeout(res, backoffMs * Math.pow(2, attempt)));
+    attempt++;
+  }
+  throw lastErr || new Error("fetchWithRetry: unknown error");
 }
 
 /* ========= OpenAI (mini) ========= */
 async function oaiMini({ model, prompt, maxtok, timeoutMs, debug }) {
   if (!OPENAI_API_KEY) return { error: "OPENAI_API_KEY manquante." };
 
-  const { ctrl, t } = mkAbort(timeoutMs);
+  const { ctrl, clear } = mkAbort(timeoutMs || 55000);
   const body = {
     model,
     temperature: 0.15,
@@ -81,52 +106,56 @@ async function oaiMini({ model, prompt, maxtok, timeoutMs, debug }) {
     input: prompt
   };
 
-  let res;
   try {
-    res = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify(body),
-      signal: ctrl.signal
-    });
+    const r = await fetchWithRetry(
+      "https://api.openai.com/v1/responses",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENAI_API_KEY}`
+        },
+        body: JSON.stringify(body),
+        ...(ctrl ? { signal: ctrl.signal } : {})
+      }
+    );
+    clear();
+
+    if (!r.ok) {
+      const txt = await r.text().catch(() => "");
+      return { error: `OpenAI ${r.status}: ${txt}`, _req: debug ? body : undefined, _raw: debug ? txt : undefined };
+    }
+
+    const out = await r.json().catch(() => null);
+    if (debug && out) out._req = body;
+
+    if (out?.output_parsed) return { data: out.output_parsed, _raw: debug ? out : undefined };
+
+    if (typeof out?.output_text === "string" && out.output_text.trim()) {
+      try { return { data: JSON.parse(out.output_text), _raw: debug ? out : undefined }; }
+      catch { return { error: "Sortie OpenAI non-JSON (mini).", _raw: debug ? out : undefined }; }
+    }
+
+    const maybe = out?.output?.[0]?.content?.[0]?.text;
+    if (typeof maybe === "string" && maybe.trim()) {
+      try { return { data: JSON.parse(maybe), _raw: debug ? out : undefined }; }
+      catch { return { error: "Sortie OpenAI non-JSON (mini).", _raw: debug ? out : undefined }; }
+    }
+
+    return { error: "Sortie OpenAI vide (mini).", _raw: debug ? out : undefined };
+
   } catch (e) {
-    clearTimeout(t);
-    return { error: `OpenAI fetch error: ${e?.message || e}`, _req: debug ? body : undefined };
+    clear();
+    if (e?.message === "AbortError") return { error: "OpenAI fetch error: This operation was aborted" };
+    return { error: `OpenAI fetch error: ${e?.message || e}` };
   }
-  clearTimeout(t);
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    return { error: `OpenAI ${res.status}: ${txt}`, _req: debug ? body : undefined, _raw: debug ? txt : undefined };
-  }
-
-  const out = await res.json().catch(() => null);
-  if (debug && out) out._req = body;
-
-  if (out?.output_parsed) return { data: out.output_parsed, _raw: debug ? out : undefined };
-
-  if (typeof out?.output_text === "string" && out.output_text.trim()) {
-    try { return { data: JSON.parse(out.output_text), _raw: debug ? out : undefined }; }
-    catch { return { error: "Sortie OpenAI non-JSON (mini).", _raw: debug ? out : undefined }; }
-  }
-
-  const maybe = out?.output?.[0]?.content?.[0]?.text;
-  if (typeof maybe === "string" && maybe.trim()) {
-    try { return { data: JSON.parse(maybe), _raw: debug ? out : undefined }; }
-    catch { return { error: "Sortie OpenAI non-JSON (mini).", _raw: debug ? out : undefined }; }
-  }
-
-  return { error: "Sortie OpenAI vide (mini).", _raw: debug ? out : undefined };
 }
 
 /* ========= OpenAI (full 28) ========= */
 async function oaiFull({ model, prompt, maxtok, timeoutMs, debug }) {
   if (!OPENAI_API_KEY) return { error: "OPENAI_API_KEY manquante." };
 
-  const { ctrl, t } = mkAbort(timeoutMs);
+  const { ctrl, clear } = mkAbort(timeoutMs || 55000);
   const body = {
     model,
     temperature: 0.12,
@@ -142,45 +171,49 @@ async function oaiFull({ model, prompt, maxtok, timeoutMs, debug }) {
     input: prompt
   };
 
-  let res;
   try {
-    res = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify(body),
-      signal: ctrl.signal
-    });
+    const r = await fetchWithRetry(
+      "https://api.openai.com/v1/responses",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENAI_API_KEY}`
+        },
+        body: JSON.stringify(body),
+        ...(ctrl ? { signal: ctrl.signal } : {})
+      }
+    );
+    clear();
+
+    if (!r.ok) {
+      const txt = await r.text().catch(() => "");
+      return { error: `OpenAI ${r.status}: ${txt}`, _req: debug ? body : undefined, _raw: debug ? txt : undefined };
+    }
+
+    const out = await r.json().catch(() => null);
+    if (debug && out) out._req = body;
+
+    if (out?.output_parsed) return { data: out.output_parsed, _raw: debug ? out : undefined };
+
+    if (typeof out?.output_text === "string" && out.output_text.trim()) {
+      try { return { data: JSON.parse(out.output_text), _raw: debug ? out : undefined }; }
+      catch { return { error: "Sortie OpenAI non-JSON (full).", _raw: debug ? out : undefined }; }
+    }
+
+    const maybe = out?.output?.[0]?.content?.[0]?.text;
+    if (typeof maybe === "string" && maybe.trim()) {
+      try { return { data: JSON.parse(maybe), _raw: debug ? out : undefined }; }
+      catch { return { error: "Sortie OpenAI non-JSON (full).", _raw: debug ? out : undefined }; }
+    }
+
+    return { error: "Sortie OpenAI vide (full).", _raw: debug ? out : undefined };
+
   } catch (e) {
-    clearTimeout(t);
-    return { error: `OpenAI fetch error: ${e?.message || e}`, _req: debug ? body : undefined };
+    clear();
+    if (e?.message === "AbortError") return { error: "OpenAI fetch error: This operation was aborted" };
+    return { error: `OpenAI fetch error: ${e?.message || e}` };
   }
-  clearTimeout(t);
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    return { error: `OpenAI ${res.status}: ${txt}`, _req: debug ? body : undefined, _raw: debug ? txt : undefined };
-  }
-
-  const out = await res.json().catch(() => null);
-  if (debug && out) out._req = body;
-
-  if (out?.output_parsed) return { data: out.output_parsed, _raw: debug ? out : undefined };
-
-  if (typeof out?.output_text === "string" && out.output_text.trim()) {
-    try { return { data: JSON.parse(out.output_text), _raw: debug ? out : undefined }; }
-    catch { return { error: "Sortie OpenAI non-JSON (full).", _raw: debug ? out : undefined }; }
-  }
-
-  const maybe = out?.output?.[0]?.content?.[0]?.text;
-  if (typeof maybe === "string" && maybe.trim()) {
-    try { return { data: JSON.parse(maybe), _raw: debug ? out : undefined }; }
-    catch { return { error: "Sortie OpenAI non-JSON (full).", _raw: debug ? out : undefined }; }
-  }
-
-  return { error: "Sortie OpenAI vide (full).", _raw: debug ? out : undefined };
 }
 
 /* ========= Handler principal ========= */
@@ -198,7 +231,7 @@ export default async function handler(req, res) {
     const mode        = (sp.mode || "full").toLowerCase(); // mini | full
     const model       = sp.model || DEFAULT_MODEL;
     const maxtok      = parseInt(sp.maxtok || (mode === "mini" ? "700" : "1500"), 10);
-    const timeout     = parseInt(sp.oaitimeout || "30000", 10);
+    const timeout     = parseInt(sp.oaitimeout || "55000", 10); // ← par défaut 55s
     const debug       = sp.debug === "1";
     const dry         = sp.dry === "1";
 
@@ -225,7 +258,7 @@ export default async function handler(req, res) {
 
     let passageJson;
     try {
-      const pRes = await fetch(url, { headers: { Accept: "application/json" } });
+      const pRes = await fetchWithRetry(url, { headers: { Accept: "application/json" } }, { tries: 1 });
       if (!pRes.ok) {
         const txt = await pRes.text().catch(() => "");
         return jErr(res, `BibleProvider ${pRes.status}: ${txt}`);
@@ -307,7 +340,7 @@ ${isFull ? guideFull : guideMini}
 
 ${schemaHint}`;
 
-    // 3) OpenAI
+    // 3) OpenAI (avec retry & timeout souple)
     const resOai = isFull
       ? await oaiFull({ model: DEFAULT_MODEL, prompt, maxtok: Number.isFinite(maxtok) ? maxtok : 1500, timeoutMs: timeout, debug })
       : await oaiMini({ model: DEFAULT_MODEL, prompt, maxtok: Number.isFinite(maxtok) ? maxtok : 700,  timeoutMs: timeout, debug });
