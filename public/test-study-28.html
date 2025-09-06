@@ -1,90 +1,242 @@
 <!doctype html>
-<meta charset="utf-8" />
-<title>Test /api/study-28 → 28 sections</title>
-<style>
-  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; }
-  h1 { margin: 0 0 1rem; }
-  form { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin-bottom: 1rem; }
-  form label { display: grid; gap: .25rem; font-size: .9rem; }
-  input, select, button { padding: .5rem .6rem; font-size: 1rem; }
-  .row-span-2 { grid-column: 1 / -1; }
-  .ok { color: #0a7; }
-  .err { color: #c00; white-space: pre-wrap; }
-  .meta { font-size: .95rem; color: #444; margin: .5rem 0 1rem; }
-  .sec { border-top: 1px solid #eee; padding: .9rem 0; }
-  .sec h3 { margin: 0 0 .25rem; font-size: 1.05rem; }
-  .verses { font-size: .85rem; color: #666; }
-</style>
-
-<h1>Test rapide : /api/study-28 → 28 sections</h1>
-
-<form id="f">
-  <label> Livre
-    <input name="book" value="Genèse" required />
-  </label>
-  <label> Chapitre
-    <input name="chapter" value="1" required />
-  </label>
-  <label> Versets (optionnel)
-    <input name="verse" placeholder="ex: 1-5 ou 3,7" />
-  </label>
-  <label> Traduction (label libre)
-    <input name="translation" value="JND" />
-  </label>
-  <label class="row-span-2"> Bible ID (optionnel)
-    <input name="bibleId" value="a93a92589195411f-01" />
-  </label>
-  <button type="submit">🧪 Lancer l’étude (28 points)</button>
-</form>
-
-<div id="status"></div>
-<div id="out"></div>
-
-<script>
-const $ = s => document.querySelector(s);
-const statusBox = $("#status");
-const out = $("#out");
-$("#f").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  out.innerHTML = "";
-  statusBox.textContent = "⏳ génération en cours…";
-  const fd = new FormData(e.currentTarget);
-  const book = fd.get("book") || "";
-  const chapter = fd.get("chapter") || "";
-  const verse = fd.get("verse") || "";
-  const translation = fd.get("translation") || "JND";
-  const bibleId = fd.get("bibleId") || "";
-
-  const usp = new URLSearchParams({ book, chapter, translation });
-  if (verse) usp.set("verse", verse);
-  if (bibleId) usp.set("bibleId", bibleId);
-
-  try {
-    const res = await fetch(`/api/study-28?` + usp.toString());
-    const j = await res.json();
-    if (!j.ok) {
-      statusBox.innerHTML = `<div class="err">⚠️ Erreur\n${(j.error || "Réponse invalide")}</div>`;
-      return;
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Test rapide — /api/study-28 → 28 sections</title>
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#111a2e; --muted:#94a3b8; --text:#e2e8f0; --acc:#60a5fa; --ok:#22c55e; --err:#ef4444;
+      --border:#1f2a44;
     }
-    const data = j.data || {};
-    const sections = data.sections || [];
-    statusBox.innerHTML = `<div class="ok">✅ Étude de ${data.meta?.reference || (book+" "+chapter)} — ${sections.length} sections</div>
-      <div class="meta">OSIS: ${data.meta?.osis || "?"} · Trad: ${data.meta?.translation || translation}</div>`;
-
-    if (!sections.length) {
-      out.innerHTML = `<div class="err">⚠️ aucune section</div>`;
-      return;
+    *{box-sizing:border-box}
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial;
+      padding:24px;
     }
+    .wrap{max-width:940px; margin:0 auto}
+    h1{font-size:24px; margin:0 0 12px}
+    p.lead{color:var(--muted); margin:0 0 18px}
+    form{
+      background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; display:grid; gap:12px;
+      grid-template-columns: repeat(6, 1fr);
+    }
+    label{display:flex; flex-direction:column; gap:6px; color:#cbd5e1; font-weight:600; grid-column: span 2}
+    input, select{
+      background:#0f172a; border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px 12px; outline:none;
+    }
+    input:focus{border-color:#334155; box-shadow:0 0 0 3px #1e293b66}
+    .span-3{grid-column: span 3}
+    .span-2{grid-column: span 2}
+    .span-1{grid-column: span 1}
+    .actions-row{grid-column: 1 / -1; display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    button{
+      appearance:none; background:var(--acc); border:none; color:#031225; padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer;
+    }
+    button.secondary{background:#0f172a; color:#cbd5e1; border:1px solid var(--border)}
+    #status{margin:18px 0 10px}
+    .ok{color:var(--ok); font-weight:700}
+    .err{color:var(--err); white-space:pre-wrap}
+    .meta{color:var(--muted); margin-top:4px}
+    #actions{display:none; gap:.5rem; margin:.75rem 0 1.25rem; flex-wrap:wrap}
+    #out{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px}
+    .sec{padding:12px 10px; border-bottom:1px dashed var(--border)}
+    .sec:last-child{border-bottom:none}
+    .sec h3{margin:0 0 6px; font-size:16px}
+    .verses{color:#a5b4fc; margin-top:6px; font-size:12px}
+    details{margin-top:12px}
+    pre{white-space:pre-wrap; background:#0f172a; border:1px solid var(--border); border-radius:10px; padding:12px; color:#d1d5db}
+    .hint{color:var(--muted); margin:8px 0 0; font-size:12px}
+    @media (max-width:760px){
+      form{grid-template-columns: 1fr 1fr}
+      .span-3,.span-2{grid-column: 1 / -1}
+    }
+    @media print{
+      form,#actions,details,.hint{display:none !important}
+      body{padding:0; background:#fff; color:#000}
+      .sec{page-break-inside:avoid}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Test rapide : <code>/api/study-28</code> → 28 sections</h1>
+    <p class="lead">Valide que l’étude structurée (1 → 28) se génère correctement à partir d’un passage fourni par <code>/api/bibleProvider</code>.</p>
 
-    out.innerHTML = sections.map(s => `
-      <div class="sec">
-        <h3>${s.index}. ${s.title}</h3>
-        <p>${s.content}</p>
-        ${Array.isArray(s.verses) && s.verses.length ? `<div class="verses">Versets: ${s.verses.join(", ")}</div>` : ""}
+    <form id="f" autocomplete="off">
+      <label class="span-2">
+        Livre
+        <input name="book" placeholder="Genèse" value="Genèse" />
+      </label>
+      <label class="span-1">
+        Chapitre
+        <input name="chapter" type="number" min="1" step="1" placeholder="1" value="1" />
+      </label>
+      <label class="span-1">
+        Versets (optionnel)
+        <input name="verse" placeholder="ex: 1-5 ou 3,7" />
+      </label>
+      <label class="span-1">
+        Traduction (label libre)
+        <input name="translation" placeholder="JND / LSG…" value="JND" />
+      </label>
+      <label class="span-1">
+        Bible ID (optionnel)
+        <input name="bibleId" placeholder="ex: a93a92589195411f-01" value="a93a92589195411f-01" />
+      </label>
+
+      <div class="actions-row">
+        <button type="submit">🧪 Lancer l’étude (28 points)</button>
+        <span class="hint">Astuce : laisse “Versets” vide pour le chapitre entier.</span>
       </div>
-    `).join("");
-  } catch (e2) {
-    statusBox.innerHTML = `<div class="err">⚠️ Exception: ${e2?.message || e2}</div>`;
-  }
-});
-</script>
+    </form>
+
+    <div id="status"></div>
+
+    <div id="actions">
+      <button id="btnExport">💾 Exporter JSON</button>
+      <button id="btnPermalink" class="secondary">🔗 Copier le lien</button>
+      <button id="btnPrint" class="secondary">🖨️ Imprimer / PDF</button>
+      <span id="copied" style="display:none; color:#22c55e; font-weight:700">Lien copié ✓</span>
+    </div>
+
+    <div id="out">Remplis le formulaire ci-dessus puis clique sur <em>🧪 Lancer l’étude</em>.</div>
+
+    <details>
+      <summary>JSON brut (debug)</summary>
+      <pre id="raw"></pre>
+    </details>
+  </div>
+
+  <script>
+    const $ = s => document.querySelector(s);
+    const statusBox = $("#status");
+    const out = $("#out");
+    const actions = $("#actions");
+    const btnExport = $("#btnExport");
+    const btnPermalink = $("#btnPermalink");
+    const btnPrint = $("#btnPrint");
+    const copied = $("#copied");
+    const raw = $("#raw");
+
+    let lastPayload = null;   // sauvegarde de la dernière réponse (pour export)
+    let lastParams  = null;   // sauvegarde des paramètres (pour permalien)
+
+    $("#f").addEventListener("submit", onSubmit);
+
+    async function onSubmit(e){
+      e.preventDefault();
+      out.innerHTML = "";
+      raw.textContent = "";
+      actions.style.display = "none";
+      copied.style.display = "none";
+      statusBox.textContent = "⏳ génération en cours…";
+      lastPayload = null;
+
+      const fd = new FormData(e.currentTarget);
+      const book = (fd.get("book") || "").trim();
+      const chapter = (fd.get("chapter") || "").trim();
+      const verse = (fd.get("verse") || "").trim();
+      const translation = (fd.get("translation") || "JND").trim();
+      const bibleId = (fd.get("bibleId") || "").trim();
+
+      const usp = new URLSearchParams({ book, chapter, translation });
+      if (verse) usp.set("verse", verse);
+      if (bibleId) usp.set("bibleId", bibleId);
+      lastParams = { book, chapter, verse, translation, bibleId };
+
+      try {
+        const res = await fetch(`/api/study-28?` + usp.toString(), {
+          headers: { "accept": "application/json" }
+        });
+        const j = await res.json().catch(() => null);
+
+        // Affiche le brut pour debug (si dispo)
+        if (j) raw.textContent = JSON.stringify(j, null, 2);
+
+        if (!j || !j.ok) {
+          const msg = j?.error || "Réponse vide ou invalide";
+          statusBox.innerHTML = `<div class="err">⚠️ ${msg}</div>`;
+          return;
+        }
+
+        const data = j.data || {};
+        lastPayload = data;
+
+        const meta = data.meta || {};
+        const ref  = meta.reference || `${book} ${chapter}${verse ? ":"+verse : ""}`;
+        const sections = Array.isArray(data.sections) ? data.sections : [];
+
+        statusBox.innerHTML = `<div class="ok">✅ Étude de ${ref} — ${sections.length} sections</div>
+          <div class="meta">OSIS: ${meta.osis || "?"} · Trad: ${meta.translation || translation}</div>`;
+
+        if (!sections.length) {
+          out.innerHTML = `<div class="err">⚠️ Aucune section trouvée</div>`;
+          return;
+        }
+
+        out.innerHTML = sections.map(s => `
+          <div class="sec">
+            <h3>${s.index}. ${escapeHtml(s.title || "")}</h3>
+            <p>${escapeHtml(s.content || "")}</p>
+            ${Array.isArray(s.verses) && s.verses.length ? `<div class="verses">Versets : ${s.verses.map(escapeHtml).join(", ")}</div>` : ""}
+          </div>
+        `).join("");
+
+        actions.style.display = "flex";
+      } catch (e2) {
+        statusBox.innerHTML = `<div class="err">⚠️ Exception: ${e2?.message || e2}</div>`;
+      }
+    }
+
+    // Export JSON
+    btnExport.addEventListener("click", () => {
+      if (!lastPayload) return;
+      const blob = new Blob([JSON.stringify(lastPayload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const ref = (lastPayload?.meta?.reference || "etude").replace(/\s+/g, "_");
+      a.href = url;
+      a.download = `${ref}.study28.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    });
+
+    // Copier permalien
+    btnPermalink.addEventListener("click", async () => {
+      if (!lastParams) return;
+      const usp = new URLSearchParams();
+      for (const [k, v] of Object.entries(lastParams)) {
+        if (v) usp.set(k, v);
+      }
+      const url = `${location.origin}${location.pathname}?${usp.toString()}`;
+      try { await navigator.clipboard.writeText(url); } catch {}
+      copied.style.display = "inline-block";
+      setTimeout(()=>copied.style.display="none", 1400);
+    });
+
+    // Imprimer / PDF
+    btnPrint.addEventListener("click", () => window.print());
+
+    // Utilitaires
+    function escapeHtml(s=""){
+      return String(s)
+        .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;").replaceAll("'","&#39;");
+    }
+
+    // Auto-hydrate depuis un permalien si query présente
+    (function hydrateFromURL(){
+      const usp = new URLSearchParams(location.search);
+      for (const [k,v] of usp.entries()){
+        const el = document.querySelector(`[name="${k}"]`);
+        if (el) el.value = v;
+      }
+      if (usp.size) document.getElementById("f").dispatchEvent(new Event("submit"));
+    })();
+  </script>
+</body>
+</html>
