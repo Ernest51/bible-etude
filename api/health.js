@@ -1,5 +1,5 @@
-// /api/health.js — healthcheck simple avec signature
-export const config = { runtime: "nodejs18.x" };
+// /api/health.js — healthcheck simple (Vercel)
+export const config = { runtime: "nodejs" };
 
 export default async function handler(_req, res) {
   try {
@@ -14,7 +14,7 @@ export default async function handler(_req, res) {
         hasApiBibleId:  !!process.env.API_BIBLE_ID || !!process.env.API_BIBLE_BIBLE_ID
       }
     });
-  } catch {
-    res.status(500).json({ ok: false, error: "health_failed" });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: "health_failed", detail: String(e?.message || e) });
   }
 }
