@@ -1,253 +1,214 @@
-// app/api/study-28/route.js  (App Router)
-// ou: pages/api/study-28.js   (Pages Router, export default handler)
+// /api/study-28.js
+// Étude en 28 rubriques — LLM-FREE — basé uniquement sur api.bible
+// ENV requis: API_BIBLE_KEY  | optionnel: API_BIBLE_ID (bible par défaut)
 
-import { NextResponse } from "next/server";
+export const config = { runtime: "nodejs18.x" };
 
-/**
- * LLM-FREE version
- * - Ne requiert AUCUNE clé OpenAI
- * - Lit le passage via /api/bibleProvider (que tu as déjà fonctionnel)
- * - Produit un JSON strict conforme à ton schéma:
- *   {
- *     meta: { book, chapter, verse, translation, reference, osis },
- *     sections: [{ index, title, content, verses: string[] }]
- *   }
- * - Supporte: ?mode=mini|full  et ?dry=1  et ?selftest=1
- */
-
-// ----------------------------------------------------
-// Utilitaires communs
-// ----------------------------------------------------
-function respond(payload, status = 200) {
-  return NextResponse.json(payload, { status });
+// ---------- utils HTTP ----------
+function send(res, status, payload) {
+  try {
+    res.statusCode = status;
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.end(JSON.stringify(payload, null, 2));
+  } catch {
+    try { res.end('{"ok":false,"warn":"send_failed"}'); } catch {}
+  }
 }
-
-function clip(s, max = 240) {
-  if (!s) return "";
-  const t = s.replace(/\s+/g, " ").trim();
-  return t.length > max ? t.slice(0, max - 1).trimEnd() + "…" : t;
-}
-
-function firstSentence(text) {
-  if (!text) return "";
-  const clean = text.replace(/\s+/g, " ").trim();
+const clip = (s, max=240) => {
+  const t = String(s||"").replace(/\s+/g," ").trim();
+  return t.length > max ? t.slice(0,max-1).trimEnd()+"…" : t;
+};
+const firstSentence = (s) => {
+  const clean = String(s||"").replace(/\s+/g," ").trim();
   const m = clean.match(/(.+?[.!?])(\s|$)/u);
   return m ? m[1].trim() : clip(clean, 180);
+};
+
+// ---------- api.bible client minimal ----------
+const API_ROOT = "https://api.scripture.api.bible/v1";
+const KEY = process.env.API_BIBLE_KEY || "";
+const DEFAULT_BIBLE_ID = process.env.API_BIBLE_ID || "";
+
+async function callApi(endpoint, { params={} } = {}) {
+  if (!KEY) {
+    const e = new Error("API_BIBLE_KEY missing");
+    e.status = 500; throw e;
+  }
+  const url = new URL(API_ROOT + endpoint);
+  for (const [k,v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") url.searchParams.set(k,String(v));
+  }
+  const r = await fetch(url, { headers: { accept:"application/json", "api-key": KEY } });
+  const text = await r.text();
+  let j; try { j = text ? JSON.parse(text) : {}; } catch { j = { raw: text }; }
+  if (!r.ok) {
+    const e = new Error(j?.error?.message || `api.bible ${r.status}`);
+    e.status = r.status; e.details = j; throw e;
+  }
+  return j?.data ?? j;
 }
 
-function fallbackOsis(book, chapter) {
-  // Très simple: prend 3 premières lettres du livre + chapitre (si pas fourni par bibleProvider)
-  const code = (book || "BOOK").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  return (code.slice(0,3).toUpperCase() + "." + String(chapter || "1")).trim();
+async function resolveBibleId(explicitId) {
+  if (explicitId) return explicitId;
+  if (DEFAULT_BIBLE_ID) return DEFAULT_BIBLE_ID;
+  const bibles = await callApi("/bibles");
+  if (!Array.isArray(bibles) || bibles.length === 0) throw new Error("No bibles available");
+  const fr = bibles.find(b => (b.language?.name||"").toLowerCase().startsWith("fr"));
+  return (fr && fr.id) || bibles[0].id;
 }
 
-// ----------------------------------------------------
-// Générateurs de contenu (sans IA)
-// ----------------------------------------------------
+// normalisation douce pour faire matcher le nom FR du livre
+const norm = (s) => String(s||"")
+  .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+  .toLowerCase().replace(/[^a-z0-9 ]+/g," ")
+  .replace(/\s+/g," ").trim();
+
+async function resolveBookId(bibleId, bookName) {
+  const books = await callApi(`/bibles/${bibleId}/books`);
+  const target = norm(bookName);
+  // match exact title
+  let hit = books.find(b => norm(b.name) === target || norm(b.abbreviationLocal) === target || norm(b.abbreviation) === target);
+  if (!hit) {
+    // match startsWith
+    hit = books.find(b => norm(b.name).startsWith(target) || norm(b.abbreviationLocal).startsWith(target));
+  }
+  if (!hit) {
+    // includes (dernier recours)
+    hit = books.find(b => norm(b.name).includes(target));
+  }
+  if (!hit) throw new Error(`Book not found: ${bookName}`);
+  return hit.id; // OSIS ex: GEN
+}
+
+async function getPassage({ bibleId, bookName, chapter, verse="" }) {
+  const bookId = await resolveBookId(bibleId, bookName);
+  // Ref OSIS: GEN.1  ou  GEN.1.1-5
+  const ref = `${bookId}.${String(chapter)}` + (verse ? `.${String(verse)}` : "");
+  const params = {
+    "content-type": "html",
+    "include-notes": false,
+    "include-titles": true,
+    "include-chapter-numbers": true,
+    "include-verse-numbers": false,
+    "include-verse-spans": false,
+    "use-org-id": false,
+  };
+  const data = await callApi(`/bibles/${bibleId}/passages/${encodeURIComponent(ref)}`, { params });
+  const contentHtml = data?.content || "";
+  const reference = data?.reference || `${bookName} ${chapter}${verse?':'+verse:''}`;
+  const plain = contentHtml
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return { osis: ref, reference, html: contentHtml, text: plain };
+}
+
+// ---------- Génération des rubriques (sans IA) ----------
 const TITLES_FULL = [
-  "Thème central",
-  "Résumé en une phrase",
-  "Contexte historique",
-  "Auteur et date",
-  "Genre littéraire",
-  "Structure du passage",
-  "Plan détaillé",
-  "Mots-clés",
-  "Termes clés (définis)",
-  "Personnages et lieux",
-  "Problème / Question de départ",
-  "Idées majeures (développement)",
-  "Verset pivot (climax)",
-  "Références croisées (AT)",
-  "Références croisées (NT)",
-  "Parallèles bibliques",
-  "Lien avec l’Évangile (Christocentrique)",
-  "Vérités doctrinales (3–5)",
-  "Promesses et avertissements",
-  "Principes intemporels",
-  "Applications personnelles (3–5)",
-  "Applications communautaires",
-  "Questions pour petits groupes (6)",
-  "Prière guidée",
-  "Méditation courte",
-  "Versets à mémoriser (2–3)",
-  "Difficultés/objections & réponses",
-  "Ressources complémentaires"
+  "Thème central","Résumé en une phrase","Contexte historique","Auteur et date","Genre littéraire",
+  "Structure du passage","Plan détaillé","Mots-clés","Termes clés (définis)","Personnages et lieux",
+  "Problème / Question de départ","Idées majeures (développement)","Verset pivot (climax)",
+  "Références croisées (AT)","Références croisées (NT)","Parallèles bibliques",
+  "Lien avec l’Évangile (Christocentrique)","Vérités doctrinales (3–5)","Promesses et avertissements",
+  "Principes intemporels","Applications personnelles (3–5)","Applications communautaires",
+  "Questions pour petits groupes (6)","Prière guidée","Méditation courte","Versets à mémoriser (2–3)",
+  "Difficultés/objections & réponses","Ressources complémentaires"
 ];
+const TITLES_MINI = ["Thème central","Idées majeures (développement)","Applications personnelles"];
 
-const TITLES_MINI = [
-  "Thème central",
-  "Idées majeures (développement)",
-  "Applications personnelles"
-];
-
-// Heuristiques très prudentes: on ne “devine” pas des versets exacts.
-// On se contente de phrases génériques qui s’appuient sur le passage et sa référence.
 function makeMiniSections(reference, passageText) {
   const s1 = firstSentence(passageText) || `Lecture de ${reference}.`;
   return [
-    {
-      index: 1,
-      title: TITLES_MINI[0],
-      content: clip(`Passage étudié : ${reference}. ${s1}`),
-      verses: []
-    },
-    {
-      index: 2,
-      title: TITLES_MINI[1],
-      content: clip(`Idées maîtresses observables dans ${reference} : ordre du texte, thèmes récurrents, et progression interne du passage, sans extrapoler au-delà de ce qui est lu.`),
-      verses: []
-    },
-    {
-      index: 3,
-      title: TITLES_MINI[2],
-      content: clip(`À partir de ${reference}, appliquer de façon pratique ce qui ressort du passage (respect du texte, prière, mise en pratique sobre et mesurée).`),
-      verses: []
-    }
+    { index:1, title:TITLES_MINI[0], content: clip(`Passage étudié : ${reference}. ${s1}`), verses:[] },
+    { index:2, title:TITLES_MINI[1], content: clip(`Idées maîtresses observables dans ${reference} : ordre du texte, thèmes récurrents, progression interne, sans extrapoler.`), verses:[] },
+    { index:3, title:TITLES_MINI[2], content: clip(`À partir de ${reference}, pistes d’application pratiques (prière, obéissance, prudence herméneutique).`), verses:[] },
   ];
 }
-
 function makeFullSections(reference, passageText) {
-  // Contenus concis (2 phrases max) qui ne sortent pas du texte et restent génériques.
   const intro = firstSentence(passageText) || `Lecture de ${reference}.`;
   const generic = (t) => clip(`${t} (${reference}).`);
   const qn = (q) => clip(`${q} — en s’appuyant uniquement sur ${reference}.`);
-
   const contents = [
     clip(`Passage étudié : ${reference}. ${intro}`),
-    generic("Résumé bref du passage lu, sous forme factuelle"),
-    generic("Contexte littéraire immédiat du passage (ce que le texte lui-même laisse entrevoir)"),
-    generic("Attribution traditionnelle mentionnée prudemment, sans s’aventurer au-delà du texte"),
-    generic("Nature générale du texte (récit, discours, poésie), d’après sa forme littéraire"),
-    generic("Découpage interne observé à la simple lecture (mouvements/paragraphes)"),
-    generic("Plan de lecture sobre (étapes logiques internes au passage)"),
-    generic("Termes ou expressions saillants relevés dans le passage"),
-    generic("Explications brèves de quelques expressions récurrentes du passage"),
-    generic("Acteurs évoqués et espace du récit tels qu’ils apparaissent"),
-    qn("Question directrice de lecture"),
-    generic("Développement des idées qui émergent naturellement du texte"),
-    generic("Point culminant interne du passage tel qu’il ressort de la lecture"),
-    generic("Renvois internes éventuels à l’Ancien Testament mentionnés prudemment"),
-    generic("Renvois internes éventuels au Nouveau Testament mentionnés prudemment"),
-    generic("Échos ou parallèles scripturaires prudents (sans extrapolation)"),
-    generic("Lecture christocentrique mesurée, en respectant le texte lu"),
-    generic("Vérités doctrinales implicites ou explicites suggérées par le passage"),
-    generic("Promesses et mises en garde telles que le passage les laisse entendre"),
-    generic("Principes généraux que l’on peut déduire sobrement du passage"),
-    generic("Applications personnelles possibles, en respectant le cadre du passage"),
-    generic("Applications communautaires possibles, toujours ancrées dans le texte"),
-    generic("Questions simples pour un partage en petit groupe sur le passage"),
-    generic("Prière guidée ancrée dans le passage lu"),
-    generic("Brève méditation pour prolonger la lecture"),
-    generic("Quelques versets marquants à mémoriser dans ce passage"),
-    generic("Difficultés possibles du passage et pistes de lecture sobres"),
-    generic("Ressources complémentaires de lecture (sans prescrire de sources)")
+    generic("Résumé factuel très bref du passage"),
+    generic("Contexte littéraire immédiat que laisse entrevoir le texte"),
+    generic("Attribution traditionnelle mentionnée prudemment"),
+    generic("Nature du texte (récit, poésie, discours, prophétie) selon sa forme"),
+    generic("Découpage interne visible à la lecture"),
+    generic("Plan de lecture sobre (étapes logiques internes)"),
+    generic("Termes/expressions saillants relevés"),
+    generic("Courtes définitions d’expressions récurrentes"),
+    generic("Acteurs et lieux tels qu’ils apparaissent"),
+    qn("Question directrice"),
+    generic("Développement des idées émergentes"),
+    generic("Point culminant interne (pivot)"),
+    generic("Éventuels renvois AT prudents"),
+    generic("Éventuels renvois NT prudents"),
+    generic("Échos/parallèles scripturaires"),
+    generic("Lecture christocentrique mesurée"),
+    generic("Vérités doctrinales suggérées"),
+    generic("Promesses et avertissements"),
+    generic("Principes généraux"),
+    generic("Applications personnelles"),
+    generic("Applications communautaires"),
+    generic("Questions pour petit groupe"),
+    generic("Prière guidée ancrée dans le passage"),
+    generic("Méditation courte"),
+    generic("Versets à mémoriser"),
+    generic("Difficultés possibles & pistes"),
+    generic("Ressources complémentaires")
   ];
-
-  return contents.map((content, i) => ({
-    index: i + 1,
-    title: TITLES_FULL[i],
-    content,
-    verses: []
-  }));
+  return contents.map((content, i) => ({ index:i+1, title: TITLES_FULL[i], content, verses: [] }));
 }
 
-// ----------------------------------------------------
-// Handler principal
-// ----------------------------------------------------
-export async function GET(req) {
-  const { searchParams } = new URL(req.url);
-
-  // Entrées
-  const book = searchParams.get("book") || "Genèse";
-  const chapter = searchParams.get("chapter") || "1";
-  const verse = searchParams.get("verse") || "";
-  const translation = searchParams.get("translation") || "JND";
-  const bibleId = searchParams.get("bibleId") || "";
-  const mode = (searchParams.get("mode") || "full").toLowerCase(); // mini | full
-  const dry = searchParams.get("dry") || "";
-  const selftest = searchParams.get("selftest") === "1";
-
+// ---------- handler ----------
+export default async function handler(req, res) {
   try {
-    // Self test
+    if (req.method !== "GET") {
+      return send(res, 405, { ok:false, error:"Use GET" });
+    }
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const sp = url.searchParams;
+
+    // Entrées
+    const book = sp.get("book") || "Genèse";
+    const chapter = sp.get("chapter") || "1";
+    const verse = sp.get("verse") || "";
+    const translation = sp.get("translation") || "LSG";
+    const bibleIdParam = sp.get("bibleId") || "";
+    const mode = (sp.get("mode") || "full").toLowerCase(); // full | mini
+    const dry = sp.has("dry");
+    const selftest = sp.get("selftest") === "1";
+
     if (selftest) {
-      return respond({
-        ok: true,
-        engine: "LLM-FREE",
-        modes: ["mini", "full"],
-        source: "api.bibleProvider",
-      });
+      return send(res, 200, { ok:true, engine:"LLM-FREE", modes:["mini","full"], source:"api.bible" });
     }
 
-    // Dry-run (sans access API)
+    // Dry-run
     const referenceDry = verse ? `${book} ${chapter}:${verse}` : `${book} ${chapter}`;
     if (dry) {
-      if (mode === "mini") {
-        return respond({
-          ok: true,
-          data: {
-            meta: { book, chapter, verse, translation, reference: referenceDry, osis: "" },
-            sections: makeMiniSections(referenceDry, "Exemple de texte.")
-          }
-        });
-      }
-      return respond({
-        ok: true,
-        data: {
-          meta: { book, chapter, verse, translation, reference: referenceDry, osis: "" },
-          sections: makeFullSections(referenceDry, "Exemple de texte.")
-        }
-      });
+      const sections = mode === "mini"
+        ? makeMiniSections(referenceDry, "Exemple de texte.")
+        : makeFullSections(referenceDry, "Exemple de texte.");
+      return send(res, 200, { ok:true, data:{ meta:{ book, chapter, verse, translation, reference: referenceDry, osis:"" }, sections } });
     }
 
-    // Appel BibleProvider
-    const base = req.headers.get("x-forwarded-host")
-      ? `https://${req.headers.get("x-forwarded-host")}`
-      : "http://localhost:3000";
+    // api.bible
+    const bibleId = await resolveBibleId(bibleIdParam);
+    const pass = await getPassage({ bibleId, bookName: book, chapter, verse });
 
-    const passageUrl =
-      `${base}/api/bibleProvider?book=${encodeURIComponent(book)}&chapter=${encodeURIComponent(chapter)}` +
-      (verse ? `&verse=${encodeURIComponent(verse)}` : "") +
-      (bibleId ? `&bibleId=${encodeURIComponent(bibleId)}` : "");
+    const reference = pass.reference || referenceDry;
+    const passageText = pass.text || "";
+    const sections = mode === "mini"
+      ? makeMiniSections(reference, passageText)
+      : makeFullSections(reference, passageText);
 
-    const pRes = await fetch(passageUrl);
-    if (!pRes.ok) {
-      return respond({ ok: false, error: `BibleProvider HTTP ${pRes.status}: ${await pRes.text()}` }, 502);
-    }
-    const pJson = await pRes.json();
-    if (!pJson.ok) {
-      return respond({ ok: false, error: pJson.error || "BibleProvider error" }, 502);
-    }
-
-    const passage = pJson.data || {};
-    const osis = passage.osis || fallbackOsis(book, chapter);
-    const reference = verse ? `${book} ${chapter}:${verse}` : `${book} ${chapter}`;
-    const passageText = passage.passageText || "";
-
-    // Génération LLM-FREE
-    let sections;
-    if (mode === "mini") {
-      sections = makeMiniSections(reference, passageText);
-    } else {
-      sections = makeFullSections(reference, passageText);
-    }
-
-    // Meta + réponse
     const data = {
-      meta: { book, chapter, verse, translation, reference, osis },
+      meta: { book, chapter, verse, translation, reference, osis: pass.osis || "" },
       sections
     };
-
-    return respond({ ok: true, data });
+    return send(res, 200, { ok:true, data });
   } catch (e) {
-    return respond({ ok: false, error: String(e) }, 500);
+    return send(res, e.status || 500, { ok:false, error: String(e.message || e) });
   }
 }
-
-// Pages Router fallback (décommente si tu es en /pages)
-// export default async function handler(req, res) {
-//   const url = new URL(req.url, `http://${req.headers.host}`);
-//   const r = await GET({ url, headers: new Map(Object.entries(req.headers)) });
-//   const json = await r.json();
-//   res.status(r.status || 200).json(json);
-// }
