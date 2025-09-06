@@ -4,18 +4,11 @@
     { "src": "api/**/*.js", "use": "@vercel/node" }
   ],
   "routes": [
+    { "src": "/api/study-28$", "dest": "/api/study28.js" },
     { "src": "/api/(.*)", "dest": "/api/$1" }
   ],
   "functions": {
-    "api/study-28.js": {
-      "runtime": "nodejs18.x",
-      "memory": 1024,
-      "maxDuration": 60
-    },
-    "api/bibleProvider.js": {
-      "runtime": "nodejs18.x",
-      "memory": 1024,
-      "maxDuration": 30
-    }
+    "api/study28.js": { "runtime": "nodejs18.x", "memory": 1024, "maxDuration": 60 },
+    "api/bibleProvider.js": { "runtime": "nodejs18.x", "memory": 1024, "maxDuration": 30 }
   }
 }
