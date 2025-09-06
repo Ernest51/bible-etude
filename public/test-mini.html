@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mini tests (BibleProvider / OpenAI / Study-28)</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;max-width:900px;margin:24px auto;padding:0 12px;}
+    h1{margin:0 0 12px;}
+    fieldset{border:1px solid #ddd;border-radius:8px;margin:16px 0;padding:12px;}
+    label{display:block;margin:6px 0 2px;color:#444}
+    input{width:100%;padding:8px;border:1px solid #ccc;border-radius:6px}
+    button{padding:10px 14px;border:0;border-radius:8px;background:#111;color:#fff;cursor:pointer}
+    button:disabled{opacity:.6;cursor:progress}
+    pre{background:#f6f6f6;border:1px solid #eee;border-radius:8px;padding:12px;overflow:auto}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  </style>
+</head>
+<body>
+  <h1>Mini tests (pas à pas)</h1>
+
+  <fieldset>
+    <legend>1) Ping OpenAI (clé + latence)</legend>
+    <button id="btn-oai">Tester /api/oai-quick</button>
+    <pre id="out-oai">—</pre>
+  </fieldset>
+
+  <fieldset>
+    <legend>2) BibleProvider (texte brut)</legend>
+    <div class="row">
+      <div>
+        <label>Livre</label>
+        <input id="book" value="Genèse" />
+      </div>
+      <div>
+        <label>Chapitre</label>
+        <input id="chapter" value="1" />
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Versets (optionnel, ex: 1-5)</label>
+        <input id="verse" placeholder="laisser vide pour tout le chapitre" />
+      </div>
+      <div>
+        <label>Bible ID (optionnel)</label>
+        <input id="bibleId" value="a93a92589195411f-01" />
+      </div>
+    </div>
+    <button id="btn-prov">Tester /api/bibleProvider</button>
+    <pre id="out-prov">—</pre>
+  </fieldset>
+
+  <fieldset>
+    <legend>3) Study-28 (mode mini ou complet)</legend>
+    <div class="row">
+      <div>
+        <label>Traduction (label libre)</label>
+        <input id="translation" value="JND" />
+      </div>
+      <div>
+        <label>Mode</label>
+        <input id="mode" value="mini" />
+      </div>
+    </div>
+    <button id="btn-study">Tester /api/study-28</button>
+    <pre id="out-study">—</pre>
+  </fieldset>
+
+  <script>
+    async function call(url, outEl, btn) {
+      try {
+        btn && (btn.disabled = true);
+        const r = await fetch(url);
+        const t = await r.text();
+        outEl.textContent = t;
+      } catch (e) {
+        outEl.textContent = "ERREUR: " + e;
+      } finally {
+        btn && (btn.disabled = false);
+      }
+    }
+
+    document.getElementById('btn-oai').onclick = () => {
+      call('/api/oai-quick', document.getElementById('out-oai'), document.getElementById('btn-oai'));
+    };
+
+    document.getElementById('btn-prov').onclick = () => {
+      const book = encodeURIComponent(document.getElementById('book').value.trim());
+      const chapter = encodeURIComponent(document.getElementById('chapter').value.trim());
+      const verse = encodeURIComponent(document.getElementById('verse').value.trim());
+      const bibleId = encodeURIComponent(document.getElementById('bibleId').value.trim());
+      const qs = new URLSearchParams();
+      qs.set('book', decodeURIComponent(book));
+      qs.set('chapter', decodeURIComponent(chapter));
+      if (verse) qs.set('verse', decodeURIComponent(verse));
+      if (bibleId) qs.set('bibleId', decodeURIComponent(bibleId));
+      call('/api/bibleProvider?' + qs.toString(), document.getElementById('out-prov'), document.getElementById('btn-prov'));
+    };
+
+    document.getElementById('btn-study').onclick = () => {
+      const book = encodeURIComponent(document.getElementById('book').value.trim());
+      const chapter = encodeURIComponent(document.getElementById('chapter').value.trim());
+      const verse = encodeURIComponent(document.getElementById('verse').value.trim());
+      const bibleId = encodeURIComponent(document.getElementById('bibleId').value.trim());
+      const translation = encodeURIComponent(document.getElementById('translation').value.trim());
+      const mode = encodeURIComponent(document.getElementById('mode').value.trim());
+      const qs = new URLSearchParams();
+      qs.set('book', decodeURIComponent(book));
+      qs.set('chapter', decodeURIComponent(chapter));
+      if (verse) qs.set('verse', decodeURIComponent(verse));
+      if (bibleId) qs.set('bibleId', decodeURIComponent(bibleId));
+      if (translation) qs.set('translation', decodeURIComponent(translation));
+      if (mode) qs.set('mode', decodeURIComponent(mode));
+      call('/api/study-28?' + qs.toString(), document.getElementById('out-study'), document.getElementById('btn-study'));
+    };
+  </script>
+</body>
+</html>
