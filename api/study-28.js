@@ -1,5 +1,4 @@
 // /api/study-28.js — Étude 28 points LLM-FREE (api.bible uniquement)
-
 export const config = { runtime: "nodejs18.x" };
 
 function send(req, res, status, payload) {
@@ -12,7 +11,6 @@ function send(req, res, status, payload) {
     try { res.end('{"ok":false,"warn":"send_failed"}'); } catch {}
   }
 }
-
 const clip = (s, max=240) => {
   const t = String(s||"").replace(/\s+/g," ").trim();
   return t.length > max ? t.slice(0,max-1).trimEnd()+"…" : t;
@@ -29,10 +27,7 @@ const KEY = process.env.API_BIBLE_KEY || "";
 const DEFAULT_BIBLE_ID = process.env.API_BIBLE_ID || "";
 
 async function callApi(endpoint, { params={} } = {}) {
-  if (!KEY) {
-    const e = new Error("API_BIBLE_KEY missing");
-    e.status = 500; throw e;
-  }
+  if (!KEY) { const e = new Error("API_BIBLE_KEY missing"); e.status = 500; throw e; }
   const url = new URL(API_ROOT + endpoint);
   for (const [k,v] of Object.entries(params)) {
     if (v !== undefined && v !== null && v !== "") url.searchParams.set(k,String(v));
@@ -40,10 +35,7 @@ async function callApi(endpoint, { params={} } = {}) {
   const r = await fetch(url, { headers: { accept:"application/json", "api-key": KEY } });
   const text = await r.text();
   let j; try { j = text ? JSON.parse(text) : {}; } catch { j = { raw: text }; }
-  if (!r.ok) {
-    const e = new Error(j?.error?.message || `api.bible ${r.status}`);
-    e.status = r.status; e.details = j; throw e;
-  }
+  if (!r.ok) { const e = new Error(j?.error?.message || `api.bible ${r.status}`); e.status = r.status; e.details = j; throw e; }
   return j?.data ?? j;
 }
 
