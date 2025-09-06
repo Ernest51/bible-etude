@@ -1,13 +1,13 @@
-// /api/study-28.js
-import { NextResponse } from "next/server";
+// /api/study-28.js  (Pages API – handler(req,res))
+// Pas d'import NextResponse : on répond avec res.status(...).json(...)
 
-/** ===== Runtime & cache ===== */
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const config = {
+  // force l’exécution Node (pas Edge) pour éviter certains plantages
+  runtime: "nodejs",
+};
 
-/** ===== Config ===== */
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
+const DEFAULT_MODEL  = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
 
 /** ===== Schéma JSON (full 28) ===== */
 const schemaFull = {
@@ -46,14 +46,14 @@ const schemaFull = {
   strict: true
 };
 
-/** ===== Utils ===== */
-const jOk  = (data)  => NextResponse.json({ ok: true,  data  });
-const jErr = (error) => NextResponse.json({ ok: false, error: String(error) });
+/** ===== Helpers ===== */
+function jOk(res, data)  { res.status(200).json({ ok: true,  data }); }
+function jErr(res, error){ res.status(200).json({ ok: false, error: String(error) }); }
 
-function baseUrl(req) {
+function getBaseUrl(req) {
   try {
-    const host  = req.headers.get("x-forwarded-host");
-    const proto = req.headers.get("x-forwarded-proto") || "https";
+    const proto = req.headers["x-forwarded-proto"] || "https";
+    const host  = req.headers["x-forwarded-host"] || req.headers.host;
     if (host) return `${proto}://${host}`;
   } catch {}
   return "http://localhost:3000";
@@ -65,7 +65,7 @@ function mkAbort(ms) {
   return { ctrl, t };
 }
 
-/** ===== OpenAI calls ===== */
+/** ===== OpenAI (mini) ===== */
 async function oaiMini({ model, prompt, maxtok, timeoutMs, debug }) {
   if (!OPENAI_API_KEY) return { error: "OPENAI_API_KEY manquante." };
 
@@ -91,7 +91,7 @@ async function oaiMini({ model, prompt, maxtok, timeoutMs, debug }) {
     });
   } catch (e) {
     clearTimeout(t);
-    return { error: `OpenAI fetch error: ${e?.message || e}` , _req: debug ? body : undefined };
+    return { error: `OpenAI fetch error: ${e?.message || e}`, _req: debug ? body : undefined };
   }
   clearTimeout(t);
 
@@ -119,6 +119,7 @@ async function oaiMini({ model, prompt, maxtok, timeoutMs, debug }) {
   return { error: "Sortie OpenAI vide (mini).", _raw: debug ? out : undefined };
 }
 
+/** ===== OpenAI (full 28) ===== */
 async function oaiFull({ model, prompt, maxtok, timeoutMs, debug }) {
   if (!OPENAI_API_KEY) return { error: "OPENAI_API_KEY manquante." };
 
@@ -172,26 +173,29 @@ async function oaiFull({ model, prompt, maxtok, timeoutMs, debug }) {
   return { error: "Sortie OpenAI vide (full).", _raw: debug ? out : undefined };
 }
 
-/** ===== Route handler ===== */
-export async function GET(req) {
+/** ===== Handler Pages API ===== */
+export default async function handler(req, res) {
+  // éviter tout cache CDN
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+
   try {
-    const { searchParams } = new URL(req.url);
+    const sp = req.query || {};
 
-    const book        = searchParams.get("book")        || "Genèse";
-    const chapter     = searchParams.get("chapter")     || "1";
-    const verse       = searchParams.get("verse")       || "";
-    const translation = searchParams.get("translation") || "JND";
-    const bibleId     = searchParams.get("bibleId")     || "";
-    const mode        = (searchParams.get("mode") || "full").toLowerCase(); // mini | full
-    const model       = searchParams.get("model") || DEFAULT_MODEL;
-    const maxtok      = parseInt(searchParams.get("maxtok") || (mode === "mini" ? "700" : "1500"), 10);
-    const timeout     = parseInt(searchParams.get("oaitimeout") || "30000", 10);
-    const debug       = searchParams.get("debug") === "1";
-    const dry         = searchParams.get("dry") === "1";
+    const book        = sp.book        || "Genèse";
+    const chapter     = sp.chapter     || "1";
+    const verse       = sp.verse       || "";
+    const translation = sp.translation || "JND";
+    const bibleId     = sp.bibleId     || "";
+    const mode        = (sp.mode || "full").toLowerCase(); // mini | full
+    const model       = sp.model || DEFAULT_MODEL;
+    const maxtok      = parseInt(sp.maxtok || (mode === "mini" ? "700" : "1500"), 10);
+    const timeout     = parseInt(sp.oaitimeout || "30000", 10);
+    const debug       = sp.debug === "1";
+    const dry         = sp.dry === "1";
 
-    // 0) Dry-run sans OpenAI -> pour prouver que la route ne crash pas
+    // 0) Dry-run : prouve que la route ne plante pas côté Vercel
     if (dry) {
-      return jOk({
+      return jOk(res, {
         meta: { book, chapter, verse, translation, reference: `${book} ${chapter}${verse ? ":"+verse : ""}`, osis: "" },
         sections: (mode === "mini")
           ? [
@@ -203,8 +207,8 @@ export async function GET(req) {
       });
     }
 
-    // 1) Récupérer le passage via /api/bibleProvider
-    const base = baseUrl(req);
+    // 1) Récupérer le passage via /api/bibleProvider (même domaine)
+    const base = getBaseUrl(req);
     const url =
       `${base}/api/bibleProvider?book=${encodeURIComponent(book)}` +
       `&chapter=${encodeURIComponent(chapter)}` +
@@ -216,15 +220,15 @@ export async function GET(req) {
       const pRes = await fetch(url, { headers: { Accept: "application/json" } });
       if (!pRes.ok) {
         const txt = await pRes.text().catch(() => "");
-        return jErr(`BibleProvider ${pRes.status}: ${txt}`);
+        return jErr(res, `BibleProvider ${pRes.status}: ${txt}`);
       }
       passageJson = await pRes.json().catch(() => null);
     } catch (e) {
-      return jErr(`BibleProvider fetch error: ${e?.message || e}`);
+      return jErr(res, `BibleProvider fetch error: ${e?.message || e}`);
     }
 
     if (!passageJson?.ok || !passageJson?.data?.passageText) {
-      return jErr(passageJson?.error || "BibleProvider: réponse invalide.");
+      return jErr(res, passageJson?.error || "BibleProvider: réponse invalide.");
     }
     const passage = passageJson.data;
 
@@ -295,20 +299,20 @@ ${isFull ? guideFull : guideMini}
 
 ${schemaHint}`;
 
-    // 3) Appel OpenAI selon le mode
-    const res = isFull
+    // 3) Appel OpenAI
+    const resOai = isFull
       ? await oaiFull({ model: DEFAULT_MODEL, prompt, maxtok: Number.isFinite(maxtok) ? maxtok : 1500, timeoutMs: timeout, debug })
       : await oaiMini({ model: DEFAULT_MODEL, prompt, maxtok: Number.isFinite(maxtok) ? maxtok : 700,  timeoutMs: timeout, debug });
 
-    if (res.error) {
-      if (debug) return jErr({ message: res.error, debug: { request: res._req, raw: res._raw } });
-      return jErr(res.error);
+    if (resOai.error) {
+      if (debug) return jErr(res, { message: resOai.error, debug: { request: resOai._req, raw: resOai._raw } });
+      return jErr(res, resOai.error);
     }
 
-    const parsed = res.data;
+    const parsed = resOai.data;
     if (!parsed || typeof parsed !== "object") {
-      if (debug) return jErr({ message: "Sortie OpenAI invalide.", debug: { request: res._req, raw: res._raw } });
-      return jErr("Sortie OpenAI invalide.");
+      if (debug) return jErr(res, { message: "Sortie OpenAI invalide.", debug: { request: resOai._req, raw: resOai._raw } });
+      return jErr(res, "Sortie OpenAI invalide.");
     }
 
     // 4) compléter meta et vérifier le nombre de sections
@@ -321,17 +325,17 @@ ${schemaHint}`;
 
     if (isFull) {
       if (!Array.isArray(parsed.sections)) {
-        return jErr("Le modèle n’a pas renvoyé de tableau 'sections'.");
+        return jErr(res, "Le modèle n’a pas renvoyé de tableau 'sections'.");
       }
       if (parsed.sections.length !== 28) {
-        return jErr(`Le modèle n’a pas renvoyé 28 sections (reçu: ${parsed.sections.length}).`);
+        return jErr(res, `Le modèle n’a pas renvoyé 28 sections (reçu: ${parsed.sections.length}).`);
       }
     }
 
-    return jOk(parsed);
+    return jOk(res, parsed);
 
   } catch (e) {
-    // Dernier filet de sécurité : rien ne fuit en 500 non contrôlé
-    return jErr(e?.message || e);
+    // aucun 500 non maîtrisé : on renvoie toujours du JSON
+    return jErr(res, e?.message || e);
   }
 }
