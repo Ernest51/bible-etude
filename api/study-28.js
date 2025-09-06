@@ -1,4 +1,4 @@
-// /api/study-28.js — Next.js (pages/api) — renvoie toujours du JSON
+// /api/study-28.js — Next.js (pages/api)
 
 export const config = { runtime: "nodejs" };
 
@@ -7,6 +7,8 @@ const DEFAULT_MODEL  = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
 
 /* ========= Schéma JSON (full 28) ========= */
 const schemaFull = {
+  // ATTENTION : on n’utilise plus cet objet tel quel dans text.format.
+  // On va décomposer les champs (name, schema, strict) à l’endroit attendu.
   name: "study_28",
   schema: {
     type: "object",
@@ -70,8 +72,8 @@ async function oaiMini({ model, prompt, maxtok, timeoutMs, debug }) {
     model,
     temperature: 0.15,
     max_output_tokens: Number.isFinite(maxtok) ? Math.max(300, maxtok) : 700,
-    // ⬇️ CORRECTION : text.format est un objet avec { type: "json_object" }
-    text: { format: { type: "json_object" } },
+    // json_object ne requiert pas name, mais on peut en fournir un, c’est accepté.
+    text: { format: { type: "json_object", name: "study_28_mini" } },
     input: prompt
   };
 
@@ -125,8 +127,15 @@ async function oaiFull({ model, prompt, maxtok, timeoutMs, debug }) {
     model,
     temperature: 0.12,
     max_output_tokens: Number.isFinite(maxtok) ? Math.max(900, maxtok) : 1500,
-    // ⬇️ CORRECTION : text.format => objet { type: "json_schema", schema: ... }
-    text: { format: { type: "json_schema", schema: schemaFull } },
+    // ⬇️ La correction clé : fournir name + schema + strict au bon niveau.
+    text: {
+      format: {
+        type: "json_schema",
+        name: schemaFull.name,
+        schema: schemaFull.schema,
+        strict: schemaFull.strict
+      }
+    },
     input: prompt
   };
 
