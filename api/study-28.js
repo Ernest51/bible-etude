@@ -1,192 +1,269 @@
 // /api/study-28.js
 export const config = { runtime: "edge" };
-export const maxDuration = 60;
 
-// ---------- ENV ----------
+/**
+ * ENV attendues (déjà validées via /api/env) :
+ * - OPENAI_API_KEY
+ * - OPENAI_MODEL (optionnel, défaut: gpt-4o-mini-2024-07-18)
+ * - API_BIBLE_KEY (pour /api/bibleProvider côté serveur déjà OK)
+ */
+
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL   = process.env.OPENAI_MODEL || "gpt-4o-mini";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini-2024-07-18";
 
-// ---------- Utils ----------
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
+// 28 titres fixes (ordre strict)
+const STUDY_TITLES = [
+  "Thème central",
+  "Résumé en une phrase",
+  "Contexte historique",
+  "Auteur et date",
+  "Genre littéraire",
+  "Structure du passage",
+  "Plan détaillé",
+  "Mots-clés",
+  "Termes clés (définis)",
+  "Personnages et lieux",
+  "Problème / Question de départ",
+  "Idées majeures (développement)",
+  "Verset pivot (climax)",
+  "Références croisées (AT)",
+  "Références croisées (NT)",
+  "Parallèles bibliques",
+  "Lien avec l’Évangile (Christocentrique)",
+  "Vérités doctrinales (3–5)",
+  "Promesses et avertissements",
+  "Principes intemporels",
+  "Applications personnelles (3–5)",
+  "Applications communautaires",
+  "Questions pour petits groupes (6)",
+  "Prière guidée",
+  "Méditation courte",
+  "Versets à mémoriser (2–3)",
+  "Difficultés/objections & réponses",
+  "Ressources complémentaires"
+];
+
+// --------- utils ----------
+function json(status, body) {
+  return new Response(JSON.stringify(body), {
     status,
     headers: { "content-type": "application/json; charset=utf-8" }
   });
 }
-function bad(msg) { return json({ ok:false, error: msg }, 400); }
-function safeJSON(s){ try { return JSON.parse(s); } catch { return null; } }
 
-async function fetchWithTimeout(url, options={}, timeoutMs=8000) {
-  const ac = new AbortController();
-  const id = setTimeout(() => ac.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: ac.signal });
-  } finally {
-    clearTimeout(id);
-  }
+function getQS(reqUrl) {
+  const u = new URL(reqUrl);
+  const g = (k, d = "") => u.searchParams.get(k)?.trim() || d;
+  return {
+    book: g("book"),
+    chapter: g("chapter"),
+    verse: g("verse"), // vide = chapitre entier
+    translation: g("translation", "LSG"),
+    bibleId: g("bibleId", ""), // si vide => provider prendra défaut
+    mode: g("mode", "full"), // "mini" (3) ou "full" (28)
+    maxtok: parseInt(g("maxtok", "1500"), 10),
+    oaitimeout: parseInt(g("oaitimeout", "25000"), 10)
+  };
 }
 
-// ---------- Titles ----------
-const FULL_TITLES = [
-  "Thème central","Résumé en une phrase","Contexte historique","Auteur et date","Genre littéraire",
-  "Structure du passage","Plan détaillé","Mots-clés","Termes clés (définis)","Personnages et lieux",
-  "Problème / Question de départ","Idées majeures (développement)","Verset pivot (climax)",
-  "Références croisées (AT)","Références croisées (NT)","Parallèles bibliques",
-  "Lien avec l’Évangile (Christocentrique)","Vérités doctrinales (3–5)","Promesses et avertissements",
-  "Principes intemporels","Applications personnelles (3–5)","Applications communautaires",
-  "Questions pour petits groupes (6)","Prière guidée","Méditation courte",
-  "Versets à mémoriser (2–3)","Difficultés/objections & réponses","Ressources complémentaires"
-];
-const MINI_TITLES = [
-  "Thème central","Idées majeures (développement)","Applications personnelles (3–5)"
-];
-const numbered = (titles) => titles.map((t,i)=>`${i+1}. ${t}`).join("\n");
-
-// ---------- BibleProvider bridge ----------
-async function getPassage(req, { book, chapter, verse, bibleId, bptimeout }) {
-  const base = new URL(req.url);
-  base.pathname = "/api/bibleProvider";
-  const sp = new URLSearchParams();
-  sp.set("book", book);
-  sp.set("chapter", String(chapter));
-  if (verse) sp.set("verse", verse);
-  if (bibleId) sp.set("bibleId", bibleId);
-  base.search = sp.toString();
-
-  const r = await fetchWithTimeout(base.toString(), { method:"GET" }, bptimeout);
-  const txt = await r.text();
-  const payload = safeJSON(txt) || { ok:false, error: txt };
-  if (!r.ok || !payload?.ok) {
-    throw new Error(payload?.error || `BibleProvider ${r.status}`);
-  }
-  const passageText = payload?.data?.passageText;
-  if (!passageText) throw new Error("BibleProvider: passageText manquant.");
-  return payload.data; // { reference, osis, passageText, ... }
-}
-
-// ---------- Prompt ----------
-function buildPrompt({ passageText, passageRef, translation, verse, mode, sentencesHint }) {
-  const TITLES = mode === "mini" ? MINI_TITLES : FULL_TITLES;
-
-  const sys = [
+function strictSystemInstruction() {
+  return [
     "Tu es un bibliste pédagogue.",
-    `Produis une étude structurée en ${TITLES.length} sections fixes.`,
-    "Langue: français, ton pastoral mais rigoureux.",
-    "NE PAS inventer de versets; cite uniquement le passage fourni.",
-    "Réponds STRICTEMENT en JSON (aucun texte hors JSON)."
+    "Langue: français.",
+    "Tu dois produire STRICTEMENT un JSON conforme au schéma, sans aucun texte hors JSON.",
+    "N'invente aucun verset; cite seulement selon les bornes fournies.",
+    "Si le passage est trop court, reste concis mais respecte le schéma."
   ].join(" ");
+}
 
-  const rules = [
-    `Sections attendues (${TITLES.length}) dans cet ordre strict :`,
-    numbered(TITLES),
-    "",
-    "Schéma JSON :",
-    '- root: { "reference": string, "translation": string, "sections": Section[] }',
-    '- Section: { "index": number, "title": string, "content": string, "verses": string[] }',
-    (mode === "mini"
-      ? "- `content` = 1–2 phrases par section."
-      : `- \`content\` = ${sentencesHint} phrases par section (courtes).`
-    ),
-    '- `verses` = références locales (ex: ["v.1-3","v.26"]).',
-    verse ? '- NE PAS citer hors plage demandée.' : ""
-  ].filter(Boolean).join("\n");
+function userInstruction({ reference, translation, passageText, mode }) {
+  const expectedCount = mode === "mini" ? 3 : 28;
 
-  const user = [
-    `Passage : ${passageRef}${translation ? ` (${translation})` : ""}.`,
-    `Plage demandée : ${verse || "(chapitre entier)"}.`,
-    "Texte source :",
+  const schemaText = `
+Schéma JSON à respecter à la lettre (aucune autre clé) :
+{
+  "meta": { "book": string, "chapter": string, "verse": string, "translation": string, "reference": string, "osis": string },
+  "sections": Section[ ${expectedCount} ]
+}
+Section = {
+  "index": number,                // 1..${expectedCount}
+  "title": string,                // selon la liste imposée
+  "content": string,              // 4–10 phrases, clair et actionnable
+  "verses": string[]              // ex: ["v.1-3", "v.26"]
+}
+  `.trim();
+
+  const titles =
+    mode === "mini"
+      ? ["Thème central", "Idées majeures (développement)", "Applications personnelles"]
+      : STUDY_TITLES;
+
+  const titlesNumbered = titles.map((t, i) => `${i + 1}. ${t}`).join("\n");
+
+  return [
+    `Passage : ${reference} (${translation})`,
+    "Base unique pour l’exégèse (n'ajoute pas d'autres sources) :",
     "```",
     passageText,
     "```",
     "",
-    rules
+    `Tu dois produire exactement ${expectedCount} sections, dans cet ordre strict :`,
+    titlesNumbered,
+    "",
+    schemaText,
+    "",
+    "IMPORTANT : la sortie doit être UNIQUEMENT le JSON valide, sans commentaire ni balise."
   ].join("\n");
-
-  return [
-    { role:"system", content: sys },
-    { role:"user",   content: user }
-  ];
 }
 
-// ---------- OpenAI ----------
-async function callOpenAI(messages, { mode, maxtok, oaitimeout }) {
-  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY manquante.");
+// --------- appels internes ----------
+async function fetchPassage({ book, chapter, verse, bibleId }) {
+  const qs = new URLSearchParams();
+  qs.set("book", book);
+  qs.set("chapter", chapter);
+  if (verse) qs.set("verse", verse);
+  if (bibleId) qs.set("bibleId", bibleId);
 
-  const r = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
-    method:"POST",
-    headers:{
-      "content-type":"application/json",
-      "authorization":`Bearer ${OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-      max_tokens: maxtok,
-      messages
-    })
-  }, oaitimeout);
-
-  const txt = await r.text();
-  if (!r.ok) throw new Error(`OpenAI ${r.status}: ${txt}`);
-
-  const data = safeJSON(txt);
-  const content = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error("Réponse OpenAI vide.");
-  const json = safeJSON(content);
-  if (!json) throw new Error("Sortie OpenAI non-JSON.");
-
-  const expected = (mode === "mini") ? MINI_TITLES.length : FULL_TITLES.length;
-  if (!Array.isArray(json.sections) || json.sections.length !== expected) {
-    throw new Error(`Le modèle n’a pas produit exactement ${expected} sections.`);
-  }
-  return json;
+  const r = await fetch(new URL("/api/bibleProvider?" + qs.toString(), "http://internal").toString());
+  // NOTE: sur Vercel Edge, URL absolue : on reconstruit avec l'origine de la requête
+  // mais ici on va remplacer "http://internal" par l'origin réelle en runtime:
+  // on ne la connaît pas ici, donc on fait un fetch relatif depuis le handler principal.
+  // => Ce helper n'est pas utilisé directement; voir handle() plus bas.
+  return r;
 }
 
-// ---------- Handler ----------
-export default async function handler(req) {
+async function callOpenAI({ messages, maxtok, oaitimeout }) {
+  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY manquant");
+
+  const controller = new AbortController();
+  const to = setTimeout(() => controller.abort(), Math.max(1000, oaitimeout || 25000));
+
   try {
-    const url = new URL(req.url);
-
-    const book   = (url.searchParams.get("book") || "").trim();
-    const chap   = (url.searchParams.get("chapter") || "").trim();
-    const verse  = (url.searchParams.get("verse") || "").trim();
-    const translation = (url.searchParams.get("translation") || "").trim();
-    const bibleId = (url.searchParams.get("bibleId") || "").trim();
-
-    const mode = ((url.searchParams.get("mode") || "full").trim().toLowerCase() === "mini") ? "mini" : "full";
-    const maxtok = Math.max(200, parseInt(url.searchParams.get("maxtok") || "", 10) || (mode === "mini" ? 500 : 1500));
-    const oaitimeout = Math.max(2000, parseInt(url.searchParams.get("oaitimeout") || "", 10) || 25000);
-    const bptimeout  = Math.max(2000, parseInt(url.searchParams.get("bptimeout") || "", 10) || 8000);
-    const sentencesHint = (url.searchParams.get("sentences") || (mode === "mini" ? "1–2" : "1–3")).trim();
-
-    if (!book) return bad('Paramètre "book" manquant.');
-    if (!chap) return bad('Paramètre "chapter" manquant.');
-    const chapter = Number(chap);
-    if (!Number.isFinite(chapter) || chapter <= 0) return bad('Paramètre "chapter" invalide.');
-
-    // 1) Récupère le texte
-    const passage = await getPassage(req, { book, chapter, verse, bibleId, bptimeout });
-
-    // 2) Construit le prompt
-    const reference = passage?.reference || `${book} ${chapter}${verse ? `:${verse}` : ""}`;
-    const messages = buildPrompt({
-      passageText: passage?.passageText || "",
-      passageRef: reference,
-      translation,
-      verse,
-      mode,
-      sentencesHint
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "authorization": `Bearer ${OPENAI_API_KEY}`,
+        "content-type": "application/json"
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        temperature: 0.1,
+        max_tokens: Number.isFinite(maxtok) ? Math.max(300, maxtok) : 1500,
+        response_format: { type: "json_object" }, // <-- clé : force un JSON parsable
+        messages
+      })
     });
 
-    // 3) Appel OpenAI
-    const ai = await callOpenAI(messages, { mode, maxtok, oaitimeout });
+    const txt = await r.text();
+    if (!r.ok) {
+      // propage l’erreur brute pour debug
+      throw new Error(`OpenAI ${r.status}: ${txt}`);
+    }
+    let payload;
+    try { payload = JSON.parse(txt); } catch { throw new Error("OpenAI: réponse non-JSON (niveau 1)"); }
 
-    // 4) Retour
-    const meta = { book, chapter: String(chapter), verse, translation, reference, osis: passage?.osis || "" };
-    return json({ ok:true, data: { meta, sections: ai.sections } });
+    const content = payload?.choices?.[0]?.message?.content;
+    if (typeof content !== "string" || !content.trim()) {
+      throw new Error("OpenAI: contenu vide");
+    }
 
-  } catch (e) {
-    return json({ ok:false, error: String(e?.message || e) }, 500);
+    // Parse du JSON retourné dans "content"
+    let out;
+    try {
+      out = JSON.parse(content);
+    } catch {
+      // fallback : extrait le premier bloc {...}
+      const m = content.match(/\{[\s\S]*\}$/m);
+      if (m) {
+        try { out = JSON.parse(m[0]); } catch { /* ignore */ }
+      }
+    }
+
+    if (!out || typeof out !== "object") {
+      throw new Error("Sortie OpenAI non-JSON.");
+    }
+    return out;
+  } finally {
+    clearTimeout(to);
+  }
+}
+
+// --------- handler ----------
+export default async function handler(req) {
+  try {
+    const { book, chapter, verse, translation, bibleId, mode, maxtok, oaitimeout } = getQS(req.url);
+
+    if (!book || !chapter) {
+      return json(400, { ok: false, error: "Paramètres requis: book, chapter" });
+    }
+
+    // ----- fetch passage via /api/bibleProvider (même domaine) -----
+    const origin = new URL(req.url).origin;
+    const qs = new URLSearchParams();
+    qs.set("book", book);
+    qs.set("chapter", chapter);
+    if (verse) qs.set("verse", verse);
+    if (bibleId) qs.set("bibleId", bibleId);
+
+    const rBP = await fetch(`${origin}/api/bibleProvider?${qs.toString()}`, { headers: { "accept": "application/json" } });
+    const bpTxt = await rBP.text();
+    if (!rBP.ok) {
+      return json(500, { ok: false, error: `BibleProvider ${rBP.status}: ${bpTxt}` });
+    }
+    let bp;
+    try { bp = JSON.parse(bpTxt); } catch { return json(500, { ok: false, error: "BibleProvider: réponse non-JSON" }); }
+    if (!bp.ok) {
+      return json(500, { ok: false, error: bp.error || "BibleProvider: échec" });
+    }
+
+    const { reference, osis } = bp.data || {};
+    const passageText = (bp.data?.passageText || "").trim();
+    if (!passageText) {
+      return json(500, { ok: false, error: "Passage vide depuis BibleProvider" });
+    }
+
+    // ----- messages pour OpenAI -----
+    const messages = [
+      { role: "system", content: strictSystemInstruction() },
+      {
+        role: "user",
+        content: userInstruction({
+          reference: reference || `${book} ${chapter}${verse ? ":" + verse : ""}`,
+          translation,
+          passageText,
+          mode
+        })
+      }
+    ];
+
+    // ----- appel OpenAI -----
+    const out = await callOpenAI({ messages, maxtok, oaitimeout });
+
+    // Validation minimale (compte des sections)
+    const sections = Array.isArray(out?.sections) ? out.sections : [];
+    const expected = mode === "mini" ? 3 : 28;
+    if (sections.length !== expected) {
+      return json(200, {
+        ok: false,
+        error: `Sections attendues: ${expected}, reçues: ${sections.length}`,
+        data: out
+      });
+    }
+
+    // Inject meta normale si absente/incomplète
+    const meta = out.meta || {};
+    out.meta = {
+      book: String(meta.book || book),
+      chapter: String(meta.chapter || chapter),
+      verse: String(meta.verse || (verse || "")),
+      translation: String(meta.translation || translation || ""),
+      reference: String(meta.reference || reference || `${book} ${chapter}${verse ? ":" + verse : ""}`),
+      osis: String(meta.osis || osis || "")
+    };
+
+    return json(200, { ok: true, data: out });
+  } catch (err) {
+    return json(500, { ok: false, error: String(err?.message || err) });
   }
 }
