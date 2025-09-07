@@ -1,92 +1,75 @@
 // api/bibleProvider.js
-// Provider unique pour api.bible (ESM). Aucune dépendance OpenAI.
-// Exporte: getBibles, getBooks, getChapters, getPassage, resolveBibleId
-
 export const config = { runtime: "nodejs" };
 
 const API_ROOT = "https://api.scripture.api.bible/v1";
 const KEY = process.env.API_BIBLE_KEY || "";
 const DEFAULT_BIBLE_ID =
   process.env.API_BIBLE_ID ||
-  process.env.API_BIBLE_BIBLE_ID || // compat éventuelle
+  process.env.API_BIBLE_BIBLE_ID ||
   "";
 
-if (!KEY) {
-  console.warn("[bibleProvider] ⚠️ API_BIBLE_KEY manquante (les appels échoueront).");
+// ----------- util -----------
+
+function mkErr(message, status = 500, details) {
+  const e = new Error(message);
+  e.status = status;
+  if (details) e.details = details;
+  return e;
 }
 
-/** Appel générique api.bible */
-async function callApiBible(path, params = {}) {
-  if (!KEY) {
-    const e = new Error("API_BIBLE_KEY manquante dans les variables d’environnement.");
-    e.status = 500;
-    throw e;
-  }
+async function callApiBible(path, params = {}, trace) {
+  if (!KEY) throw mkErr("API_BIBLE_KEY manquante dans les variables d’environnement.", 500);
+
   const url = new URL(API_ROOT + path);
-  for (const [k, v] of Object.entries(params)) {
+  Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
-  }
+  });
+
+  trace && trace.push({ step: "fetch", url: url.toString() });
+
   const r = await fetch(url, {
     headers: { accept: "application/json", "api-key": KEY },
   });
+
   const text = await r.text();
   let json;
   try { json = text ? JSON.parse(text) : {}; } catch { json = { raw: text }; }
+
   if (!r.ok) {
-    const e = new Error(json?.error?.message || `api.bible ${r.status}`);
-    e.status = r.status;
-    e.details = json;
-    throw e;
+    const msg = json?.error?.message || `api.bible ${r.status}`;
+    trace && trace.push({ step: "error", status: r.status, body: (json?.error || json?.raw || text)?.toString?.().slice(0, 300) });
+    throw mkErr(msg, r.status, json);
   }
+
+  trace && trace.push({ step: "ok", status: r.status });
   return json;
 }
 
-/** Liste des bibles (filtrable par langue DBL ex: 'fra') */
-export async function getBibles({ language } = {}) {
-  const data = await callApiBible("/bibles", language ? { language } : {});
+// ----------- exports -----------
+
+export async function getBibles({ language } = {}, trace) {
+  const data = await callApiBible("/bibles", language ? { language } : {}, trace);
   return data?.data || [];
 }
 
-/** Résout un bibleId : env > param > première FR > première dispo */
-export async function resolveBibleId(preferredId) {
+export async function resolveBibleId(preferredId, trace) {
   if (preferredId) return preferredId;
   if (DEFAULT_BIBLE_ID) return DEFAULT_BIBLE_ID;
 
-  const bibles = await getBibles(); // toutes
-  if (!bibles.length) throw new Error("Aucune Bible disponible depuis api.bible");
+  const bibles = await getBibles({}, trace);
+  if (!bibles.length) throw mkErr("Aucune Bible disponible depuis api.bible", 500);
 
-  const fr = bibles.find(b => (b.language?.id || "").toLowerCase().startsWith("fra")
-    || (b.language?.name || "").toLowerCase().startsWith("french"));
+  const fr = bibles.find(b =>
+    (b.language?.id || "").toLowerCase().startsWith("fra") ||
+    (b.language?.name || "").toLowerCase().includes("french")
+  );
   return fr?.id || bibles[0].id;
 }
 
-/** Livres d’une Bible */
-export async function getBooks({ bibleId } = {}) {
-  const id = await resolveBibleId(bibleId);
-  const data = await callApiBible(`/bibles/${id}/books`);
-  return { bibleId: id, books: data?.data || [] };
-}
+export async function getPassage({ bibleId, ref, includeVerseNumbers = true }, trace) {
+  const id = await resolveBibleId(bibleId, trace);
+  if (!ref) throw mkErr('Paramètre "ref" requis (ex: "GEN.1")', 400);
 
-/** Chapitres d’un livre */
-export async function getChapters({ bibleId, bookId }) {
-  const id = await resolveBibleId(bibleId);
-  if (!bookId) {
-    const e = new Error("Paramètre 'bookId' requis");
-    e.status = 400;
-    throw e;
-  }
-  const data = await callApiBible(`/bibles/${id}/books/${bookId}/chapters`);
-  return { bibleId: id, chapters: data?.data || [] };
-}
-
-/** Passage HTML (ref ex: "GEN.1" ou "GEN.1.1-5") */
-export async function getPassage({ bibleId, ref, includeVerseNumbers = false }) {
-  const id = await resolveBibleId(bibleId);
-  if (!ref) {
-    const e = new Error('Paramètre "ref" requis (ex: "GEN.1")');
-    e.status = 400;
-    throw e;
-  }
   const params = {
     "content-type": "html",
     "include-notes": false,
@@ -96,10 +79,36 @@ export async function getPassage({ bibleId, ref, includeVerseNumbers = false }) 
     "include-verse-spans": false,
     "use-org-id": false,
   };
-  const data = await callApiBible(`/bibles/${id}/passages/${encodeURIComponent(ref)}`, params);
+
+  // 1) tentative /passages/{ref}
+  try {
+    const j = await callApiBible(`/bibles/${id}/passages/${encodeURIComponent(ref)}`, params, trace);
+    return {
+      bibleId: id,
+      reference: j?.data?.reference || ref,
+      contentHtml: j?.data?.content || "",
+    };
+  } catch (e) {
+    // 1b) si chapitre nu (ex: GEN.1), retente avec 1–199 pour bibles récalcitrantes
+    if (/^\w+\.\d+$/.test(ref)) {
+      const [b, c] = ref.split(".");
+      const range = `${b}.${c}.1-${b}.${c}.199`;
+      try {
+        const j2 = await callApiBible(`/bibles/${id}/passages/${encodeURIComponent(range)}`, params, trace);
+        return {
+          bibleId: id,
+          reference: j2?.data?.reference || range,
+          contentHtml: j2?.data?.content || "",
+        };
+      } catch { /* ignore, on tombera en fallback */ }
+    }
+  }
+
+  // 2) fallback /chapters/{ref}
+  const j3 = await callApiBible(`/bibles/${id}/chapters/${encodeURIComponent(ref)}`, params, trace);
   return {
     bibleId: id,
-    reference: data?.data?.reference || ref,
-    contentHtml: data?.data?.content || "",
+    reference: j3?.data?.reference || ref,
+    contentHtml: j3?.data?.content || "",
   };
 }
