@@ -1,110 +1,65 @@
 // api/study-28.js
+// Étude 28 points (sans LLM) avec analyse heuristique du passage pour générer des contenus variés
+
 export const config = { runtime: "nodejs" };
 
 /**
- * Étude 28 points (sans OpenAI) avec récupération robuste via api.bible
- * - Normalisation livre FR → OSIS (tolère accents / espaces / casse)
- * - Cascade tolérante:
- *   1) /passages (params riches) → 2) /passages (params min)
- *   3) /passages (plage large min) → 4) /chapters (min) → 5) /chapters (sans params)
- * - Paramètres:
- *    ?book=Genèse&chapter=1[&verse=1-5][&bibleId=...][&translation=JND][&mode=mini|full][&dry=1][&trace=1]
+ * Paramètres:
+ *   ?book=Genèse&chapter=1[&verse=1-5][&bibleId=...][&translation=JND|LSG…][&mode=mini|full][&dry=1][&trace=1]
  */
 
 const API_ROOT = "https://api.scripture.api.bible/v1";
 const API_KEY  = process.env.API_BIBLE_KEY || "";
-const DEFAULT_BIBLE_ID = process.env.API_BIBLE_ID || ""; // ex: a93a92589195411f-01 (JND)
+const DEFAULT_BIBLE_ID = process.env.API_BIBLE_ID || "";
 
-// ---------- utils de réponse ----------
+// ---------- util HTTP ----------
 function send(res, status, payload) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(payload, null, 2));
 }
 
+async function fetchJson(url, trace) {
+  trace && trace.push({ step: "fetch", url });
+  const r = await fetch(url, { headers: { accept: "application/json", "api-key": API_KEY } });
+  const txt = await r.text();
+  let j; try { j = txt ? JSON.parse(txt) : {}; } catch { j = { raw: txt }; }
+  if (!r.ok) {
+    trace && trace.push({ step: "error", status: r.status, body: (j?.error || j?.raw || txt).toString().slice(0, 200) });
+    const e = new Error(`api.bible ${r.status}`);
+    e.status = r.status; e.details = j; throw e;
+  }
+  trace && trace.push({ step: "ok", status: r.status });
+  return j;
+}
+
 // ---------- FR → OSIS ----------
 const MAP = {
-  "genese":"GEN","genèse":"GEN","gen":"GEN",
-  "exode":"EXO","exo":"EXO",
-  "levitique":"LEV","lévitique":"LEV","lev":"LEV",
-  "nombres":"NUM","num":"NUM",
-  "deuteronome":"DEU","deutéronome":"DEU","deu":"DEU",
-  "josue":"JOS","josué":"JOS","jos":"JOS",
-  "juges":"JDG","jdg":"JDG",
-  "ruth":"RUT","rut":"RUT",
-  "1samuel":"1SA","1 samuel":"1SA","1 sa":"1SA",
-  "2samuel":"2SA","2 samuel":"2SA","2 sa":"2SA",
-  "1rois":"1KI","1 rois":"1KI","1r":"1KI","1 roi":"1KI",
-  "2rois":"2KI","2 rois":"2KI","2r":"2KI","2 roi":"2KI",
-  "1chroniques":"1CH","1 chroniques":"1CH","1ch":"1CH",
-  "2chroniques":"2CH","2 chroniques":"2CH","2ch":"2CH",
-  "esdras":"EZR","ezr":"EZR",
-  "nehemie":"NEH","néhémie":"NEH","nehemie":"NEH","neh":"NEH",
-  "esther":"EST","est":"EST",
-  "job":"JOB",
-  "psaumes":"PSA","psaume":"PSA","ps":"PSA",
-  "proverbes":"PRO","prov":"PRO","pro":"PRO",
-  "ecclesiaste":"ECC","ecclésiaste":"ECC","ecc":"ECC",
-  "cantique descantiques":"SNG","cantique des cantiques":"SNG","cantiques":"SNG","cantique":"SNG","sng":"SNG",
-  "esaie":"ISA","esaïe":"ISA","ésaïe":"ISA","isaie":"ISA","isaïe":"ISA","esa":"ISA","isa":"ISA",
-  "jeremie":"JER","jérémie":"JER","jer":"JER",
-  "lamentations":"LAM","lam":"LAM",
-  "ezechiel":"EZK","ezéchiel":"EZK","ézéchiel":"EZK","eze":"EZK","ezk":"EZK",
-  "daniel":"DAN","dan":"DAN",
-  "osee":"HOS","osée":"HOS","hos":"HOS",
-  "joel":"JOL","joël":"JOL","jol":"JOL",
-  "amos":"AMO","amo":"AMO",
-  "abdias":"OBA","oba":"OBA",
-  "jonas":"JON","jon":"JON",
-  "michee":"MIC","michée":"MIC","mic":"MIC",
-  "nahoum":"NAM","nahum":"NAM","nam":"NAM",
-  "habacuc":"HAB","hab":"HAB",
-  "sophonie":"ZEP","zéphonie":"ZEP","zep":"ZEP",
-  "aggee":"HAG","aggée":"HAG","hag":"HAG",
-  "zacharie":"ZEC","zec":"ZEC",
-  "malachie":"MAL","mal":"MAL",
-  "matthieu":"MAT","mat":"MAT","mt":"MAT",
-  "marc":"MRK","mc":"MRK","mrk":"MRK",
-  "luc":"LUK","lc":"LUK","luk":"LUK",
-  "jean":"JHN","jn":"JHN","jhn":"JHN",
-  "actes":"ACT","ac":"ACT",
-  "romains":"ROM","rom":"ROM",
-  "1corinthiens":"1CO","1 corinthiens":"1CO","1co":"1CO","1 cor":"1CO",
-  "2corinthiens":"2CO","2 corinthiens":"2CO","2co":"2CO","2 cor":"2CO",
-  "galates":"GAL","gal":"GAL",
-  "ephesiens":"EPH","éphésiens":"EPH","eph":"EPH",
-  "philippiens":"PHP","php":"PHP",
-  "colossiens":"COL","col":"COL",
-  "1thessaloniciens":"1TH","1 thessaloniciens":"1TH","1th":"1TH","1 th":"1TH",
-  "2thessaloniciens":"2TH","2 thessaloniciens":"2TH","2th":"2TH","2 th":"2TH",
-  "1timothee":"1TI","1 timothée":"1TI","1ti":"1TI","1 ti":"1TI",
-  "2timothee":"2TI","2 timothée":"2TI","2ti":"2TI","2 ti":"2TI",
-  "tite":"TIT",
-  "philemon":"PHM","philémon":"PHM","phm":"PHM",
-  "hebreux":"HEB","hébreux":"HEB","heb":"HEB",
-  "jacques":"JAS","jas":"JAS",
-  "1pierre":"1PE","1 pierre":"1PE","1pi":"1PE","1 pi":"1PE",
-  "2pierre":"2PE","2 pierre":"2PE","2pi":"2PE","2 pi":"2PE",
-  "1jean":"1JN","1 jean":"1JN","1jn":"1JN","1 jn":"1JN",
-  "2jean":"2JN","2 jean":"2JN","2jn":"2JN","2 jn":"2JN",
-  "3jean":"3JN","3 jean":"3JN","3jn":"3JN","3 jn":"3JN",
-  "jude":"JUD","jud":"JUD",
-  "apocalypse":"REV","apo":"REV","apoc":"REV","rev":"REV"
+  "genese":"GEN","genèse":"GEN","gen":"GEN","exode":"EXO","exo":"EXO","levitique":"LEV","lévitique":"LEV","lev":"LEV",
+  "nombres":"NUM","num":"NUM","deuteronome":"DEU","deutéronome":"DEU","deu":"DEU","josue":"JOS","josué":"JOS","jos":"JOS",
+  "juges":"JDG","jdg":"JDG","ruth":"RUT","rut":"RUT","1samuel":"1SA","1 samuel":"1SA","2samuel":"2SA","2 samuel":"2SA",
+  "1rois":"1KI","1 rois":"1KI","2rois":"2KI","2 rois":"2KI","1chroniques":"1CH","2chroniques":"2CH","esdras":"EZR","néhémie":"NEH","nehemie":"NEH",
+  "esther":"EST","job":"JOB","psaumes":"PSA","psaume":"PSA","proverbes":"PRO","ecclesiaste":"ECC","ecclésiaste":"ECC",
+  "cantique descantiques":"SNG","cantique des cantiques":"SNG","cantiques":"SNG","cantique":"SNG",
+  "esaie":"ISA","esaïe":"ISA","isaie":"ISA","isaïe":"ISA","isa":"ISA",
+  "jeremie":"JER","jérémie":"JER","lamentations":"LAM","ezechiel":"EZK","ézéchiel":"EZK","daniel":"DAN","osee":"HOS","osée":"HOS",
+  "joel":"JOL","joël":"JOL","amos":"AMO","abdias":"OBA","jonas":"JON","michee":"MIC","michée":"MIC","nahoum":"NAM","habacuc":"HAB",
+  "sophonie":"ZEP","aggee":"HAG","aggée":"HAG","zacharie":"ZEC","malachie":"MAL","matthieu":"MAT","marc":"MRK","luc":"LUK","jean":"JHN",
+  "actes":"ACT","romains":"ROM","1corinthiens":"1CO","2corinthiens":"2CO","galates":"GAL","ephesiens":"EPH","éphésiens":"EPH","philippiens":"PHP",
+  "colossiens":"COL","1thessaloniciens":"1TH","2thessaloniciens":"2TH","1timothee":"1TI","1 timothée":"1TI","2timothee":"2TI","tite":"TIT",
+  "philemon":"PHM","philémon":"PHM","hebreux":"HEB","hébreux":"HEB","jacques":"JAS","1pierre":"1PE","2pierre":"2PE",
+  "1jean":"1JN","2jean":"2JN","3jean":"3JN","jude":"JUD","apocalypse":"REV","apo":"REV","apoc":"REV","rev":"REV"
 };
-
-function norm(s) {
-  return String(s||"")
-    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-    .toLowerCase().replace(/[^a-z0-9 ]+/g,"")
-    .replace(/\s+/g,"").trim();
+function norm(s){
+  return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]+/g,"").replace(/\s+/g,"").trim();
 }
-function osisBook(book) {
+function osisBook(book){
   const key = norm(book);
   if (MAP[key]) return MAP[key];
   const hit = Object.keys(MAP).find(k => k.startsWith(key));
   return hit ? MAP[hit] : null;
 }
-function buildOsis({book, chapter, verse}) {
+function buildOsis({ book, chapter, verse }){
   const b = osisBook(book);
   if (!b) return null;
   const c = String(chapter||"1").trim();
@@ -117,11 +72,11 @@ function buildOsis({book, chapter, verse}) {
     }
     return `${b}.${c}.${v}`;
   }
-  return `${b}.${c}`; // liste non supportée → chapitre
+  return `${b}.${c}`;
 }
 
-// ---------- api.bible fetch ----------
-const QS_RICH = {
+// ---------- api.bible wrappers ----------
+const CONTENT_QS = {
   "content-type":"html",
   "include-notes":"false",
   "include-titles":"true",
@@ -130,82 +85,124 @@ const QS_RICH = {
   "include-verse-spans":"false",
   "use-org-id":"false"
 };
-const QS_MIN = { "content-type":"html" };
+function qs(obj){ const u=new URLSearchParams(); for(const [k,v] of Object.entries(obj||{})){u.set(k,String(v))} return u.toString(); }
 
-function qs(obj){
-  const u = new URLSearchParams();
-  Object.entries(obj||{}).forEach(([k,v])=>u.set(k,String(v)));
-  return u.toString();
-}
-
-async function fetchJson(url, trace) {
-  trace && trace.push({ step:"fetch", url });
-  const r = await fetch(url, { headers:{ accept:"application/json", "api-key": API_KEY } });
-  const txt = await r.text();
-  let j; try { j = txt ? JSON.parse(txt) : {}; } catch { j = { raw: txt }; }
-  if (!r.ok) {
-    const msg = j?.error?.message || j?.message || (typeof j === "string" ? j : j?.raw) || txt || `HTTP ${r.status}`;
-    trace && trace.push({ step:"error", status:r.status, message: String(msg).slice(0,400) });
-    const e = new Error(String(msg));
-    e.status = r.status; e.details = j;
-    throw e;
-  }
-  trace && trace.push({ step:"ok", status:r.status });
-  return j;
-}
-
-/**
- * Cascade très tolérante:
- * 1) /passages (rich)
- * 2) /passages (min)
- * 3) /passages (plage large min, ex: GEN.1.1-GEN.1.199)
- * 4) /chapters (min)
- * 5) /chapters (sans params)
- */
-async function getPassageAuto({ bibleId, osis, trace }) {
+async function getPassageAuto({ bibleId, osis, trace }){
   const id = bibleId || DEFAULT_BIBLE_ID;
   if (!id) throw new Error("Missing bibleId (set API_BIBLE_ID or provide ?bibleId=)");
-
-  const doPassages = async (ref, params) => {
-    const url = `${API_ROOT}/bibles/${id}/passages/${encodeURIComponent(ref)}${params ? ("?"+qs(params)) : ""}`;
+  // 1) passages (chapitre / plage fournie)
+  try {
+    const url = `${API_ROOT}/bibles/${id}/passages/${encodeURIComponent(osis)}?${qs(CONTENT_QS)}`;
     const j = await fetchJson(url, trace);
-    return { ref: j?.data?.reference || ref, html: j?.data?.content || "" };
-    };
-  const doChapters = async (ref, params) => {
-    const url = `${API_ROOT}/bibles/${id}/chapters/${encodeURIComponent(ref)}${params ? ("?"+qs(params)) : ""}`;
-    const j = await fetchJson(url, trace);
-    return { ref: j?.data?.reference || ref, html: j?.data?.content || "" };
-  };
-
-  // 1) passages (rich)
-  try { return await doPassages(osis, QS_RICH); }
-  catch (e1) { trace && trace.push({ step:"fallback", hint:"passages→min", err: e1.status || e1.message }); }
-
-  // 2) passages (min)
-  try { return await doPassages(osis, QS_MIN); }
-  catch (e2) { trace && trace.push({ step:"fallback", hint:"passagesWide→min", err: e2.status || e2.message }); }
-
-  // 3) passages (plage large)
-  if (/^\w+\.\d+$/.test(osis)) {
-    const [b,c] = osis.split(".");
-    const wide = `${b}.${c}.1-${b}.${c}.199`;
-    try { return await doPassages(wide, QS_MIN); }
-    catch (eWide) { trace && trace.push({ step:"fallback", hint:"chapters→min", err: eWide.status || eWide.message }); }
+    return { ref: j?.data?.reference||osis, html: j?.data?.content||"" };
+  } catch (e) {
+    // 1b) plage large pour “chapitre entier”
+    if (/^\w+\.\d+$/.test(osis)) {
+      const [b,c] = osis.split(".");
+      const range = `${b}.${c}.1-${b}.${c}.199`;
+      try {
+        const url = `${API_ROOT}/bibles/${id}/passages/${encodeURIComponent(range)}?${qs(CONTENT_QS)}`;
+        const j = await fetchJson(url, trace);
+        return { ref: j?.data?.reference||range, html: j?.data?.content||"" };
+      } catch {}
+    }
   }
-
-  // 4) chapters (min)
-  try { return await doChapters(osis, QS_MIN); }
-  catch (e3) { trace && trace.push({ step:"fallback", hint:"chapters→noParams", err: e3.status || e3.message }); }
-
-  // 5) chapters (sans params)
-  return await doChapters(osis, null);
+  // 2) chapters (fallback)
+  const url2 = `${API_ROOT}/bibles/${id}/chapters/${encodeURIComponent(osis)}?${qs(CONTENT_QS)}`;
+  const j2 = await fetchJson(url2, trace);
+  return { ref: j2?.data?.reference||osis, html: j2?.data?.content||"" };
 }
 
-// ---------- format ----------
-function stripHtml(html){
-  return String(html||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
+// ---------- analyse texte ----------
+function htmlToPlain(html){
+  return String(html||"")
+    .replace(/<sup[^>]*>.*?<\/sup>/g," ") // numéros
+    .replace(/<[^>]+>/g," ")
+    .replace(/\s+/g," ")
+    .trim();
+}
+function splitSentences(frText){
+  const s = String(frText||"")
+    .replace(/(\.)\s+(\d+\s+)/g,"$1 $2"); // évite couper sur numéro de verset isolé
+  const parts = s.split(/(?<=[\.\!\?…])\s+(?=[A-ZÉÈÊÀÂÎÔÛÇa-z0-9])/u).filter(Boolean);
+  return parts;
+}
+function tokenize(frText){
+  const t = frText.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9\-’'\s]/g," ")
+    .replace(/\s+/g," ")
+    .trim();
+  return t.split(" ").filter(Boolean);
+}
+const STOP = new Set([
+  "et","ou","donc","or","ni","car","mais","de","du","des","la","le","les","un","une","au","aux","dans","par","pour","sur","sous","avec","sans","entre",
+  "qui","que","quoi","dont","où","ne","pas","plus","tout","tous","se","sa","son","ses","leur","leurs","je","tu","il","elle","nous","vous","ils","elles",
+  "ce","cet","cette","ces","d","l","a","à","y","en","aupres","afin","ainsi","comme","qu","lequel","laquelle","lesquels","lesquelles"
+]);
+function topTerms(frText, n=8){
+  const freq = new Map();
+  for (const w of tokenize(frText)) {
+    const ww = w.replace(/^['’-]+|['’-]+$/g,"");
+    if (!ww || STOP.has(ww) || ww.length < 3) continue;
+    freq.set(ww, 1 + (freq.get(ww)||0));
+  }
+  return Array.from(freq.entries())
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0,n)
+    .map(([w,c])=>({term:w, count:c}));
+}
+function detectCharactersAndPlaces(frText){
+  // heuristique simple : mots en capitale initiale non en début de phrase + termes connus
+  const chars = new Set();
+  const places = new Set();
+  const knownPlaces = ["Jérusalem","Sion","Nazareth","Bethléhem","Galilée","Judée","Samarie","Égypte","Babel","Babylone","Rome","Corinthe","Éphèse","Philippes","Antioche"];
+  const tokens = frText.split(/\s+/);
+  for (let i=0; i<tokens.length; i++){
+    const w = tokens[i].replace(/[^\p{L}\-’']/gu,"");
+    if (!w) continue;
+    const isCapital = /^[A-ZÉÈÊÀÂÎÔÛÇ]/.test(w);
+    if (isCapital && w.length>2) chars.add(w);
+  }
+  for (const p of knownPlaces) if (frText.includes(p)) places.add(p);
+  // nettoie faux positifs très fréquents
+  for (const common of ["Dieu","Seigneur","Esprit","Christ"]) chars.delete(common);
+  return { characters: Array.from(chars).slice(0,8), places: Array.from(places) };
+}
+function detectStructure(frText){
+  const lines = frText.split(/(?= \d+ )/); // naïf: coupe sur numéros de verset précédés d'un espace
+  const hasDieuDit = (frText.match(/Dieu dit/gi)||[]).length;
+  const hasSoirMatin = /soir.*matin|matin.*soir/gi.test(frText);
+  const segments = [];
+
+  // Heuristique spéciale Genèse 1 : "Dieu dit" + "il y eut un soir et il y eut un matin"
+  if (hasDieuDit >= 4 && hasSoirMatin) {
+    // essaie de repérer 6 séquences
+    const guess = Math.min(6, hasDieuDit);
+    for (let i=1;i<=guess;i++){
+      segments.push(`Jour ${i} — acte créateur (répétition “Dieu dit…”, conclusion “il y eut un soir et il y eut un matin”).`);
+    }
+    if (/sept|7|repos/gi.test(frText)) segments.push("Jour 7 — repos divin / achèvement.");
+  } else if (lines.length >= 3) {
+    // sinon, propose un plan en 3–5 mouvements par découpage grossier
+    const k = Math.min(5, Math.max(3, Math.floor(lines.length/5)));
+    for (let i=0;i<k;i++){
+      segments.push(`Mouvement ${i+1} — progression narrative/argumentative.`);
+    }
+  } else {
+    segments.push("Ouverture — situation ou affirmation majeure.");
+    segments.push("Développement — actions/arguments.");
+    segments.push("Clôture — conclusion ou retombées.");
+  }
+  return segments;
+}
+function short(s, n=220){
+  s = String(s||"").trim();
+  if (s.length<=n) return s;
+  return s.slice(0,n-1).trim()+"…";
 }
 
+// ---------- génération de 28 rubriques variées ----------
 const TITLES_FULL = [
   "Thème central","Résumé en une phrase","Contexte historique","Auteur et date","Genre littéraire",
   "Structure du passage","Plan détaillé","Mots-clés","Termes clés (définis)","Personnages et lieux",
@@ -218,13 +215,60 @@ const TITLES_FULL = [
 ];
 const TITLES_MINI = ["Thème central","Idées majeures (développement)","Applications personnelles (3–5)"];
 
-function sectionsFrom(passageRef, passageText, mode, fallbackMsg){
+function buildSections(meta, passageText, mode){
   const titles = mode==="mini" ? TITLES_MINI : TITLES_FULL;
-  const intro = passageText
-    ? (passageText.match(/(.+?[.!?])(\s|$)/u)?.[1] || passageText.slice(0,180))
-    : fallbackMsg;
+
+  const sentences = splitSentences(passageText);
+  const first = sentences[0] || passageText.slice(0,180);
+  const last  = sentences[sentences.length-1] || "";
+  const terms = topTerms(passageText, 10);
+  const keyWords = terms.map(t=>t.term);
+  const {characters, places} = detectCharactersAndPlaces(passageText);
+  const structure = detectStructure(passageText);
+
+  // briques
+  const theme = `Lecture de **${meta.reference}**. Le passage met en avant ${keyWords.length? `les thèmes récurrents : ${keyWords.slice(0,4).join(", ")}` : "des motifs clés du récit"} ; il s’ouvre sur « ${short(first,110)} ».`;
+  const resume = `En bref : ${short(first,160)} ${last ? `… La section se conclut par « ${short(last,110)} ».` : ""}`;
+  const contexte = `Contexte immédiat observé dans le texte : progression interne, marqueurs de répétition${structure.length?` (${structure.length} segments décelés)`:""}, termes fréquents (${keyWords.slice(0,6).join(", ")}), et enchaînement logique des affirmations.`;
+  const genre = /dit/gi.test(passageText) || /ainsi/gi.test(passageText) ? "Récit structuré par unités orales (« …dit »), au rythme régulier." : "Récit / discours à dominante narrative, avec transitions internes repérables.";
+  const plan = structure.map((s,i)=>`${i+1}) ${s}`).join(" ");
+  const motscles = keyWords.length ? keyWords.map(w=>`• ${w}`).join(" ") : "• (mots récurrents non significatifs)";
+  const termesDef = keyWords.slice(0,5).map(w=>`• **${w}** — emploi notoire dans la section.`).join("\n");
+  const persLieux = `${characters.length?`Personnages: ${characters.join(", ")}. `:""}${places.length?`Lieux: ${places.join(", ")}.`:""}`.trim() || "Acteurs/lieux peu saillants dans la section.";
+  const question = `Quel est l’effet principal visé par ${meta.reference} sur le lecteur ? Quels enjeux ressortent des répétitions (${keyWords.slice(0,3).join(", ")}) ?`;
+  const idees = `Idées clés qui émergent : ${keyWords.slice(0,5).map(x=>x).join(", ")} ; ${structure.length?`${structure.length} mouvements structurants`:"enchaînement simple"} ; ouverture: « ${short(first,90)} ».`;
+  const pivot = sentences[Math.max(1, Math.floor(sentences.length/2))-1] || first;
+  const refAT = "Comparer les motifs/fonctions avec d’autres passages de l’AT partageant vocabulaires et motifs.";
+  const refNT = "Repérer échos/thèmes repris dans le NT (création, alliance, foi, gloire, sagesse, salut…).";
+  const paralleles = "Mettre en dialogue des passages où le même motif revient (création/nouvelle création ; sortie/retour ; promesse/accomplissement).";
+  const christo = "Lecture christocentrique mesurée : voir comment le passage prépare/éclaire l’œuvre du Christ (création, image de Dieu, repos, lumière, vie…).";
+  const verites = ["Dieu agit avec intention et ordre.","La Parole de Dieu produit des effets réels.","La création/rédemption révèle son caractère."].map((v,i)=>`${i+1}) ${v}`).join(" ");
+  const promAvert = "Promesses implicites (vie, ordre, bonté) et avertissements (chaos, ténèbres, désordre) selon la réponse humaine à la Parole.";
+  const principes = "Dieu parle, crée, ordonne ; l’humain est invité à accueillir, discerner, répondre et cultiver.";
+  const applPerso = ["Fixer un temps de lecture et d’écoute.","Nommer une zone de “désordre” à remettre à Dieu.","Choisir un verset à mémoriser cette semaine."].map((a,i)=>`${i+1}) ${a}`).join(" ");
+  const applComm = "En Église : créer des espaces d’écoute de la Parole ; discerner des priorités communes ; cultiver la gratitude et le repos.";
+  const qpg = ["Qu’est-ce qui se répète le plus et pourquoi ?","Quel est le mouvement principal du texte ?","Que dit ce passage sur Dieu ?","Quel appel concret pour nous ?","Quel lien avec l’Évangile ?","Quel verset retenir ?"]
+    .map((q,i)=>`${i+1}) ${q}`).join(" ");
+  const priere = `Dieu de grâce, nous recevrons ta Parole en **${meta.reference}** : éclaire nos cœurs, ordonne notre vie, et conduis-nous dans ta paix. Amen.`;
+  const med = `Relire lentement : « ${short(first,140)} » ; puis rendre grâce pour l’œuvre de Dieu et son ordre bienveillant.`;
+  const memo = last ? `• ${short(first,100)}\n• ${short(last,100)}` : `• ${short(first,100)}\n• Un verset marquant du passage`;
+  const diffic = "Difficultés possibles : lecture littérale/poétique, anachronismes, détails techniques ; réponses : revenir au propos théologique central et à la fonction du texte.";
+  const ressources = "Utiliser une bonne introduction biblique, une Bible d’étude, et des cartes/notes pour situer le passage.";
+
+  const contents = [
+    theme, resume, contexte, "Attribution prudente selon la tradition et fonction canonique.", genre,
+    `Structure : ${plan}`, `Plan : ${plan}`, motscles, termesDef, persLieux,
+    question, idees, `Pivot : ${short(pivot,180)}`,
+    refAT, refNT, paralleles, christo, verites, promAvert,
+    principes, applPerso, applComm, qpg, priere, med, memo,
+    diffic, ressources
+  ];
+
   return titles.map((t,i)=>({
-    index:i+1, title:t, content:`${t} (${passageRef}). ${intro}…`, verses:[]
+    index: i+1,
+    title: t,
+    content: contents[i] || "",
+    verses: []
   }));
 }
 
@@ -257,7 +301,7 @@ export default async function handler(req, res){
     };
 
     if (dry) {
-      const secs = sectionsFrom(meta.reference, "Exemple de texte.", mode, "");
+      const secs = buildSections(meta, "Exemple de texte démonstratif pour la structure.", mode);
       return send(res, 200, { ok:true, data:{ meta, sections:secs }, trace });
     }
 
@@ -265,7 +309,7 @@ export default async function handler(req, res){
 
     const osis = buildOsis({ book, chapter, verse });
     if (!osis) {
-      const secs = sectionsFrom(meta.reference, "", mode, "(Livre inconnu)");
+      const secs = buildSections(meta, "", mode);
       return send(res, 200, { ok:true, data:{ meta, sections:secs }, trace });
     }
 
@@ -276,25 +320,18 @@ export default async function handler(req, res){
     try {
       const p = await getPassageAuto({ bibleId, osis, trace });
       passageRef = p.ref || passageRef;
-      passageText = stripHtml(p.html);
+      passageText = htmlToPlain(p.html);
     } catch (e) {
-      const detail =
-        e?.details?.error?.message ||
-        e?.message ||
-        (typeof e?.details === "string" ? e.details : JSON.stringify(e?.details || {}, null, 2));
-      lastErr = e?.status ? `api.bible ${e.status} — ${String(detail).slice(0,200)}` : String(detail);
+      lastErr = e?.status ? `api.bible ${e.status}` : String(e?.message||e);
     }
-
-    const sections = sectionsFrom(
-      passageRef,
-      passageText,
-      mode,
-      `(Passage non récupéré : ${lastErr})`
-    );
 
     meta.reference = passageRef;
     meta.osis = osis;
 
+    // S’il y a eu une erreur API → on génère quand même des sections informatives
+    const textForGen = passageText || `(Passage non récupéré : ${lastErr}).`;
+
+    const sections = buildSections(meta, textForGen, mode);
     send(res, 200, { ok:true, data:{ meta, sections }, trace });
   } catch (e) {
     send(res, 500, { ok:false, error:String(e?.message||e) });
