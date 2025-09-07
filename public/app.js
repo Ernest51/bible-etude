@@ -12,6 +12,7 @@
     meta: null,
   };
 
+  // ---------- Helpers DOM ----------
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
   const byTextButton = (text) =>
@@ -19,95 +20,112 @@
       (el) => (el.value || el.textContent || "").trim() === text
     ) || null;
 
-  // ---------- Trouve les éléments de la page de manière tolérante ----------
-  function findToolbar() {
-    // On repère la barre d’outils en cherchant le bouton “Générer” et on remonte.
-    const genBtn = byTextButton("Générer");
-    return genBtn ? genBtn.closest("form,div,section,header,main") || document : document;
-  }
+  // ---------- Zones connues (si présentes) ----------
+  function refs() {
+    return {
+      // toolbar / boutons
+      genBtn:
+        byTextButton("Générer") ||
+        $("[data-generate]") ||
+        null,
 
-  function getSelectCandidates() {
-    // On récupère tous les <select> visibles de la barre.
-    const tb = findToolbar();
-    const all = $$("select", tb).filter((el) => el.offsetParent !== null);
-    return all;
-  }
+      prevBtn:
+        $("#prev") ||
+        byTextButton("◀ Précédent") ||
+        byTextButton("Précédent") ||
+        $("[data-prev]") ||
+        null,
 
-  function readParams() {
-    const params = {
-      book: "",
-      chapter: "",
-      verse: "",
-      translation: "",
-      bibleId: "",
-    };
+      nextBtn:
+        $("#next") ||
+        byTextButton("Suivant ▶") ||
+        byTextButton("Suivant") ||
+        $("[data-next]") ||
+        null,
 
-    // 1) Essais directs par name/id (les plus fiables s'ils existent)
-    const direct = {
+      // sélecteurs priorité: tes ids -> anciens -> heuristique
       book:
+        $("#bookSelect") ||
         $("#book") ||
         $("[name=book]") ||
-        $("[data-book]"),
+        $("[data-book]") ||
+        null,
+
       chapter:
+        $("#chapterSelect") ||
         $("#chapter") ||
         $("[name=chapter]") ||
-        $("[data-chapter]"),
+        $("[data-chapter]") ||
+        null,
+
       verse:
+        $("#verseSelect") ||
         $("#verse") ||
         $("[name=verse]") ||
-        $("[data-verse]"),
+        $("[data-verse]") ||
+        null,
+
       translation:
+        $("#versionSelect") ||
         $("#translation") ||
         $("[name=translation]") ||
-        $("[data-translation]"),
+        $("[data-translation]") ||
+        null,
+
       bibleId:
         $("#bibleId") ||
         $("[name=bibleId]") ||
-        $("[data-bibleid]"),
+        $("[data-bibleid]") ||
+        null,
+
+      // conteneurs UI
+      rubriquesList: $("#pointsList") || null,
+      editorArea: $("#noteArea") || null,
+      editorView: $("#noteView") || null,
+      titleNode: $("#edTitle") || null,
     };
-
-    // 2) Si pas trouvés : on regarde les <select> de la barre d’outils
-    const selects = getSelectCandidates();
-
-    // Heuristique : ordre le plus fréquent (Livre, Chapitre, Verset ?)
-    // On n’écrase PAS ce qui a été trouvé en 1).
-    if (!direct.book && selects[0]) direct.book = selects[0];
-    if (!direct.chapter && selects[1]) direct.chapter = selects[1];
-    if (!direct.verse && selects[2]) direct.verse = selects[2];
-
-    // Traduction : on essaye de repérer un select dont l’option courante ressemble à une traduction
-    if (!direct.translation) {
-      const guess = selects.find((s) => {
-        const txt = (s.options[s.selectedIndex]?.text || "").toLowerCase();
-        return /segond|darby|jnd|neg|ost|kjv|niv|lsg|ls|ostervald|king|louis/.test(txt);
-      });
-      if (guess) direct.translation = guess;
-    }
-
-    // Lecture des valeurs (en protégeant)
-    params.book = readValueFromField(direct.book);
-    params.chapter = readValueFromField(direct.chapter);
-    params.verse = readValueFromField(direct.verse);
-    params.translation = readValueFromField(direct.translation) || "JND";
-    params.bibleId = readValueFromField(direct.bibleId);
-
-    // Normalisations minimales
-    params.book = (params.book || "").trim();
-    params.chapter = String(params.chapter || "1").trim();
-    params.verse = String(params.verse || "").trim();
-
-    // Debug doux
-    console.log(LOG_PREFIX, "Params", params);
-    return params;
   }
 
+  // ---------- Fallbacks tolérants ----------
+  function findToolbar() {
+    const genBtn = byTextButton("Générer");
+    return genBtn ? (genBtn.closest("form,div,section,header,main") || document) : document;
+  }
+
+  function getSelectCandidates() {
+    const tb = findToolbar();
+    // visiblement affichés
+    return $$("select", tb).filter((el) => el.offsetParent !== null);
+  }
+
+  function ensureSelectFallbacks(r) {
+    // Si un des champs livre/chapitre/verset/trad n’est pas trouvé,
+    // on complète à partir des selects visibles dans la barre.
+    const sels = getSelectCandidates();
+    if (!r.book && sels[0]) r.book = sels[0];
+    if (!r.chapter && sels[1]) r.chapter = sels[1];
+    if (!r.verse && sels[2]) r.verse = sels[2];
+
+    if (!r.translation) {
+      const guess = sels.find((s) => {
+        const txt = (s.options[s.selectedIndex]?.text || "").toLowerCase();
+        return /segond|darby|jnd|neg|ost|kjv|niv|lsg|ostervald|king|louis|version|traduction/.test(txt);
+      });
+      if (guess) r.translation = guess;
+    }
+    return r;
+  }
+
+  // ---------- Lecture des paramètres ----------
   function readValueFromField(el) {
     if (!el) return "";
-    if (el.tagName === "SELECT") {
+    const tag = (el.tagName || "").toUpperCase();
+
+    if (tag === "SELECT") {
       const opt = el.options[el.selectedIndex];
       return opt ? (opt.value || opt.text || "").trim() : "";
     }
-    if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+    if (tag === "INPUT" || tag === "TEXTAREA") {
       return (el.value || "").trim();
     }
     // data-*
@@ -124,55 +142,75 @@
     return "";
   }
 
-  // ---------- Zones d’injection UI ----------
+  function readParams() {
+    let {
+      book, chapter, verse, translation, bibleId,
+    } = refs();
+
+    // fallback: compléter avec les selects visibles si manquants
+    ({ book, chapter, verse, translation } = ensureSelectFallbacks({ book, chapter, verse, translation }));
+
+    const params = {
+      book: readValueFromField(book),
+      chapter: readValueFromField(chapter),
+      verse: readValueFromField(verse),
+      translation: readValueFromField(translation) || "JND",
+      bibleId: readValueFromField(bibleId),
+    };
+
+    params.book = (params.book || "").trim();
+    params.chapter = String(params.chapter || "1").trim();
+    params.verse = String(params.verse || "").trim();
+
+    console.log(LOG_PREFIX, "Params", params);
+    return params;
+  }
+
+  // ---------- Ciblage UI sûr ----------
   function findRubriquesContainer() {
-    // On cherche le bloc “Rubriques” puis son conteneur (prochain sibling).
+    // 1) ta zone prioritaire
+    const r = refs();
+    if (r.rubriquesList) return r.rubriquesList;
+
+    // 2) fallback: bloc “Rubriques”
     const headings = $$("h1,h2,h3,div,span,b,strong").filter((n) =>
       /rubriques/i.test((n.textContent || "").trim())
     );
     if (headings.length) {
-      // nextElementSibling : probable conteneur de la liste
       const sib = headings[0].parentElement?.nextElementSibling || headings[0].nextElementSibling;
-      return sib || headings[0].parentElement || headings[0];
+      // on encapsule notre propre sous-conteneur
+      let holder = (sib && sib.querySelector("[data-rubriques]")) || null;
+      if (!holder && sib) {
+        holder = document.createElement("div");
+        holder.setAttribute("data-rubriques", "1");
+        sib.appendChild(holder);
+      }
+      return holder || sib || headings[0];
     }
-    // fallback : première colonne scrollable de gauche
-    const cols = $$("aside,nav,section,div").filter(
-      (n) =>
-        n.offsetWidth < window.innerWidth / 2 &&
-        n.offsetHeight > 200 &&
-        getComputedStyle(n).overflowY !== "visible"
-    );
-    return cols[0] || document.body;
+
+    // 3) fallback minimal
+    return null;
   }
 
   function findEditor() {
-    // on vise le grand bloc d’édition de droite (le plus grand <textarea> ou <div contenteditable>)
+    const r = refs();
+    // priorité: #noteArea / #noteView
+    if (r.editorArea) return r.editorArea;
+    if (r.editorView) return r.editorView;
+
+    // autre gros textarea
     const textareas = $$("textarea").sort((a, b) => b.clientHeight - a.clientHeight);
     if (textareas[0]) return textareas[0];
 
     const editables = $$("[contenteditable=true]").sort((a, b) => b.clientHeight - a.clientHeight);
     if (editables[0]) return editables[0];
 
-    // fallback : un gros <div> au centre
-    const bigDiv = $$("main div,section div,article div")
-      .filter((d) => d.clientHeight > 200 && d.clientWidth > 300)
-      .sort((a, b) => b.clientHeight - a.clientHeight)[0];
-    return bigDiv || document.body;
+    return null;
   }
 
   function findPrevNext() {
-    // Boutons navigation Précédent / Suivant (par texte exact)
-    const prev =
-      byTextButton("◄ Précédent") ||
-      byTextButton("Précédent") ||
-      $("[data-prev]");
-
-    const next =
-      byTextButton("Suivant ►") ||
-      byTextButton("Suivant") ||
-      $("[data-next]");
-
-    return { prev, next };
+    const r = refs();
+    return { prev: r.prevBtn, next: r.nextBtn };
   }
 
   // ---------- Rendu ----------
@@ -180,43 +218,69 @@
     const host = findRubriquesContainer();
     if (!host) return;
 
-    // Nettoie uniquement le contenu de la liste, pas l’entête
-    // On crée (ou réutilise) un conteneur interne
-    let list = host.querySelector("[data-rubriques]");
-    if (!list) {
-      list = document.createElement("div");
-      list.setAttribute("data-rubriques", "1");
-      list.style.display = "block";
-      host.appendChild(list);
+    // Si c’est #pointsList, on le rempli avec tes cards ; sinon, liste simple
+    const isNativeList = host.id === "pointsList";
+
+    if (!isNativeList) {
+      host.innerHTML = ""; // nettoie un conteneur de secours
     }
-    list.innerHTML = "";
 
-    state.sections.forEach((s) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.textContent = `${s.index}. ${s.title || ""}`;
-      btn.style.display = "block";
-      btn.style.width = "100%";
-      btn.style.textAlign = "left";
-      btn.style.padding = "10px 12px";
-      btn.style.border = "0";
-      btn.style.background = "transparent";
-      btn.style.cursor = "pointer";
-
-      btn.addEventListener("click", () => {
-        state.index = s.index - 1;
-        renderEditor();
-        highlightActive(list);
-      });
-
-      list.appendChild(btn);
+    state.sections.forEach((s, i) => {
+      if (isNativeList) {
+        // Maquette simple lisible dans ton CSS existant
+        const item = document.createElement("div");
+        item.className = "item";
+        item.setAttribute("data-i", String(i));
+        item.innerHTML = `
+          <span class="idx">${s.index}</span>
+          <div>
+            <div>${escapeHtml(s.title || ("Rubrique " + s.index))}</div>
+            <span class="desc">Rubrique ${s.index}</span>
+          </div>
+          <span class="dot ok"></span>
+        `;
+        item.addEventListener("click", () => {
+          state.index = i;
+          renderEditor();
+          highlightActive(host);
+          // scroll doux
+          try { item.scrollIntoView({ block: "nearest" }); } catch {}
+        });
+        host.appendChild(item);
+      } else {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = `${s.index}. ${s.title || ""}`;
+        btn.style.display = "block";
+        btn.style.width = "100%";
+        btn.style.textAlign = "left";
+        btn.style.padding = "10px 12px";
+        btn.style.border = "0";
+        btn.style.background = "transparent";
+        btn.style.cursor = "pointer";
+        btn.addEventListener("click", () => {
+          state.index = i;
+          renderEditor();
+          highlightActive(host);
+        });
+        host.appendChild(btn);
+      }
     });
 
-    highlightActive(list);
+    highlightActive(host);
   }
 
   function highlightActive(listRoot) {
+    if (!listRoot) return;
     const idx = state.index;
+
+    if (listRoot.id === "pointsList") {
+      $$(".item", listRoot).forEach((n, i) => {
+        n.classList.toggle("active", i === idx);
+      });
+      return;
+    }
+
     const buttons = $$("button", listRoot);
     buttons.forEach((b, i) => {
       b.style.background = i === idx ? "rgba(100, 116, 139, .12)" : "transparent";
@@ -229,11 +293,10 @@
     const sec = state.sections[state.index];
     if (!ed || !sec) return;
 
-    const text =
-      (sec.content || "").trim() ||
-      (state.meta ? `(${state.meta.reference})` : "");
+    const text = (sec.content || "").trim() || (state.meta ? `(${state.meta.reference})` : "");
 
-    if (ed.tagName === "TEXTAREA" || ed.tagName === "INPUT") {
+    const tag = (ed.tagName || "").toUpperCase();
+    if (tag === "TEXTAREA" || tag === "INPUT") {
       ed.value = text;
     } else if (ed.isContentEditable) {
       ed.innerText = text;
@@ -241,22 +304,9 @@
       ed.textContent = text;
     }
 
-    // Met à jour le titre courant (petite ligne sous “Méditation” si trouvée)
-    const titleNodes = $$("h2,h3,div,strong").filter((n) =>
-      /^(\d+\. |— )/.test((n.textContent || "").trim())
-    );
-    if (!titleNodes.length) {
-      // on tente de trouver la zone centrale immédiate à injecter
-      const host = ed.parentElement || ed;
-      let header = host.querySelector("[data-current-section]");
-      if (!header) {
-        header = document.createElement("div");
-        header.setAttribute("data-current-section", "1");
-        header.style.fontWeight = "700";
-        header.style.margin = "10px 0";
-        host.insertBefore(header, host.firstChild);
-      }
-      header.textContent = `${sec.index}. ${sec.title || ""}`;
+    const r = refs();
+    if (r.titleNode) {
+      r.titleNode.textContent = `${sec.index}. ${sec.title || ""}`;
     }
   }
 
@@ -264,7 +314,8 @@
     const { prev, next } = findPrevNext();
     if (prev && !prev.__wired) {
       prev.__wired = true;
-      prev.addEventListener("click", () => {
+      prev.addEventListener("click", (e) => {
+        e.preventDefault();
         if (!state.sections.length) return;
         state.index = (state.index - 1 + state.sections.length) % state.sections.length;
         renderEditor();
@@ -273,7 +324,8 @@
     }
     if (next && !next.__wired) {
       next.__wired = true;
-      next.addEventListener("click", () => {
+      next.addEventListener("click", (e) => {
+        e.preventDefault();
         if (!state.sections.length) return;
         state.index = (state.index + 1) % state.sections.length;
         renderEditor();
@@ -290,26 +342,35 @@
     if (p.verse) usp.set("verse", p.verse);
     if (p.translation) usp.set("translation", p.translation);
     if (p.bibleId) usp.set("bibleId", p.bibleId);
-    usp.set("mode", "full");      // 28 sections
-    usp.set("trace", "1");        // utile pour debug
-    // pas de dry-run ici
+    usp.set("mode", "full"); // 28 sections
+    usp.set("trace", "1");
 
     const url = `/api/study-28?${usp.toString()}`;
     const r = await fetch(url, { headers: { accept: "application/json" } });
+
     if (!r.ok) {
-      const t = await r.text();
-      throw new Error(`HTTP ${r.status} ${t}`);
+      // 404 explicite : route manquante côté serveur
+      if (r.status === 404) {
+        throw new Error("API study-28 introuvable (HTTP 404). Vérifie que /api/study-28 est bien déployée.");
+      }
+      const t = await r.text().catch(() => "");
+      throw new Error(`API study-28 — HTTP ${r.status}${t ? " · " + t : ""}`);
     }
-    const j = await r.json();
-    if (!j || !j.ok) throw new Error(j?.error || "Réponse invalide");
+
+    const j = await r.json().catch(() => null);
+    if (!j || !j.ok) throw new Error(j?.error || "Réponse invalide de /api/study-28");
     return j;
   }
 
   async function generate() {
     try {
       const params = readParams();
-      const res = await callStudy28(params);
+      if (!params.book || !params.chapter) {
+        alert("Sélectionne un livre et un chapitre avant de générer l’étude.");
+        return;
+      }
 
+      const res = await callStudy28(params);
       const meta = res.data?.meta || {};
       const sections = Array.isArray(res.data?.sections) ? res.data.sections : [];
 
@@ -339,10 +400,8 @@
   }
 
   function wireGenerateButton() {
-    const btn =
-      byTextButton("Générer") ||
-      $("[data-generate]");
-
+    const r = refs();
+    const btn = r.genBtn;
     if (!btn) {
       console.warn(LOG_PREFIX, "Bouton Générer introuvable — la page restera passive.");
       return;
@@ -353,6 +412,11 @@
       ev.preventDefault();
       generate();
     });
+  }
+
+  // ---------- Utils ----------
+  function escapeHtml(s = "") {
+    return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   }
 
   // ---------- Init ----------
