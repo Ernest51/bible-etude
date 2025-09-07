@@ -1,0 +1,89 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Diagnostic — study-28 (trace)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:#f7f7fb;color:#111;margin:0;padding:16px}
+  h1{margin:0 0 12px}
+  .row{display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:center;margin-bottom:8px}
+  input,select,button{padding:8px;font:inherit}
+  pre{background:#0b1020;color:#e2e8f0;padding:12px;border-radius:8px;overflow:auto;max-height:50vh}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+  @media(max-width:900px){.cols{grid-template-columns:1fr}}
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px}
+  .ok{color:#16a34a}.ko{color:#dc2626}
+</style>
+
+<h1>Diagnostic — Étude 28 points (api.bible + trace)</h1>
+
+<div class="row"><label>Livre</label><input id="book" value="Genèse"></div>
+<div class="row"><label>Chapitre</label><input id="chapter" value="1" type="number"></div>
+<div class="row"><label>Verset (opt.)</label><input id="verse" placeholder="ex: 1-5"></div>
+<div class="row"><label>bibleId (opt.)</label><input id="bibleId" placeholder="ex: a93a92589195411f-01"></div>
+<div class="row"><label>Mode</label>
+  <select id="mode">
+    <option value="full" selected>full (28)</option>
+    <option value="mini">mini (3)</option>
+  </select>
+</div>
+<div class="row"><label>Ordre</label>
+  <select id="force">
+    <option value="">auto: passages→chapters</option>
+    <option value="passages">forcer passages</option>
+    <option value="chapters">forcer chapters</option>
+  </select>
+</div>
+
+<div class="row"><label></label>
+  <button id="run">Lancer (trace)</button>
+</div>
+
+<div class="cols">
+  <div class="card">
+    <h3>Meta</h3>
+    <pre id="meta">—</pre>
+    <h3>Résumé sections</h3>
+    <pre id="sections">—</pre>
+  </div>
+  <div class="card">
+    <h3>TRACE (appels api.bible)</h3>
+    <pre id="trace">—</pre>
+  </div>
+</div>
+
+<script>
+  async function go() {
+    const b = document.getElementById('book').value.trim();
+    const c = document.getElementById('chapter').value.trim();
+    const v = document.getElementById('verse').value.trim();
+    const id = document.getElementById('bibleId').value.trim();
+    const m = document.getElementById('mode').value;
+    const f = document.getElementById('force').value;
+
+    const qs = new URLSearchParams({ book:b, chapter:c, mode:m, trace:'1' });
+    if (v)  qs.set('verse', v);
+    if (id) qs.set('bibleId', id);
+    if (f)  qs.set('force', f);
+
+    const url = '/api/study-28?' + qs.toString();
+    const r = await fetch(url, { cache:'no-store' });
+    let j; try { j = await r.json(); } catch { j = { raw: await r.text() } }
+
+    const metaEl = document.getElementById('meta');
+    const secEl  = document.getElementById('sections');
+    const trEl   = document.getElementById('trace');
+
+    if (!j || j.ok === false) {
+      metaEl.textContent = JSON.stringify(j, null, 2);
+      secEl.textContent = '—';
+      trEl.textContent = '—';
+      return;
+    }
+
+    metaEl.textContent = JSON.stringify(j.data?.meta || {}, null, 2);
+    const secs = (j.data?.sections||[]).map(s => `${String(s.index).padStart(2,'0')} ${s.title} → ${s.content.slice(0,80)}`);
+    secEl.textContent = secs.join('\n') || '—';
+    trEl.textContent  = JSON.stringify(j.trace || [], null, 2);
+  }
+  document.getElementById('run').addEventListener('click', go);
+</script>
