@@ -2,13 +2,11 @@
 export const config = { runtime: "nodejs" };
 
 /**
- * Étude 28 points (LLM-free) avec récupération robuste du passage via api.bible
- * Ordre des tentatives pour un chapitre :
- *   1) /bibles/{id}/passages/GEN.1
- *   2) /bibles/{id}/passages/GEN.1.1-GEN.1.199
- *   3) /bibles/{id}/chapters/GEN.1
- *
- * NB: Pas d'OpenAI.
+ * Étude 28 points (LLM-free) + TRACE pour diagnostiquer les 400 api.bible.
+ * Params utiles:
+ *  - trace=1        → renvoie le détail des tentatives effectuées
+ *  - force=passages → n'essaie que /passages (d’abord GEN.1 puis GEN.1.1-199)
+ *  - force=chapters → n'essaie que /chapters (GEN.1)
  */
 
 const API_ROOT = "https://api.scripture.api.bible/v1";
@@ -20,7 +18,7 @@ function send(res, status, payload) {
   res.end(JSON.stringify(payload, null, 2));
 }
 
-// --- mapping FR -> OSIS (accents & variantes normalisées) ---
+// --- mapping FR -> OSIS (accents & variantes) ---
 const FR_TO_OSIS = {
   "genese":"GEN","genèse":"GEN","exode":"EXO","levitique":"LEV","lévitique":"LEV","nombres":"NUM",
   "deuteronome":"DEU","deutéronome":"DEU","josue":"JOS","josué":"JOS","juges":"JDG","ruth":"RUT",
@@ -39,7 +37,6 @@ const FR_TO_OSIS = {
   "1 timothee":"1TI","1 timothée":"1TI","2 timothee":"2TI","2 timothée":"2TI",
   "tite":"TIT","philemon":"PHM","philémon":"PHM","hebreux":"HEB","hébreux":"HEB","jacques":"JAS",
   "1 pierre":"1PE","2 pierre":"2PE","1 jean":"1JN","2 jean":"2JN","3 jean":"3JN","jude":"JUD","apocalypse":"REV",
-  // abréviations usuelles
   "1 cor":"1CO","2 cor":"2CO","1 th":"1TH","2 th":"2TH","1 ti":"1TI","2 ti":"2TI","1 pi":"1PE","2 pi":"2PE"
 };
 const norm = (s)=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ").trim();
@@ -60,7 +57,7 @@ function buildOsisPassage(book, chapter, verse){
   if (!osis) return null;
   const chap = String(chapter||"1").trim();
   const v = String(verse||"").trim();
-  if (!v) return `${osis}.${chap}`; // chapitre entier (tentative 1)
+  if (!v) return `${osis}.${chap}`; // chapitre entier (tentative passages #1)
   const main = v.split(",")[0].trim();
   if (/^\d+\s*[-–]\s*\d+$/.test(main)) {
     const [a,b] = main.split(/[-–]/).map(s=>s.trim());
@@ -69,7 +66,7 @@ function buildOsisPassage(book, chapter, verse){
   return `${osis}.${chap}.${main}`;
 }
 
-async function callApi(path, params = {}) {
+async function callApi(path, params = {}, trace) {
   if (!API_KEY) {
     const err = new Error("API_BIBLE_KEY manquante");
     err.status = 500; throw err;
@@ -78,13 +75,16 @@ async function callApi(path, params = {}) {
   Object.entries(params).forEach(([k,v])=>{
     if (v!==undefined && v!==null && v!=="") url.searchParams.set(k, String(v));
   });
+  trace && trace.push({ step:"fetch", url: url.toString() });
   const r = await fetch(url.toString(), { headers: { accept:"application/json", "api-key": API_KEY } });
   const txt = await r.text();
   let j; try{ j = txt ? JSON.parse(txt) : {}; }catch{ j = { raw: txt }; }
   if (!r.ok) {
+    trace && trace.push({ step:"error", status:r.status, body: (typeof j==='string'? j : (j.error||j.raw||j)) });
     const e = new Error(j?.error?.message || `api.bible ${r.status}`);
     e.status = r.status; e.details = j; throw e;
   }
+  trace && trace.push({ step:"ok", status:r.status });
   return j;
 }
 
@@ -98,15 +98,13 @@ const CONTENT_PARAMS = {
   "use-org-id": false
 };
 
-async function fetchPassageById(bibleId, passageId){
+async function fetchPassageById(bibleId, passageId, trace){
   const id = bibleId || DEFAULT_BIBLE_ID;
-  const j = await callApi(`/bibles/${id}/passages/${encodeURIComponent(passageId)}`, CONTENT_PARAMS);
-  return { reference: j?.data?.reference || "", html: j?.data?.content || "" };
+  return callApi(`/bibles/${id}/passages/${encodeURIComponent(passageId)}`, CONTENT_PARAMS, trace);
 }
-async function fetchChapterById(bibleId, chapterId){
+async function fetchChapterById(bibleId, chapterId, trace){
   const id = bibleId || DEFAULT_BIBLE_ID;
-  const j = await callApi(`/bibles/${id}/chapters/${encodeURIComponent(chapterId)}`, CONTENT_PARAMS);
-  return { reference: j?.data?.reference || "", html: j?.data?.content || "" };
+  return callApi(`/bibles/${id}/chapters/${encodeURIComponent(chapterId)}`, CONTENT_PARAMS, trace);
 }
 
 function stripHtml(html){
@@ -138,6 +136,8 @@ export default async function handler(req, res){
     const selftest = sp.get("selftest")==="1";
     const dry = sp.get("dry")==="1";
     const mode = (sp.get("mode")||"").toLowerCase() || "full";
+    const traceOn = sp.get("trace")==="1";
+    const force = (sp.get("force")||"").toLowerCase(); // '' | 'passages' | 'chapters'
 
     if (selftest) return send(res, 200, { ok:true, engine:"LLM-FREE", modes:["mini","full"], usesApiBible:true, source:"study-28" });
 
@@ -160,6 +160,7 @@ export default async function handler(req, res){
     const verse = input.verse || "";
     const translation = input.translation || "LSG";
     const bibleId = input.bibleId || "";
+    const trace = traceOn ? [] : null;
 
     if (!book || !chapter) return send(res, 400, { ok:false, error:"book et chapter requis" });
 
@@ -173,7 +174,7 @@ export default async function handler(req, res){
     if (dry) {
       const titles = mode==="mini" ? TITLES_MINI : TITLES_FULL;
       const sections = titles.map((t,i)=>({ index:i+1, title:t, content:`${t} (${meta.reference}).`, verses:[] }));
-      return send(res, 200, { ok:true, data:{ meta, sections } });
+      return send(res, 200, { ok:true, data:{ meta, sections }, trace });
     }
 
     if (!API_KEY) return send(res, 500, { ok:false, error:"API_BIBLE_KEY manquante" });
@@ -182,65 +183,78 @@ export default async function handler(req, res){
     if (!osisChapter) {
       const titles = mode==="mini" ? TITLES_MINI : TITLES_FULL;
       const sections = titles.map((t,i)=>({ index:i+1, title:t, content:`${t} (${meta.reference}). (Passage non récupéré : livre inconnu)`, verses:[] }));
-      return send(res, 200, { ok:true, data:{ meta, sections } });
+      return send(res, 200, { ok:true, data:{ meta, sections }, trace });
     }
 
-    const passageIdPrimary = buildOsisPassage(book, chapter, "");          // ex: GEN.1
-    const passageIdFallback = buildOsisPassage(book, chapter, "1-199");     // ex: GEN.1.1-GEN.1.199
-    const passageIdFromQuery = verse ? buildOsisPassage(book, chapter, verse) : null;
+    const passageIdPrimary  = buildOsisPassage(book, chapter, "");         // GEN.1
+    const passageIdFallback = buildOsisPassage(book, chapter, "1-199");    // GEN.1.1-GEN.1.199
+    const passageIdFromQ    = verse ? buildOsisPassage(book, chapter, verse) : null;
 
     let displayRef = meta.reference;
     let osis = osisChapter;
     let passageText = "";
     let lastErr = "";
 
-    // 0) Si l’utilisateur a mis un verset/range → on tente d’abord la forme précise
-    if (passageIdFromQuery) {
-      try {
-        const got = await fetchPassageById(bibleId, passageIdFromQuery);
-        const clean = stripHtml(got.html);
-        if (clean) {
-          passageText = clean; displayRef = got.reference || displayRef; osis = passageIdFromQuery;
-        }
-      } catch(e){ lastErr = e?.status ? `api.bible ${e.status}` : String(e?.message||e); }
-    }
+    const CONTENT_PICK = (j)=>({ ref: j?.data?.reference||"", html: j?.data?.content||"" });
 
-    // 1) /passages/GEN.1 (si pas encore trouvé)
-    if (!passageText) {
-      try {
-        const got = await fetchPassageById(bibleId, passageIdPrimary);
-        const clean = stripHtml(got.html);
-        if (clean) {
-          passageText = clean; displayRef = got.reference || displayRef; osis = passageIdPrimary;
-        }
-      } catch(e){ lastErr = e?.status ? `api.bible ${e.status}` : String(e?.message||e); }
-    }
+    // stratégie selon force
+    const tryPassages = async () => {
+      // (0) si verset/range fourni par l’utilisateur
+      if (passageIdFromQ && !passageText) {
+        trace && trace.push({ step:"try", kind:"passages", id: passageIdFromQ });
+        try {
+          const j = await fetchPassageById(bibleId, passageIdFromQ, trace);
+          const { ref, html } = CONTENT_PICK(j);
+          const clean = stripHtml(html);
+          if (clean) { passageText = clean; displayRef = ref || displayRef; osis = passageIdFromQ; }
+        } catch(e){ lastErr = e?.status ? `api.bible ${e.status}` : String(e?.message||e); }
+      }
+      // (1) GEN.1
+      if (!passageText) {
+        trace && trace.push({ step:"try", kind:"passages", id: passageIdPrimary });
+        try {
+          const j = await fetchPassageById(bibleId, passageIdPrimary, trace);
+          const { ref, html } = CONTENT_PICK(j);
+          const clean = stripHtml(html);
+          if (clean) { passageText = clean; displayRef = ref || displayRef; osis = passageIdPrimary; }
+        } catch(e){ lastErr = e?.status ? `api.bible ${e.status}` : String(e?.message||e); }
+      }
+      // (2) GEN.1.1-GEN.1.199
+      if (!passageText) {
+        trace && trace.push({ step:"try", kind:"passages", id: passageIdFallback });
+        try {
+          const j = await fetchPassageById(bibleId, passageIdFallback, trace);
+          const { ref, html } = CONTENT_PICK(j);
+          const clean = stripHtml(html);
+          if (clean) { passageText = clean; displayRef = ref || displayRef; osis = passageIdFallback; }
+        } catch(e){ lastErr = e?.status ? `api.bible ${e.status}` : String(e?.message||e); }
+      }
+    };
 
-    // 2) /passages/GEN.1.1-GEN.1.199
-    if (!passageText) {
-      try {
-        const got = await fetchPassageById(bibleId, passageIdFallback);
-        const clean = stripHtml(got.html);
-        if (clean) {
-          passageText = clean; displayRef = got.reference || displayRef; osis = passageIdFallback;
-        }
-      } catch(e){ lastErr = e?.status ? `api.bible ${e.status}` : String(e?.message||e); }
-    }
+    const tryChapters = async () => {
+      if (!passageText) {
+        trace && trace.push({ step:"try", kind:"chapters", id: osisChapter });
+        try {
+          const j = await fetchChapterById(bibleId, osisChapter, trace);
+          const { ref, html } = CONTENT_PICK(j);
+          const clean = stripHtml(html);
+          if (clean) { passageText = clean; displayRef = ref || displayRef; osis = osisChapter; }
+        } catch(e){ lastErr = e?.status ? `api.bible ${e.status}` : String(e?.message||e); }
+      }
+    };
 
-    // 3) /chapters/GEN.1
-    if (!passageText) {
-      try {
-        const got = await fetchChapterById(bibleId, osisChapter);
-        const clean = stripHtml(got.html);
-        if (clean) {
-          passageText = clean; displayRef = got.reference || displayRef; osis = osisChapter;
-        }
-      } catch(e){ lastErr = e?.status ? `api.bible ${e.status}` : String(e?.message||e); }
+    if (force === "passages") {
+      await tryPassages();
+    } else if (force === "chapters") {
+      await tryChapters();
+    } else {
+      // ordre par défaut : passages -> chapters
+      await tryPassages();
+      await tryChapters();
     }
 
     const titles = mode==="mini" ? TITLES_MINI : TITLES_FULL;
     const intro = passageText ? firstSentence(passageText) : `(Passage non récupéré : ${lastErr || "inconnu"})`;
-
     const sections = titles.map((t, i) => ({
       index: i + 1,
       title: t,
@@ -251,7 +265,7 @@ export default async function handler(req, res){
     meta.reference = displayRef;
     meta.osis = osis;
 
-    return send(res, 200, { ok:true, data:{ meta, sections } });
+    return send(res, 200, { ok:true, data:{ meta, sections }, trace });
   } catch (e) {
     return send(res, 500, { ok:false, error:String(e?.message||e) });
   }
