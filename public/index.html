@@ -114,16 +114,87 @@
     }
     function openOnBibleGateway(ref){ window.open(buildGatewayUrl(ref), '_blank', 'noopener,noreferrer'); }
 
-    // ---- Linkify références bibliques dans le HTML ----
+    // ---- Liste de livres (FR) ----
     const BOOKS = ["Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth","1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther","Job","Psaumes","Proverbes","Ecclésiaste","Cantique des Cantiques","Ésaïe","Esaïe","Jérémie","Lamentations","Ézéchiel","Ezechiel","Daniel","Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie","Aggée","Zacharie","Malachie","Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"];
-    const BOOKS_RE = new RegExp('\\b(' + BOOKS.map(b=>b.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')).join('|') + ')\\s+(\\d+)(?::(\\d+(?:[-–]\\d+)?))?', 'g');
 
-    function linkifyScriptureHTML(html){
-      return html.replace(BOOKS_RE, (m,book,ch,vers)=> {
-        const ref = book + ' ' + ch + (vers?(':'+vers):'');
-        const href = buildGatewayUrl(ref);
-        return `<a href="${href}" target="_blank" rel="noopener" data-ref="${ref}">${m}</a>`;
+    // ---- Linkifier (robuste) : parcourt le DOM et remplace UNIQUEMENT les nœuds texte ----
+    // Gère :
+    //  - Références complètes : Livre Chapitre[:Versets[-Versets]]
+    //  - Abrégées : v.12, v.3–7, v.1, 3, 5 -> liées au livre+chapitre courants
+    //  - Guillemets français « », espaces insécables, ponctuation finale
+    const BOOKS_RE_SRC = '\\b(' + BOOKS.map(b=>b.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')).join('|') + ')\\s+(\\d+)(?::\\s*(\\d+(?:\\s*[–-]\\s*\\d+)?(?:\\s*,\\s*\\d+(?:\\s*[–-]\\s*\\d+)?)*)\\s*)?';
+    const BOOKS_RE = new RegExp(BOOKS_RE_SRC, 'gi');
+
+    // v.12 ; v.1–5 ; v.3, 6, 9-10 ; (autorise espace insécable et tiret en-dash)
+    const V_RE = /(?:^|[\s\[(«"'])v\.\s*(\d+(?:\s*[–-]\s*\d+)?(?:\s*,\s*\d+(?:\s*[–-]\s*\d+)?)*)\b/gi;
+
+    function linkifyContainer(root, currentBookChapterRef){
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node)=>{
+          if(!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+          if(node.parentElement && (node.parentElement.closest('a'))) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
       });
+
+      const toProcess = [];
+      while(walker.nextNode()) toProcess.push(walker.currentNode);
+
+      toProcess.forEach(textNode=>{
+        const original = textNode.nodeValue;
+
+        // 1) Références complètes (Livre Chapitre[:Versets…])
+        let replaced = original.replace(BOOKS_RE, (m, book, ch, versPart)=>{
+          const ref = book + ' ' + ch + (versPart ? (':' + versPart.replace(/\s+/g,'').replace(/–/g,'-')) : '');
+          const a = document.createElement('a');
+          a.href = buildGatewayUrl(ref);
+          a.target = '_blank'; a.rel = 'noopener'; a.setAttribute('data-ref', ref);
+          a.textContent = m;
+          return `§§§REF§§§${injectNode(a)}§§§END§§§`;
+        });
+
+        // 2) Références abrégées v.X… (rattachées au livre+chapitre courants)
+        if(currentBookChapterRef){
+          replaced = replaced.replace(V_RE, (m, versSpec)=>{
+            const ref = currentBookChapterRef + ':' + versSpec.replace(/\s+/g,'').replace(/–/g,'-');
+            const a = document.createElement('a');
+            a.href = buildGatewayUrl(ref);
+            a.target = '_blank'; a.rel = 'noopener'; a.setAttribute('data-ref', ref);
+            a.textContent = m.replace(/\s+/g,' ').trim();
+            return `§§§REF§§§${injectNode(a)}§§§END§§§`;
+          });
+        }
+
+        if(replaced === original) return; // rien à faire
+
+        // Remplacer le nœud texte par un fragment contenant <a>… et textes
+        const frag = document.createDocumentFragment();
+        const parts = replaced.split(/§§§REF§§§|§§§END§§§/);
+        for(let i=0;i<parts.length;i++){
+          const part = parts[i];
+          if(!part) continue;
+          if(i % 2 === 1){
+            // part contient un placeholder de node serialisé -> re-créer l'élément
+            frag.appendChild(extractNode(part));
+          }else{
+            frag.appendChild(document.createTextNode(part));
+          }
+        }
+        textNode.parentNode.replaceChild(frag, textNode);
+      });
+    }
+
+    // -- Helpers pour sérialiser temporairement un <a> pendant le replace, puis le reconstruire --
+    function injectNode(aEl){
+      // on stocke l’HTML de l’élément dans data-serialized (simple)
+      const div = document.createElement('div');
+      div.appendChild(aEl);
+      return div.innerHTML; // <a ...>texte</a>
+    }
+    function extractNode(html){
+      const div = document.createElement('div');
+      div.innerHTML = html;
+      return div.firstElementChild;
     }
 
     // ---- Décoder les entités HTML (pour transformer &lt;strong&gt; en <strong>) ----
@@ -138,24 +209,25 @@
       return str.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     }
 
-    // ---- Rendu enrichi : on NE fait plus d'échappement ; on affiche le vrai HTML ----
+    // ---- Rendu enrichi : décoder -> normaliser -> injecter HTML -> linkifier DOM ----
     function renderEnriched(text){
-      // 1) Décoder d'éventuelles entités (ex: &lt;strong&gt;)
+      // 1) Décoder d'éventuelles entités
       let html = decodeEntities(text);
-
-      // 2) Convertir tout markdown **…** en <strong>…</strong>
+      // 2) Convertir **…** -> <strong>…</strong>
       html = mdBoldToStrong(html);
-
-      // 3) Normaliser les retours à la ligne -> <br>
+      // 3) Normaliser les sauts de ligne
       html = html.replace(/\r\n/g,"\n").split('\n').map(l => l==='' ? '<br>' : l).join('\n');
 
-      // 4) Transformer les références bibliques en liens BibleGateway
-      html = linkifyScriptureHTML(html);
-
-      // 5) Injecter tel quel
+      // 4) Injecter le HTML (sans échapper)
       noteView.innerHTML = html;
 
-      // 6) Panneau des liens
+      // 5) Linkifier dans le DOM (complet + v.X ...) selon livre+chapitre en cours
+      const currentBook = (bookSelect.value||'').trim();
+      const currentCh   = (chapterSelect.value||'').trim();
+      const currentRef  = (currentBook && currentCh) ? (currentBook + ' ' + currentCh) : null;
+      linkifyContainer(noteView, currentRef);
+
+      // 6) Remplir le panneau des liens
       const links = [...noteView.querySelectorAll('a')];
       const panel = document.getElementById('linksPanel');
       const list = document.getElementById('linksList');
@@ -303,7 +375,8 @@
     // ---- Met à jour les href quand la version change ----
     versionSelect.addEventListener('change', ()=>{
       noteView.querySelectorAll('a[data-ref]').forEach(a=>{
-        a.href = buildGatewayUrl(a.getAttribute('data-ref'));
+        const ref = a.getAttribute('data-ref');
+        a.href = buildGatewayUrl(ref);
       });
     });
 
