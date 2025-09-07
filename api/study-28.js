@@ -2,9 +2,11 @@
 export const config = { runtime: "nodejs" };
 
 /**
- * Étude 28 points (sans OpenAI) avec récupération robuste du passage via api.bible
- * - Normalisation livre FR → OSIS
- * - Fallback: /passages → /chapters
+ * Étude 28 points (sans OpenAI) avec récupération robuste via api.bible
+ * - Normalisation livre FR → OSIS (tolère accents / espaces / casse)
+ * - Cascade tolérante:
+ *   1) /passages (params riches) → 2) /passages (params min)
+ *   3) /passages (plage large min) → 4) /chapters (min) → 5) /chapters (sans params)
  * - Paramètres:
  *    ?book=Genèse&chapter=1[&verse=1-5][&bibleId=...][&translation=JND][&mode=mini|full][&dry=1][&trace=1]
  */
@@ -13,13 +15,14 @@ const API_ROOT = "https://api.scripture.api.bible/v1";
 const API_KEY  = process.env.API_BIBLE_KEY || "";
 const DEFAULT_BIBLE_ID = process.env.API_BIBLE_ID || ""; // ex: a93a92589195411f-01 (JND)
 
+// ---------- utils de réponse ----------
 function send(res, status, payload) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(payload, null, 2));
 }
 
-// -------- FR → OSIS (tolérant aux accents / espaces / casse) --------
+// ---------- FR → OSIS ----------
 const MAP = {
   "genese":"GEN","genèse":"GEN","gen":"GEN",
   "exode":"EXO","exo":"EXO",
@@ -98,7 +101,6 @@ function norm(s) {
 function osisBook(book) {
   const key = norm(book);
   if (MAP[key]) return MAP[key];
-  // fallback: essaye un "startsWith"
   const hit = Object.keys(MAP).find(k => k.startsWith(key));
   return hit ? MAP[hit] : null;
 }
@@ -108,7 +110,6 @@ function buildOsis({book, chapter, verse}) {
   const c = String(chapter||"1").trim();
   const v = String(verse||"").trim();
   if (!v) return `${b}.${c}`;
-  // verset unique 12 ou intervalle 1-10
   if (/^\d+([\-–]\d+)?$/.test(v)) {
     if (v.includes("-") || v.includes("–")) {
       const [a,bv] = v.split(/[\-–]/).map(s=>s.trim());
@@ -116,12 +117,11 @@ function buildOsis({book, chapter, verse}) {
     }
     return `${b}.${c}.${v}`;
   }
-  // liste 1,3 → on ne sait pas faire en /passages; garde chapitre
-  return `${b}.${c}`;
+  return `${b}.${c}`; // liste non supportée → chapitre
 }
 
-// -------- api.bible --------
-const CONTENT_QS = {
+// ---------- api.bible fetch ----------
+const QS_RICH = {
   "content-type":"html",
   "include-notes":"false",
   "include-titles":"true",
@@ -130,8 +130,11 @@ const CONTENT_QS = {
   "include-verse-spans":"false",
   "use-org-id":"false"
 };
+const QS_MIN = { "content-type":"html" };
+
 function qs(obj){
-  const u = new URLSearchParams(); Object.entries(obj||{}).forEach(([k,v])=>u.set(k,String(v)));
+  const u = new URLSearchParams();
+  Object.entries(obj||{}).forEach(([k,v])=>u.set(k,String(v)));
   return u.toString();
 }
 
@@ -141,42 +144,64 @@ async function fetchJson(url, trace) {
   const txt = await r.text();
   let j; try { j = txt ? JSON.parse(txt) : {}; } catch { j = { raw: txt }; }
   if (!r.ok) {
-    trace && trace.push({ step:"error", status:r.status, body: (j?.error || j?.raw || txt).toString().slice(0,200) });
-    const e = new Error(`api.bible ${r.status}`);
-    e.status = r.status; e.details = j; throw e;
+    const msg = j?.error?.message || j?.message || (typeof j === "string" ? j : j?.raw) || txt || `HTTP ${r.status}`;
+    trace && trace.push({ step:"error", status:r.status, message: String(msg).slice(0,400) });
+    const e = new Error(String(msg));
+    e.status = r.status; e.details = j;
+    throw e;
   }
   trace && trace.push({ step:"ok", status:r.status });
   return j;
 }
 
+/**
+ * Cascade très tolérante:
+ * 1) /passages (rich)
+ * 2) /passages (min)
+ * 3) /passages (plage large min, ex: GEN.1.1-GEN.1.199)
+ * 4) /chapters (min)
+ * 5) /chapters (sans params)
+ */
 async function getPassageAuto({ bibleId, osis, trace }) {
   const id = bibleId || DEFAULT_BIBLE_ID;
   if (!id) throw new Error("Missing bibleId (set API_BIBLE_ID or provide ?bibleId=)");
 
-  // 1) passages (chapitre entier)
-  try {
-    const url = `${API_ROOT}/bibles/${id}/passages/${encodeURIComponent(osis)}?${qs(CONTENT_QS)}`;
+  const doPassages = async (ref, params) => {
+    const url = `${API_ROOT}/bibles/${id}/passages/${encodeURIComponent(ref)}${params ? ("?"+qs(params)) : ""}`;
     const j = await fetchJson(url, trace);
-    return { ref: j?.data?.reference||osis, html: j?.data?.content||"" };
-  } catch (e) {
-    // 1b) passages (plage large 1–199) pour bibles qui n’aiment pas GEN.1 simple
-    if (/^\w+\.\d+$/.test(osis)) {
-      const [b,c] = osis.split(".");
-      const range = `${b}.${c}.1-${b}.${c}.199`;
-      try {
-        const url = `${API_ROOT}/bibles/${id}/passages/${encodeURIComponent(range)}?${qs(CONTENT_QS)}`;
-        const j = await fetchJson(url, trace);
-        return { ref: j?.data?.reference||range, html: j?.data?.content||"" };
-      } catch {}
-    }
+    return { ref: j?.data?.reference || ref, html: j?.data?.content || "" };
+    };
+  const doChapters = async (ref, params) => {
+    const url = `${API_ROOT}/bibles/${id}/chapters/${encodeURIComponent(ref)}${params ? ("?"+qs(params)) : ""}`;
+    const j = await fetchJson(url, trace);
+    return { ref: j?.data?.reference || ref, html: j?.data?.content || "" };
+  };
+
+  // 1) passages (rich)
+  try { return await doPassages(osis, QS_RICH); }
+  catch (e1) { trace && trace.push({ step:"fallback", hint:"passages→min", err: e1.status || e1.message }); }
+
+  // 2) passages (min)
+  try { return await doPassages(osis, QS_MIN); }
+  catch (e2) { trace && trace.push({ step:"fallback", hint:"passagesWide→min", err: e2.status || e2.message }); }
+
+  // 3) passages (plage large)
+  if (/^\w+\.\d+$/.test(osis)) {
+    const [b,c] = osis.split(".");
+    const wide = `${b}.${c}.1-${b}.${c}.199`;
+    try { return await doPassages(wide, QS_MIN); }
+    catch (eWide) { trace && trace.push({ step:"fallback", hint:"chapters→min", err: eWide.status || eWide.message }); }
   }
 
-  // 2) chapters (fallback Darby JND)
-  const url2 = `${API_ROOT}/bibles/${id}/chapters/${encodeURIComponent(osis)}?${qs(CONTENT_QS)}`;
-  const j2 = await fetchJson(url2, trace);
-  return { ref: j2?.data?.reference||osis, html: j2?.data?.content||"" };
+  // 4) chapters (min)
+  try { return await doChapters(osis, QS_MIN); }
+  catch (e3) { trace && trace.push({ step:"fallback", hint:"chapters→noParams", err: e3.status || e3.message }); }
+
+  // 5) chapters (sans params)
+  return await doChapters(osis, null);
 }
 
+// ---------- format ----------
 function stripHtml(html){
   return String(html||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
 }
@@ -195,18 +220,20 @@ const TITLES_MINI = ["Thème central","Idées majeures (développement)","Applic
 
 function sectionsFrom(passageRef, passageText, mode, fallbackMsg){
   const titles = mode==="mini" ? TITLES_MINI : TITLES_FULL;
-  const intro = passageText ? (passageText.match(/(.+?[.!?])(\s|$)/u)?.[1] || passageText.slice(0,180)) : fallbackMsg;
+  const intro = passageText
+    ? (passageText.match(/(.+?[.!?])(\s|$)/u)?.[1] || passageText.slice(0,180))
+    : fallbackMsg;
   return titles.map((t,i)=>({
     index:i+1, title:t, content:`${t} (${passageRef}). ${intro}…`, verses:[]
   }));
 }
 
+// ---------- handler ----------
 export default async function handler(req, res){
   try {
     const url = new URL(req.url, "http://x");
     const sp = url.searchParams;
 
-    // lecture params
     const book = sp.get("book") || "Genèse";
     const chapter = sp.get("chapter") || "1";
     const verse = sp.get("verse") || "";
@@ -251,7 +278,11 @@ export default async function handler(req, res){
       passageRef = p.ref || passageRef;
       passageText = stripHtml(p.html);
     } catch (e) {
-      lastErr = e?.status ? `api.bible ${e.status}` : String(e?.message||e);
+      const detail =
+        e?.details?.error?.message ||
+        e?.message ||
+        (typeof e?.details === "string" ? e.details : JSON.stringify(e?.details || {}, null, 2));
+      lastErr = e?.status ? `api.bible ${e.status} — ${String(detail).slice(0,200)}` : String(detail);
     }
 
     const sections = sectionsFrom(
