@@ -4,81 +4,65 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Méditation</title>
-  <meta name="description" content="Étude biblique — 28 rubriques, génération et liens BibleGateway." />
+  <meta name="description" content="Étude biblique — rubriques, PDF et liens BibleGateway." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <!-- Polices : Inter (UI), Spectral (texte), Fraunces (titre) -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&family=Fraunces:wght@700;800&display=swap" rel="stylesheet">
   <style>
-    /* -------- Thèmes (8 palettes) -------- */
     :root{
       --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb;
       --accent:#0891b2; --accent-600:#0e7490; --accent-700:#155e75; --accent-soft:#e0f2fe;
-      --ok:#16a34a; --warn:#f59e0b;
-      --btn-primary-bg:var(--accent); --btn-primary-fg:#fff;
-      --btn-secondary-bg:#fff; --btn-secondary-fg:var(--accent); --btn-secondary-bd:var(--accent);
-      --link:var(--accent);
-      --shadow:0 1px 2px rgba(0,0,0,.06);
+      --ok:#16a34a; --warn:#f59e0b; --link:#1d4ed8;
     }
-    [data-theme="cyan"]  { --accent:#0891b2; --accent-600:#0e7490; --accent-700:#155e75; --accent-soft:#e0f2fe; --bg:#f4f9fb; }
-    [data-theme="violet"]{ --accent:#7c3aed; --accent-600:#6d28d9; --accent-700:#5b21b6; --accent-soft:#ede9fe; --bg:#f7f5ff; }
-    [data-theme="vert"]  { --accent:#059669; --accent-600:#047857; --accent-700:#065f46; --accent-soft:#dcfce7; --bg:#f4fbf7; }
-    [data-theme="rouge"] { --accent:#dc2626; --accent-600:#b91c1c; --accent-700:#991b1b; --accent-soft:#fee2e2; --bg:#fff7f7; }
-    [data-theme="mauve"] { --accent:#a855f7; --accent-600:#9333ea; --accent-700:#7e22ce; --accent-soft:#f3e8ff; --bg:#fbf7ff; }
-    [data-theme="indigo"]{ --accent:#4f46e5; --accent-600:#4338ca; --accent-700:#3730a3; --accent-soft:#e0e7ff; --bg:#f5f6ff; }
-    [data-theme="ambre"] { --accent:#d97706; --accent-600:#b45309; --accent-700:#92400e; --accent-soft:#fef3c7; --bg:#fff9ef; }
-    [data-theme="slate"] { --accent:#334155; --accent-600:#1f2937; --accent-700:#0f172a; --accent-soft:#e2e8f0; --bg:#f3f5f8; }
-
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-
-    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:14px 18px;position:sticky;top:0;z-index:10}
-    h1{margin:0;font-size:28px;font-weight:800;text-align:center}
+    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:16px 18px 14px;position:sticky;top:0;z-index:10}
+    h1{margin:0;font-size:34px;line-height:1.1;letter-spacing:.2px;text-align:center;
+       font-family:Fraunces,"Playfair Display","Times New Roman",serif;font-weight:800}
     main{max-width:1200px;margin:14px auto;padding:0 12px}
 
-    .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto auto;gap:10px;margin:12px 0;align-items:center}
-    @media (max-width:1200px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}.controls .wide{grid-column:1/-1}}
+    .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto auto auto;gap:10px;margin:12px 0;align-items:center}
+    @media (max-width:1200px){.controls{grid-template-columns:1fr 1fr 1fr 1fr;grid-auto-rows:auto}.controls .wide{grid-column:1/-1}}
     input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%;background:#fff;color:var(--text)}
-
-    .btn{border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;box-shadow:var(--shadow);transition:transform .02s ease}
-    .btn:active{transform:translateY(1px)}
-    .btn.primary{background:var(--btn-primary-bg);color:var(--btn-primary-fg)}
-    .btn.secondary{background:var(--btn-secondary-bg);color:var(--btn-secondary-fg);border:1px solid var(--btn-secondary-bd)}
-    .btn.warn{background:var(--accent-600);color:#fff}
-    .btn[disabled]{opacity:.65;cursor:not-allowed}
+    .btn{border:1px solid var(--border);background:#fff;color:#111;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
+    .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+    .btn.warn{background:var(--accent-600);border-color:var(--accent-600);color:#fff}
+    .btn[disabled]{opacity:.6;cursor:not-allowed}
 
     .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
     @media (max-width:1000px){.layout{grid-template-columns:1fr}}
 
     .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700}
+    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:800;text-align:center}
     .list{max-height:70vh;overflow:auto}
     .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
     .item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
     .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
-    .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
     .dot{width:8px;height:8px;border-radius:999px;background:var(--warn);margin-left:auto}
-    .dot.ok{background:var(--ok)}
+    .dot.ok{background:#16a34a}
 
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
     .ed-title{font-weight:800;flex:1}.ed-body{padding:12px}
-    textarea#noteArea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;white-space:pre-wrap;background:#fff;color:var(--text)}
-    #noteView{display:none;width:100%;min-height:460px;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;background:#fff;outline:none}
+    #noteArea{display:none}
+    #noteView{display:block;width:100%;min-height:460px;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;background:#fff}
     #noteView a{color:var(--link);text-decoration:underline}
+    #noteMinimal{display:none;width:100%;min-height:160px;border:1px dashed var(--border);border-radius:10px;padding:14px;background:#fff}
 
     .links-panel{background:#fafafa;border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
     .links-panel.empty{display:none}
-    .last-study{margin:10px 0 0 0; padding:10px 12px; background:#fff; border:1px solid var(--border); border-radius:10px; font-size:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
-    .last-study a{color:var(--link); text-decoration:underline}
+    .last-study{margin:10px 0 0 0;padding:10px 12px;background:#fff;border:1px solid var(--border);border-radius:10px;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .last-study a{color:var(--link);text-decoration:underline}
 
-    /* ---- Rubrique Thème : palette 8 couleurs ---- */
-    .theme-wrap{grid-column:1/-1;display:flex;align-items:center;gap:10px}
-    .theme-label{font-size:13px;color:var(--muted);min-width:90px}
-    .theme-bar{position:relative;flex:1;height:36px;border-radius:12px;border:1px solid var(--border);background:linear-gradient(90deg,
-      #0891b2 0%, #7c3aed 14.28%, #059669 28.56%, #dc2626 42.84%, #a855f7 57.12%, #4f46e5 71.4%, #d97706 85.68%, #334155 100%); cursor:ew-resize; overflow:hidden}
-    .theme-swatch{position:absolute;top:0;bottom:0;width:12.5%;border-right:1px dashed rgba(255,255,255,.25)}
-    .theme-thumb{position:absolute;top:2px;bottom:2px;width:22px;border-radius:10px;background:#fff;border:2px solid var(--accent-700);box-shadow:0 1px 3px rgba(0,0,0,.15);transform:translateX(-50%);pointer-events:none;transition:left .08s ease}
-    .theme-hints{display:flex;gap:8px;font-size:12px;color:var(--muted)}
-    .theme-dot{width:10px;height:10px;border-radius:999px;display:inline-block;vertical-align:middle}
+    /* Impression PDF */
+    #printDoc{display:none}
+    @media print{
+      header,.controls,.layout,.last-study,.links-panel{display:none!important}
+      #printDoc{display:block!important;color:#111;font-family:Spectral,Georgia,serif}
+      #printDoc h2{margin:0 0 6px 0}
+      #printDoc .sec{page-break-inside:avoid;margin:0 0 16px 0}
+      #printDoc a{color:#1d4ed8;text-decoration:underline}
+    }
   </style>
 </head>
 <body data-theme="cyan">
@@ -96,60 +80,40 @@
         <option value="S21">Segond 21 (S21)</option>
         <option value="BFC">Français Courant (BFC)</option>
       </select>
-      <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
+      <button id="readBtn" class="btn" type="button">Lire la Bible</button>
       <button id="generateBtn" class="btn primary" type="button">Générer</button>
-      <button id="resetBtn" class="btn secondary" type="button" title="Vider l’étude et remettre les diodes en orange">Réinitialiser</button>
-
-      <!-- RUBRIQUE THÈME -->
-      <div class="theme-wrap">
-        <div class="theme-label">Thème</div>
-        <div id="themeBar" class="theme-bar" title="Fais glisser horizontalement pour changer le thème">
-          <div class="theme-swatch" style="left:0%"></div>
-          <div class="theme-swatch" style="left:12.5%"></div>
-          <div class="theme-swatch" style="left:25%"></div>
-          <div class="theme-swatch" style="left:37.5%"></div>
-          <div class="theme-swatch" style="left:50%"></div>
-          <div class="theme-swatch" style="left:62.5%"></div>
-          <div class="theme-swatch" style="left:75%"></div>
-          <div class="theme-swatch" style="left:87.5%"></div>
-          <div id="themeThumb" class="theme-thumb" style="left:6.25%"></div>
-        </div>
-        <div class="theme-hints">
-          <span class="theme-dot" style="background:#0891b2"></span>
-          <span class="theme-dot" style="background:#7c3aed"></span>
-          <span class="theme-dot" style="background:#059669"></span>
-          <span class="theme-dot" style="background:#dc2626"></span>
-          <span class="theme-dot" style="background:#a855f7"></span>
-          <span class="theme-dot" style="background:#4f46e5"></span>
-          <span class="theme-dot" style="background:#d97706"></span>
-          <span class="theme-dot" style="background:#334155"></span>
-        </div>
-      </div>
+      <button id="pdfOneBtn" class="btn warn" type="button" title="Exporter la rubrique en PDF">PDF (rubrique)</button>
+      <button id="pdfAllBtn" class="btn warn" type="button" title="Exporter les 28 rubriques en PDF">PDF (28 points)</button>
+      <a id="chatgptBtn" class="btn" href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a>
     </div>
 
     <div id="lastStudyPanel" class="last-study" style="display:none;">
       <strong>Dernière étude :</strong>
       <span id="lastStudyText"></span>
       <a id="lastStudyOpen" href="#" target="_blank" rel="noopener">Ouvrir sur BibleGateway</a>
-      <button id="lastStudyUse" class="btn secondary" type="button">Recharger</button>
+      <button id="lastStudyUse" class="btn" type="button">Recharger</button>
     </div>
 
     <div class="layout">
       <aside class="sidebar">
-        <div class="side-head">Rubriques (28)</div>
+        <div class="side-head">Rubrique</div>
         <div id="pointsList" class="list"></div>
       </aside>
 
       <section class="editor">
         <div class="ed-head">
           <div class="ed-title" id="edTitle">—</div>
-          <button id="prev" class="btn secondary" type="button">◀ Précédent</button>
-          <button id="next" class="btn secondary" type="button">Suivant ▶</button>
+          <button id="prev" class="btn" type="button">◀ Précédent</button>
+          <button id="next" class="btn" type="button">Suivant ▶</button>
         </div>
         <div class="ed-body">
-          <textarea id="noteArea" placeholder="Écris ici…"></textarea>
           <div id="noteView" contenteditable="true" spellcheck="false" aria-label="Contenu enrichi"></div>
-          <div id="linksPanel" class="links-panel empty"><b>Liens détectés :</b><div id="linksList"></div></div>
+          <div id="noteMinimal" aria-label="Résumé minimaliste"><div id="noteMinimalBody"></div></div>
+          <textarea id="noteArea" placeholder="Écris ici…"></textarea>
+          <div id="linksPanel" class="links-panel empty">
+            <b>Liens détectés :</b>
+            <div id="linksList"></div>
+          </div>
         </div>
         <div class="ed-foot">
           <span class="small" id="metaInfo">Point — / 28</span>
@@ -159,269 +123,121 @@
     </div>
   </main>
 
+  <!-- Conteneur dédié à l’impression PDF -->
+  <div id="printDoc"></div>
+
   <script>
   (function(){
-    // ---- ÉTAT ----
-    const STORAGE_NOTES = 'notes28';
-    const STORAGE_LAST  = 'lastStudy';
-    const STORAGE_THEME = 'theme8';
-    const state = { points: [], current: 0, notes: JSON.parse(localStorage.getItem(STORAGE_NOTES)||'{}') };
+    /* ---------- ÉTAT ---------- */
+    const STORAGE_NOTES='notes28';
+    const state={ points:[], current:0, notes: JSON.parse(localStorage.getItem(STORAGE_NOTES)||'{}') };
 
-    // ---- UI refs ----
-    const edTitle = document.getElementById('edTitle');
-    const noteArea = document.getElementById('noteArea');
-    const noteView = document.getElementById('noteView');
-    const metaInfo = document.getElementById('metaInfo');
-    const pointsList = document.getElementById('pointsList');
-    const generateBtn = document.getElementById('generateBtn');
-    const resetBtn = document.getElementById('resetBtn');
-    const versionSelect = document.getElementById('versionSelect');
-    const bookSelect = document.getElementById('bookSelect');
-    const chapterSelect = document.getElementById('chapterSelect');
-    const verseSelect = document.getElementById('verseSelect');
-    const readBtn = document.getElementById('readBtn');
-    const searchRef = document.getElementById('searchRef');
-    const lastPanel = document.getElementById('lastStudyPanel');
-    const lastText  = document.getElementById('lastStudyText');
-    const lastOpen  = document.getElementById('lastStudyOpen');
-    const lastUse   = document.getElementById('lastStudyUse');
+    /* ---------- RÉFS ---------- */
+    const edTitle=$('#edTitle'), noteArea=$('#noteArea'), noteView=$('#noteView'), noteMinimal=$('#noteMinimal'), noteMinimalBody=$('#noteMinimalBody');
+    const metaInfo=$('#metaInfo'), pointsList=$('#pointsList');
+    const versionSelect=$('#versionSelect'), bookSelect=$('#bookSelect'), chapterSelect=$('#chapterSelect'), verseSelect=$('#verseSelect');
+    const readBtn=$('#readBtn'), searchRef=$('#searchRef');
+    const pdfOneBtn=$('#pdfOneBtn'), pdfAllBtn=$('#pdfAllBtn'), printDoc=$('#printDoc');
 
-    // ---- Rubrique Thème ----
-    const themeBar = document.getElementById('themeBar');
-    const themeThumb = document.getElementById('themeThumb');
-    const THEMES = ["cyan","violet","vert","rouge","mauve","indigo","ambre","slate"];
+    function $(q){return document.querySelector(q);} function $all(q){return Array.from(document.querySelectorAll(q));}
 
-    function applyTheme(name){
-      if(!THEMES.includes(name)) name = "cyan";
-      document.body.setAttribute('data-theme', name);
-      localStorage.setItem(STORAGE_THEME, name);
-      positionThumbByTheme(name);
-    }
-    function positionThumbByTheme(name){
-      const idx = THEMES.indexOf(name);
-      const stepPct = 100 / 8;
-      themeThumb.style.left = (stepPct*idx + stepPct/2) + '%';
-    }
-    function themeAtX(clientX){
-      const rect = themeBar.getBoundingClientRect();
-      let x = Math.min(Math.max(clientX - rect.left, 0), rect.width - 1);
-      const idx = Math.floor((x / rect.width) * 8);
-      return THEMES[Math.max(0, Math.min(7, idx))];
-    }
-    let dragging=false;
-    themeBar.addEventListener('pointerdown', e=>{
-      dragging=true; themeBar.setPointerCapture(e.pointerId);
-      const t = themeAtX(e.clientX); applyTheme(t);
-    });
-    themeBar.addEventListener('pointermove', e=>{
-      if(!dragging) return;
-      const t = themeAtX(e.clientX); applyTheme(t);
-    });
-    themeBar.addEventListener('pointerup', e=>{
-      dragging=false; themeBar.releasePointerCapture(e.pointerId);
-    });
-    themeBar.addEventListener('pointerleave', ()=>{ dragging=false; });
-
-    // ---- BibleGateway helpers ----
-    const gatewayVersionMap = { LSG:'LSG', S21:'SG21', PDV:'LSG', BFC:'SG21' };
+    /* ---------- Gateway ---------- */
+    const gatewayVersionMap={ LSG:'LSG', S21:'SG21', PDV:'LSG', BFC:'SG21' };
     function buildGatewayUrl(ref){
-      const uiVersion = versionSelect.value || 'LSG';
-      const v = gatewayVersionMap[uiVersion] || 'LSG';
-      return 'https://www.biblegateway.com/passage/?search=' + encodeURIComponent(ref) + '&version=' + encodeURIComponent(v);
+      const uiVersion=versionSelect.value||'LSG';
+      const v=gatewayVersionMap[uiVersion]||'LSG';
+      return 'https://www.biblegateway.com/passage/?search='+encodeURIComponent(ref)+'&version='+encodeURIComponent(v);
     }
-    function openOnBibleGateway(ref){ window.open(buildGatewayUrl(ref), '_blank', 'noopener,noreferrer'); }
+    function openOnBibleGateway(ref){ window.open(buildGatewayUrl(ref),'_blank','noopener'); }
 
-    // ---- Canon 66 (FR) + nb chapitres ----
-    const ORDER_66 = [
-      "Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth",
-      "1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther",
-      "Job","Psaumes","Proverbes","Ecclésiaste","Cantique des Cantiques","Ésaïe","Jérémie","Lamentations","Ézéchiel","Daniel",
-      "Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie","Aggée","Zacharie","Malachie",
-      "Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens",
-      "1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre",
-      "1 Jean","2 Jean","3 Jean","Jude","Apocalypse"
-    ];
-    const CHAPTERS_66 = {
-      "Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,
-      "1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,
-      "Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,
-      "Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,
-      "Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,
-      "1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,
-      "1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22
-    };
-    // Petits alias clavier (accents, variantes) -> clé canonique
-    const CANON_ALIAS = { "esaïe":"Ésaïe", "esäie":"Ésaïe", "esaie":"Ésaïe", "ezechiel":"Ézéchiel", "ezekiel":"Ézéchiel" };
+    /* ---------- Linkify références ---------- */
+    const ORDER_66=["Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth","1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther","Job","Psaumes","Proverbes","Ecclésiaste","Cantique des Cantiques","Ésaïe","Jérémie","Lamentations","Ézéchiel","Daniel","Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie","Aggée","Zacharie","Malachie","Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"];
+    const BOOKS=ORDER_66.slice();
+    const BOOKS_RE_SRC='\\b(' + BOOKS.map(b=>b.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')).join('|') + ')\\s+(\\d+)(?::\\s*(\\d+(?:\\s*[–-]\\s*\\d+)?(?:\\s*,\\s*\\d+(?:\\s*[–-]\\s*\\d+)?)*)\\s*)?';
+    const BOOKS_RE=new RegExp(BOOKS_RE_SRC,'gi');
+    const V_RE=/(?:^|[\s\[(«"';])v\.\s*(\d+(?:\s*[–-]\s*\d+)?(?:\s*,\s*\d+(?:\s*[–-]\s*\d+)?)*)\b/gi;
+    const INHERIT_RE=/;\s*(\d+(?::\d+(?:\s*[–-]\s*\d+)?)?)\b/g;
 
-    // ---- Liste de livres (pour select) ----
-    const BOOKS = ORDER_66.slice(); // pour la linkification et les selects
-
-    // ---- Linkifier robuste (inclut multi-références héritées & v.X) ----
-    const BOOKS_RE_SRC = '\\b(' + BOOKS.map(b=>b.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')).join('|') + ')\\s+(\\d+)(?::\\s*(\\d+(?:\\s*[–-]\\s*\\d+)?(?:\\s*,\\s*\\d+(?:\\s*[–-]\\s*\\d+)?)*)\\s*)?';
-    const BOOKS_RE = new RegExp(BOOKS_RE_SRC, 'gi');
-    const V_RE = /(?:^|[\s\[(«"';])v\.\s*(\d+(?:\s*[–-]\s*\d+)?(?:\s*,\s*\d+(?:\s*[–-]\s*\d+)?)*)\b/gi;
-    const INHERIT_RE = /;\s*(\d+(?::\d+(?:\s*[–-]\s*\d+)?)?)\b/g;
+    function decodeEntities(str){ const ta=document.createElement('textarea'); ta.innerHTML=str; return ta.value; }
+    function mdBoldToStrong(str){ return str.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>'); }
 
     function linkifyContainer(root, currentBookChapterRef){
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-        acceptNode: (node)=>{
-          if(!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{
+        acceptNode:(node)=>{
+          if(!node.nodeValue||!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
           if(node.parentElement && node.parentElement.closest('a')) return NodeFilter.FILTER_REJECT;
           return NodeFilter.FILTER_ACCEPT;
         }
       });
-      const toProcess = [];
-      while(walker.nextNode()) toProcess.push(walker.currentNode);
-
-      toProcess.forEach(textNode=>{
-        const text = textNode.nodeValue;
-        let lastBook=null, lastChapter=null;
-        const frag = document.createDocumentFragment();
-        let idx=0;
-
+      const nodes=[]; while(walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach(textNode=>{
+        const text=textNode.nodeValue; let lastBook=null,lastChapter=null; const frag=document.createDocumentFragment(); let idx=0;
         function pushText(s){ if(s) frag.appendChild(document.createTextNode(s)); }
-        function pushLink(label, ref){
-          const a=document.createElement('a');
-          a.href = buildGatewayUrl(ref);
-          a.target='_blank'; a.rel='noopener';
-          a.setAttribute('data-ref', ref);
-          a.textContent = label;
-          frag.appendChild(a);
-        }
-
-        text.replace(BOOKS_RE, (m,book,ch,vers,offset)=>{
-          pushText(text.slice(idx, offset));
-          idx = offset + m.length;
-
-          lastBook = book; lastChapter = ch;
-          const ref = book + ' ' + ch + (vers ? (':' + vers.replace(/\s+/g,'').replace(/–/g,'-')) : '');
-          pushLink(m, ref);
-
-          // multi-références héritées après "; "
-          let tail = text.slice(idx);
-          let mInh;
-          while((mInh = INHERIT_RE.exec(tail)) && (!BOOKS_RE.test(tail.slice(0, mInh.index)))){
-            const seg = mInh[0];
-            const payload = mInh[1];
-            const segStart = idx + mInh.index;
-            pushText(text.slice(idx, segStart));
-            const clean = payload.replace(/\s+/g,'').replace(/–/g,'-');
-            let ref2;
-            if(clean.includes(':')){
-              ref2 = `${lastBook} ${clean}`;               // ex: "; 4:1-3"
-              lastChapter = clean.split(':')[0];
-            }else{
-              const chap = lastChapter || ch;              // ex: "; 18-20"
-              ref2 = `${lastBook} ${chap}:${clean}`;
-            }
-            pushLink(seg, ref2);
-            idx = segStart + seg.length;
+        function pushLink(label,ref){ const a=document.createElement('a'); a.href=buildGatewayUrl(ref); a.target='_blank'; a.rel='noopener'; a.setAttribute('data-ref',ref); a.textContent=label; frag.appendChild(a); }
+        text.replace(BOOKS_RE,(m,book,ch,vers,off)=>{
+          pushText(text.slice(idx,off)); idx=off+m.length; lastBook=book; lastChapter=ch;
+          const ref=book+' '+ch+(vers?(':'+vers.replace(/\s+/g,'').replace(/–/g,'-')):''); pushLink(m,ref);
+          let tail=text.slice(idx), mInh;
+          while((mInh=INHERIT_RE.exec(tail)) && (!BOOKS_RE.test(tail.slice(0,mInh.index)))){
+            const seg=mInh[0], payload=mInh[1], segStart=idx+mInh.index; pushText(text.slice(idx,segStart));
+            const clean=payload.replace(/\s+/g,'').replace(/–/g,'-'); let ref2;
+            if(clean.includes(':')){ ref2=`${lastBook} ${clean}`; lastChapter=clean.split(':')[0]; }
+            else{ const chap=lastChapter||ch; ref2=`${lastBook} ${chap}:${clean}`; }
+            pushLink(seg,ref2); idx=segStart+seg.length;
           }
-          INHERIT_RE.lastIndex = 0; BOOKS_RE.lastIndex = 0;
-          return m;
+          INHERIT_RE.lastIndex=0; BOOKS_RE.lastIndex=0; return m;
         });
-
-        let rest = text.slice(idx);
-        const currentBC = (lastBook && lastChapter) ? `${lastBook} ${lastChapter}` :
-                          ((currentBookChapterRef||null));
+        let rest=text.slice(idx); const currentBC=(lastBook&&lastChapter)?`${lastBook} ${lastChapter}`:(currentBookChapterRef||null);
         if(currentBC){
-          const parts=[]; let last=0; let mV;
-          while((mV = V_RE.exec(rest))){
-            parts.push(rest.slice(last, mV.index));
-            const label = mV[0].replace(/\s+/g,' ').trim();
-            const verses = mV[1].replace(/\s+/g,'').replace(/–/g,'-');
-            parts.push({ref:`${currentBC}:${verses}`, label});
-            last = mV.index + mV[0].length;
-          }
-          parts.push(rest.slice(last));
-          parts.forEach(p=>{ if(typeof p==='string') pushText(p); else pushLink(p.label, p.ref); });
-        }else{
-          pushText(rest);
-        }
-
-        textNode.parentNode.replaceChild(frag, textNode);
+          const parts=[]; let last=0, mV;
+          while((mV=V_RE.exec(rest))){ parts.push(rest.slice(last,mV.index)); const label=mV[0].replace(/\s+/g,' ').trim(); const verses=mV[1].replace(/\s+/g,'').replace(/–/g,'-'); parts.push({ref:`${currentBC}:${verses}`,label}); last=mV.index+mV[0].length; }
+          parts.push(rest.slice(last)); parts.forEach(p=>{ if(typeof p==='string') pushText(p); else pushLink(p.label,p.ref); });
+        }else{ pushText(rest); }
+        textNode.parentNode.replaceChild(frag,textNode);
       });
     }
 
-    // ---- Décoder entités & convertir **…** -> <strong> ----
-    function decodeEntities(str){ const ta=document.createElement('textarea'); ta.innerHTML=str; return ta.value; }
-    function mdBoldToStrong(str){ return str.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'); }
-
-    // ---- Rendu enrichi ----
     function renderEnriched(text){
-      let html = decodeEntities(text);
-      html = mdBoldToStrong(html);
-      html = html.replace(/\r\n/g,"\n").split('\n').map(l => l==='' ? '<br>' : l).join('\n');
-      noteView.innerHTML = html;
+      let html=decodeEntities(text||'');
+      html=mdBoldToStrong(html);
+      html=html.replace(/\r\n/g,"\n").split('\n').map(l=>l===''?'<br>':l).join('\n');
+      noteView.innerHTML=html;
 
-      const currentBook = (bookSelect.value||'').trim();
-      const currentCh   = (chapterSelect.value||'').trim();
-      const currentRef  = (currentBook && currentCh) ? (currentBook + ' ' + currentCh) : null;
-      linkifyContainer(noteView, currentRef);
+      const currentBook=(bookSelect.value||'').trim();
+      const currentCh=(chapterSelect.value||'').trim();
+      const currentRef=(currentBook && currentCh)?(currentBook+' '+currentCh):null;
+      linkifyContainer(noteView,currentRef);
 
-      const links = [...noteView.querySelectorAll('a')];
-      const panel = document.getElementById('linksPanel');
-      const list = document.getElementById('linksList');
-      list.innerHTML = links.map(a=>`<div><a href="${a.href}" target="_blank" rel="noopener">${a.textContent}</a></div>`).join('');
+      // Liste des liens
+      const links=[...noteView.querySelectorAll('a')];
+      const panel=$('#linksPanel'), list=$('#linksList');
+      list.innerHTML=links.map(a=>`<div><a href="${a.href}" target="_blank" rel="noopener">${a.textContent}</a></div>`).join('');
       panel.classList.toggle('empty', links.length===0);
     }
 
-    // ---- Toggle brut/enrichi ----
-    const enrichToggle = document.createElement('label');
-    enrichToggle.style.display='flex'; enrichToggle.style.alignItems='center'; enrichToggle.style.gap='8px';
-    enrichToggle.innerHTML = `<input id="enrichToggle" type="checkbox" checked /> <span>Mode enrichi</span>`;
-    document.querySelector('.controls').appendChild(enrichToggle);
-
-    function syncView(){
-      const v = noteArea.value || '';
-      if(document.getElementById('enrichToggle').checked){
-        noteArea.style.display='none'; noteView.style.display='block';
-        renderEnriched(v);
-      }else{
-        noteView.style.display='none'; noteArea.style.display='block';
-      }
-    }
-    document.addEventListener('change', (e)=>{ if(e.target && e.target.id==='enrichToggle') syncView(); });
-
-    // ---- Persistance ----
-    let saveTimer=null;
-    noteArea.addEventListener('input', ()=>{
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(()=>{
-        state.notes[state.current] = noteArea.value;
-        localStorage.setItem(STORAGE_NOTES, JSON.stringify(state.notes));
-        updateProgressDots();
-        syncView();
-      }, 800);
+    // IMPORTANT : ouvrir les liens dans un nouvel onglet même en contenteditable
+    noteView.addEventListener('click',(e)=>{
+      const a=e.target.closest('a');
+      if(a && a.href){ e.preventDefault(); window.open(a.href,'_blank','noopener'); }
     });
 
-    // ---- Points + navigation ----
+    /* ---------- Points & notes ---------- */
     function updateEditor(){
-      const item = state.points[state.current] || { title:'Point '+(state.current+1), hint:'' };
-      edTitle.textContent = item.title || ('Point '+(state.current+1));
-      metaInfo.textContent = 'Point '+(state.current+1)+' / '+state.points.length;
-      noteArea.value = state.notes[state.current] || '';
-      syncView();
-      highlightActive();
-      updateProgressDots();
+      const item=state.points[state.current]||{title:'Point '+(state.current+1)};
+      edTitle.textContent=item.title||('Point '+(state.current+1));
+      metaInfo.textContent='Point '+(state.current+1)+' / '+state.points.length;
+      noteArea.value=state.notes[state.current]||'';
+      renderEnriched(noteArea.value||'');
+      highlightActive(); updateDots();
     }
-    function highlightActive(){ [...pointsList.children].forEach((el,i)=> el.classList.toggle('active', i===state.current)); }
-    function updateProgressDots(){
-      [...pointsList.children].forEach((el,i)=>{
-        const dot = el.querySelector('.dot');
-        const ok = !!(state.notes[i] && state.notes[i].trim());
-        dot.classList.toggle('ok', ok);
-      });
-    }
+    function highlightActive(){ $all('#pointsList .item').forEach((el,i)=> el.classList.toggle('active', i===state.current)); }
+    function updateDots(){ $all('#pointsList .item .dot').forEach((dot,i)=>{ const ok=!!(state.notes[i]&&state.notes[i].trim()); dot.classList.toggle('ok', ok); }); }
     function buildList(){
       pointsList.innerHTML='';
       state.points.forEach((p,i)=>{
-        const row = document.createElement('div');
-        row.className='item';
-        row.innerHTML = `<span class="idx">${i+1}</span>
-          <div><div>${p.title || ('Point '+(i+1))}</div>${p.hint?`<small class="desc">${p.hint}</small>`:''}</div>
-          <span class="dot"></span>`;
-        row.addEventListener('click', ()=>{ state.current=i; updateEditor(); });
+        const row=document.createElement('div'); row.className='item';
+        row.innerHTML=`<span class="idx">${i+1}</span><div><div>${p.title||('Point '+(i+1))}</div></div><span class="dot"></span>`;
+        row.addEventListener('click',()=>{ state.current=i; updateEditor(); });
         pointsList.appendChild(row);
       });
       updateEditor();
@@ -429,272 +245,113 @@
 
     async function loadPoints(){
       try{
-        const r = await fetch('/api/study-28');
-        if(!r.ok) throw new Error();
-        const data = await r.json();
-        if(Array.isArray(data) && data.length) state.points = data;
+        const r=await fetch('/api/study-28',{cache:'no-store'});
+        if(!r.ok) throw 0;
+        const data=await r.json();
+        if(Array.isArray(data)&&data.length) state.points=data;
       }catch{
-        state.points = Array.from({length:28},(_,i)=>({title:'Point '+(i+1), hint:''}));
+        state.points=Array.from({length:28},(_,i)=>({title:'Point '+(i+1)}));
       }
       buildList();
     }
 
-    // ---- Sélecteurs (adaptés au canon 66) ----
+    // Navigation points
+    $('#prev').addEventListener('click',()=>{ state.current=(state.current-1+state.points.length)%state.points.length; updateEditor(); });
+    $('#next').addEventListener('click',()=>{ state.current=(state.current+1)%state.points.length; updateEditor(); });
+
+    // Sauvegarde
+    let saveTimer=null;
+    noteArea.addEventListener('input',()=>{
+      clearTimeout(saveTimer);
+      saveTimer=setTimeout(()=>{
+        state.notes[state.current]=noteArea.value;
+        localStorage.setItem(STORAGE_NOTES, JSON.stringify(state.notes));
+        updateDots();
+      }, 800);
+    });
+
+    /* ---------- Sélecteurs basiques (pour lier v. détectés) ---------- */
+    const CHAPTERS_66={"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
     function initSelects(){
-      bookSelect.innerHTML = '<option value="">Livre…</option>' + ORDER_66.map(b=>`<option>${b}</option>`).join('');
-      rebuildChapterOptions(''); // vide initial
-      rebuildVerseOptions();
+      bookSelect.innerHTML='<option value="">Livre…</option>'+ORDER_66.map(b=>`<option>${b}</option>`).join('');
+      rebuildChapterOptions('');
+      let vopts='<option value="">Verset…</option>'; for(let i=1;i<=176;i++) vopts+=`<option>${i}</option>`; verseSelect.innerHTML=vopts;
     }
     function rebuildChapterOptions(book){
-      const max = CHAPTERS_66[book] || 0;
-      const current = Number(chapterSelect.value)||0;
-      let opts = '<option value="">Chapitre…</option>';
-      for(let i=1;i<=max;i++) opts += `<option>${i}</option>`;
-      chapterSelect.innerHTML = opts;
-      if(max>0){
-        const v = current>=1 && current<=max ? String(current) : '1';
-        chapterSelect.value = v;
-      }
+      const max=CHAPTERS_66[book]||0; let html='<option value="">Chapitre…</option>'; for(let i=1;i<=max;i++) html+=`<option>${i}</option>`;
+      chapterSelect.innerHTML=html;
     }
-    function rebuildVerseOptions(){
-      // on laisse 1..176 (max psaumes 119 dépasse, mais c'est par versets d'autres livres),
-      // l’utilisateur peut lier des plages ; pas d’exigence de borne exacte par chapitre ici
-      let opts = '<option value="">Verset…</option>';
-      for(let i=1;i<=176;i++) opts += `<option>${i}</option>`;
-      verseSelect.innerHTML = opts;
-    }
-    bookSelect.addEventListener('change', ()=>{
-      const book = bookSelect.value || '';
-      rebuildChapterOptions(book);
-    });
+    bookSelect.addEventListener('change',()=>rebuildChapterOptions(bookSelect.value||''));
 
-    // ---- Recherche : parser "Luc", "Luc 3", "Marc 5:2-4", "1 Jean 2:1-5,7" ----
-    function normalizeStr(s){
-      return s.toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // strip accents
-        .replace(/[^\w\s:,-]/g,' ')
-        .replace(/\s+/g,' ').trim();
-    }
-    function findBookFromInput(tok){
-      const t = normalizeStr(tok);
-      // alias directs
-      if(CANON_ALIAS[t]) return CANON_ALIAS[t];
-      // recherche par début (ex: "luc" -> "Luc", "mar"->"Marc")
-      const found = ORDER_66.find(b => normalizeStr(b).startsWith(t));
-      return found || null;
-    }
-    function parseReference(input){
-      // retourne { book, chapter, verseSpec } ou null si pas trouvable
-      const s = input.trim();
-      if(!s) return null;
-
-      // Essai direct avec motif "Book Chapter(:VerseSpec)?"
-      const re = new RegExp('^\\s*([\\p{L}\\p{M}\\d\\s]+?)\\s*(\\d+)?(?:\\s*[:]\\s*([\\d,\\-–\\s]+))?\\s*$', 'u');
-      const m = s.match(re);
-      if(!m) return null;
-
-      let rawBook = (m[1]||'').trim();
-      let chapter = (m[2]||'').trim();
-      let verseSpec = (m[3]||'').trim();
-
-      // book peut contenir des chiffres devant (ex: "1 Jean")
-      // on tente une résolution permissive par startsWith
-      let book = findBookFromInput(rawBook);
-      if(!book) return null;
-
-      // défauts
-      if(!chapter) chapter = '1';
-      // nettoyer verset spec (remplacer en-dash)
-      verseSpec = verseSpec ? verseSpec.replace(/–/g,'-').replace(/\s+/g,'') : '';
-
-      // clamp chapitre au max du livre
-      const max = CHAPTERS_66[book] || 0;
-      if(max && Number(chapter) > max) chapter = String(max);
-
-      return { book, chapter, verseSpec };
-    }
-
-    function applyParsedRef(ref){
-      if(!ref) return false;
-      setSelectValue(bookSelect, ref.book);
-      rebuildChapterOptions(ref.book);
-      setSelectValue(chapterSelect, ref.chapter);
-      rebuildVerseOptions();
-      if(ref.verseSpec){
-        // si c'est une liste "2,4-6", on choisit le premier verset pour l'UI
-        const first = String(ref.verseSpec).split(',')[0].split('-')[0];
-        setSelectValue(verseSelect, first);
-      }else{
-        verseSelect.value = '';
-      }
-      // mettre en forme canonique dans le champ recherche
-      searchRef.value = ref.book + ' ' + ref.chapter + (ref.verseSpec ? (':' + ref.verseSpec) : '');
-      return true;
-    }
-
-    searchRef.addEventListener('keydown', (e)=>{
-      if(e.key === 'Enter'){
-        const ref = parseReference(searchRef.value);
-        if(ref){
-          applyParsedRef(ref);
-          e.preventDefault();
-        }
-      }
-    });
-    searchRef.addEventListener('blur', ()=>{
-      if(!searchRef.value.trim()) return;
-      const ref = parseReference(searchRef.value);
-      if(ref) applyParsedRef(ref);
-    });
-
-    function setSelectValue(sel, val){
-      const opt = [...sel.options].find(o=>o.value===val || o.textContent===val);
-      if(opt){ sel.value = opt.value; }
-    }
-
-    // ---- Génération ----
-    function setGenerating(on){
-      generateBtn.disabled = on;
-      generateBtn.textContent = on ? 'Génération…' : 'Générer';
-    }
-    function formatSection(n, title, content){
-      return `### ${n}. ${title}\n\n${content}`.trim();
-    }
-    function renderIntoNotes(payload){
-      const sec = Array.isArray(payload.sections)?payload.sections:[];
-      localStorage.removeItem(STORAGE_NOTES);
-      state.notes = {};
-      for(let i=0;i<state.points.length;i++) state.notes[i]='';
-
-      sec.forEach(s=>{
-        const idx = (s.n? s.n-1 : 0);
-        if(idx>=0 && idx<state.points.length){
-          const title = state.points[idx]?.title || ('Point '+(idx+1));
-          state.notes[idx] = formatSection(s.n || (idx+1), title, s.content || '');
-        }
-      });
-      for(let i=0;i<state.points.length;i++){
-        if(!state.notes[i]){
-          const title = state.points[i]?.title || ('Point '+(i+1));
-          state.notes[i] = formatSection(i+1, title, '_à compléter…_');
-        }
-      }
-      localStorage.setItem(STORAGE_NOTES, JSON.stringify(state.notes));
-      updateEditor();
-    }
-
-    function saveLastStudy({book, chapter, verseSpec}){
-      const last = { book, chapter, verse: verseSpec || (verseSelect.value||''), ts: Date.now() };
-      localStorage.setItem(STORAGE_LAST, JSON.stringify(last));
-      renderLastStudyPanel();
-    }
-
-    async function generateStudy(){
-      const book = (bookSelect.value||'').trim();
-      const ch   = (chapterSelect.value||'').trim();
-      if(!book || !ch){ alert('Sélectionne un livre et un chapitre.'); return; }
-      const url = '/api/generate-study?book='+encodeURIComponent(book)+'&chapter='+encodeURIComponent(ch);
-      setGenerating(true);
-      try{
-        const r = await fetch(url, { cache:'no-store' });
-        if(!r.ok) throw new Error('HTTP '+r.status);
-        const data = await r.json();
-        renderIntoNotes(data);
-
-        // Sauvegarder la dernière étude (Livre + Chapitre + Verset éventuel)
-        const verseSpec = (searchRef.value.includes(':') ? (searchRef.value.split(':')[1]||'').trim() : (verseSelect.value||''));
-        saveLastStudy({ book, chapter: ch, verseSpec });
-      }catch(e){
-        alert('Génération indisponible pour le moment.');
-      }finally{
-        setGenerating(false);
-      }
-    }
-    generateBtn.addEventListener('click', generateStudy);
-
-    // ---- Lire la Bible (Gateway) ----
+    // Lire la Bible (ouvre sur Gateway selon sélection ou recherche brute)
     readBtn.addEventListener('click', ()=>{
-      const raw = (searchRef.value||'').trim().replace(/\s+/g,' ');
-      let refObj = null;
-      if(raw) refObj = parseReference(raw);
-      if(refObj){
-        applyParsedRef(refObj);
-        const refStr = refObj.book + ' ' + refObj.chapter + (refObj.verseSpec?(':'+refObj.verseSpec):'');
-        openOnBibleGateway(refStr);
-        saveLastStudy({ book: refObj.book, chapter: refObj.chapter, verseSpec: refObj.verseSpec||'' });
-        return;
-      }
-      const book = (bookSelect.value||'').trim();
-      const ch = (chapterSelect.value||'').trim();
-      const v = (verseSelect.value||'').trim();
-      if(!book || !ch){ alert('Indique un livre et un chapitre.'); return; }
-      const ref = book + ' ' + ch + (v?(':'+v):'');
-      openOnBibleGateway(ref);
-      saveLastStudy({ book, chapter: ch, verseSpec: v });
+      const raw=(searchRef.value||'').trim();
+      if(raw) return openOnBibleGateway(raw);
+      const b=(bookSelect.value||'').trim(), c=(chapterSelect.value||'').trim(), v=(verseSelect.value||'').trim();
+      if(!b||!c) return alert('Sélectionne un livre et un chapitre.');
+      openOnBibleGateway(b+' '+c+(v?(':'+v):''));
     });
 
-    // ---- Réinitialiser ----
-    function resetStudy(){
-      if(!confirm('Réinitialiser : vider l’étude en cours et remettre toutes les diodes en orange ?')) return;
-      localStorage.removeItem(STORAGE_NOTES);
-      state.notes = {};
-      noteArea.value = '';
-      noteView.innerHTML = '';
-      [...pointsList.children].forEach(el=> el.querySelector('.dot')?.classList.remove('ok'));
-      syncView();
-    }
-    resetBtn.addEventListener('click', resetStudy);
-
-    // ---- Panneau "Dernière étude" (Livre + Chapitre + Verset) ----
-    function renderLastStudyPanel(){
-      const raw = localStorage.getItem(STORAGE_LAST);
-      if(!raw){ lastPanel.style.display='none'; return; }
-      const { book, chapter, verse } = JSON.parse(raw);
-      if(!book || !chapter){ lastPanel.style.display='none'; return; }
-      const refStr = book + ' ' + chapter + (verse?(':'+verse):'');
-      lastText.textContent = refStr;
-      lastOpen.href = buildGatewayUrl(refStr);
-      lastPanel.style.display='flex';
-      lastUse.onclick = ()=>{
-        setSelectValue(bookSelect, book);
-        rebuildChapterOptions(book);
-        setSelectValue(chapterSelect, String(chapter));
-        rebuildVerseOptions();
-        if(verse){ setSelectValue(verseSelect, String(verse).split(',')[0].split('-')[0]); }
-        searchRef.value = refStr;
-      };
+    /* ---------- PDF : rubrique & 28 points ---------- */
+    function buildSectionHTML(idx, title, raw){
+      // transforme le texte brut (stocké) en HTML enrichi + liens
+      const wrap=document.createElement('div');
+      const header=`<h2>${idx}. ${title}</h2>`;
+      let html=mdBoldToStrong(decodeEntities(raw||'')).replace(/\r\n/g,"\n").split('\n').map(l=>l===''?'<br>':l).join('\n');
+      wrap.innerHTML=`<div class="sec">${header}<div class="content">${html}</div></div>`;
+      linkifyContainer(wrap.querySelector('.content'), (bookSelect.value&&chapterSelect.value)?(bookSelect.value+' '+chapterSelect.value):null);
+      return wrap.innerHTML;
     }
 
-    // ---- Version change -> recalculer TOUS les liens (y compris "Dernière étude") ----
-    versionSelect.addEventListener('change', ()=>{
-      noteView.querySelectorAll('a[data-ref]').forEach(a=>{
-        const ref = a.getAttribute('data-ref');
-        a.href = buildGatewayUrl(ref);
-      });
-      const raw = localStorage.getItem(STORAGE_LAST);
-      if(raw){
-        const { book, chapter, verse } = JSON.parse(raw);
-        if(book && chapter){
-          lastOpen.href = buildGatewayUrl(book + ' ' + chapter + (verse?(':'+verse):''));
-        }
+    function exportCurrentPDF(){
+      const item=state.points[state.current]||{title:'Point '+(state.current+1)};
+      const raw=state.notes[state.current]||'';
+      printDoc.innerHTML = `<header><h1 style="font-family:Fraunces,serif;margin:0 0 8px 0">Méditation — ${item.title||('Point '+(state.current+1))}</h1></header>`
+        + buildSectionHTML(state.current+1, item.title||('Point '+(state.current+1)), raw);
+      window.print();
+      setTimeout(()=>{ printDoc.innerHTML=''; }, 300);
+    }
+
+    function exportAllPDF(){
+      let html = `<header><h1 style="font-family:Fraunces,serif;margin:0 0 8px 0">Méditation — 28 rubriques</h1></header>`;
+      for(let i=0;i<state.points.length;i++){
+        const title=state.points[i]?.title||('Point '+(i+1));
+        const raw=state.notes[i]||'';
+        html += buildSectionHTML(i+1, title, raw);
       }
+      printDoc.innerHTML=html;
+      window.print();
+      setTimeout(()=>{ printDoc.innerHTML=''; }, 300);
+    }
+
+    pdfOneBtn.addEventListener('click', exportCurrentPDF);
+    pdfAllBtn.addEventListener('click', exportAllPDF);
+
+    /* ---------- Générer (appel existant côté serveur) ---------- */
+    $('#generateBtn').addEventListener('click', async ()=>{
+      const b=(bookSelect.value||'').trim(), c=(chapterSelect.value||'').trim();
+      if(!b||!c) return alert('Sélectionne un livre et un chapitre.');
+      const url='/api/generate-study?book='+encodeURIComponent(b)+'&chapter='+encodeURIComponent(c);
+      const btn=$('#generateBtn'); btn.disabled=true; btn.textContent='Génération…';
+      try{
+        const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw 0;
+        const data=await r.json();
+        // data.sections : [{n, content}, ...] — on remplit les 28 notes
+        state.notes={};
+        for(let i=0;i<28;i++) state.notes[i]='';
+        (data.sections||[]).forEach(s=>{ const idx=(s.n? s.n-1:0); if(idx>=0&&idx<28){ state.notes[idx]=s.content||''; }});
+        localStorage.setItem(STORAGE_NOTES, JSON.stringify(state.notes));
+        updateDots(); updateEditor();
+      }catch(e){ alert('Génération indisponible pour le moment.'); }
+      finally{ btn.disabled=false; btn.textContent='Générer'; }
     });
 
-    // ---- Init ----
-    function setSelectValue(sel, val){
-      const opt = [...sel.options].find(o=>o.value===val || o.textContent===val);
-      if(opt){ sel.value = opt.value; }
-    }
-
+    /* ---------- Init ---------- */
     (async function init(){
       initSelects();
       await loadPoints();
-      // Appliquer le thème mémorisé
-      const savedTheme = localStorage.getItem(STORAGE_THEME) || 'cyan';
-      applyTheme(savedTheme);
-      renderLastStudyPanel();
-      syncView();
     })();
+
   })();
   </script>
 </body>
