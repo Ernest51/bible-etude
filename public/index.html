@@ -100,7 +100,6 @@
 
       <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
       <button id="validate" class="btn" type="button">Valider</button>
-      <!-- Bouton 'Générer' supprimé (plus d'appel OpenAI côté front) -->
     </div>
 
     <div class="layout">
@@ -144,7 +143,7 @@
     <div id="debugPanel">[init]</div>
   </footer>
 
-  <!-- Script inline (remplace l'ancien app.js) -->
+  <!-- Script inline -->
   <script>
   (function(){
     const state = {
@@ -171,7 +170,6 @@
     const verseSelect = document.getElementById('verseSelect');
     const searchRef = document.getElementById('searchRef');
 
-    // Helper log
     function log(s){ debugPanel.style.display='block'; debugPanel.textContent += '\\n' + s; }
 
     // Theme
@@ -189,17 +187,15 @@
 
     // Enrichi ↔ brut
     function renderEnriched(text){
-      // liens auto, titres ###, puces -, *
       const esc = (s)=>s.replace(/[&<>]/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m]));
       let html = esc(text)
         .replace(/^### (.*)$/gm, '<h3>$1</h3>')
         .replace(/^\s*[-*] (.*)$/gm, '<li>$1</li>')
-        .replace(/\n(<li>.*<\/li>)(?!(\n<li>))/gs, '\n<ul>$1</ul>')
-        .replace(/(https?:\/\/[^\s)]+)|(bible\.com\/[^\s)]+)/g, '<a href="$&" target="_blank" rel="noopener">$&</a>')
-        .replace(/\n{2,}/g, '</p><p>');
+        .replace(/\n(<li>.*<\/li>)(?!(\n<li>))/gs, '\\n<ul>$1</ul>')
+        .replace(/(https?:\/\/[^\\s)]+)|(bible\\.com\/[^\\s)]+)/g, '<a href="$&" target="_blank" rel="noopener">$&</a>')
+        .replace(/\\n{2,}/g, '</p><p>');
       html = '<p>' + html + '</p>';
       noteView.innerHTML = html;
-      // liens détectés
       const links = [...noteView.querySelectorAll('a')];
       const panel = document.getElementById('linksPanel');
       const list = document.getElementById('linksList');
@@ -274,13 +270,12 @@
       updateEditor();
     }
 
-    // Fetch 28 points (Vercel function) – fallback local si échec
+    // Charge TES 28 points
     async function loadPoints(){
       try{
         const r = await fetch('/api/study-28');
         if(!r.ok) throw new Error('HTTP '+r.status);
         const data = await r.json();
-        // attendu: [{title, hint?}, ...] longueur 28
         if(Array.isArray(data) && data.length){
           state.points = data;
         }else{
@@ -294,7 +289,7 @@
       buildList();
     }
 
-    // Navigation
+    // Nav
     document.getElementById('prev').addEventListener('click', ()=>{
       state.current = (state.current-1+state.points.length)%state.points.length;
       updateEditor();
@@ -304,71 +299,60 @@
       updateEditor();
     });
 
-    // Ping/health (pour vercel)
+    // Ping/health
     async function ping(){
       try{
         const ok = await fetch('/api/env').then(r=>r.ok);
         document.getElementById('dot-ping').classList.toggle('ok', ok);
-      }catch{ /* noop */ }
+      }catch{}
     }
     async function health(){
-      // simple heuristique: si /api/study-28 répond on met ok
       try{
         const r = await fetch('/api/study-28', { method:'HEAD' });
         document.getElementById('dot-health').classList.toggle('ok', r.ok);
       }catch{}
     }
 
-    // API Bible — hooks front (appelle ta fonction edge /api/bibleProvider)
+    // ---- LECTURE VIA BIBLEGATEWAY (ouverture nouvel onglet) ----
+    // Mapping des versions UI -> codes BibleGateway (FR)
+    const gatewayVersionMap = {
+      'LSG':'LSG',        // Louis Segond 1910
+      'S21':'SG21',       // Segond 21
+      'PDV':'LSG',        // Fallback (PDV indisponible sur BG)
+      'BFC':'SG21'        // Fallback (BFC indisponible sur BG)
+    };
+
     function normalizeRef(s){ return (s||'').trim().replace(/\s+/g,' '); }
-    async function readPassage(ref){
-      const version = versionSelect.value || 'LSG';
-      const url = '/api/bibleProvider?ref='+encodeURIComponent(ref)+'&version='+encodeURIComponent(version);
-      log('[bible] GET '+url);
-      try{
-        const r = await fetch(url);
-        if(!r.ok) throw new Error('HTTP '+r.status);
-        const data = await r.json();
-        // attendu: { reference:"Genèse 1:1-5", text:"...", youversion:"https://..." }
-        const block = [
-          '### Lecture — '+(data.reference||ref),
-          '',
-          (data.text||'').trim(),
-          '',
-          data.youversion ? ('Lien chapitre : '+data.youversion) : ''
-        ].join('\\n');
-        // Insert à la position courante sans écraser l’existant
-        const cur = noteArea.value;
-        noteArea.value = cur ? (cur.replace(/\\s*$/,'')+'\\n\\n'+block) : block;
-        state.notes[state.current] = noteArea.value;
-        localStorage.setItem('notes28', JSON.stringify(state.notes));
-        syncView();
-        updateProgressDots();
-      }catch(e){
-        log('[bible] erreur: '+e.message);
-        alert('Impossible de lire ce passage pour le moment.');
-      }
+
+    function openOnBibleGateway(ref){
+      const uiVersion = versionSelect.value || 'LSG';
+      const gwCode = gatewayVersionMap[uiVersion] || 'LSG';
+      // Format BG: https://www.biblegateway.com/passage/?search=<ref>&version=<gwCode>
+      const url = 'https://www.biblegateway.com/passage/?search=' + encodeURIComponent(ref) + '&version=' + encodeURIComponent(gwCode);
+      log('[gateway] ' + url);
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
 
-    // Bouton Lire
+    // Bouton Lire: si champ libre “searchRef” présent, sinon composer depuis selects
     readBtn.addEventListener('click', ()=>{
       const raw = normalizeRef(searchRef.value);
-      if(raw){ readPassage(raw); return; }
-      // si pas de texte, composer depuis selects
-      const book = bookSelect.value;
-      const ch = chapterSelect.value;
-      const v = verseSelect.value;
-      const ref = [book, ch && (':' + (v||'1')) ? (ch) : ''].join(' ').trim();
-      if(book && ch){
-        const good = book + ' ' + ch + (v?(':'+v):'');
-        readPassage(good);
-      }else{
-        alert('Indique une référence (ex: Jean 3:16).');
+      if(raw){
+        openOnBibleGateway(raw);
+        return;
       }
+      const book = (bookSelect.value||'').trim();
+      const ch = (chapterSelect.value||'').trim();
+      const v = (verseSelect.value||'').trim();
+      if(!book || !ch){
+        alert('Indique un livre et un chapitre (ex : Jean 3, ou Jean 3:16).');
+        return;
+      }
+      const ref = book + ' ' + ch + (v?(':'+v):'');
+      openOnBibleGateway(ref);
     });
 
-    // Livres/chapitres/versets — simple placeholder en attendant api.bible côté /api/bibleProvider (rempli dynamiquement si besoin)
-    const simpleBooks = ["Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth","1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther","Job","Psaumes","Proverbes","Ecclésiaste","Cantique des Cantiques","Ésaïe","Jérémie","Lamentations","Ézéchiel","Daniel","Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie","Aggée","Zacharie","Malachie","Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"];
+    // Livres/chapitres/versets (liste simple)
+    const simpleBooks = ["Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth","1 Jean","2 Jean","3 Jean","1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther","Job","Psaumes","Proverbes","Ecclésiaste","Cantique des Cantiques","Ésaïe","Jérémie","Lamentations","Ézéchiel","Daniel","Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie","Aggée","Zacharie","Malachie","Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","Jude","Apocalypse"];
     function initSelects(){
       bookSelect.innerHTML = '<option value="">Livre…</option>' + simpleBooks.map(b=>`<option>${b}</option>`).join('');
       chapterSelect.innerHTML = '<option value="">Chapitre…</option>' + Array.from({length:150},(_,i)=>`<option>${i+1}</option>`).join('');
