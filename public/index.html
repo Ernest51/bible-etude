@@ -91,7 +91,7 @@
     // ---- ÉTAT ----
     const state = { points: [], current: 0, notes: JSON.parse(localStorage.getItem('notes28')||'{}') };
 
-    // ---- UI ----
+    // ---- UI refs ----
     const edTitle = document.getElementById('edTitle');
     const noteArea = document.getElementById('noteArea');
     const noteView = document.getElementById('noteView');
@@ -116,10 +116,9 @@
 
     // ---- Linkify références bibliques dans le HTML ----
     const BOOKS = ["Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth","1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther","Job","Psaumes","Proverbes","Ecclésiaste","Cantique des Cantiques","Ésaïe","Esaïe","Jérémie","Lamentations","Ézéchiel","Ezechiel","Daniel","Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie","Aggée","Zacharie","Malachie","Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"];
-    const BOOKS_RE = new RegExp('\\b(' + BOOKS.map(b=>b.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|') + ')\\s+(\\d+)(?::(\\d+(?:[-–]\\d+)?))?', 'g');
+    const BOOKS_RE = new RegExp('\\b(' + BOOKS.map(b=>b.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')).join('|') + ')\\s+(\\d+)(?::(\\d+(?:[-–]\\d+)?))?', 'g');
 
     function linkifyScriptureHTML(html){
-      // remplace expressions (Livre Chapitre[:Verset[-Verset]]) par <a data-ref="...">
       return html.replace(BOOKS_RE, (m,book,ch,vers)=> {
         const ref = book + ' ' + ch + (vers?(':'+vers):'');
         const href = buildGatewayUrl(ref);
@@ -127,18 +126,36 @@
       });
     }
 
-    // ---- Rendu enrichi (HTML du serveur conservé) ----
+    // ---- Décoder les entités HTML (pour transformer &lt;strong&gt; en <strong>) ----
+    function decodeEntities(str){
+      const ta = document.createElement('textarea');
+      ta.innerHTML = str;
+      return ta.value;
+    }
+
+    // ---- Convertir le markdown **gras** en <strong> ----
+    function mdBoldToStrong(str){
+      return str.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    }
+
+    // ---- Rendu enrichi : on NE fait plus d'échappement ; on affiche le vrai HTML ----
     function renderEnriched(text){
-      // Si le serveur a envoyé du HTML (nos sections), on NE l’échappe PAS.
-      // On ne fait que transformer les références bibliques en liens.
-      let html = text
-        .replace(/\r\n/g,"\n")
-        .replace(/&lt;strong&gt;|&lt;\/strong&gt;/g,'') // au cas où un vieux cache aurait échappé
-        .split('\n').map(l => l.trim()==='' ? '<br>' : l).join('\n');
+      // 1) Décoder d'éventuelles entités (ex: &lt;strong&gt;)
+      let html = decodeEntities(text);
+
+      // 2) Convertir tout markdown **…** en <strong>…</strong>
+      html = mdBoldToStrong(html);
+
+      // 3) Normaliser les retours à la ligne -> <br>
+      html = html.replace(/\r\n/g,"\n").split('\n').map(l => l==='' ? '<br>' : l).join('\n');
+
+      // 4) Transformer les références bibliques en liens BibleGateway
       html = linkifyScriptureHTML(html);
+
+      // 5) Injecter tel quel
       noteView.innerHTML = html;
 
-      // Liste des liens détectés (y compris ceux générés)
+      // 6) Panneau des liens
       const links = [...noteView.querySelectorAll('a')];
       const panel = document.getElementById('linksPanel');
       const list = document.getElementById('linksList');
@@ -151,6 +168,7 @@
     enrichToggle.style.display='flex'; enrichToggle.style.alignItems='center'; enrichToggle.style.gap='8px';
     enrichToggle.innerHTML = `<input id="enrichToggle" type="checkbox" checked /> <span>Mode enrichi</span>`;
     document.querySelector('.controls').appendChild(enrichToggle);
+
     function syncView(){
       const v = noteArea.value || '';
       if(document.getElementById('enrichToggle').checked){
@@ -228,8 +246,11 @@
     }
     function renderIntoNotes(payload){
       const sec = Array.isArray(payload.sections)?payload.sections:[];
-      // reset
+      // reset complet (évite vieux contenus)
+      localStorage.removeItem('notes28');
+      state.notes = {};
       for(let i=0;i<state.points.length;i++) state.notes[i]='';
+
       sec.forEach(s=>{
         const idx = (s.n? s.n-1 : 0);
         if(idx>=0 && idx<state.points.length){
@@ -281,7 +302,6 @@
 
     // ---- Met à jour les href quand la version change ----
     versionSelect.addEventListener('change', ()=>{
-      // régénère les href pour tous les <a data-ref>
       noteView.querySelectorAll('a[data-ref]').forEach(a=>{
         a.href = buildGatewayUrl(a.getAttribute('data-ref'));
       });
