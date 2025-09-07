@@ -1,272 +1,225 @@
 // api/study-28.js
+// Étude biblique structurée en 28 points, sans OpenAI.
+// Récupère le texte depuis api.bible (fallback passages → chapters).
+
 export const config = { runtime: "nodejs" };
 
-/**
- * Étude 28 points (LLM-free) + TRACE pour diagnostiquer les 400 api.bible.
- * Params utiles:
- *  - trace=1        → renvoie le détail des tentatives effectuées
- *  - force=passages → n'essaie que /passages (d’abord GEN.1 puis GEN.1.1-199)
- *  - force=chapters → n'essaie que /chapters (GEN.1)
- */
+const API_KEY = process.env.API_BIBLE_KEY || "";
+const DEFAULT_BIBLE_ID = process.env.API_BIBLE_ID || "";
 
-const API_ROOT = "https://api.scripture.api.bible/v1";
-const API_KEY  = process.env.API_BIBLE_KEY || "";
-const DEFAULT_BIBLE_ID = process.env.API_BIBLE_ID || ""; // ex: "a93a92589195411f-01" (JND)
-
+// ----------------- helpers -----------------
 function send(res, status, payload) {
-  res.status(status).setHeader("content-type", "application/json; charset=utf-8");
+  res.statusCode = status;
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(payload, null, 2));
 }
 
-// --- mapping FR -> OSIS (accents & variantes) ---
-const FR_TO_OSIS = {
-  "genese":"GEN","genèse":"GEN","exode":"EXO","levitique":"LEV","lévitique":"LEV","nombres":"NUM",
-  "deuteronome":"DEU","deutéronome":"DEU","josue":"JOS","josué":"JOS","juges":"JDG","ruth":"RUT",
-  "1 samuel":"1SA","2 samuel":"2SA","1 rois":"1KI","2 rois":"2KI","1 chroniques":"1CH","2 chroniques":"2CH",
-  "esdras":"EZR","nehemie":"NEH","néhémie":"NEH","esther":"EST","job":"JOB","psaumes":"PSA","psaume":"PSA",
-  "proverbes":"PRO","ecclesiaste":"ECC","ecclésiaste":"ECC",
-  "cantique des cantiques":"SNG","cantiques":"SNG","cantique":"SNG",
-  "esaie":"ISA","esaïe":"ISA","ésaïe":"ISA","isaie":"ISA","isaïe":"ISA",
-  "jeremie":"JER","jérémie":"JER","lamentations":"LAM",
-  "ezechiel":"EZK","ezéchiel":"EZK","ézéchiel":"EZK",
-  "daniel":"DAN","osee":"HOS","osée":"HOS","joel":"JOL","joël":"JOL","amos":"AMO","abdias":"OBA","jonas":"JON",
-  "michee":"MIC","michée":"MIC","nahoum":"NAM","habacuc":"HAB","sophonie":"ZEP","aggee":"HAG","aggée":"HAG",
-  "zacharie":"ZEC","malachie":"MAL","matthieu":"MAT","marc":"MRK","luc":"LUK","jean":"JHN","actes":"ACT",
-  "romains":"ROM","1 corinthiens":"1CO","2 corinthiens":"2CO","galates":"GAL","ephesiens":"EPH","éphésiens":"EPH",
-  "philippiens":"PHP","colossiens":"COL","1 thessaloniciens":"1TH","2 thessaloniciens":"2TH",
-  "1 timothee":"1TI","1 timothée":"1TI","2 timothee":"2TI","2 timothée":"2TI",
-  "tite":"TIT","philemon":"PHM","philémon":"PHM","hebreux":"HEB","hébreux":"HEB","jacques":"JAS",
-  "1 pierre":"1PE","2 pierre":"2PE","1 jean":"1JN","2 jean":"2JN","3 jean":"3JN","jude":"JUD","apocalypse":"REV",
-  "1 cor":"1CO","2 cor":"2CO","1 th":"1TH","2 th":"2TH","1 ti":"1TI","2 ti":"2TI","1 pi":"1PE","2 pi":"2PE"
-};
-const norm = (s)=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ").trim();
-function toOsis(book){
-  const k = norm(book);
-  if (FR_TO_OSIS[k]) return FR_TO_OSIS[k];
-  const hit = Object.keys(FR_TO_OSIS).find(x=>x.startsWith(k));
-  return hit ? FR_TO_OSIS[hit] : null;
+function makeSections(book, chapter, passageText) {
+  const titles = [
+    "Thème central",
+    "Résumé en une phrase",
+    "Contexte historique",
+    "Auteur et date",
+    "Genre littéraire",
+    "Structure du passage",
+    "Plan détaillé",
+    "Mots-clés",
+    "Termes clés (définis)",
+    "Personnages et lieux",
+    "Problème / Question de départ",
+    "Idées majeures (développement)",
+    "Verset pivot (climax)",
+    "Références croisées (AT)",
+    "Références croisées (NT)",
+    "Parallèles bibliques",
+    "Lien avec l’Évangile (Christocentrique)",
+    "Vérités doctrinales (3–5)",
+    "Promesses et avertissements",
+    "Principes intemporels",
+    "Applications personnelles (3–5)",
+    "Applications communautaires",
+    "Questions pour petits groupes (6)",
+    "Prière guidée",
+    "Méditation courte",
+    "Versets à mémoriser (2–3)",
+    "Difficultés/objections & réponses",
+    "Ressources complémentaires",
+  ];
+  return titles.map((t, i) => ({
+    index: i + 1,
+    title: t,
+    content: `${t} (${book} ${chapter}). ${passageText || "(Passage non récupéré)"}`,
+    verses: []
+  }));
 }
 
-function buildOsisChapter(book, chapter) {
-  const osis = toOsis(book);
-  if (!osis) return null;
-  return `${osis}.${String(chapter||"1").trim()}`;
-}
-function buildOsisPassage(book, chapter, verse){
-  const osis = toOsis(book);
-  if (!osis) return null;
-  const chap = String(chapter||"1").trim();
-  const v = String(verse||"").trim();
-  if (!v) return `${osis}.${chap}`; // chapitre entier (tentative passages #1)
-  const main = v.split(",")[0].trim();
-  if (/^\d+\s*[-–]\s*\d+$/.test(main)) {
-    const [a,b] = main.split(/[-–]/).map(s=>s.trim());
-    return `${osis}.${chap}.${a}-${osis}.${chap}.${b}`;
-  }
-  return `${osis}.${chap}.${main}`;
-}
-
-async function callApi(path, params = {}, trace) {
-  if (!API_KEY) {
-    const err = new Error("API_BIBLE_KEY manquante");
-    err.status = 500; throw err;
-  }
-  const url = new URL(API_ROOT + path);
-  Object.entries(params).forEach(([k,v])=>{
-    if (v!==undefined && v!==null && v!=="") url.searchParams.set(k, String(v));
+// ----------------- api.bible fetch -----------------
+async function fetchBible(endpoint) {
+  const r = await fetch(`https://api.scripture.api.bible/v1${endpoint}`, {
+    headers: { "api-key": API_KEY, accept: "application/json" }
   });
-  trace && trace.push({ step:"fetch", url: url.toString() });
-  const r = await fetch(url.toString(), { headers: { accept:"application/json", "api-key": API_KEY } });
   const txt = await r.text();
-  let j; try{ j = txt ? JSON.parse(txt) : {}; }catch{ j = { raw: txt }; }
-  if (!r.ok) {
-    trace && trace.push({ step:"error", status:r.status, body: (typeof j==='string'? j : (j.error||j.raw||j)) });
-    const e = new Error(j?.error?.message || `api.bible ${r.status}`);
-    e.status = r.status; e.details = j; throw e;
-  }
-  trace && trace.push({ step:"ok", status:r.status });
-  return j;
+  let j = {};
+  try { j = JSON.parse(txt); } catch { j = { raw: txt }; }
+  return { ok: r.ok, status: r.status, json: j };
 }
 
-const CONTENT_PARAMS = {
-  "content-type": "html",
-  "include-notes": false,
-  "include-titles": true,
-  "include-chapter-numbers": true,
-  "include-verse-numbers": true,
-  "include-verse-spans": false,
-  "use-org-id": false
-};
+async function getPassageSafe({ bibleId, osis }) {
+  if (!bibleId) bibleId = DEFAULT_BIBLE_ID;
+  if (!bibleId) throw new Error("Missing bibleId");
 
-async function fetchPassageById(bibleId, passageId, trace){
-  const id = bibleId || DEFAULT_BIBLE_ID;
-  return callApi(`/bibles/${id}/passages/${encodeURIComponent(passageId)}`, CONTENT_PARAMS, trace);
-}
-async function fetchChapterById(bibleId, chapterId, trace){
-  const id = bibleId || DEFAULT_BIBLE_ID;
-  return callApi(`/bibles/${id}/chapters/${encodeURIComponent(chapterId)}`, CONTENT_PARAMS, trace);
-}
-
-function stripHtml(html){
-  return String(html||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
-}
-
-const TITLES_FULL = [
-  "Thème central","Résumé en une phrase","Contexte historique","Auteur et date","Genre littéraire",
-  "Structure du passage","Plan détaillé","Mots-clés","Termes clés (définis)","Personnages et lieux",
-  "Problème / Question de départ","Idées majeures (développement)","Verset pivot (climax)",
-  "Références croisées (AT)","Références croisées (NT)","Parallèles bibliques",
-  "Lien avec l’Évangile (Christocentrique)","Vérités doctrinales (3–5)","Promesses et avertissements",
-  "Principes intemporels","Applications personnelles (3–5)","Applications communautaires",
-  "Questions pour petits groupes (6)","Prière guidée","Méditation courte","Versets à mémoriser (2–3)",
-  "Difficultés/objections & réponses","Ressources complémentaires"
-];
-const TITLES_MINI = ["Thème central","Idées majeures (développement)","Applications personnelles (3–5)"];
-
-function firstSentence(text) {
-  const c = String(text||"").replace(/\s+/g," ").trim();
-  const m = c.match(/(.+?[.!?])(\s|$)/u);
-  return m ? m[1].trim() : c.slice(0,180);
-}
-
-export default async function handler(req, res){
-  try{
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const sp = url.searchParams;
-    const selftest = sp.get("selftest")==="1";
-    const dry = sp.get("dry")==="1";
-    const mode = (sp.get("mode")||"").toLowerCase() || "full";
-    const traceOn = sp.get("trace")==="1";
-    const force = (sp.get("force")||"").toLowerCase(); // '' | 'passages' | 'chapters'
-
-    if (selftest) return send(res, 200, { ok:true, engine:"LLM-FREE", modes:["mini","full"], usesApiBible:true, source:"study-28" });
-
-    let input = {};
-    if (req.method === "POST") {
-      const chunks=[]; for await (const c of req) chunks.push(c);
-      try{ input = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"); }catch{ input = {}; }
-    } else {
-      input = {
-        book: sp.get("book")||"",
-        chapter: sp.get("chapter")||"",
-        verse: sp.get("verse")||"",
-        translation: sp.get("translation")||"LSG",
-        bibleId: sp.get("bibleId")||""
-      };
-    }
-
-    const book = input.book || "";
-    const chapter = input.chapter || "";
-    const verse = input.verse || "";
-    const translation = input.translation || "LSG";
-    const bibleId = input.bibleId || "";
-    const trace = traceOn ? [] : null;
-
-    if (!book || !chapter) return send(res, 400, { ok:false, error:"book et chapter requis" });
-
-    const meta = {
-      book, chapter:String(chapter), verse:String(verse||""),
-      translation,
-      reference: `${book} ${chapter}${verse?":"+verse:""}`,
-      osis: ""
+  // 1. try /passages
+  let r = await fetchBible(`/bibles/${bibleId}/passages/${encodeURIComponent(osis)}`);
+  if (r.ok && r.json?.data?.content) {
+    return {
+      reference: r.json?.data?.reference || osis,
+      contentHtml: r.json?.data?.content || ""
     };
+  }
 
-    if (dry) {
-      const titles = mode==="mini" ? TITLES_MINI : TITLES_FULL;
-      const sections = titles.map((t,i)=>({ index:i+1, title:t, content:`${t} (${meta.reference}).`, verses:[] }));
-      return send(res, 200, { ok:true, data:{ meta, sections }, trace });
+  // 2. fallback /chapters
+  r = await fetchBible(`/bibles/${bibleId}/chapters/${encodeURIComponent(osis)}`);
+  if (r.ok && r.json?.data?.content) {
+    return {
+      reference: r.json?.data?.reference || osis,
+      contentHtml: r.json?.data?.content || ""
+    };
+  }
+
+  throw new Error(`api.bible failed for ${osis}: ${r.status}`);
+}
+
+// ----------------- handler -----------------
+export default async function handler(req, res) {
+  try {
+    const { searchParams } = new URL(req.url, "http://x");
+    const selftest = searchParams.get("selftest");
+    if (selftest) {
+      return send(res, 200, {
+        ok: true,
+        engine: "LLM-FREE",
+        modes: ["mini", "full"],
+        usesApiBible: !!API_KEY,
+        source: "study-28"
+      });
     }
 
-    if (!API_KEY) return send(res, 500, { ok:false, error:"API_BIBLE_KEY manquante" });
+    const book = searchParams.get("book") || "Genèse";
+    const chapter = searchParams.get("chapter") || "1";
+    const verse = searchParams.get("verse") || "";
+    const bibleId = searchParams.get("bibleId") || DEFAULT_BIBLE_ID;
+    const translation = searchParams.get("translation") || "LSG";
+    const mode = searchParams.get("mode") || "full";
+    const dry = searchParams.get("dry");
 
-    const osisChapter = buildOsisChapter(book, chapter);
-    if (!osisChapter) {
-      const titles = mode==="mini" ? TITLES_MINI : TITLES_FULL;
-      const sections = titles.map((t,i)=>({ index:i+1, title:t, content:`${t} (${meta.reference}). (Passage non récupéré : livre inconnu)`, verses:[] }));
-      return send(res, 200, { ok:true, data:{ meta, sections }, trace });
-    }
-
-    const passageIdPrimary  = buildOsisPassage(book, chapter, "");         // GEN.1
-    const passageIdFallback = buildOsisPassage(book, chapter, "1-199");    // GEN.1.1-GEN.1.199
-    const passageIdFromQ    = verse ? buildOsisPassage(book, chapter, verse) : null;
-
-    let displayRef = meta.reference;
-    let osis = osisChapter;
     let passageText = "";
-    let lastErr = "";
+    let ref = `${book} ${chapter}`;
+    let osis = "";
 
-    const CONTENT_PICK = (j)=>({ ref: j?.data?.reference||"", html: j?.data?.content||"" });
-
-    // stratégie selon force
-    const tryPassages = async () => {
-      // (0) si verset/range fourni par l’utilisateur
-      if (passageIdFromQ && !passageText) {
-        trace && trace.push({ step:"try", kind:"passages", id: passageIdFromQ });
-        try {
-          const j = await fetchPassageById(bibleId, passageIdFromQ, trace);
-          const { ref, html } = CONTENT_PICK(j);
-          const clean = stripHtml(html);
-          if (clean) { passageText = clean; displayRef = ref || displayRef; osis = passageIdFromQ; }
-        } catch(e){ lastErr = e?.status ? `api.bible ${e.status}` : String(e?.message||e); }
+    if (!dry) {
+      try {
+        osis = `${bookMap(book)}.${chapter}`; // convert livre → code OSIS
+        const p = await getPassageSafe({ bibleId, osis });
+        passageText = stripHtml(p.contentHtml).slice(0, 200); // tronqué pour test
+        ref = p.reference || ref;
+      } catch (e) {
+        passageText = `(Passage non récupéré : ${e.message})`;
       }
-      // (1) GEN.1
-      if (!passageText) {
-        trace && trace.push({ step:"try", kind:"passages", id: passageIdPrimary });
-        try {
-          const j = await fetchPassageById(bibleId, passageIdPrimary, trace);
-          const { ref, html } = CONTENT_PICK(j);
-          const clean = stripHtml(html);
-          if (clean) { passageText = clean; displayRef = ref || displayRef; osis = passageIdPrimary; }
-        } catch(e){ lastErr = e?.status ? `api.bible ${e.status}` : String(e?.message||e); }
-      }
-      // (2) GEN.1.1-GEN.1.199
-      if (!passageText) {
-        trace && trace.push({ step:"try", kind:"passages", id: passageIdFallback });
-        try {
-          const j = await fetchPassageById(bibleId, passageIdFallback, trace);
-          const { ref, html } = CONTENT_PICK(j);
-          const clean = stripHtml(html);
-          if (clean) { passageText = clean; displayRef = ref || displayRef; osis = passageIdFallback; }
-        } catch(e){ lastErr = e?.status ? `api.bible ${e.status}` : String(e?.message||e); }
-      }
-    };
-
-    const tryChapters = async () => {
-      if (!passageText) {
-        trace && trace.push({ step:"try", kind:"chapters", id: osisChapter });
-        try {
-          const j = await fetchChapterById(bibleId, osisChapter, trace);
-          const { ref, html } = CONTENT_PICK(j);
-          const clean = stripHtml(html);
-          if (clean) { passageText = clean; displayRef = ref || displayRef; osis = osisChapter; }
-        } catch(e){ lastErr = e?.status ? `api.bible ${e.status}` : String(e?.message||e); }
-      }
-    };
-
-    if (force === "passages") {
-      await tryPassages();
-    } else if (force === "chapters") {
-      await tryChapters();
     } else {
-      // ordre par défaut : passages -> chapters
-      await tryPassages();
-      await tryChapters();
+      passageText = `Exemple de texte.`;
     }
 
-    const titles = mode==="mini" ? TITLES_MINI : TITLES_FULL;
-    const intro = passageText ? firstSentence(passageText) : `(Passage non récupéré : ${lastErr || "inconnu"})`;
-    const sections = titles.map((t, i) => ({
-      index: i + 1,
-      title: t,
-      content: `${t} (${displayRef}). ${intro}…`,
-      verses: []
-    }));
+    const sections = makeSections(book, chapter, passageText);
 
-    meta.reference = displayRef;
-    meta.osis = osis;
-
-    return send(res, 200, { ok:true, data:{ meta, sections }, trace });
+    return send(res, 200, {
+      ok: true,
+      data: {
+        meta: { book, chapter, verse, translation, reference: ref, osis },
+        sections
+      }
+    });
   } catch (e) {
-    return send(res, 500, { ok:false, error:String(e?.message||e) });
+    return send(res, 500, { ok: false, error: e.message || "study28_failed" });
   }
+}
+
+// ----------------- utilitaires -----------------
+function stripHtml(html) {
+  return String(html || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// table simplifiée Livre → code OSIS
+function bookMap(name) {
+  const map = {
+    "Genèse": "GEN",
+    "Exode": "EXO",
+    "Lévitique": "LEV",
+    "Nombres": "NUM",
+    "Deutéronome": "DEU",
+    "Josué": "JOS",
+    "Juges": "JDG",
+    "Ruth": "RUT",
+    "1 Samuel": "1SA",
+    "2 Samuel": "2SA",
+    "1 Rois": "1KI",
+    "2 Rois": "2KI",
+    "1 Chroniques": "1CH",
+    "2 Chroniques": "2CH",
+    "Esdras": "EZR",
+    "Néhémie": "NEH",
+    "Esther": "EST",
+    "Job": "JOB",
+    "Psaumes": "PSA",
+    "Proverbes": "PRO",
+    "Ecclésiaste": "ECC",
+    "Cantique des cantiques": "SNG",
+    "Ésaïe": "ISA",
+    "Jérémie": "JER",
+    "Lamentations": "LAM",
+    "Ézéchiel": "EZK",
+    "Daniel": "DAN",
+    "Osée": "HOS",
+    "Joël": "JOL",
+    "Amos": "AMO",
+    "Abdias": "OBA",
+    "Jonas": "JON",
+    "Michée": "MIC",
+    "Nahoum": "NAM",
+    "Habacuc": "HAB",
+    "Sophonie": "ZEP",
+    "Aggée": "HAG",
+    "Zacharie": "ZEC",
+    "Malachie": "MAL",
+    "Matthieu": "MAT",
+    "Marc": "MRK",
+    "Luc": "LUK",
+    "Jean": "JHN",
+    "Actes": "ACT",
+    "Romains": "ROM",
+    "1 Corinthiens": "1CO",
+    "2 Corinthiens": "2CO",
+    "Galates": "GAL",
+    "Éphésiens": "EPH",
+    "Philippiens": "PHP",
+    "Colossiens": "COL",
+    "1 Thessaloniciens": "1TH",
+    "2 Thessaloniciens": "2TH",
+    "1 Timothée": "1TI",
+    "2 Timothée": "2TI",
+    "Tite": "TIT",
+    "Philémon": "PHM",
+    "Hébreux": "HEB",
+    "Jacques": "JAS",
+    "1 Pierre": "1PE",
+    "2 Pierre": "2PE",
+    "1 Jean": "1JN",
+    "2 Jean": "2JN",
+    "3 Jean": "3JN",
+    "Jude": "JUD",
+    "Apocalypse": "REV"
+  };
+  return map[name] || name;
 }
