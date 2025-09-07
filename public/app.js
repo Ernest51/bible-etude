@@ -1,241 +1,112 @@
-/* public/app.js — robuste + pré-check API
-   - Aucun sélecteur CSS exotique (:has, :contains)
-   - Pré-check /api/health avant /api/study-28
-   - Journalisation claire des erreurs réseau
-   - Injection déterministe des 28 rubriques
-*/
-
+// public/app.js
 (function () {
-  "use strict";
+  console.log("[APP] Init OK");
 
-  // ---------- utils ----------
-  const log = (...a) => console.log("[APP]", ...a);
-  const warn = (...a) => console.warn("[APP]", ...a);
-  const err = (...a) => console.error("[APP]", ...a);
-  const $ = (s, r = document) => r.querySelector(s);
-  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
-
-  function normTitle(s = "") {
-    return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase().replace(/\s+/g, " ").trim();
+  // --- helpers DOM sûrs (pas de :has / :contains) ---
+  function findButtonByText(txt) {
+    const t = (txt || "").toLowerCase().trim();
+    const btns = Array.from(document.querySelectorAll("button, [role=button]"));
+    return btns.find(b => (b.textContent || "").toLowerCase().includes(t)) || null;
   }
-
-  const CANON_TITLES = [
-    "Prière d’ouverture","Canon et testament","Questions du chapitre précédent","Titre du chapitre",
-    "Contexte historique","Structure littéraire","Genre littéraire","Thème central","Résumé en une phrase",
-    "Mots-clés","Termes clés (définis)","Personnages et lieux","Problème / Question de départ",
-    "Idées majeures (développement)","Verset pivot (climax)","Références croisées (AT)","Références croisées (NT)",
-    "Parallèles bibliques","Lien avec l’Évangile (Christocentrique)","Vérités doctrinales (3–5)","Promesses et avertissements",
-    "Principes intemporels","Applications personnelles (3–5)","Applications communautaires","Questions pour petits groupes (6)",
-    "Prière guidée","Méditation courte","Versets à mémoriser (2–3)"
-  ];
-  const CANON = CANON_TITLES.map(normTitle);
-  const CANON_MAP = new Map(CANON.map((t, i) => [t, i + 1]));
-
-  // fetch JSON avec timeout et messages clairs
-  async function fetchJSON(url, opts = {}, timeoutMs = 15000) {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), timeoutMs);
-    try {
-      const res = await fetch(url, { ...opts, signal: ctrl.signal });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`HTTP ${res.status} ${res.statusText} — ${text.slice(0, 200)}`);
-      }
-      return await res.json();
-    } finally {
-      clearTimeout(t);
-    }
-  }
-
-  // ---------- éléments UI ----------
-  function findGenerateButton() {
-    const candidates = $$("button, .btn, input[type=button], input[type=submit]");
-    for (const el of candidates) {
-      const txt = (el.innerText || el.value || "").trim().toLowerCase();
-      if (txt === "générer" || txt.includes("génér")) return el;
+  function bySelAny(arr) {
+    for (const s of arr) {
+      const el = document.querySelector(s);
+      if (el) return el;
     }
     return null;
   }
-
-  function findSelects() {
-    const selects = $$("select");
-    let bookSel = selects.find(s => /gen[eè]se|matthieu|marc|luc|jean|romains|psaumes|genesis|book/i.test(s.textContent||"")) || selects[0];
-    let chapSel = selects.find(s => s !== bookSel && /^\s*\d+\s*$/.test(s.value || s.selectedOptions?.[0]?.text || "")) || selects[1];
-    let verseSel = selects.find(s => s !== bookSel && s !== chapSel && /^\s*\d+\s*$/.test(s.value || s.selectedOptions?.[0]?.text || "")) || selects[2];
-    let transSel = selects.find(s => /segond|darby|traduction|version|louis|jnd|lsg/i.test(s.textContent || s.value || "")) || selects[3];
-    return { bookSel, chapSel, verseSel, transSel };
+  function val(el) {
+    return (el && "value" in el) ? String(el.value || "").trim() : "";
   }
 
-  function getRubriqueItems() {
-    let items = $$('[data-rubrique]');
-    if (items.length) return items;
+  // --- Ancrages possibles (multi-essais pour ne pas casser l’app existante) ---
+  const btnGenerate = findButtonByText("générer") || bySelAny(["#btnGenerate", "[data-gen]"]);
+  const selBook     = bySelAny(["select[name=book]", "#book", "select[data-book]", "select:nth-of-type(1)"]);
+  const selChapter  = bySelAny(["select[name=chapter]", "#chapter", "select[data-chapter]", "select:nth-of-type(2)"]);
+  const selVerse    = bySelAny(["input[name=verse]", "#verse", "input[data-verse]"]);
+  const selTrad     = bySelAny(["select[name=translation]", "#translation", "select[data-translation]"]);
+  const selBibleId  = bySelAny(["input[name=bibleId]", "#bibleId", "input[data-bible-id]"]);
 
-    items = $$(".rubriques li, .rubriques .row, .rubriques .item");
-    if (items.length) return items;
+  // conteneurs d’injection (si présents)
+  const listContainer   = bySelAny(["#rubriques-list", "[data-rubriques]"]);
+  const contentContainer= bySelAny(["#rubrique-content", "[data-editor]"]);
 
-    const blocks = $$("li, .row, .list-group-item").filter(el => /\b\d+\b/.test(el.textContent || ""));
-    return blocks;
-  }
+  function renderStudy(data) {
+    if (!data || !data.sections) return;
 
-  function selectRubrique(index1) {
-    const items = getRubriqueItems();
-    const el = items[index1 - 1];
-    if (!el) return false;
-    (el.querySelector("button, [role='button'], a") || el).click?.();
-    el.scrollIntoView?.({ block: "nearest" });
-    return true;
-  }
-
-  function findEditorArea() {
-    return $("textarea") || $('[contenteditable="true"]') || $(".editor textarea") || null;
-  }
-
-  function setEditorContent(text) {
-    const area = findEditorArea();
-    if (!area) return false;
-    if ("value" in area) {
-      area.value = text;
-      area.dispatchEvent(new Event("input", { bubbles: true }));
-      area.dispatchEvent(new Event("change", { bubbles: true }));
-    } else {
-      area.innerHTML = text;
-      area.dispatchEvent(new Event("input", { bubbles: true }));
+    // Liste à gauche (si conteneur fourni)
+    if (listContainer) {
+      listContainer.innerHTML = "";
+      data.sections.forEach(s => {
+        const li = document.createElement("div");
+        li.className = "rubrique-item";
+        li.textContent = `${s.index}. ${s.title}`;
+        li.style.cursor = "pointer";
+        li.onclick = () => {
+          if (contentContainer) {
+            contentContainer.innerHTML = "";
+            const h = document.createElement("h3");
+            h.textContent = `${s.index}. ${s.title}`;
+            const p = document.createElement("p");
+            p.textContent = s.content;
+            contentContainer.appendChild(h);
+            contentContainer.appendChild(p);
+          }
+        };
+        listContainer.appendChild(li);
+      });
     }
-    return true;
+
+    // Éditeur à droite (si conteneur fourni) — on affiche la 1ère section
+    if (contentContainer && data.sections.length) {
+      const s = data.sections[0];
+      contentContainer.innerHTML = "";
+      const h = document.createElement("h3");
+      h.textContent = `${s.index}. ${s.title}`;
+      const p = document.createElement("p");
+      p.textContent = s.content;
+      contentContainer.appendChild(h);
+      contentContainer.appendChild(p);
+    }
+
+    // Toujours logguer pour debug (sans casser l’UI existante)
+    console.info("[GEN] Étude générée:", data.meta, data.sections);
   }
 
-  // ---------- API ----------
-  async function healthCheck() {
-    const url = `/api/health`;
-    log("Health check →", url);
+  async function generate() {
     try {
-      const j = await fetchJSON(url, { headers: { accept: "application/json" } }, 7000);
-      return { ok: !!j?.ok, data: j };
-    } catch (e) {
-      return { ok: false, error: e.message || String(e) };
-    }
-  }
+      const book = val(selBook) || "Genèse";
+      const chapter = val(selChapter) || "1";
+      const verse = val(selVerse) || "";
+      const translation = val(selTrad) || "JND";
+      const bibleId = val(selBibleId) || "";
 
-  async function fetchStudy(params) {
-    const usp = new URLSearchParams({
-      book: params.book || "Genèse",
-      chapter: String(params.chapter || "1"),
-      translation: params.translation || "JND",
-      mode: "full"
-    });
-    if (params.verse) usp.set("verse", params.verse);
-    if (params.bibleId) usp.set("bibleId", params.bibleId);
+      const usp = new URLSearchParams({ book, chapter, translation, trace: "1" });
+      if (verse) usp.set("verse", verse);
+      if (bibleId) usp.set("bibleId", bibleId);
 
-    const url = `/api/study-28?${usp.toString()}`;
-    log("Fetch étude →", url);
-    return await fetchJSON(url, { headers: { accept: "application/json" } });
-  }
+      const url = `/api/study-28?${usp.toString()}`;
+      const r = await fetch(url, { headers: { accept: "application/json" } });
+      const j = await r.json().catch(() => null);
 
-  function injectStudySections(sections = []) {
-    const items = getRubriqueItems();
-    if (!items.length) {
-      warn("Aucune rubrique détectée — injection annulée.");
-      return;
-    }
-    const list = sections.slice(0, 28);
-
-    let injected = 0;
-    const allHaveIndex = list.every(s => Number.isInteger(s.index));
-
-    if (allHaveIndex) {
-      for (const s of list) {
-        const idx = Math.min(Math.max(1, s.index), items.length);
-        if (selectRubrique(idx)) {
-          setEditorContent(s.content || "");
-          injected++;
-        }
-      }
-    } else {
-      for (const s of list) {
-        const key = CANON_MAP.get(normTitle(s.title || ""));
-        if (key && selectRubrique(key)) {
-          setEditorContent(s.content || "");
-          injected++;
-        }
-      }
-    }
-
-    log(`Injection : ${injected}/${list.length}`);
-  }
-
-  function readUIParams() {
-    const { bookSel, chapSel, verseSel, transSel } = findSelects();
-    const val = (sel, fb) => sel ? ((sel.value || sel.selectedOptions?.[0]?.text || "").trim() || fb) : fb;
-    return {
-      book: val(bookSel, "Genèse"),
-      chapter: val(chapSel, "1"),
-      verse: val(verseSel, ""),
-      translation: val(transSel, "JND")
-    };
-  }
-
-  // ---------- wiring ----------
-  function wireGenerate() {
-    const btn = findGenerateButton();
-    if (!btn) {
-      warn("Bouton Générer introuvable.");
-      return;
-    }
-
-    btn.addEventListener("click", async (e) => {
-      e.preventDefault?.();
-
-      // 0) Pré-check API
-      const h = await healthCheck();
-      if (!h.ok) {
-        err("API indisponible — health:", h.error || h.data);
-        alert("API indisponible (health check). Vérifie /api/health dans le navigateur.\n" +
-              "Détail: " + (h.error || JSON.stringify(h.data)));
+      if (!j || !j.ok) {
+        const msg = j?.error?.message || `HTTP ${r.status}`;
+        alert("Erreur pendant la génération : " + msg);
+        console.error("[GEN][ERR]", j || r.status);
         return;
       }
 
-      // 1) Récupération & fetch
-      try {
-        const params = readUIParams();
-        const j = await fetchStudy(params);
-        if (!j?.ok) throw new Error(j?.error || "Réponse API invalide");
-
-        // 2) Injection
-        injectStudySections(j?.data?.sections || []);
-        log(`[${new Date().toISOString()}] étude OK → ${j?.data?.meta?.reference || ""}`);
-      } catch (ex) {
-        // "Failed to fetch" / abort / CORS / 404 function
-        err("Échec étude:", ex);
-        alert("Erreur pendant la génération : " + (ex?.message || ex));
-      }
-    });
-  }
-
-  function wireReadBible() {
-    const btns = $$("a, button").filter(el => /lire la bible/i.test(el.innerText || ""));
-    for (const b of btns) if (b.tagName.toLowerCase() === "a") b.setAttribute("target", "_blank");
-  }
-
-  // ---------- boot ----------
-  function boot() {
-    try {
-      wireGenerate();
-      wireReadBible();
-      log("Init OK");
+      console.log("[GEN] source=study-28/api.bible sections=%d → étude générée OK", (j.data?.sections || []).length);
+      renderStudy(j.data);
     } catch (e) {
-      err("Init error:", e);
+      alert("Erreur pendant la génération : " + (e?.message || e));
+      console.error(e);
     }
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  if (btnGenerate) {
+    btnGenerate.addEventListener("click", generate);
   } else {
-    boot();
+    console.warn("[APP] Bouton 'Générer' introuvable — wiring ignoré (aucune casse).");
   }
-
-  // Expose debug
-  window.BibleEtude = {
-    healthCheck, fetchStudy, injectStudySections, readUIParams
-  };
 })();
