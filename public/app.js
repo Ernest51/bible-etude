@@ -1,28 +1,25 @@
-/* public/app.js — version “vanilla-safe”
- * - AUCUN sélecteur CSS expérimental (pas de :has, :contains…)
- * - Injection déterministe des 28 rubriques (index → fallback titre)
- * - Ne touche pas au reste de ta page (pas d’override agressif)
- */
+/* public/app.js — robuste + pré-check API
+   - Aucun sélecteur CSS exotique (:has, :contains)
+   - Pré-check /api/health avant /api/study-28
+   - Journalisation claire des erreurs réseau
+   - Injection déterministe des 28 rubriques
+*/
 
 (function () {
   "use strict";
 
-  // --------- Petits utilitaires ---------
+  // ---------- utils ----------
   const log = (...a) => console.log("[APP]", ...a);
   const warn = (...a) => console.warn("[APP]", ...a);
   const err = (...a) => console.error("[APP]", ...a);
-
-  const $  = (sel, root = document) => root.querySelector(sel);
-  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
   function normTitle(s = "") {
-    return s
-      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase().replace(/\s+/g, " ")
-      .trim();
+    return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/\s+/g, " ").trim();
   }
 
-  // L’ordre canonique de la colonne (doit rester aligné avec l’API)
   const CANON_TITLES = [
     "Prière d’ouverture","Canon et testament","Questions du chapitre précédent","Titre du chapitre",
     "Contexte historique","Structure littéraire","Genre littéraire","Thème central","Résumé en une phrase",
@@ -33,85 +30,65 @@
     "Prière guidée","Méditation courte","Versets à mémoriser (2–3)"
   ];
   const CANON = CANON_TITLES.map(normTitle);
-  const CANON_MAP = new Map(CANON.map((t, i) => [t, i + 1])); // titre → index(1..28)
+  const CANON_MAP = new Map(CANON.map((t, i) => [t, i + 1]));
 
-  // --------- Sélection des éléments de la page (robuste) ---------
-  // Bouton "Générer"
+  // fetch JSON avec timeout et messages clairs
+  async function fetchJSON(url, opts = {}, timeoutMs = 15000) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...opts, signal: ctrl.signal });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status} ${res.statusText} — ${text.slice(0, 200)}`);
+      }
+      return await res.json();
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  // ---------- éléments UI ----------
   function findGenerateButton() {
-    // 1) bouton avec texte "Générer"
     const candidates = $$("button, .btn, input[type=button], input[type=submit]");
     for (const el of candidates) {
       const txt = (el.innerText || el.value || "").trim().toLowerCase();
-      if (txt === "générer" || txt === "generation..." || txt.includes("génér")) {
-        return el;
-      }
+      if (txt === "générer" || txt.includes("génér")) return el;
     }
-    // 2) fallback : premier bouton dans la zone d’action à gauche
-    return $("button");
+    return null;
   }
 
-  // Selects pour livre/chapitre/verset/traduction (récupère les 4 premiers <select>)
   function findSelects() {
-    // On prend les 4 premiers selects après la barre de recherche
     const selects = $$("select");
-    // Essaie d’identifier par heuristique
-    let bookSel    = selects.find(s => /gen[eè]se|matthieu|genesis|book/i.test(s.textContent || "")) || selects[0];
-    let chapSel    = selects.find(s => s !== bookSel && /^\s*\d+\s*$/.test(s.value || s.selectedOptions?.[0]?.text || "")) || selects[1];
-    let verseSel   = selects.find(s => s !== bookSel && s !== chapSel && /^\s*\d+\s*$/.test(s.value || s.selectedOptions?.[0]?.text || "")) || selects[2];
-    let transSel   = selects.find(s => /segond|darby|traduction|version|louis|jnd|lsg/i.test(s.textContent || s.value || "")) || selects[3];
-
+    let bookSel = selects.find(s => /gen[eè]se|matthieu|marc|luc|jean|romains|psaumes|genesis|book/i.test(s.textContent||"")) || selects[0];
+    let chapSel = selects.find(s => s !== bookSel && /^\s*\d+\s*$/.test(s.value || s.selectedOptions?.[0]?.text || "")) || selects[1];
+    let verseSel = selects.find(s => s !== bookSel && s !== chapSel && /^\s*\d+\s*$/.test(s.value || s.selectedOptions?.[0]?.text || "")) || selects[2];
+    let transSel = selects.find(s => /segond|darby|traduction|version|louis|jnd|lsg/i.test(s.textContent || s.value || "")) || selects[3];
     return { bookSel, chapSel, verseSel, transSel };
   }
 
-  // Récupère la liste d’items “rubriques” dans la colonne gauche
   function getRubriqueItems() {
-    // Essaie quelques patterns connus ; s’il n’y a pas d’attributs dédiés, on prend les lignes de la <ul>/<div> des rubriques
     let items = $$('[data-rubrique]');
     if (items.length) return items;
 
     items = $$(".rubriques li, .rubriques .row, .rubriques .item");
     if (items.length) return items;
 
-    // fallback : beaucoup d’implémentations utilisent un conteneur avec un titre “Rubriques”, puis une liste juste après
-    const header = $$("*").find(el => /rubriques/i.test(el.textContent || "") && /h\d|strong|b/.test(el.tagName.toLowerCase()));
-    if (header) {
-      const container = header.parentElement?.nextElementSibling || header.closest("section,div");
-      if (container) {
-        const rows = $$("li, .row, [role='button'], button", container).filter(r => (r.innerText || "").trim().length > 0);
-        if (rows.length) return rows;
-      }
-    }
-
-    // dernier recours : on tente une liste d’items cliquables avec numéro
-    const generic = $$("li, .row, .list-group-item").filter(el => /\b\d+\b/.test(el.textContent || ""));
-    return generic;
+    const blocks = $$("li, .row, .list-group-item").filter(el => /\b\d+\b/.test(el.textContent || ""));
+    return blocks;
   }
 
-  // Sélectionne la i-ème rubrique (1..N)
   function selectRubrique(index1) {
     const items = getRubriqueItems();
     const el = items[index1 - 1];
     if (!el) return false;
-    // essaie un clic sur l’item ; sinon clique sur un bouton interne
-    const clickTarget =
-      el.querySelector("button, [role='button'], a") || el;
-    clickTarget.scrollIntoView?.({ block: "nearest" });
-    clickTarget.click?.();
+    (el.querySelector("button, [role='button'], a") || el).click?.();
+    el.scrollIntoView?.({ block: "nearest" });
     return true;
   }
 
-  // Zone d’édition (pane de droite)
   function findEditorArea() {
-    // textarea classique
-    let el = $("textarea");
-    if (el) return el;
-    // éditeur contenteditable
-    el = $('[contenteditable="true"]');
-    if (el) return el;
-    // certains templates : .editor textarea
-    el = $(".editor textarea");
-    if (el) return el;
-    return null;
+    return $("textarea") || $('[contenteditable="true"]') || $(".editor textarea") || null;
   }
 
   function setEditorContent(text) {
@@ -128,128 +105,119 @@
     return true;
   }
 
-  // --------- Appel API / injection ---------
-  async function fetchStudy({ book, chapter, verse = "", translation = "JND", bibleId = "" }) {
+  // ---------- API ----------
+  async function healthCheck() {
+    const url = `/api/health`;
+    log("Health check →", url);
+    try {
+      const j = await fetchJSON(url, { headers: { accept: "application/json" } }, 7000);
+      return { ok: !!j?.ok, data: j };
+    } catch (e) {
+      return { ok: false, error: e.message || String(e) };
+    }
+  }
+
+  async function fetchStudy(params) {
     const usp = new URLSearchParams({
-      book: book || "Genèse",
-      chapter: String(chapter || "1"),
-      translation: translation || "JND",
-      mode: "full",
+      book: params.book || "Genèse",
+      chapter: String(params.chapter || "1"),
+      translation: params.translation || "JND",
+      mode: "full"
     });
-    if (verse) usp.set("verse", verse);
-    if (bibleId) usp.set("bibleId", bibleId);
-    // active la trace en dev : usp.set("trace","1");
+    if (params.verse) usp.set("verse", params.verse);
+    if (params.bibleId) usp.set("bibleId", params.bibleId);
 
     const url = `/api/study-28?${usp.toString()}`;
-    const res = await fetch(url, { headers: { accept: "application/json" } });
-    if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      throw new Error(`HTTP ${res.status}: ${t.slice(0, 180)}`);
-    }
-    return res.json();
+    log("Fetch étude →", url);
+    return await fetchJSON(url, { headers: { accept: "application/json" } });
   }
 
-  // Injection : d’abord par index (1..28), fallback par titre normalisé
-  function injectStudySections(sections) {
-    try {
-      if (!Array.isArray(sections)) return;
-      const items = getRubriqueItems();
-      if (!items.length) {
-        warn("Aucune rubrique détectée dans la colonne gauche — injection annulée.");
-        return;
-      }
-
-      // 1) Injection par index (le plus fiable)
-      let injected = 0;
-      const safe = sections.slice(0, 28);
-      if (safe.every(s => Number.isInteger(s.index))) {
-        for (const s of safe) {
-          const idx = Math.min(Math.max(1, s.index), items.length);
-          if (selectRubrique(idx)) {
-            setEditorContent(s.content || "");
-            injected++;
-          }
-        }
-      }
-
-      // 2) Fallback par titre normalisé
-      if (!injected) {
-        for (const s of safe) {
-          const key = CANON_MAP.get(normTitle(s.title || ""));
-          if (key && selectRubrique(key)) {
-            setEditorContent(s.content || "");
-            injected++;
-          }
-        }
-      }
-
-      log(`Injection effectuée : ${injected}/${safe.length}`);
-    } catch (e) {
-      err("Injection error:", e);
+  function injectStudySections(sections = []) {
+    const items = getRubriqueItems();
+    if (!items.length) {
+      warn("Aucune rubrique détectée — injection annulée.");
+      return;
     }
+    const list = sections.slice(0, 28);
+
+    let injected = 0;
+    const allHaveIndex = list.every(s => Number.isInteger(s.index));
+
+    if (allHaveIndex) {
+      for (const s of list) {
+        const idx = Math.min(Math.max(1, s.index), items.length);
+        if (selectRubrique(idx)) {
+          setEditorContent(s.content || "");
+          injected++;
+        }
+      }
+    } else {
+      for (const s of list) {
+        const key = CANON_MAP.get(normTitle(s.title || ""));
+        if (key && selectRubrique(key)) {
+          setEditorContent(s.content || "");
+          injected++;
+        }
+      }
+    }
+
+    log(`Injection : ${injected}/${list.length}`);
   }
 
-  // --------- Lecture des paramètres depuis l’UI ---------
   function readUIParams() {
     const { bookSel, chapSel, verseSel, transSel } = findSelects();
-
-    const getVal = (sel, fallback) => {
-      if (!sel) return fallback;
-      const val = (sel.value || sel.selectedOptions?.[0]?.text || "").trim();
-      return val || fallback;
+    const val = (sel, fb) => sel ? ((sel.value || sel.selectedOptions?.[0]?.text || "").trim() || fb) : fb;
+    return {
+      book: val(bookSel, "Genèse"),
+      chapter: val(chapSel, "1"),
+      verse: val(verseSel, ""),
+      translation: val(transSel, "JND")
     };
-
-    const book = getVal(bookSel, "Genèse");
-    const chapter = getVal(chapSel, "1");
-    const verse = getVal(verseSel, ""); // laisser vide → chapitre entier
-    const trans = getVal(transSel, "JND");
-
-    return { book, chapter, verse, translation: trans };
   }
 
-  // --------- Wiring des boutons ---------
+  // ---------- wiring ----------
   function wireGenerate() {
     const btn = findGenerateButton();
     if (!btn) {
-      warn("Bouton 'Générer' introuvable — wiring ignoré.");
+      warn("Bouton Générer introuvable.");
       return;
     }
 
-    btn.addEventListener("click", async (ev) => {
-      try {
-        ev.preventDefault?.();
-      } catch {}
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault?.();
 
+      // 0) Pré-check API
+      const h = await healthCheck();
+      if (!h.ok) {
+        err("API indisponible — health:", h.error || h.data);
+        alert("API indisponible (health check). Vérifie /api/health dans le navigateur.\n" +
+              "Détail: " + (h.error || JSON.stringify(h.data)));
+        return;
+      }
+
+      // 1) Récupération & fetch
       try {
         const params = readUIParams();
-        log("GEN start →", params);
-        const json = await fetchStudy(params);
+        const j = await fetchStudy(params);
+        if (!j?.ok) throw new Error(j?.error || "Réponse API invalide");
 
-        if (!json?.ok) {
-          throw new Error(json?.error || "Réponse API invalide");
-        }
-
-        const secs = json?.data?.sections || [];
-        injectStudySections(secs);
-
-        log(`[${new Date().toISOString()}] [GEN] source=study-28/api.bible sections=${secs.length} → étude générée + injection OK`);
-      } catch (e) {
-        err("GEN fail:", e?.message || e);
-        alert("Erreur pendant la génération : " + (e?.message || e));
+        // 2) Injection
+        injectStudySections(j?.data?.sections || []);
+        log(`[${new Date().toISOString()}] étude OK → ${j?.data?.meta?.reference || ""}`);
+      } catch (ex) {
+        // "Failed to fetch" / abort / CORS / 404 function
+        err("Échec étude:", ex);
+        alert("Erreur pendant la génération : " + (ex?.message || ex));
       }
-    }, { passive: false });
+    });
   }
 
-  // Lien “Lire la Bible” : on laisse l’existant ; si besoin, on peut ici ouvrir un lecteur externe
   function wireReadBible() {
     const btns = $$("a, button").filter(el => /lire la bible/i.test(el.innerText || ""));
-    // si tu souhaites forcer un target _blank:
-    for (const b of btns) {
-      if (b.tagName.toLowerCase() === "a") b.setAttribute("target", "_blank");
-    }
+    for (const b of btns) if (b.tagName.toLowerCase() === "a") b.setAttribute("target", "_blank");
   }
 
-  // --------- Boot ---------
+  // ---------- boot ----------
   function boot() {
     try {
       wireGenerate();
@@ -260,18 +228,14 @@
     }
   }
 
-  // Expose pour debug
-  window.BibleEtude = {
-    fetchStudy,
-    injectStudySections,
-    readUIParams,
-    _debug: { getRubriqueItems, selectRubrique, setEditorContent }
-  };
-
-  // Démarrage
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot, { once: true });
   } else {
     boot();
   }
+
+  // Expose debug
+  window.BibleEtude = {
+    healthCheck, fetchStudy, injectStudySections, readUIParams
+  };
 })();
