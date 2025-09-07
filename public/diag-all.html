@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Diag global — API + Injection (28 rubriques)</title>
+<style>
+  :root{
+    --bg:#0b1220;--panel:#0f172a;--muted:#94a3b8;--text:#e5e7eb;--acc:#60a5fa;--ok:#22c55e;--err:#ef4444;--b:#1f2a44
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,Segoe UI,Arial,sans-serif}
+  header{padding:16px 20px;border-bottom:1px solid var(--b)}
+  h1{margin:0;font-size:20px}
+  .lead{color:var(--muted);margin:6px 0 0}
+  main{padding:16px 20px;display:grid;gap:14px;max-width:1100px}
+  .card{background:var(--panel);border:1px solid var(--b);border-radius:12px;padding:12px}
+  .row{display:grid;grid-template-columns:repeat(5,minmax(160px,1fr));gap:8px}
+  .row>*{display:flex;flex-direction:column;gap:6px}
+  label{color:#cbd5e1;font-weight:600}
+  input,select,button{border:1px solid var(--b);border-radius:10px;padding:10px 12px;background:#0b1220;color:var(--text);outline:none}
+  input:focus,select:focus{border-color:#334155;box-shadow:0 0 0 3px #1e293b66}
+  button{background:var(--acc);color:#031225;border:none;font-weight:700;cursor:pointer}
+  button.secondary{background:#0b1220;color:#cbd5e1;border:1px solid var(--b)}
+  .pill{display:inline-block;padding:4px 8px;border-radius:999px;border:1px solid var(--b);background:#0b1220;color:#cbd5e1}
+  .ok{color:var(--ok);font-weight:700}
+  .err{color:var(--err);white-space:pre-wrap}
+  pre{white-space:pre-wrap;background:#0b1220;border:1px solid var(--b);border-radius:10px;padding:10px;max-height:300px;overflow:auto}
+  .cols{display:grid;grid-template-columns:300px 1fr;gap:12px}
+  .list{border:1px solid var(--b);border-radius:12px;overflow:auto;background:#0b1220;max-height:520px}
+  .item{padding:8px 10px;border-bottom:1px dashed #1f2a44;cursor:pointer}
+  .item[data-active="1"]{background:#12213b}
+  .dot{float:right;width:8px;height:8px;border-radius:50%;background:#334155;margin-top:6px}
+  .item[data-done="1"] .dot{background:#22c55e}
+  textarea{width:100%;min-height:520px;background:#0b1220;color:var(--text);border:1px solid var(--b);border-radius:12px;padding:10px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:900px){.row{grid-template-columns:1fr 1fr}.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Diagnostic global — Étude 28 points (api.bible)</h1>
+  <p class="lead">Étape 1 : vérif API → Étape 2 : injection → Étape 3 : test E2E (API + injection en chaîne).</p>
+</header>
+
+<main>
+  <!-- ÉTAPE 1 : API -->
+  <section class="card">
+    <h2>1) Vérifier l’API <span class="pill">/api/study-28</span></h2>
+    <div class="row" style="margin-top:6px">
+      <div><label>Livre</label><input id="i_book" value="Genèse"></div>
+      <div><label>Chapitre</label><input id="i_chapter" type="number" min="1" value="1"></div>
+      <div><label>Versets (optionnel)</label><input id="i_verse" placeholder="ex : 1-5"></div>
+      <div><label>Traduction (meta)</label><input id="i_translation" value="JND"></div>
+      <div style="display:flex;align-items:end;gap:8px">
+        <button id="btn_api">🧪 Tester API</button>
+        <button id="btn_dry" class="secondary">Dry-run</button>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top:10px">
+      <div>
+        <div id="api_status">—</div>
+        <div id="api_meta" style="color:#93c5fd;margin:6px 0">—</div>
+        <div id="api_list" class="list">—</div>
+      </div>
+      <div>
+        <details open>
+          <summary>JSON brut</summary>
+          <pre id="api_raw">—</pre>
+        </details>
+        <details style="margin-top:10px">
+          <summary>Trace interne</summary>
+          <pre id="api_trace">—</pre>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ÉTAPE 2 : Injection -->
+  <section class="card">
+    <h2>2) Injection — simulateur (liste 28 rubriques → éditeur)</h2>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <button id="btn_fill_from_last">Remplir depuis la DERNIÈRE réponse API</button>
+      <button id="btn_fill_refetch" class="secondary">Re-fetch & Remplir</button>
+      <span id="inj_info" class="pill">—</span>
+    </div>
+    <div class="cols">
+      <div class="list" id="inj_list"></div>
+      <textarea id="inj_editor" placeholder="Écris ici…"></textarea>
+    </div>
+  </section>
+
+  <!-- ÉTAPE 3 : E2E -->
+  <section class="card">
+    <h2>3) Test E2E — API + injection en chaîne</h2>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <button id="btn_e2e">Lancer E2E (re-utilise les paramètres d’étape 1)</button>
+      <span id="e2e_status" class="pill">—</span>
+    </div>
+    <div class="grid2">
+      <div>
+        <div id="e2e_meta" style="color:#93c5fd;margin:6px 0">—</div>
+        <div id="e2e_list" class="list">—</div>
+      </div>
+      <div>
+        <textarea id="e2e_editor" placeholder="Éditeur (E2E)…"></textarea>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+/* =====================
+   Utilitaires
+===================== */
+const $ = s => document.querySelector(s);
+function esc(s=""){return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")}
+function strip(html){return String(html||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim()}
+
+/* Conserver la dernière réponse API pour l’injection étape 2 */
+let lastApi = null;
+
+/* =====================
+   ÉTAPE 1 : Vérif API
+===================== */
+async function runApi({live=true}={}){
+  const book = $("#i_book").value.trim();
+  const chapter = $("#i_chapter").value.trim();
+  const verse = $("#i_verse").value.trim();
+  const translation = $("#i_translation").value.trim() || "JND";
+
+  const qs = new URLSearchParams({ book, chapter, translation, mode:"full", trace:"1" });
+  if (verse) qs.set("verse", verse);
+  if (!live) qs.set("dry","1");
+
+  $("#api_status").textContent = "⏳ appel en cours…";
+  $("#api_list").textContent = "—";
+  $("#api_meta").textContent = "—";
+  $("#api_raw").textContent = "—";
+  $("#api_trace").textContent = "—";
+
+  const r = await fetch("/api/study-28?"+qs.toString(), { headers:{accept:"application/json"}, cache:"no-store" });
+  const text = await r.text();
+  let j = null; try { j = JSON.parse(text); } catch {}
+  $("#api_raw").textContent = text;
+
+  if (!r.ok || !j || j.ok===false) {
+    $("#api_status").innerHTML = `<span class="err">HTTP ${r.status}${j?.error?": "+esc(j.error):""}</span>`;
+    return null;
+  }
+  $("#api_status").innerHTML = `<span class="ok">HTTP ${r.status} OK</span>`;
+  const meta = j.data?.meta || {};
+  $("#api_meta").textContent = `Ref: ${meta.reference||"?"} • OSIS: ${meta.osis||"?"} • Trad: ${meta.translation||"?"}`;
+
+  const secs = Array.isArray(j.data?.sections) ? j.data.sections : [];
+  $("#api_list").innerHTML = secs.map(s=>(
+    `<div class="item"><b>${s.index}. ${esc(s.title||"")}</b><br>${esc((s.content||"").slice(0,220))}${(s.content||"").length>220?"…":""}</div>`
+  )).join("") || "—";
+
+  const trace = j.trace ? JSON.stringify(j.trace,null,2) : "—";
+  $("#api_trace").textContent = trace;
+
+  lastApi = j;  // mémorise
+  return j;
+}
+
+$("#btn_api").onclick = ()=>runApi({live:true});
+$("#btn_dry").onclick = ()=>runApi({live:false});
+
+/* =====================
+   ÉTAPE 2 : Injection
+===================== */
+const TITLES = [
+  "Prière d’ouverture","Canon et testament","Questions du chapitre précédent","Titre du chapitre","Contexte historique","Structure littéraire","Genre littéraire","Thème central","Résumé en une phrase","Mots-clés","Termes clés (définis)","Personnages et lieux","Problème / Question de départ","Idées majeures (développement)","Verset pivot (climax)","Références croisées (AT)","Références croisées (NT)","Parallèles bibliques","Lien avec l’Évangile (Christocentrique)","Vérités doctrinales (3–5)","Promesses et avertissements","Principes intemporels","Applications personnelles (3–5)","Applications communautaires","Questions pour petits groupes (6)","Prière guidée","Méditation courte","Versets à mémoriser (2–3)","Difficultés/objections & réponses","Ressources complémentaires"
+];
+let injNotes = {}, injIdx = 0;
+
+function injRenderList(){
+  const list = $("#inj_list");
+  list.innerHTML = TITLES.map((t,i)=>`
+    <div class="item" data-i="${i}" ${i===injIdx?'data-active="1"':''} ${injNotes[i]&&injNotes[i].trim()?'data-done="1"':''}>
+      ${i+1}. ${esc(t)} <span class="dot"></span>
+    </div>
+  `).join("");
+  list.querySelectorAll(".item").forEach(el=>{
+    el.onclick = ()=>{ injNotes[injIdx] = $("#inj_editor").value; injIdx = +el.dataset.i; $("#inj_editor").value = injNotes[injIdx] || ""; injRenderList(); };
+  });
+}
+function injReset(){ injNotes={}; for(let i=0;i<TITLES.length;i++) injNotes[i] = ""; injIdx=0; $("#inj_editor").value=""; injRenderList(); }
+injReset();
+
+function fillFromApiPayload(payload){
+  if (!payload) return false;
+  const secs = Array.isArray(payload.data?.sections) ? payload.data.sections : [];
+  injReset();
+  secs.forEach(s=>{
+    const k = (s.index|0) - 1;
+    if (k>=0 && k<TITLES.length){
+      injNotes[k] = strip(s.content || "");
+    }
+  });
+  $("#inj_editor").value = injNotes[0] || "";
+  injRenderList();
+  $("#inj_info").textContent = `Injecté: ${secs.length} sections`;
+  return true;
+}
+
+$("#btn_fill_from_last").onclick = ()=>{
+  const ok = fillFromApiPayload(lastApi);
+  if (!ok) $("#inj_info").textContent = "Aucune réponse API en mémoire (lance l’étape 1)";
+};
+$("#btn_fill_refetch").onclick = async ()=>{
+  const j = await runApi({live:true});
+  if (j) fillFromApiPayload(j);
+};
+
+/* =====================
+   ÉTAPE 3 : E2E
+===================== */
+$("#btn_e2e").onclick = async ()=>{
+  $("#e2e_status").textContent = "⏳";
+  const j = await runApi({live:true});
+  if (!j){ $("#e2e_status").textContent = "Erreur API"; return; }
+
+  // rendu liste + éditeur
+  const meta = j.data?.meta || {};
+  $("#e2e_meta").textContent = `Ref: ${meta.reference||"?"} • OSIS: ${meta.osis||"?"} • Trad: ${meta.translation||"?"}`;
+  const secs = Array.isArray(j.data?.sections) ? j.data.sections : [];
+  $("#e2e_list").innerHTML = secs.map(s=>(
+    `<div class="item"><b>${s.index}. ${esc(s.title||"")}</b><br>${esc((s.content||"").slice(0,180))}${(s.content||"").length>180?"…":""}</div>`
+  )).join("") || "—";
+  $("#e2e_editor").value = secs.length ? strip(secs[0].content||"") : "";
+
+  $("#e2e_status").textContent = `OK (${secs.length} sections)`;
+};
+</script>
+</body>
+</html>
