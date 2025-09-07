@@ -18,7 +18,6 @@
       --link:var(--accent);
       --shadow:0 1px 2px rgba(0,0,0,.06);
     }
-    /* Palette presets (inspirées Tailwind) */
     [data-theme="cyan"]  { --accent:#0891b2; --accent-600:#0e7490; --accent-700:#155e75; --accent-soft:#e0f2fe; --bg:#f4f9fb; }
     [data-theme="violet"]{ --accent:#7c3aed; --accent-600:#6d28d9; --accent-700:#5b21b6; --accent-soft:#ede9fe; --bg:#f7f5ff; }
     [data-theme="vert"]  { --accent:#059669; --accent-600:#047857; --accent-700:#065f46; --accent-soft:#dcfce7; --bg:#f4fbf7; }
@@ -39,7 +38,6 @@
     @media (max-width:1200px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}.controls .wide{grid-column:1/-1}}
     input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%;background:#fff;color:var(--text)}
 
-    /* Boutons harmonisés par thème */
     .btn{border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;box-shadow:var(--shadow);transition:transform .02s ease}
     .btn:active{transform:translateY(1px)}
     .btn.primary{background:var(--btn-primary-bg);color:var(--btn-primary-fg)}
@@ -69,7 +67,7 @@
 
     .links-panel{background:#fafafa;border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
     .links-panel.empty{display:none}
-    .last-study{margin:10px 0 0 0; padding:10px 12px; background:#fff; border:1px solid var(--border); border-radius:10px; font-size:14px; display:flex; align-items:center; gap:8px}
+    .last-study{margin:10px 0 0 0; padding:10px 12px; background:#fff; border:1px solid var(--border); border-radius:10px; font-size:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
     .last-study a{color:var(--link); text-decoration:underline}
 
     /* ---- Rubrique Thème : palette 8 couleurs ---- */
@@ -88,7 +86,7 @@
 
   <main>
     <div class="controls">
-      <input id="searchRef" class="wide" type="text" placeholder="Rechercher (ex : Marc 5:1, 1 Jean 2, Genèse 1:1-5)" />
+      <input id="searchRef" class="wide" type="text" placeholder="Rechercher (ex : Marc 5:2, Luc, 1 Jean 2:1-5)" />
       <select id="bookSelect" title="Livre"></select>
       <select id="chapterSelect" title="Chapitre"></select>
       <select id="verseSelect" title="Verset"></select>
@@ -133,7 +131,7 @@
       <strong>Dernière étude :</strong>
       <span id="lastStudyText"></span>
       <a id="lastStudyOpen" href="#" target="_blank" rel="noopener">Ouvrir sur BibleGateway</a>
-      <button id="lastStudyUse" class="btn secondary" type="button" style="margin-left:auto;">Recharger</button>
+      <button id="lastStudyUse" class="btn secondary" type="button">Recharger</button>
     </div>
 
     <div class="layout">
@@ -196,8 +194,6 @@
     function applyTheme(name){
       if(!THEMES.includes(name)) name = "cyan";
       document.body.setAttribute('data-theme', name);
-      // Harmoniser boutons/liens à partir des variables :
-      // (déjà basés sur --accent / --accent-600 / --accent-700)
       localStorage.setItem(STORAGE_THEME, name);
       positionThumbByTheme(name);
     }
@@ -235,8 +231,30 @@
     }
     function openOnBibleGateway(ref){ window.open(buildGatewayUrl(ref), '_blank', 'noopener,noreferrer'); }
 
-    // ---- Livres (FR) ----
-    const BOOKS = ["Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth","1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther","Job","Psaumes","Proverbes","Ecclésiaste","Cantique des Cantiques","Ésaïe","Esaïe","Jérémie","Lamentations","Ézéchiel","Ezechiel","Daniel","Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie","Aggée","Zacharie","Malachie","Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"];
+    // ---- Canon 66 (FR) + nb chapitres ----
+    const ORDER_66 = [
+      "Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth",
+      "1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther",
+      "Job","Psaumes","Proverbes","Ecclésiaste","Cantique des Cantiques","Ésaïe","Jérémie","Lamentations","Ézéchiel","Daniel",
+      "Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie","Aggée","Zacharie","Malachie",
+      "Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens",
+      "1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre",
+      "1 Jean","2 Jean","3 Jean","Jude","Apocalypse"
+    ];
+    const CHAPTERS_66 = {
+      "Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,
+      "1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,
+      "Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,
+      "Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,
+      "Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,
+      "1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,
+      "1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22
+    };
+    // Petits alias clavier (accents, variantes) -> clé canonique
+    const CANON_ALIAS = { "esaïe":"Ésaïe", "esäie":"Ésaïe", "esaie":"Ésaïe", "ezechiel":"Ézéchiel", "ezekiel":"Ézéchiel" };
+
+    // ---- Liste de livres (pour select) ----
+    const BOOKS = ORDER_66.slice(); // pour la linkification et les selects
 
     // ---- Linkifier robuste (inclut multi-références héritées & v.X) ----
     const BOOKS_RE_SRC = '\\b(' + BOOKS.map(b=>b.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')).join('|') + ')\\s+(\\d+)(?::\\s*(\\d+(?:\\s*[–-]\\s*\\d+)?(?:\\s*,\\s*\\d+(?:\\s*[–-]\\s*\\d+)?)*)\\s*)?';
@@ -421,6 +439,119 @@
       buildList();
     }
 
+    // ---- Sélecteurs (adaptés au canon 66) ----
+    function initSelects(){
+      bookSelect.innerHTML = '<option value="">Livre…</option>' + ORDER_66.map(b=>`<option>${b}</option>`).join('');
+      rebuildChapterOptions(''); // vide initial
+      rebuildVerseOptions();
+    }
+    function rebuildChapterOptions(book){
+      const max = CHAPTERS_66[book] || 0;
+      const current = Number(chapterSelect.value)||0;
+      let opts = '<option value="">Chapitre…</option>';
+      for(let i=1;i<=max;i++) opts += `<option>${i}</option>`;
+      chapterSelect.innerHTML = opts;
+      if(max>0){
+        const v = current>=1 && current<=max ? String(current) : '1';
+        chapterSelect.value = v;
+      }
+    }
+    function rebuildVerseOptions(){
+      // on laisse 1..176 (max psaumes 119 dépasse, mais c'est par versets d'autres livres),
+      // l’utilisateur peut lier des plages ; pas d’exigence de borne exacte par chapitre ici
+      let opts = '<option value="">Verset…</option>';
+      for(let i=1;i<=176;i++) opts += `<option>${i}</option>`;
+      verseSelect.innerHTML = opts;
+    }
+    bookSelect.addEventListener('change', ()=>{
+      const book = bookSelect.value || '';
+      rebuildChapterOptions(book);
+    });
+
+    // ---- Recherche : parser "Luc", "Luc 3", "Marc 5:2-4", "1 Jean 2:1-5,7" ----
+    function normalizeStr(s){
+      return s.toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // strip accents
+        .replace(/[^\w\s:,-]/g,' ')
+        .replace(/\s+/g,' ').trim();
+    }
+    function findBookFromInput(tok){
+      const t = normalizeStr(tok);
+      // alias directs
+      if(CANON_ALIAS[t]) return CANON_ALIAS[t];
+      // recherche par début (ex: "luc" -> "Luc", "mar"->"Marc")
+      const found = ORDER_66.find(b => normalizeStr(b).startsWith(t));
+      return found || null;
+    }
+    function parseReference(input){
+      // retourne { book, chapter, verseSpec } ou null si pas trouvable
+      const s = input.trim();
+      if(!s) return null;
+
+      // Essai direct avec motif "Book Chapter(:VerseSpec)?"
+      const re = new RegExp('^\\s*([\\p{L}\\p{M}\\d\\s]+?)\\s*(\\d+)?(?:\\s*[:]\\s*([\\d,\\-–\\s]+))?\\s*$', 'u');
+      const m = s.match(re);
+      if(!m) return null;
+
+      let rawBook = (m[1]||'').trim();
+      let chapter = (m[2]||'').trim();
+      let verseSpec = (m[3]||'').trim();
+
+      // book peut contenir des chiffres devant (ex: "1 Jean")
+      // on tente une résolution permissive par startsWith
+      let book = findBookFromInput(rawBook);
+      if(!book) return null;
+
+      // défauts
+      if(!chapter) chapter = '1';
+      // nettoyer verset spec (remplacer en-dash)
+      verseSpec = verseSpec ? verseSpec.replace(/–/g,'-').replace(/\s+/g,'') : '';
+
+      // clamp chapitre au max du livre
+      const max = CHAPTERS_66[book] || 0;
+      if(max && Number(chapter) > max) chapter = String(max);
+
+      return { book, chapter, verseSpec };
+    }
+
+    function applyParsedRef(ref){
+      if(!ref) return false;
+      setSelectValue(bookSelect, ref.book);
+      rebuildChapterOptions(ref.book);
+      setSelectValue(chapterSelect, ref.chapter);
+      rebuildVerseOptions();
+      if(ref.verseSpec){
+        // si c'est une liste "2,4-6", on choisit le premier verset pour l'UI
+        const first = String(ref.verseSpec).split(',')[0].split('-')[0];
+        setSelectValue(verseSelect, first);
+      }else{
+        verseSelect.value = '';
+      }
+      // mettre en forme canonique dans le champ recherche
+      searchRef.value = ref.book + ' ' + ref.chapter + (ref.verseSpec ? (':' + ref.verseSpec) : '');
+      return true;
+    }
+
+    searchRef.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){
+        const ref = parseReference(searchRef.value);
+        if(ref){
+          applyParsedRef(ref);
+          e.preventDefault();
+        }
+      }
+    });
+    searchRef.addEventListener('blur', ()=>{
+      if(!searchRef.value.trim()) return;
+      const ref = parseReference(searchRef.value);
+      if(ref) applyParsedRef(ref);
+    });
+
+    function setSelectValue(sel, val){
+      const opt = [...sel.options].find(o=>o.value===val || o.textContent===val);
+      if(opt){ sel.value = opt.value; }
+    }
+
     // ---- Génération ----
     function setGenerating(on){
       generateBtn.disabled = on;
@@ -452,6 +583,12 @@
       updateEditor();
     }
 
+    function saveLastStudy({book, chapter, verseSpec}){
+      const last = { book, chapter, verse: verseSpec || (verseSelect.value||''), ts: Date.now() };
+      localStorage.setItem(STORAGE_LAST, JSON.stringify(last));
+      renderLastStudyPanel();
+    }
+
     async function generateStudy(){
       const book = (bookSelect.value||'').trim();
       const ch   = (chapterSelect.value||'').trim();
@@ -459,15 +596,14 @@
       const url = '/api/generate-study?book='+encodeURIComponent(book)+'&chapter='+encodeURIComponent(ch);
       setGenerating(true);
       try{
-        const r = await fetch(url);
+        const r = await fetch(url, { cache:'no-store' });
         if(!r.ok) throw new Error('HTTP '+r.status);
         const data = await r.json();
         renderIntoNotes(data);
 
-        // Sauvegarder la dernière étude (Livre + Chapitre)
-        const last = { book, chapter: ch, ts: Date.now() };
-        localStorage.setItem(STORAGE_LAST, JSON.stringify(last));
-        renderLastStudyPanel();
+        // Sauvegarder la dernière étude (Livre + Chapitre + Verset éventuel)
+        const verseSpec = (searchRef.value.includes(':') ? (searchRef.value.split(':')[1]||'').trim() : (verseSelect.value||''));
+        saveLastStudy({ book, chapter: ch, verseSpec });
       }catch(e){
         alert('Génération indisponible pour le moment.');
       }finally{
@@ -479,13 +615,22 @@
     // ---- Lire la Bible (Gateway) ----
     readBtn.addEventListener('click', ()=>{
       const raw = (searchRef.value||'').trim().replace(/\s+/g,' ');
-      if(raw){ openOnBibleGateway(raw); return; }
+      let refObj = null;
+      if(raw) refObj = parseReference(raw);
+      if(refObj){
+        applyParsedRef(refObj);
+        const refStr = refObj.book + ' ' + refObj.chapter + (refObj.verseSpec?(':'+refObj.verseSpec):'');
+        openOnBibleGateway(refStr);
+        saveLastStudy({ book: refObj.book, chapter: refObj.chapter, verseSpec: refObj.verseSpec||'' });
+        return;
+      }
       const book = (bookSelect.value||'').trim();
       const ch = (chapterSelect.value||'').trim();
       const v = (verseSelect.value||'').trim();
       if(!book || !ch){ alert('Indique un livre et un chapitre.'); return; }
       const ref = book + ' ' + ch + (v?(':'+v):'');
       openOnBibleGateway(ref);
+      saveLastStudy({ book, chapter: ch, verseSpec: v });
     });
 
     // ---- Réinitialiser ----
@@ -500,18 +645,23 @@
     }
     resetBtn.addEventListener('click', resetStudy);
 
-    // ---- Panneau "Dernière étude" ----
+    // ---- Panneau "Dernière étude" (Livre + Chapitre + Verset) ----
     function renderLastStudyPanel(){
       const raw = localStorage.getItem(STORAGE_LAST);
       if(!raw){ lastPanel.style.display='none'; return; }
-      const { book, chapter } = JSON.parse(raw);
+      const { book, chapter, verse } = JSON.parse(raw);
       if(!book || !chapter){ lastPanel.style.display='none'; return; }
-      lastText.textContent = `${book} ${chapter}`;
-      lastOpen.href = buildGatewayUrl(`${book} ${chapter}`);
+      const refStr = book + ' ' + chapter + (verse?(':'+verse):'');
+      lastText.textContent = refStr;
+      lastOpen.href = buildGatewayUrl(refStr);
       lastPanel.style.display='flex';
       lastUse.onclick = ()=>{
         setSelectValue(bookSelect, book);
+        rebuildChapterOptions(book);
         setSelectValue(chapterSelect, String(chapter));
+        rebuildVerseOptions();
+        if(verse){ setSelectValue(verseSelect, String(verse).split(',')[0].split('-')[0]); }
+        searchRef.value = refStr;
       };
     }
 
@@ -523,33 +673,26 @@
       });
       const raw = localStorage.getItem(STORAGE_LAST);
       if(raw){
-        const { book, chapter } = JSON.parse(raw);
-        if(book && chapter){ lastOpen.href = buildGatewayUrl(`${book} ${chapter}`); }
+        const { book, chapter, verse } = JSON.parse(raw);
+        if(book && chapter){
+          lastOpen.href = buildGatewayUrl(book + ' ' + chapter + (verse?(':'+verse):''));
+        }
       }
     });
 
-    // ---- Selects ----
-    function initSelects(){
-      bookSelect.innerHTML = '<option value="">Livre…</option>' + BOOKS.map(b=>`<option>${b}</option>`).join('');
-      chapterSelect.innerHTML = '<option value="">Chapitre…</option>' + Array.from({length:150},(_,i)=>`<option>${i+1}</option>`).join('');
-      verseSelect.innerHTML = '<option value="">Verset…</option>' + Array.from({length:176},(_,i)=>`<option>${i+1}</option>`).join('');
-    }
+    // ---- Init ----
     function setSelectValue(sel, val){
       const opt = [...sel.options].find(o=>o.value===val || o.textContent===val);
       if(opt){ sel.value = opt.value; }
     }
 
-    document.getElementById('prev').addEventListener('click', ()=>{ state.current=(state.current-1+state.points.length)%state.points.length; updateEditor(); });
-    document.getElementById('next').addEventListener('click', ()=>{ state.current=(state.current+1)%state.points.length; updateEditor(); });
-
-    // ---- Init ----
     (async function init(){
       initSelects();
       await loadPoints();
-      renderLastStudyPanel();
       // Appliquer le thème mémorisé
       const savedTheme = localStorage.getItem(STORAGE_THEME) || 'cyan';
       applyTheme(savedTheme);
+      renderLastStudyPanel();
       syncView();
     })();
   })();
