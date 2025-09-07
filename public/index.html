@@ -81,7 +81,7 @@
 
   <main>
     <div class="controls">
-      <input id="searchRef" class="wide" type="text" placeholder="Rechercher (ex : Marc 5:1, 1 Jean 2, Genèse 1:1-5)" />
+      <input id="searchRef" class="wide" type="text" placeholder="Rechercher (ex : Marc 5:1, 1 Jean 2, Genèse 1:1-5)" autocomplete="off" />
       <select id="bookSelect" title="Livre"></select>
       <select id="chapterSelect" title="Chapitre"></select>
       <select id="verseSelect" title="Verset"></select>
@@ -154,9 +154,7 @@
     <div id="debugPanel">[init]</div>
   </footer>
 
-  <!-- Bump de version pour forcer le cache -->
-  <script src="/app.js?v=2025-09-03-injections-3" defer></script>
-
+  <!-- NOTE: on ne charge plus /app.js?v=... pour éviter les conflits et l'erreur de parsing -->
   <!-- === Intégration API Bible + Plan 28 rubriques === -->
   <script>
   (function(){
@@ -195,7 +193,7 @@
           if(name.startsWith('on') || ['style','srcset'].includes(name)) el.removeAttribute(a.name);
           if(el.tagName==='A' && name==='href'){
             try{
-              const u = new URL(a.value, location.origin);
+              new URL(a.value, location.origin);
               // ok
             }catch{ el.removeAttribute('href'); }
           }
@@ -220,7 +218,7 @@
       const p = $('#debugPanel');
       if(!p) return;
       const time = new Date().toLocaleTimeString();
-      p.textContent += '\\n['+time+'] '+t;
+      p.textContent += '\n['+time+'] '+t;
       p.scrollTop = p.scrollHeight;
     }
 
@@ -347,7 +345,7 @@
       els.noteArea.style.display = enriched ? 'none' : 'block';
       // si on bascule vers la vue enrichie, copier le texte courant
       if(enriched && els.noteView.innerHTML.trim()==='' && els.noteArea.value.trim()!==''){
-        els.noteView.innerHTML = '<p>'+escapeHtml(els.noteArea.value).replace(/\\n\\n/g,'</p><p>').replace(/\\n/g,'<br>')+'</p>';
+        els.noteView.innerHTML = '<p>'+escapeHtml(els.noteArea.value).replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>')+'</p>';
       }
     }
 
@@ -359,12 +357,12 @@
         const re = new RegExp('^\\s*('+escapeReg(b)+')\\s+(\\d{1,3})(?::\\s*([0-9,\\-–;\\s]+))?\\s*$', 'i');
         const m = s.match(re);
         if(m){
-          return {book:b, chapter:m[2], verses:(m[3]||'').replace(/\\s+/g,'')};
+          return {book:b, chapter:m[2], verses:(m[3]||'').replace(/\s+/g,'')};
         }
       }
       return null;
     }
-    function escapeReg(s){ return s.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'); }
+    function escapeReg(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
     function getSelection(){
       let book = els.book.value || '';
@@ -441,7 +439,7 @@
       if(els.enrich.checked){
         els.noteView.innerHTML = clean;
       }else{
-        els.noteArea.value = clean.replace(/<br\\s*\\/?>/gi,'\\n').replace(/<[^>]+>/g,'');
+        els.noteArea.value = clean.replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,'');
       }
       // liens utiles
       installLinksPanel(ctx);
@@ -467,7 +465,7 @@
       const pattern = new RegExp('('+BOOKS.map(escapeReg).join('|')+')\\s+(\\d{1,3})(?::([0-9,\\-–;\\s]+))?', 'g');
       const version = els.version.value || 'LSG';
       const replaced = html.replace(pattern, (m,book,chap,verses)=>{
-        const url = buildGatewayURL({book, chapter:chap, verses:(verses||'').replace(/\\s+/g,''), version});
+        const url = buildGatewayURL({book, chapter:chap, verses:(verses||'').replace(/\s+/g,''), version});
         return '<a href="'+url+'" target="_blank" rel="noopener">'+escapeHtml(m)+'</a>';
       });
       els.noteView.innerHTML = sanitizeHtml(replaced);
@@ -506,7 +504,7 @@
       if(els.enrich.checked){
         els.noteView.innerHTML = safe;
       }else{
-        els.noteArea.value = safe.replace(/<br\\s*\\/?>/gi,'\\n').replace(/<[^>]+>/g,'');
+        els.noteArea.value = safe.replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,'');
       }
       els.metaInfo.textContent = 'Point '+(i+1)+' / '+state.sections.length;
       // marquer actif
