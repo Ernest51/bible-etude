@@ -1,528 +1,277 @@
-/* public/app.js — version sans :has() / :contains(), avec 2 garde-fous
-   - Boutons: #generateBtn, #readBtn, #validate
-   - Sélecteurs: #bookSelect, #chapterSelect, #verseSelect, #versionSelect
-   - Éditeur: #pointsList, #noteArea, #noteView, #enrichToggle, #metaInfo
-   - Barre de progression optionnelle: #progressBar
-   - Panneau liens: #linksPanel, #linksList
-   - Journal: #debugPanel (facultatif)
-
-   Garde-fou #1: nettoyage/sanitisation des contenus avant injection
-   Garde-fou #2: anti-crash réseau (retry + fallback hors-ligne lisible)
-*/
+/* public/app.js — version “vanilla-safe”
+ * - AUCUN sélecteur CSS expérimental (pas de :has, :contains…)
+ * - Injection déterministe des 28 rubriques (index → fallback titre)
+ * - Ne touche pas au reste de ta page (pas d’override agressif)
+ */
 
 (function () {
-  // ---------- util DOM ----------
-  const $ = (id) => document.getElementById(id);
+  "use strict";
 
-  // éléments (tous optionnels: le code vérifie leur présence)
-  const bookSelect    = $("bookSelect");
-  const chapterSelect = $("chapterSelect");
-  const verseSelect   = $("verseSelect");
-  const versionSelect = $("versionSelect");
+  // --------- Petits utilitaires ---------
+  const log = (...a) => console.log("[APP]", ...a);
+  const warn = (...a) => console.warn("[APP]", ...a);
+  const err = (...a) => console.error("[APP]", ...a);
 
-  const generateBtn = $("generateBtn");
-  const readBtn     = $("readBtn");
-  const validateBtn = $("validate");
+  const $  = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-  const pointsList = $("pointsList");
-  const noteArea   = $("noteArea");
-  const noteView   = $("noteView");
-  const enrichToggle = $("enrichToggle");
-  const metaInfo   = $("metaInfo");
+  function normTitle(s = "") {
+    return s
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/\s+/g, " ")
+      .trim();
+  }
 
-  const progressBar = $("progressBar");
-  const linksPanel  = $("linksPanel");
-  const linksList   = $("linksList");
-  const debugPanel  = $("debugPanel");
+  // L’ordre canonique de la colonne (doit rester aligné avec l’API)
+  const CANON_TITLES = [
+    "Prière d’ouverture","Canon et testament","Questions du chapitre précédent","Titre du chapitre",
+    "Contexte historique","Structure littéraire","Genre littéraire","Thème central","Résumé en une phrase",
+    "Mots-clés","Termes clés (définis)","Personnages et lieux","Problème / Question de départ",
+    "Idées majeures (développement)","Verset pivot (climax)","Références croisées (AT)","Références croisées (NT)",
+    "Parallèles bibliques","Lien avec l’Évangile (Christocentrique)","Vérités doctrinales (3–5)","Promesses et avertissements",
+    "Principes intemporels","Applications personnelles (3–5)","Applications communautaires","Questions pour petits groupes (6)",
+    "Prière guidée","Méditation courte","Versets à mémoriser (2–3)"
+  ];
+  const CANON = CANON_TITLES.map(normTitle);
+  const CANON_MAP = new Map(CANON.map((t, i) => [t, i + 1])); // titre → index(1..28)
 
-  const setProgress = (p) => {
-    if (!progressBar) return;
-    const v = Math.max(0, Math.min(100, Number(p) || 0));
-    progressBar.style.width = v + "%";
-  };
-
-  const log = (msg) => {
-    try {
-      const line = `[${new Date().toISOString()}] ${msg}`;
-      console.log(line);
-      if (debugPanel) {
-        debugPanel.style.display = "block";
-        debugPanel.textContent += (debugPanel.textContent ? "\n" : "") + line;
+  // --------- Sélection des éléments de la page (robuste) ---------
+  // Bouton "Générer"
+  function findGenerateButton() {
+    // 1) bouton avec texte "Générer"
+    const candidates = $$("button, .btn, input[type=button], input[type=submit]");
+    for (const el of candidates) {
+      const txt = (el.innerText || el.value || "").trim().toLowerCase();
+      if (txt === "générer" || txt === "generation..." || txt.includes("génér")) {
+        return el;
       }
-    } catch {}
-  };
-
-  // ---------- Livre/chapitres ----------
-  // (liste officielle FR, comme plus tôt ; utilisée si les <select> existent)
-  const BOOKS = [
-    ["Genèse", 50],["Exode", 40],["Lévitique", 27],["Nombres", 36],["Deutéronome", 34],
-    ["Josué", 24],["Juges", 21],["Ruth", 4],["1 Samuel", 31],["2 Samuel", 24],
-    ["1 Rois", 22],["2 Rois", 25],["1 Chroniques", 29],["2 Chroniques", 36],["Esdras", 10],
-    ["Néhémie", 13],["Esther", 10],["Job", 42],["Psaumes", 150],["Proverbes", 31],
-    ["Ecclésiaste", 12],["Cantique des cantiques", 8],["Ésaïe", 66],["Jérémie", 52],["Lamentations", 5],
-    ["Ézéchiel", 48],["Daniel", 12],["Osée", 14],["Joël", 3],["Amos", 9],
-    ["Abdias", 1],["Jonas", 4],["Michée", 7],["Nahoum", 3],["Habacuc", 3],
-    ["Sophonie", 3],["Aggée", 2],["Zacharie", 14],["Malachie", 4],
-    ["Matthieu", 28],["Marc", 16],["Luc", 24],["Jean", 21],["Actes", 28],
-    ["Romains", 16],["1 Corinthiens", 16],["2 Corinthiens", 13],["Galates", 6],["Éphésiens", 6],
-    ["Philippiens", 4],["Colossiens", 4],["1 Thessaloniciens", 5],["2 Thessaloniciens", 3],["1 Timothée", 6],
-    ["2 Timothée", 4],["Tite", 3],["Philémon", 1],["Hébreux", 13],["Jacques", 5],
-    ["1 Pierre", 5],["2 Pierre", 3],["1 Jean", 5],["2 Jean", 1],["3 Jean", 1],
-    ["Jude", 1],["Apocalypse", 22],
-  ];
-
-  function renderBooks() {
-    if (!bookSelect) return;
-    bookSelect.innerHTML = "";
-    BOOKS.forEach(([n, ch]) => {
-      const o = document.createElement("option");
-      o.value = n; o.textContent = n; o.dataset.ch = String(ch);
-      bookSelect.appendChild(o);
-    });
-  }
-  function renderChapters() {
-    if (!bookSelect || !chapterSelect) return;
-    chapterSelect.innerHTML = "";
-    const ch = bookSelect.selectedOptions[0] ? +bookSelect.selectedOptions[0].dataset.ch : 1;
-    const max = Math.max(1, ch);
-    for (let i = 1; i <= max; i++) {
-      const o = document.createElement("option");
-      o.value = String(i); o.textContent = String(i);
-      chapterSelect.appendChild(o);
     }
+    // 2) fallback : premier bouton dans la zone d’action à gauche
+    return $("button");
   }
-  function renderVerses(maxGuess = 60) {
-    if (!verseSelect) return;
-    verseSelect.innerHTML = "";
-    const m = Math.max(1, Math.min(200, maxGuess));
-    for (let i = 1; i <= m; i++) {
-      const o = document.createElement("option");
-      o.value = String(i); o.textContent = String(i);
-      verseSelect.appendChild(o);
+
+  // Selects pour livre/chapitre/verset/traduction (récupère les 4 premiers <select>)
+  function findSelects() {
+    // On prend les 4 premiers selects après la barre de recherche
+    const selects = $$("select");
+    // Essaie d’identifier par heuristique
+    let bookSel    = selects.find(s => /gen[eè]se|matthieu|genesis|book/i.test(s.textContent || "")) || selects[0];
+    let chapSel    = selects.find(s => s !== bookSel && /^\s*\d+\s*$/.test(s.value || s.selectedOptions?.[0]?.text || "")) || selects[1];
+    let verseSel   = selects.find(s => s !== bookSel && s !== chapSel && /^\s*\d+\s*$/.test(s.value || s.selectedOptions?.[0]?.text || "")) || selects[2];
+    let transSel   = selects.find(s => /segond|darby|traduction|version|louis|jnd|lsg/i.test(s.textContent || s.value || "")) || selects[3];
+
+    return { bookSel, chapSel, verseSel, transSel };
+  }
+
+  // Récupère la liste d’items “rubriques” dans la colonne gauche
+  function getRubriqueItems() {
+    // Essaie quelques patterns connus ; s’il n’y a pas d’attributs dédiés, on prend les lignes de la <ul>/<div> des rubriques
+    let items = $$('[data-rubrique]');
+    if (items.length) return items;
+
+    items = $$(".rubriques li, .rubriques .row, .rubriques .item");
+    if (items.length) return items;
+
+    // fallback : beaucoup d’implémentations utilisent un conteneur avec un titre “Rubriques”, puis une liste juste après
+    const header = $$("*").find(el => /rubriques/i.test(el.textContent || "") && /h\d|strong|b/.test(el.tagName.toLowerCase()));
+    if (header) {
+      const container = header.parentElement?.nextElementSibling || header.closest("section,div");
+      if (container) {
+        const rows = $$("li, .row, [role='button'], button", container).filter(r => (r.innerText || "").trim().length > 0);
+        if (rows.length) return rows;
+      }
     }
+
+    // dernier recours : on tente une liste d’items cliquables avec numéro
+    const generic = $$("li, .row, .list-group-item").filter(el => /\b\d+\b/.test(el.textContent || ""));
+    return generic;
   }
 
-  // ---------- Trame 28 rubriques (fixe) ----------
-  const FIXED_POINTS = [
-    { t: "Prière d’ouverture" },
-    { t: "Canon et testament" },
-    { t: "Questions du chapitre précédent" },
-    { t: "Titre du chapitre" },
-    { t: "Contexte historique" },
-    { t: "Structure littéraire" },
-    { t: "Genre littéraire" },
-    { t: "Thème central" },
-    { t: "Résumé en une phrase" },
-    { t: "Mots-clés" },
-    { t: "Termes clés (définis)" },
-    { t: "Personnages et lieux" },
-    { t: "Problème / Question de départ" },
-    { t: "Idées majeures (développement)" },
-    { t: "Verset pivot (climax)" },
-    { t: "Références croisées (AT)" },
-    { t: "Références croisées (NT)" },
-    { t: "Parallèles bibliques" },
-    { t: "Lien avec l’Évangile (Christocentrique)" },
-    { t: "Vérités doctrinales (3–5)" },
-    { t: "Promesses et avertissements" },
-    { t: "Principes intemporels" },
-    { t: "Applications personnelles (3–5)" },
-    { t: "Applications communautaires" },
-    { t: "Questions pour petits groupes (6)" },
-    { t: "Prière guidée" },
-    { t: "Méditation courte" },
-    { t: "Versets à mémoriser (2–3)" },
-    { t: "Difficultés/objections & réponses" },
-    { t: "Ressources complémentaires" },
-  ];
-  const N = 28; // nombre réel à injecter dans l’éditeur (les 28 premiers)
-
-  // ---------- État éditeur ----------
-  let current = 0;
-  let notes = {}; // index -> texte
-
-  function renderSidebar() {
-    if (!pointsList) return;
-    pointsList.innerHTML = "";
-    FIXED_POINTS.slice(0, N).forEach((r, i) => {
-      const row = document.createElement("div");
-      row.className = "item" + (i === current ? " active" : "");
-      row.dataset.idx = String(i);
-      row.innerHTML = `
-        <span class="idx">${i + 1}</span>
-        <div><div>${escapeHtml(r.t)}</div></div>
-        <span class="dot ${notes[i] && notes[i].trim() ? "ok" : ""}"></span>`;
-      row.addEventListener("click", () => { if (current !== i) select(i); });
-      pointsList.appendChild(row);
-    });
-  }
-  function select(i) {
-    if (noteArea && i !== current) notes[current] = noteArea.value;
-    saveLocal();
-    current = i;
-    if (pointsList) {
-      pointsList.querySelectorAll(".item").forEach((el) => {
-        el.classList.toggle("active", +el.dataset.idx === current);
-      });
-    }
-    if ($("edTitle")) $("edTitle").textContent = `${i + 1}. ${FIXED_POINTS[i].t}`;
-    if (noteArea) noteArea.value = notes[i] || "";
-    if (metaInfo) metaInfo.textContent = `Point ${i + 1} / ${N}`;
-    renderViewFromArea();
-    updateLinksPanel();
-    if (enrichToggle && enrichToggle.checked) { noteView && noteView.focus(); } else { noteArea && noteArea.focus(); }
-  }
-  function renderSidebarDots() {
-    if (!pointsList) return;
-    pointsList.querySelectorAll(".item").forEach((el) => {
-      const i = +el.dataset.idx;
-      const dot = el.querySelector(".dot");
-      if (!dot) return;
-      if (notes[i] && notes[i].trim()) dot.classList.add("ok");
-      else dot.classList.remove("ok");
-    });
-  }
-  function saveLocal() {
-    try { localStorage.setItem("be_notes", JSON.stringify(notes)); renderSidebarDots(); } catch {}
-  }
-  function loadLocal() {
-    try { notes = JSON.parse(localStorage.getItem("be_notes") || "{}") || {}; } catch { notes = {}; }
+  // Sélectionne la i-ème rubrique (1..N)
+  function selectRubrique(index1) {
+    const items = getRubriqueItems();
+    const el = items[index1 - 1];
+    if (!el) return false;
+    // essaie un clic sur l’item ; sinon clique sur un bouton interne
+    const clickTarget =
+      el.querySelector("button, [role='button'], a") || el;
+    clickTarget.scrollIntoView?.({ block: "nearest" });
+    clickTarget.click?.();
+    return true;
   }
 
-  // ---------- Garde-fou #1 : sanitisation ----------
-  function stripDangerousTags(html) {
-    if (!html) return "";
-    let s = String(html);
-    s = s.replace(/<!--[\s\S]*?-->/g, "");
-    s = s.replace(/&nbsp;/g, " ");
-    // conserver gras/italique simples sous forme markdown léger
-    s = s.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
-    s = s.replace(/<b[^>]*>(.*?)<\/b>/gi, '**$1**');
-    s = s.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
-    s = s.replace(/<i[^>]*>(.*?)<\/i>/gi, '*$1*');
-    s = s.replace(/<\/p>/gi, '\n\n');
-    s = s.replace(/<\/h[1-6]>/gi, '\n\n');
-    s = s.replace(/<br\s*\/?>/gi, '\n');
-    s = s.replace(/<\/?[^>]+>/g, '');
-    s = s.replace(/\s{2,}/g, " ").replace(/\n{3,}/g, '\n\n').trim();
-    return s;
-  }
-  function sanitizeBasic(text){
-    return String(text||"")
-      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  }
-  function escapeHtml(s=""){
-    return String(s)
-      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;").replaceAll("'","&#39;");
+  // Zone d’édition (pane de droite)
+  function findEditorArea() {
+    // textarea classique
+    let el = $("textarea");
+    if (el) return el;
+    // éditeur contenteditable
+    el = $('[contenteditable="true"]');
+    if (el) return el;
+    // certains templates : .editor textarea
+    el = $(".editor textarea");
+    if (el) return el;
+    return null;
   }
 
-  // ---------- Rendu enrichi ----------
-  const BOOK_TITLES = BOOKS.map(([n]) => n);
-  function escapeRegExp(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-  const bookAlt = BOOK_TITLES.map(escapeRegExp).join("|");
-  const refRe = new RegExp(`\\b(${bookAlt})\\s+(\\d+)(?::(\\d+(?:[–-]\\d+)?))?(?:[–-](\\d+))?`, "gi");
-
-  function bgwUrl(search, version){
-    return `https://www.biblegateway.com/passage/?search=${encodeURIComponent(search)}&version=${encodeURIComponent(version||"LSG")}`;
-  }
-  function makeBGWLink(book, chap, verseOrRange, chapEnd){
-    const version = (versionSelect && versionSelect.value) || "LSG";
-    if (chapEnd) return bgwUrl(`${book} ${chap}-${chapEnd}`, version);
-    if (verseOrRange) return bgwUrl(`${book} ${chap}:${verseOrRange}`, version);
-    return bgwUrl(`${book} ${chap}`, version);
-  }
-
-  function stripNbsp(raw){ return String(raw||"").replace(/&nbsp;/g, " ").replace(/\s{2,}/g, " "); }
-  function stripHtmlComments(raw){ return String(raw||"").replace(/<!--[\s\S]*?-->/g, ""); }
-
-  function mdLite(html){
-    return html
-      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*([^*]+)\*/g, "<em>$1</em>");
-  }
-  function fixAdjacentRefs(htmlEscaped){
-    const bookUnion = BOOK_TITLES.map(escapeRegExp).join("|");
-    const pattern = new RegExp(`((?:\\d|\\d[–-]\\d))(?:\\s*)(${bookUnion}\\s+\\d)`, "g");
-    return htmlEscaped.replace(pattern, (_m, prev, next) => `${prev} · ${next}`);
-  }
-  function boldBibleRefs(htmlEscaped){
-    return htmlEscaped.replace(refRe, (m)=> `**${m}**`);
-  }
-  function autolinkURLs(html){
-    return html.replace(/(\bhttps?:\/\/[^\s<>"'()]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
-  }
-  function autolinkBible(html){
-    return html.replace(refRe, (m,bk,ch,vr,chEnd)=>{
-      const url = makeBGWLink(bk, ch, vr||"", chEnd||"");
-      return `<a href="${url}" target="_blank" rel="noopener">${m}</a>`;
-    });
-  }
-  function wrapParagraphs(html){
-    const blocks = String(html||"").split(/\n{2,}/);
-    return blocks.map(b=>{
-      if (!b.trim()) return "";
-      return "<p>"+b.replace(/\n/g,"<br>")+"</p>";
-    }).join("");
-  }
-  function renderViewFromArea(){
-    if (!noteArea || !noteView) return;
-    const raw = noteArea.value || "";
-    let html = sanitizeBasic(raw);
-    html = fixAdjacentRefs(html);
-    html = boldBibleRefs(html);
-    html = mdLite(html);
-    html = autolinkURLs(html);
-    html = autolinkBible(html);
-    html = wrapParagraphs(html);
-    noteView.innerHTML = html || "<p style='color:#9aa2b1'>Écris ici…</p>";
-  }
-  function syncAreaFromView(){
-    if (!noteArea || !noteView) return;
-    let html = noteView.innerHTML || "";
-    html = html.replace(/<a\b[^>]*>(.*?)<\/a>/gi, "$1");
-    html = html.replace(/<br\s*\/?>/gi, "\n");
-    html = html.replace(/<\/p>/gi, "\n\n").replace(/<p[^>]*>/gi,"");
-    html = html.replace(/<\/?strong>/gi, "**").replace(/<\/?em>/gi, "*");
-    html = html.replace(/<!--[\s\S]*?-->/g, "");
-    html = html.replace(/&nbsp;/g, " ");
-    html = html.replace(/<\/?[^>]+>/g,"");
-    html = html.replace(/\n{3,}/g,"\n\n").trim();
-    noteArea.value = html;
-    notes[current] = noteArea.value;
-    saveLocal();
-    updateLinksPanel();
-  }
-  if (noteView) {
-    noteView.addEventListener("click", (e)=>{
-      const a = e.target.closest && e.target.closest("a");
-      if (a && a.href) { e.preventDefault(); window.open(a.href, "_blank", "noopener"); }
-    });
-    noteView.addEventListener("input", syncAreaFromView);
-  }
-
-  // enrich toggle
-  function applyEnrichMode(){
-    if (!noteArea || !noteView || !enrichToggle) return;
-    const on = !!enrichToggle.checked;
-    if (on){
-      noteArea.style.display = "none";
-      noteView.style.display = "block";
-      renderViewFromArea();
-      noteView.focus();
+  function setEditorContent(text) {
+    const area = findEditorArea();
+    if (!area) return false;
+    if ("value" in area) {
+      area.value = text;
+      area.dispatchEvent(new Event("input", { bubbles: true }));
+      area.dispatchEvent(new Event("change", { bubbles: true }));
     } else {
-      noteView.style.display = "none";
-      noteArea.style.display = "block";
-      noteArea.focus();
+      area.innerHTML = text;
+      area.dispatchEvent(new Event("input", { bubbles: true }));
     }
-  }
-  if (enrichToggle) enrichToggle.addEventListener("change", applyEnrichMode);
-
-  // liens panel
-  function extractLinks(text) {
-    const links = [];
-    const raw = String(text || "");
-    const aTagRe = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi;
-    let m; while ((m = aTagRe.exec(raw))) { links.push({ url: m[1], label: m[2] || m[1] }); }
-    const urlRe = /https?:\/\/[^\s<>"'()]+/g;
-    let n; while ((n = urlRe.exec(raw))) { const url = n[0]; if (!links.find(l => l.url === url)) links.push({ url, label: url }); }
-    return links;
-  }
-  function findBibleRefs(text){
-    const out = []; const seen = new Set();
-    const raw = String(text || "");
-    let m;
-    while ((m = refRe.exec(raw))) {
-      const book = m[1], chap = m[2], verseOrRange = m[3] || "", chapEnd = m[4] || "";
-      let search = chapEnd ? `${book} ${chap}-${chapEnd}` : (verseOrRange ? `${book} ${chap}:${verseOrRange}` : `${book} ${chap}`);
-      const url = bgwUrl(search, (versionSelect && versionSelect.value) || "LSG");
-      const key = search+"||"+url;
-      if (!seen.has(key)) { out.push({ url, label: m[0] }); seen.add(key); }
-    }
-    return out;
-  }
-  function updateLinksPanel() {
-    if (!linksPanel || !linksList || !noteArea) return;
-    const txt = noteArea.value || "";
-    const urlLinks = extractLinks(txt);
-    const bibleLinks = findBibleRefs(txt);
-    const merged = []; const seen = new Set();
-    for (const l of [...bibleLinks, ...urlLinks]) { if (seen.has(l.url)) continue; merged.push(l); seen.add(l.url); }
-    linksList.innerHTML = "";
-    if (!merged.length) { linksPanel.classList.add("empty"); return; }
-    linksPanel.classList.remove("empty");
-    for (const l of merged) {
-      const a = document.createElement("a");
-      a.href = l.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = l.label;
-      const div = document.createElement("div"); div.appendChild(a); linksList.appendChild(div);
-    }
+    return true;
   }
 
-  // ---------- Référence courante ----------
-  function buildReference() {
-    if (!bookSelect || !chapterSelect) return "";
-    const b = bookSelect.value;
-    const c = chapterSelect.value;
-    const v = (verseSelect && verseSelect.value) || "";
-    if (!b || !c) return "";
-    return `${b} ${c}${v ? ":"+v : ""}`;
-  }
-  function bgwLink(book, chap, vers, version) {
-    const core = `${book} ${chap}${vers ? ':'+vers : ''}`;
-    return bgwUrl(core, version || (versionSelect && versionSelect.value) || "LSG");
+  // --------- Appel API / injection ---------
+  async function fetchStudy({ book, chapter, verse = "", translation = "JND", bibleId = "" }) {
+    const usp = new URLSearchParams({
+      book: book || "Genèse",
+      chapter: String(chapter || "1"),
+      translation: translation || "JND",
+      mode: "full",
+    });
+    if (verse) usp.set("verse", verse);
+    if (bibleId) usp.set("bibleId", bibleId);
+    // active la trace en dev : usp.set("trace","1");
+
+    const url = `/api/study-28?${usp.toString()}`;
+    const res = await fetch(url, { headers: { accept: "application/json" } });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`HTTP ${res.status}: ${t.slice(0, 180)}`);
+    }
+    return res.json();
   }
 
-  // ---------- Garde-fou #2 : fetch robuste ----------
-  async function fetchJSON(url, opts = {}, tries = 2) {
-    let last;
-    for (let i=0;i<Math.max(1,tries);i++){
-      try {
-        const r = await fetch(url, { ...opts, headers: { ...(opts.headers||{}), "accept":"application/json", "cache-control":"no-store" } });
-        const text = await r.text();
-        const ct = r.headers.get("content-type") || "";
-        if (!r.ok) throw new Error(text || `HTTP ${r.status}`);
-        if (/application\/json/i.test(ct)) {
-          return JSON.parse(text);
-        }
-        // si non-JSON, on essaie quand même
-        return { ok:false, raw:text };
-      } catch(e){
-        last = e;
-        await new Promise(res=>setTimeout(res, 350*(i+1)));
+  // Injection : d’abord par index (1..28), fallback par titre normalisé
+  function injectStudySections(sections) {
+    try {
+      if (!Array.isArray(sections)) return;
+      const items = getRubriqueItems();
+      if (!items.length) {
+        warn("Aucune rubrique détectée dans la colonne gauche — injection annulée.");
+        return;
       }
-    }
-    throw last || new Error("fetch failed");
-  }
 
-  // ---------- Récup & injection étude ----------
-  const Study28 = {
-    async callAPI() {
-      if (!bookSelect || !chapterSelect) throw new Error("Sélection livre/chapitre indisponible.");
-      const book  = bookSelect.value || "Genèse";
-      const chap  = chapterSelect.value || "1";
-      const verse = ""; // on laisse vide (chapitre entier), ton diag propose 1–199 si besoin
-      const trans = (versionSelect && versionSelect.value) || "JND";
-
-      const usp = new URLSearchParams({ book, chapter: chap, translation: trans, trace: "1" });
-      if (verse) usp.set("verse", verse);
-
-      const url = "/api/study-28?" + usp.toString();
-      log(`[API] GET ${url}`);
-      const j = await fetchJSON(url, {}, 2);
-      if (!j || j.ok === false) throw new Error(j?.error || "Réponse API invalide");
-      return j;
-    },
-
-    // map de la réponse API vers les 28 emplacements (on prend index 1..28)
-    fillFromAPI(data) {
-      const sections = Array.isArray(data?.sections) ? data.sections : [];
-      const map = {}; // i->content
-      for (const s of sections) {
-        const idx = (s.index|0) - 1;
-        if (idx >= 0 && idx < N) {
-          map[idx] = stripDangerousTags(String(s.content || "").trim());
+      // 1) Injection par index (le plus fiable)
+      let injected = 0;
+      const safe = sections.slice(0, 28);
+      if (safe.every(s => Number.isInteger(s.index))) {
+        for (const s of safe) {
+          const idx = Math.min(Math.max(1, s.index), items.length);
+          if (selectRubrique(idx)) {
+            setEditorContent(s.content || "");
+            injected++;
+          }
         }
       }
-      // Prière d’ouverture / Prière de fin par défaut si vides
-      const ref = data?.meta?.reference || buildReference() || "";
-      if (!map[0])  map[0]  = `Père, éclaire notre lecture de **${ref}**. Ouvre nos cœurs par l’Esprit. Amen.`;
-      if (!map[25]) map[25] = `Relisons **${ref}**, et rendons grâce pour ta Parole.`;
-      // appliquer
-      notes = map;
-      saveLocal();
-      renderSidebar(); select(0); renderSidebarDots();
-      log(`[GEN] sections=${sections.length} → étude injectée`);
-    },
 
-    async generateAndInject() {
+      // 2) Fallback par titre normalisé
+      if (!injected) {
+        for (const s of safe) {
+          const key = CANON_MAP.get(normTitle(s.title || ""));
+          if (key && selectRubrique(key)) {
+            setEditorContent(s.content || "");
+            injected++;
+          }
+        }
+      }
+
+      log(`Injection effectuée : ${injected}/${safe.length}`);
+    } catch (e) {
+      err("Injection error:", e);
+    }
+  }
+
+  // --------- Lecture des paramètres depuis l’UI ---------
+  function readUIParams() {
+    const { bookSel, chapSel, verseSel, transSel } = findSelects();
+
+    const getVal = (sel, fallback) => {
+      if (!sel) return fallback;
+      const val = (sel.value || sel.selectedOptions?.[0]?.text || "").trim();
+      return val || fallback;
+    };
+
+    const book = getVal(bookSel, "Genèse");
+    const chapter = getVal(chapSel, "1");
+    const verse = getVal(verseSel, ""); // laisser vide → chapitre entier
+    const trans = getVal(transSel, "JND");
+
+    return { book, chapter, verse, translation: trans };
+  }
+
+  // --------- Wiring des boutons ---------
+  function wireGenerate() {
+    const btn = findGenerateButton();
+    if (!btn) {
+      warn("Bouton 'Générer' introuvable — wiring ignoré.");
+      return;
+    }
+
+    btn.addEventListener("click", async (ev) => {
       try {
-        setProgress(10);
-        const j = await this.callAPI();
-        setProgress(60);
-        this.fillFromAPI(j.data || {});
-        setProgress(100);
-        setTimeout(()=>setProgress(0), 400);
+        ev.preventDefault?.();
+      } catch {}
+
+      try {
+        const params = readUIParams();
+        log("GEN start →", params);
+        const json = await fetchStudy(params);
+
+        if (!json?.ok) {
+          throw new Error(json?.error || "Réponse API invalide");
+        }
+
+        const secs = json?.data?.sections || [];
+        injectStudySections(secs);
+
+        log(`[${new Date().toISOString()}] [GEN] source=study-28/api.bible sections=${secs.length} → étude générée + injection OK`);
       } catch (e) {
-        // fallback hors-ligne minimal pour ne pas bloquer l’UI
-        console.warn(e);
-        alert(`Échec API: ${e?.message || e}. Un contenu minimal sera injecté.`);
-        const ref = buildReference() || "Passage";
-        const minimal = Array.from({length:N}, (_,i)=>({
-          index:i+1, title: FIXED_POINTS[i].t,
-          content: `${FIXED_POINTS[i].t} (${ref}).`
-        }));
-        this.fillFromAPI({ sections: minimal, meta:{ reference:ref }});
+        err("GEN fail:", e?.message || e);
+        alert("Erreur pendant la génération : " + (e?.message || e));
       }
+    }, { passive: false });
+  }
+
+  // Lien “Lire la Bible” : on laisse l’existant ; si besoin, on peut ici ouvrir un lecteur externe
+  function wireReadBible() {
+    const btns = $$("a, button").filter(el => /lire la bible/i.test(el.innerText || ""));
+    // si tu souhaites forcer un target _blank:
+    for (const b of btns) {
+      if (b.tagName.toLowerCase() === "a") b.setAttribute("target", "_blank");
     }
+  }
+
+  // --------- Boot ---------
+  function boot() {
+    try {
+      wireGenerate();
+      wireReadBible();
+      log("Init OK");
+    } catch (e) {
+      err("Init error:", e);
+    }
+  }
+
+  // Expose pour debug
+  window.BibleEtude = {
+    fetchStudy,
+    injectStudySections,
+    readUIParams,
+    _debug: { getRubriqueItems, selectRubrique, setEditorContent }
   };
 
-  // exposer pour debug (facultatif)
-  window.__Study28 = Study28;
-
-  // ---------- câblage boutons (sans :has / :contains) ----------
-  function wireButtons() {
-    if (generateBtn) {
-      generateBtn.addEventListener("click", () => Study28.generateAndInject());
-    }
-    if (readBtn) {
-      readBtn.addEventListener("click", () => {
-        const b = bookSelect?.value || "Genèse";
-        const c = chapterSelect?.value || "1";
-        const v = verseSelect?.value || "";
-        const ver = versionSelect?.value || "LSG";
-        const url = bgwLink(b, c, v, ver);
-        window.open(url, "_blank", "noopener");
-      });
-    }
-    if (validateBtn) {
-      validateBtn.addEventListener("click", () => {
-        const b = bookSelect?.value || "Genèse";
-        const c = chapterSelect?.value || "1";
-        const v = verseSelect?.value || "";
-        const ver = versionSelect?.value || "LSG";
-        const url = bgwLink(b, c, v, ver);
-        window.open(url, "_blank", "noopener");
-      });
-    }
+  // Démarrage
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
   }
-
-  // ---------- autosave + rendu enrichi ----------
-  if (noteArea) {
-    noteArea.addEventListener("input", () => {
-      notes[current] = noteArea.value;
-      saveLocal();
-      renderViewFromArea();
-      updateLinksPanel();
-    });
-  }
-
-  // ---------- initialisation ----------
-  (function init(){
-    loadLocal();
-    renderBooks();
-    renderChapters();
-    renderVerses(bookSelect && bookSelect.value === "Psaumes" ? 200 : 60);
-    renderSidebar(); select(0);
-    renderSidebarDots();
-    applyEnrichMode();
-    updateLinksPanel();
-    wireButtons();
-
-    // réactions au changement livre/chapitre
-    if (bookSelect) {
-      bookSelect.addEventListener("change", () => {
-        renderChapters();
-        renderVerses(bookSelect.value === "Psaumes" ? 200 : 60);
-        // auto: ne pas déclencher génération sans clic utilisateur
-      });
-    }
-    if (chapterSelect) chapterSelect.addEventListener("change", () => {/* noop */});
-    if (verseSelect)   verseSelect.addEventListener("change", () => {/* noop */});
-
-    // stamp version (facultatif)
-    const y = $("y"); if (y) y.textContent = new Date().getFullYear();
-
-    log("app.js initialisé.");
-  })();
-
 })();
