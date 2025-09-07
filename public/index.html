@@ -6,19 +6,21 @@
   <title>Méditation</title>
   <meta name="description" content="Étude biblique — rubriques, génération, PDF, liens BibleGateway, thème et mémoire d’étude." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <!-- Polices : Inter (UI), Spectral (texte long), Fraunces (titre) -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&family=Fraunces:wght@700;800&display=swap" rel="stylesheet">
   <style>
+    /* ================= Design system & thèmes ================= */
     :root{
-      --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb;
+      --bg:#f6f8fa; --panel:#ffffff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb;
       --accent:#0891b2; --accent-600:#0e7490; --accent-700:#155e75; --accent-soft:#e0f2fe;
-      --ok:#16a34a; --warn:#f59e0b; --link:#1d4ed8;
-      --btn-primary-bg:var(--accent); --btn-primary-fg:#fff;
-      --btn-secondary-bg:#fff; --btn-secondary-fg:var(--accent); --btn-secondary-bd:var(--accent);
-      --shadow:0 1px 2px rgba(0,0,0,.06);
+      --ok:#16a34a; --warn:#f59e0b; --link:#1d4ed8; --shadow:0 1px 2px rgba(0,0,0,.06);
+      --radius:14px;
+      --title-size:clamp(26px, 3.6vw, 40px);
+      --editor-max: 920px; /* largeur optimale du contenu d’étude */
     }
-    [data-theme="cyan"]  { --accent:#0891b2; --accent-600:#0e7490; --accent-700:#155e75; --accent-soft:#e0f2fe; --bg:#f4f9fb; }
-    [data-theme="violet"]{ --accent:#7c3aed; --accent-600:#6d28d9; --accent-700:#5b21b6; --accent-soft:#ede9fe; --bg:#f7f5ff; }
-    [data-theme="vert"]  { --accent:#059669; --accent-600:#047857; --accent-700:#065f46; --accent-soft:#dcfce7; --bg:#f4fbf7; }
+    [data-theme="cyan"]  { --accent:#0891b2; --accent-600:#0e7490; --accent-700:#155e75; --accent-soft:#e0f2fe; --bg:#f3fafc; }
+    [data-theme="violet"]{ --accent:#7c3aed; --accent-600:#6d28d9; --accent-700:#5b21b6; --accent-soft:#ede9fe; --bg:#f8f6ff; }
+    [data-theme="vert"]  { --accent:#059669; --accent-600:#047857; --accent-700:#065f46; --accent-soft:#dcfce7; --bg:#f5fbf7; }
     [data-theme="rouge"] { --accent:#dc2626; --accent-600:#b91c1c; --accent-700:#991b1b; --accent-soft:#fee2e2; --bg:#fff7f7; }
     [data-theme="mauve"] { --accent:#a855f7; --accent-600:#9333ea; --accent-700:#7e22ce; --accent-soft:#f3e8ff; --bg:#fbf7ff; }
     [data-theme="indigo"]{ --accent:#4f46e5; --accent-600:#4338ca; --accent-700:#3730a3; --accent-soft:#e0e7ff; --bg:#f5f6ff; }
@@ -26,55 +28,43 @@
     [data-theme="slate"] { --accent:#334155; --accent-600:#1f2937; --accent-700:#0f172a; --accent-soft:#e2e8f0; --bg:#f3f5f8; }
 
     *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:16px 18px 14px;position:sticky;top:0;z-index:10}
-    h1{margin:0;font-size:34px;line-height:1.1;letter-spacing:.2px;text-align:center;
-       font-family:Fraunces, "Playfair Display", "Times New Roman", serif; font-weight:800; color:#0f172a}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
 
-    main{max-width:1200px;margin:14px auto;padding:0 12px}
+    /* ================== Header ================== */
+    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:18px 18px;position:sticky;top:0;z-index:10}
+    h1{margin:0;line-height:1.1;letter-spacing:.2px;text-align:center;
+       font-family:Fraunces, "Playfair Display", "Times New Roman", serif; font-weight:800;
+       font-size:var(--title-size); color:#0f172a}
 
+    /* ================ Container centré ================ */
+    main{max-width:1280px;margin:16px auto;padding:0 14px}
+
+    /* ================== Ribbon / Controls ================== */
     .controls{
       display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto auto auto auto auto;
       gap:10px;margin:12px 0;align-items:center
     }
-    @media (max-width:1320px){
+    @media (max-width:1200px){
       .controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}
       .controls .wide{grid-column:1/-1}
     }
-    input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%;background:#fff;color:var(--text)}
-    .btn{border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;box-shadow:var(--shadow)}
-    .btn.primary{background:var(--btn-primary-bg);color:var(--btn-primary-fg)}
-    .btn.secondary{background:var(--btn-secondary-bg);color:var(--btn-secondary-fg);border:1px solid var(--btn-secondary-bd)}
+    @media (max-width:680px){
+      .controls{grid-template-columns:1fr 1fr;gap:8px}
+      .controls .wide{grid-column:1/-1}
+    }
+
+    input[type="text"],select{
+      border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%;
+      background:#fff;color:var(--text);min-height:42px
+    }
+    .btn{border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer;box-shadow:var(--shadow);min-height:42px}
+    .btn.primary{background:var(--accent);color:#fff}
+    .btn.secondary{background:#fff;color:var(--accent-700);border:1px solid var(--accent-600)}
     .btn.warn{background:var(--accent-600);color:#fff}
     .btn.linklike{background:#fff;border:1px solid var(--border);color:#111}
 
-    .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
-    @media (max-width:1000px){.layout{grid-template-columns:1fr}}
-    .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:800;text-align:center}
-    .list{max-height:70vh;overflow:auto}
-    .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
-    .item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
-    .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
-    .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
-    .dot{width:8px;height:8px;border-radius:999px;background:var(--warn);margin-left:auto}
-    .dot.ok{background:var(--ok)}
-
-    .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
-    .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
-    .ed-title{font-weight:800;flex:1}
-    .ed-body{padding:12px}
-    textarea#noteArea{display:none;width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;white-space:pre-wrap;background:#fff;color:var(--text)}
-    #noteView{display:block;width:100%;min-height:460px;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;background:#fff;outline:none}
-    #noteView a{color:var(--link);text-decoration:underline;cursor:pointer}
-    #noteMinimal{display:none;width:100%;min-height:160px;border:1px dashed var(--border);border-radius:10px;padding:14px;background:#fff;font-family:Inter,system-ui,Arial,sans-serif;line-height:1.55;color:#111}
-    #noteMinimal .hint{font-size:12px;color:var(--muted);margin-bottom:8px;display:block}
-    .links-panel{background:#fafafa;border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
-    .links-panel.empty{display:none}
-    .last-study{margin:10px 0 0 0; padding:10px 12px; background:#fff; border:1px solid var(--border); border-radius:10px; font-size:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
-    .last-study a{color:var(--link); text-decoration:underline}
-
-    /* Palette Thème (24px) */
+    /* ================== Palette Thème ================== */
     .theme-wrap{grid-column:1/-1;display:flex;align-items:center;gap:10px}
     .theme-label{font-size:13px;color:var(--muted);min-width:90px}
     .theme-bar{
@@ -91,14 +81,51 @@
       box-shadow:0 1px 3px rgba(0,0,0,.15);
       transform:translateX(-50%);pointer-events:none;transition:left .08s ease
     }
-    .theme-hints{display:flex;gap:8px;font-size:12px;color:var(--muted)}
-    .theme-dot{width:10px;height:10px;border-radius:999px;display:inline-block;vertical-align:middle}
 
-    /* Impression ciblée */
+    /* ================== Layout ================== */
+    .layout{display:grid;grid-template-columns:330px 1fr;gap:14px;align-items:start}
+    @media (max-width:1000px){.layout{grid-template-columns:1fr}}
+    .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+    .side-head{padding:12px;border-bottom:1px solid var(--border);font-weight:800;text-align:center}
+    .list{max-height:70vh;overflow:auto}
+    .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
+    .item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
+    .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);
+      display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
+    .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+    .dot{width:8px;height:8px;border-radius:999px;background:var(--warn);margin-left:auto}
+    .dot.ok{background:var(--ok)}
+
+    .editor{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);min-height:60vh;display:flex;flex-direction:column}
+    .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+    .ed-title{font-weight:800;flex:1;text-align:center} /* centrage du titre de rubrique */
+    .ed-body{padding:18px 14px}
+    /* zone enrichie centrée et très lisible */
+    #noteView{
+      display:block;width:100%;min-height:460px;border:1px solid var(--border);border-radius:12px;
+      padding:22px; background:#fff; outline:none; font-family:Spectral,Georgia,serif; line-height:1.8;
+      max-width:var(--editor-max); margin:0 auto; /* centrage */
+    }
+    #noteView p{margin:0 0 1rem 0}
+    #noteView h3{margin:1.1rem 0 .6rem 0}
+    #noteView a{color:var(--link); text-decoration:underline; text-underline-offset: 2px; cursor:pointer}
+    textarea#noteArea{display:none;width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:12px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;background:#fff;color:var(--text)}
+    #noteMinimal{display:none;width:100%;min-height:160px;border:1px dashed var(--border);border-radius:12px;padding:14px;background:#fff;font-family:Inter,system-ui,Arial,sans-serif;line-height:1.55;color:#111;max-width:var(--editor-max);margin:0 auto}
+    #noteMinimal .hint{font-size:12px;color:var(--muted);margin-bottom:8px;display:block}
+
+    .links-panel{background:#fafafa;border:1px dashed var(--border);border-radius:12px;padding:10px;margin-top:10px;font-size:14px;max-width:var(--editor-max);margin-left:auto;margin-right:auto}
+    .links-panel.empty{display:none}
+    .last-study{margin:10px 0 0 0; padding:10px 12px; background:#fff; border:1px solid var(--border); border-radius:12px; font-size:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+    .last-study a{color:var(--link); text-decoration:underline}
+
+    /* ================ Footer mini ================ */
+    .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+
+    /* ================ Impression (PDF) ================ */
     #printDoc{display:none}
     @media print{
-      header,.controls,.layout,.links-panel,.last-study,.theme-wrap{display:none!important}
-      #printDoc{display:block!important;color:#111;font-family:Spectral,Georgia,serif}
+      header,.controls,.layout,.links-panel,.last-study{display:none!important}
+      #printDoc{display:block!important;color:#111;font-family:Spectral,Georgia,serif;margin:0 14mm}
       #printDoc header{margin-bottom:12px;border-bottom:1px solid #e5e7eb;padding-bottom:8px}
       #printDoc h2{margin:0 0 8px 0;font-size:20px}
       #printDoc .sec{page-break-inside:avoid;margin:0 0 16px 0}
@@ -183,6 +210,7 @@
 
   <div id="printDoc"></div>
 
+  <!-- ==================== JS (inchangé fonctionnellement) ==================== -->
   <script>
   (function(){
     const STORAGE_NOTES='notes28', STORAGE_LAST='lastStudy', STORAGE_THEME='theme8';
@@ -216,15 +244,15 @@
     function buildGatewayUrl(ref){ const uiVersion=versionSelect.value||'LSG'; const v=gatewayVersionMap[uiVersion]||'LSG'; return 'https://www.biblegateway.com/passage/?search='+encodeURIComponent(ref)+'&version='+encodeURIComponent(v); }
     function openOnBibleGateway(ref){ window.open(buildGatewayUrl(ref),'_blank','noopener'); }
 
-    /* 66 livres */
+    /* 66 livres & chapitres */
     const ORDER_66=["Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth","1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther","Job","Psaumes","Proverbes","Ecclésiaste","Cantique des Cantiques","Ésaïe","Jérémie","Lamentations","Ézéchiel","Daniel","Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie","Aggée","Zacharie","Malachie","Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"];
     const CHAPTERS_66={"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
 
-    /* Linkifier */
+    /* Linkifier des références → BibleGateway (inchangé) */
     const BOOKS=ORDER_66.slice();
     const BOOKS_RE_SRC='\\b(' + BOOKS.map(b=>b.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')).join('|') + ')\\s+(\\d+)(?::\\s*(\\d+(?:\\s*[–-]\\s*\\d+)?(?:\\s*,\\s*\\d+(?:\\s*[–-]\\s*\\d+)?)*)\\s*)?';
     const BOOKS_RE=new RegExp(BOOKS_RE_SRC,'gi');
-    const V_RE=/(?:^|[\s\[(«"';])v\.\s*(\d+(?:\s*[–-]\s*\d+)?(?:\s*,\s*\d+(?:\s*[–-]\s*\d+)?)*)\b/gi; /* corrigé */
+    const V_RE=/(?:^|[\s\[(«"';])v\.\s*(\d+(?:\s*[–-]\s*\d+)?(?:\s*,\s*\d+(?:\s*[–-]\s*\d+)?)*)\b/gi;
     const INHERIT_RE=/;\s*(\d+(?::\d+(?:\s*[–-]\s*\d+)?)?)\b/g;
 
     function decodeEntities(str){ const ta=document.createElement('textarea'); ta.innerHTML=str; return ta.value; }
@@ -335,7 +363,7 @@
       buildList();
     }
 
-    /* Sélecteurs (limites chapitres selon 66 livres) */
+    /* Sélecteurs (66 livres verrouillés) */
     function initSelects(){
       bookSelect.innerHTML='<option value="">Livre…</option>'+ORDER_66.map(b=>`<option>${b}</option>`).join('');
       rebuildChapterOptions('Genèse'); rebuildVerseOptions();
@@ -346,12 +374,9 @@
     }
     function rebuildVerseOptions(){ let html='<option value="">Verset…</option>'; for(let i=1;i<=176;i++) html+=`<option>${i}</option>`; verseSelect.innerHTML=html; }
     function setSelectValue(sel,val){ const opt=[...sel.options].find(o=>o.value===val||o.textContent===val); if(opt) sel.value=opt.value; }
-
-    // Adapter les chapitres si l’utilisateur change de livre manuellement
     bookSelect.addEventListener('change',()=>{
       const book=bookSelect.value;
       rebuildChapterOptions(book);
-      // Si l’ancien chapitre dépasse la limite, on repasse à 1
       const ch=Number(chapterSelect.value||'1'); const max=CHAPTERS_66[book]||0;
       if(ch>max) chapterSelect.value='1';
     });
@@ -448,80 +473,49 @@
       }
     });
 
-    /* ========= RECHERCHE (livre / livre chapitre / livre chapitre:verset) ========= */
+    /* Recherche intelligente */
     const NAME_MAP = (()=> {
-      // normalisation sans accents, minuscules, espaces supprimés
       const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,'');
       const map = {};
-      ORDER_66.forEach(name=>{
-        map[norm(name)] = name;
-        // quelques alias usuels
-        map[norm(name.replace('É','E').replace('é','e'))] = name;
-      });
-      // alias courts fréquents
-      map['psaumes']='Psaumes'; map['psaume']='Psaumes'; map['ps']='Psaumes';
-      map['prov']='Proverbes'; map['provverbes']='Proverbes';
-      map['cantique']='Cantique des Cantiques'; map['cantiques']='Cantique des Cantiques';
-      map['esaie']='Ésaïe'; map['esai'] ='Ésaïe';
-      map['ephesiens']='Éphésiens'; map['ephesien']='Éphésiens';
-      map['philip']='Philippiens'; map['philippiens']='Philippiens';
-      map['apoc']='Apocalypse';
+      ORDER_66.forEach(name=>{ map[norm(name)] = name; map[norm(name.replace('É','E').replace('é','e'))] = name; });
+      Object.assign(map, {ps:'Psaumes',psaumes:'Psaumes',psaume:'Psaumes',prov:'Proverbes',cantique:'Cantique des Cantiques',cantiques:'Cantique des Cantiques',esaie:'Ésaïe',ephesiens:'Éphésiens',philip:'Philippiens',apoc:'Apocalypse'});
       return {norm, map};
     })();
-
     function parseSearch(input){
       if(!input) return null;
       const {norm, map} = NAME_MAP;
-      const raw = input.trim().replace(/\u00A0/g,' '); // no-break space
+      const raw = input.trim().replace(/\u00A0/g,' ');
       const m = /^([\p{L}\s'.0-9]+?)(?:\s+(\d+))?(?:\s*[:.,]\s*(\d+(?:-\d+)?(?:\s*,\s*\d+(?:-\d+)?)*)\s*)?$/iu.exec(raw);
       if(!m) return null;
-      let bookGuess = (m[1]||'').trim();
-      // rapprocher vers le vrai nom
-      let key = norm(bookGuess);
-      key = key.replace(/\./g,''); // ex. "1jean." -> "1jean"
-      // gérer les livres avec chiffres "1 jean", "2jean"
-      key = key.replace(/^(\d)\s*/, '$1'); // "1 jean" -> "1jean"
-      // essayer correspondance exacte
+      let bookGuess = (m[1]||'').trim(); let key = norm(bookGuess).replace(/\./g,'').replace(/^(\d)\s*/, '$1');
       let book = map[key];
       if(!book){
-        // fallback: chercher parmi tous les livres celui dont la forme normalisée commence par le début saisi
-        const matches = ORDER_66
-          .map(n=>[n, NAME_MAP.norm(n)])
-          .filter(([n, nk])=> nk.startsWith(key));
+        const matches = ORDER_66.map(n=>[n, NAME_MAP.norm(n)]).filter(([n, nk])=> nk.startsWith(key));
         if(matches.length) book = matches.sort((a,b)=>b[1].length-a[1].length)[0][0];
       }
       if(!book) return null;
-
       const chapter = m[2] ? parseInt(m[2],10) : 1;
       const max = CHAPTERS_66[book]||0;
       const safeChapter = Math.min(Math.max(chapter,1), max||1);
-      const verse = (m[3]||'').trim(); // on garde tel quel, on sélectionne le 1er numéro pour la liste
+      const verse = (m[3]||'').trim();
       let firstVerse='';
-      if(verse){
-        const vMatch = /^(\d+)/.exec(verse.replace(/\s+/g,''));
-        if(vMatch) firstVerse = vMatch[1];
-      }
-      return { book, chapter: String(safeChapter), verse:firstVerse, verseRaw:verse };
+      if(verse){ const vMatch = /^(\d+)/.exec(verse.replace(/\s+/g,'')); if(vMatch) firstVerse = vMatch[1]; }
+      return { book, chapter: String(safeChapter), verse:firstVerse };
     }
+    function setSelectValue(sel,val){ const opt=[...sel.options].find(o=>o.value===val||o.textContent===val); if(opt) sel.value=opt.value; }
+    function rebuildChapterOptions(book){
+      const max=CHAPTERS_66[book]||0; let html='<option value="">Chapitre…</option>'; for(let i=1;i<=max;i++) html+=`<option>${i}</option>`;
+      chapterSelect.innerHTML=html; if(max>0) chapterSelect.value='1';
+    }
+    function rebuildVerseOptions(){ let html='<option value="">Verset…</option>'; for(let i=1;i<=176;i++) html+=`<option>${i}</option>`; verseSelect.innerHTML=html; }
 
-    function applySearch(ref){
-      const res = parseSearch(ref);
-      if(!res) return;
-      setSelectValue(bookSelect, res.book);
-      rebuildChapterOptions(res.book);
-      setSelectValue(chapterSelect, res.chapter);
-      rebuildVerseOptions();
+    const applySearch=(ref)=>{
+      const res = parseSearch(ref); if(!res) return;
+      setSelectValue(bookSelect, res.book); rebuildChapterOptions(res.book);
+      setSelectValue(chapterSelect, res.chapter); rebuildVerseOptions();
       if(res.verse) setSelectValue(verseSelect, res.verse);
-    }
-
-    // Entrée clavier = valider
-    searchRef.addEventListener('keydown', (e)=>{
-      if(e.key === 'Enter'){
-        e.preventDefault();
-        applySearch(searchRef.value);
-      }
-    });
-    // Blur = applique aussi
+    };
+    searchRef.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); applySearch(searchRef.value); } });
     searchRef.addEventListener('blur', ()=> applySearch(searchRef.value));
 
     /* Init */
