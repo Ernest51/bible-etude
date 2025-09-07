@@ -27,7 +27,7 @@
     header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:14px 18px;position:sticky;top:4px;z-index:10}
     h1{margin:0;font-size:28px;font-weight:800;letter-spacing:.2px;text-align:center}
     main{max-width:1200px;margin:14px auto;padding:0 12px}
-    .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto auto;gap:10px;margin:12px 0}
+    .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto;gap:10px;margin:12px 0}
     @media (max-width:1100px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}.controls .wide{grid-column:1/-1}}
     input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%}
     .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
@@ -100,7 +100,7 @@
 
       <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
       <button id="validate" class="btn" type="button">Valider</button>
-      <button id="generateBtn" class="btn warn" type="button">Générer</button>
+      <!-- Bouton 'Générer' supprimé (plus d'appel OpenAI côté front) -->
     </div>
 
     <div class="layout">
@@ -138,14 +138,256 @@
     © <span id="y"></span> — Méditation
     <div class="status-row" style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <span class="badge"><span id="dot-health" class="mini"></span> health</span>
-      <span class="badge"><span id="dot-chat" class="mini"></span> chat(POST)</span>
       <span class="badge"><span id="dot-ping" class="mini"></span> ping</span>
       <button id="debugBtn" type="button">Debug</button>
     </div>
     <div id="debugPanel">[init]</div>
   </footer>
 
-  <!-- Bump de version pour forcer le cache -->
-  <script src="/app.js?v=2025-09-03-ctx-1" defer></script>
+  <!-- Script inline (remplace l'ancien app.js) -->
+  <script>
+  (function(){
+    const state = {
+      points: [],
+      current: 0,
+      notes: JSON.parse(localStorage.getItem('notes28')||'{}')
+    };
+
+    // UI refs
+    const pointsList = document.getElementById('pointsList');
+    const edTitle = document.getElementById('edTitle');
+    const noteArea = document.getElementById('noteArea');
+    const noteView = document.getElementById('noteView');
+    const enrichToggle = document.getElementById('enrichToggle');
+    const metaInfo = document.getElementById('metaInfo');
+    const themeSelect = document.getElementById('themeSelect');
+    const progressBar = document.getElementById('progressBar');
+    const debugBtn = document.getElementById('debugBtn');
+    const debugPanel = document.getElementById('debugPanel');
+    const readBtn = document.getElementById('readBtn');
+    const versionSelect = document.getElementById('versionSelect');
+    const bookSelect = document.getElementById('bookSelect');
+    const chapterSelect = document.getElementById('chapterSelect');
+    const verseSelect = document.getElementById('verseSelect');
+    const searchRef = document.getElementById('searchRef');
+
+    // Helper log
+    function log(s){ debugPanel.style.display='block'; debugPanel.textContent += '\\n' + s; }
+
+    // Theme
+    themeSelect.addEventListener('change', e=>{
+      document.body.setAttribute('data-theme', e.target.value);
+    });
+
+    // Year + progress
+    document.getElementById('y').textContent = new Date().getFullYear();
+    document.addEventListener('scroll', ()=>{
+      const h = document.documentElement.scrollHeight - window.innerHeight;
+      const p = Math.max(0, (window.scrollY||document.documentElement.scrollTop)/Math.max(1,h));
+      progressBar.style.width = (p*100).toFixed(1)+'%';
+    });
+
+    // Enrichi ↔ brut
+    function renderEnriched(text){
+      // liens auto, titres ###, puces -, *
+      const esc = (s)=>s.replace(/[&<>]/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m]));
+      let html = esc(text)
+        .replace(/^### (.*)$/gm, '<h3>$1</h3>')
+        .replace(/^\s*[-*] (.*)$/gm, '<li>$1</li>')
+        .replace(/\n(<li>.*<\/li>)(?!(\n<li>))/gs, '\n<ul>$1</ul>')
+        .replace(/(https?:\/\/[^\s)]+)|(bible\.com\/[^\s)]+)/g, '<a href="$&" target="_blank" rel="noopener">$&</a>')
+        .replace(/\n{2,}/g, '</p><p>');
+      html = '<p>' + html + '</p>';
+      noteView.innerHTML = html;
+      // liens détectés
+      const links = [...noteView.querySelectorAll('a')];
+      const panel = document.getElementById('linksPanel');
+      const list = document.getElementById('linksList');
+      list.innerHTML = links.map(a=>`<div><a href="${a.href}" target="_blank" rel="noopener">${a.textContent}</a></div>`).join('');
+      panel.classList.toggle('empty', links.length===0);
+    }
+    function syncView(){
+      const v = noteArea.value;
+      if(enrichToggle.checked){
+        noteArea.style.display='none';
+        noteView.style.display='block';
+        renderEnriched(v);
+      }else{
+        noteView.style.display='none';
+        noteArea.style.display='block';
+      }
+    }
+    enrichToggle.addEventListener('change', syncView);
+
+    // Persist notes
+    let saveTimer=null;
+    noteArea.addEventListener('input', ()=>{
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(()=>{
+        state.notes[state.current] = noteArea.value;
+        localStorage.setItem('notes28', JSON.stringify(state.notes));
+        updateProgressDots();
+      }, 2000);
+      syncView();
+    });
+
+    // Points list + nav
+    function updateEditor(){
+      const item = state.points[state.current] || { title:'Point '+(state.current+1), hint:'' };
+      edTitle.textContent = item.title || ('Point '+(state.current+1));
+      metaInfo.textContent = 'Point '+(state.current+1)+' / '+state.points.length;
+      noteArea.value = state.notes[state.current] || '';
+      syncView();
+      highlightActive();
+      updateProgressDots();
+    }
+    function highlightActive(){
+      [...pointsList.children].forEach((el,i)=>{
+        el.classList.toggle('active', i===state.current);
+      });
+      const el = pointsList.children[state.current];
+      if(el) el.scrollIntoView({block:'nearest'});
+    }
+    function updateProgressDots(){
+      [...pointsList.children].forEach((el,i)=>{
+        const dot = el.querySelector('.dot');
+        const ok = !!(state.notes[i] && state.notes[i].trim());
+        dot.classList.toggle('ok', ok);
+      });
+    }
+    function buildList(){
+      pointsList.innerHTML = '';
+      state.points.forEach((p,i)=>{
+        const li = document.createElement('div');
+        li.className = 'item';
+        li.innerHTML = `
+          <span class="idx">${i+1}</span>
+          <div>
+            <div>${p.title || ('Point '+(i+1))}</div>
+            ${p.hint ? `<small class="desc">${p.hint}</small>` : ''}
+          </div>
+          <span class="dot" title="progrès"></span>
+        `;
+        li.addEventListener('click', ()=>{ state.current=i; updateEditor(); });
+        pointsList.appendChild(li);
+      });
+      updateEditor();
+    }
+
+    // Fetch 28 points (Vercel function) – fallback local si échec
+    async function loadPoints(){
+      try{
+        const r = await fetch('/api/study-28');
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        const data = await r.json();
+        // attendu: [{title, hint?}, ...] longueur 28
+        if(Array.isArray(data) && data.length){
+          state.points = data;
+        }else{
+          throw new Error('format inattendu');
+        }
+        log('[study-28] ok ('+state.points.length+' items)');
+      }catch(e){
+        log('[study-28] fallback ('+e.message+')');
+        state.points = Array.from({length:28},(_,i)=>({title:'Point '+(i+1), hint:''}));
+      }
+      buildList();
+    }
+
+    // Navigation
+    document.getElementById('prev').addEventListener('click', ()=>{
+      state.current = (state.current-1+state.points.length)%state.points.length;
+      updateEditor();
+    });
+    document.getElementById('next').addEventListener('click', ()=>{
+      state.current = (state.current+1)%state.points.length;
+      updateEditor();
+    });
+
+    // Ping/health (pour vercel)
+    async function ping(){
+      try{
+        const ok = await fetch('/api/env').then(r=>r.ok);
+        document.getElementById('dot-ping').classList.toggle('ok', ok);
+      }catch{ /* noop */ }
+    }
+    async function health(){
+      // simple heuristique: si /api/study-28 répond on met ok
+      try{
+        const r = await fetch('/api/study-28', { method:'HEAD' });
+        document.getElementById('dot-health').classList.toggle('ok', r.ok);
+      }catch{}
+    }
+
+    // API Bible — hooks front (appelle ta fonction edge /api/bibleProvider)
+    function normalizeRef(s){ return (s||'').trim().replace(/\s+/g,' '); }
+    async function readPassage(ref){
+      const version = versionSelect.value || 'LSG';
+      const url = '/api/bibleProvider?ref='+encodeURIComponent(ref)+'&version='+encodeURIComponent(version);
+      log('[bible] GET '+url);
+      try{
+        const r = await fetch(url);
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        const data = await r.json();
+        // attendu: { reference:"Genèse 1:1-5", text:"...", youversion:"https://..." }
+        const block = [
+          '### Lecture — '+(data.reference||ref),
+          '',
+          (data.text||'').trim(),
+          '',
+          data.youversion ? ('Lien chapitre : '+data.youversion) : ''
+        ].join('\\n');
+        // Insert à la position courante sans écraser l’existant
+        const cur = noteArea.value;
+        noteArea.value = cur ? (cur.replace(/\\s*$/,'')+'\\n\\n'+block) : block;
+        state.notes[state.current] = noteArea.value;
+        localStorage.setItem('notes28', JSON.stringify(state.notes));
+        syncView();
+        updateProgressDots();
+      }catch(e){
+        log('[bible] erreur: '+e.message);
+        alert('Impossible de lire ce passage pour le moment.');
+      }
+    }
+
+    // Bouton Lire
+    readBtn.addEventListener('click', ()=>{
+      const raw = normalizeRef(searchRef.value);
+      if(raw){ readPassage(raw); return; }
+      // si pas de texte, composer depuis selects
+      const book = bookSelect.value;
+      const ch = chapterSelect.value;
+      const v = verseSelect.value;
+      const ref = [book, ch && (':' + (v||'1')) ? (ch) : ''].join(' ').trim();
+      if(book && ch){
+        const good = book + ' ' + ch + (v?(':'+v):'');
+        readPassage(good);
+      }else{
+        alert('Indique une référence (ex: Jean 3:16).');
+      }
+    });
+
+    // Livres/chapitres/versets — simple placeholder en attendant api.bible côté /api/bibleProvider (rempli dynamiquement si besoin)
+    const simpleBooks = ["Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth","1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther","Job","Psaumes","Proverbes","Ecclésiaste","Cantique des Cantiques","Ésaïe","Jérémie","Lamentations","Ézéchiel","Daniel","Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie","Aggée","Zacharie","Malachie","Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"];
+    function initSelects(){
+      bookSelect.innerHTML = '<option value="">Livre…</option>' + simpleBooks.map(b=>`<option>${b}</option>`).join('');
+      chapterSelect.innerHTML = '<option value="">Chapitre…</option>' + Array.from({length:150},(_,i)=>`<option>${i+1}</option>`).join('');
+      verseSelect.innerHTML = '<option value="">Verset…</option>' + Array.from({length:176},(_,i)=>`<option>${i+1}</option>`).join('');
+    }
+
+    // Debug
+    debugBtn.addEventListener('click', ()=>{ debugPanel.style.display = (debugPanel.style.display==='none'?'block':'none'); });
+
+    // Init
+    (async function init(){
+      initSelects();
+      await loadPoints();
+      ping(); health();
+      syncView();
+      document.body.setAttribute('data-theme', themeSelect.value);
+      log('[init] ok');
+    })();
+  })();
+  </script>
 </body>
 </html>
