@@ -1,107 +1,128 @@
-/* public/app.js — branche « tout recolle » (UI existante, zéro impact CSS)
-   - Remplit les selects Livre/Chapitre depuis /api/bibleBooks & /api/bibleChapters
-   - Bouton Générer -> /api/study-28 -> remplit la colonne Rubriques (28) + éditeur
-   - Bouton "Lire la Bible" -> BibleGateway (LSG / JND)
+/* public/app.js — version « offline books/chapters »
+   - N’APPELLE PAS /api/bibleBooks ni /api/bibleChapters (supprimés chez toi)
+   - Remplit Livre/Chapitre localement (tous les 66 livres + nb chapitres)
+   - Bouton Générer -> /api/study-28 (déjà en place côté API)
+   - Bouton Lire la Bible -> BibleGateway (LSG ou Darby/JND)
 */
 
 (function () {
-  // ==== helpers dom ==========================================================
+  // ---- utils DOM ----
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
-  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
   function textIncludes(el, needle) {
-    return el && (el.textContent || "").toLowerCase().includes(needle.toLowerCase());
-  }
-  function escapeHtml(s="") {
-    return String(s)
-      .replaceAll("&", "&amp;").replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;").replaceAll('"', "&quot;")
-      .replaceAll("'", "&#39;");
+    return el && (el.textContent || "").toLowerCase().includes(String(needle).toLowerCase());
   }
 
-  // ==== trouve les éléments existants, sans casser la page ===================
-  function findGenerateBtn() {
-    // bouton dont le texte contient "Générer"
-    return $$("button, a").find(b => textIncludes(b, "générer"));
-  }
-  function findReadBtn() {
-    return $$("button, a").find(b => textIncludes(b, "lire la bible"));
-  }
+  // ---- références UI (on réutilise tes éléments existants) ----
+  function findGenerateBtn() { return $$("button, a").find(b => textIncludes(b, "générer")); }
+  function findReadBtn()     { return $$("button, a").find(b => textIncludes(b, "lire la bible")); }
+
   function findBookSelect() {
-    // select déjà présent qui liste des livres (Genèse, Exode…)
-    const ids = ["bookSelect","livre","book"];
-    for (const id of ids) { const el = $("#"+id); if (el) return el; }
     const sels = $$("select");
+    // s’il y a un select qui contient "Genèse", on le prend
     for (const s of sels) {
-      const opts = $$("#", s) || [];
-      const t = Array.from(s.options || []).map(o => (o.text || o.value || "").toLowerCase()).join("|");
-      if (/gen[eè]se|exode|psaumes|matthieu|apocalypse/.test(t)) return s;
+      const txt = Array.from(s.options||[]).map(o => (o.text||o.value||"").toLowerCase()).join("|");
+      if (/gen[eè]se|exode|psaumes|matthieu|apocalypse/.test(txt)) return s;
     }
-    // si rien n’existe, on crée un select discrètement et on le met
-    // à la place du premier select vide de la barre
-    const firstEmpty = $$("select").find(s => (s.options || []).length < 2);
-    if (firstEmpty) return firstEmpty;
-    return null;
+    // sinon, le premier select de la barre
+    return sels[0] || null;
   }
   function findChapterSelect() {
-    const ids = ["chapterSelect","chapitre","chapter"];
-    for (const id of ids) { const el = $("#"+id); if (el) return el; }
-    // heuristique: select qui contient beaucoup de chiffres (1..50)
     const sels = $$("select");
+    // un select avec beaucoup de chiffres est souvent « Chapitre »
     for (const s of sels) {
-      const first = Array.from(s.options || []).slice(0, 12).map(o => (o.value || o.text || "").trim());
-      const nums = first.filter(v => /^\d+$/.test(v)).length;
+      const nums = Array.from(s.options||[]).slice(0, 12).filter(o => /^\d+$/.test(o.value||o.text||"")).length;
       if (nums >= 6) return s;
     }
-    const empty = $$("select").find(s => (s.options || []).length < 2 && s !== findBookSelect());
-    return empty || null;
+    // sinon un deuxième select de la barre
+    return sels[1] || null;
   }
   function findVersionSelect() {
-    const ids = ["versionSelect","version"];
-    for (const id of ids) { const el = $("#"+id); if (el) return el; }
     const sels = $$("select");
     for (const s of sels) {
-      const t = Array.from(s.options || []).map(o => (o.text || o.value || "").toLowerCase()).join("|");
-      if (/segond|louis|darby|ostervald|neg|bds|s21|pdv/.test(t)) return s;
+      const txt = Array.from(s.options||[]).map(o => (o.text||o.value||"").toLowerCase()).join("|");
+      if (/segond|louis|darby|jnd|ostervald|neg|bds|s21|pdv/.test(txt)) return s;
     }
-    return null; // pas grave : on assumera LSG
-  }
-  function findRubriquesColumn() {
-    // conteneur sous le titre "Rubriques"
-    const candidates = $$("*").filter(n => textIncludes(n, "rubriques"));
-    for (const h of candidates) {
-      // cherche un conteneur défilant sous ce titre
-      if (h.parentElement) return h.parentElement; // on écrira notre liste dedans
-    }
-    // fallback : crée un conteneur léger dans la première colonne (si deux colonnes)
-    const twoCols = $$("main, .container, .columns, .grid, body").find(c => $$(".col, [class*='col-'], [class*='sidebar'], [class*='left']", c).length >= 1);
-    return twoCols || document.body;
-  }
-  function findEditor() {
-    // zone d’édition à droite : textarea ou contenteditable
-    const ta = $("textarea");
-    if (ta) return { el: ta, set: v => (ta.value = v) };
-    const ed = $$("[contenteditable='true']").find(Boolean);
-    if (ed) return { el: ed, set: v => (ed.innerText = v) };
-    // conteneur de fallback : on injecte un <textarea> non stylé
-    const box = document.createElement("textarea");
-    box.style.width = "100%"; box.style.minHeight = "200px";
-    const spot = $("#app") || document.body;
-    spot.appendChild(box);
-    return { el: box, set: v => (box.value = v) };
+    return null; // pas bloquant
   }
 
-  // éléments (trouvés/assumés)
+  function findRubriquesColumn() {
+    // On cible le conteneur sous « Rubriques »
+    const title = $$("*").find(n => textIncludes(n, "rubriques"));
+    return title ? title.parentElement : document.body;
+  }
+
+  function findEditor() {
+    const ta = $("textarea");
+    if (ta) return { set: v => (ta.value = v) };
+    const ed = $$("[contenteditable='true']").find(Boolean);
+    if (ed) return { set: v => (ed.innerText = v) };
+    // fallback ultra simple
+    const box = document.createElement("textarea");
+    box.style.width = "100%"; box.style.minHeight = "220px";
+    (document.body).appendChild(box);
+    return { set: v => (box.value = v) };
+  }
+
   const BTN_GEN = findGenerateBtn();
   const BTN_READ = findReadBtn();
   const SEL_BOOK = findBookSelect();
   const SEL_CHAP = findChapterSelect();
   const SEL_VERS = findVersionSelect();
   const RUBR_COL = findRubriquesColumn();
-  const EDITOR = findEditor();
+  const EDITOR   = findEditor();
 
-  // conteneur interne pour notre liste (zéro style imposé)
+  // ---- Données locales livres+chapitres (FR) ----
+  // Format: [Nom affiché, OSIS, nbChap]
+  const BOOKS = [
+    ["Genèse","GEN",50],["Exode","EXO",40],["Lévitique","LEV",27],["Nombres","NUM",36],["Deutéronome","DEU",34],
+    ["Josué","JOS",24],["Juges","JDG",21],["Ruth","RUT",4],
+    ["1 Samuel","1SA",31],["2 Samuel","2SA",24],
+    ["1 Rois","1KI",22],["2 Rois","2KI",25],
+    ["1 Chroniques","1CH",29],["2 Chroniques","2CH",36],
+    ["Esdras","EZR",10],["Néhémie","NEH",13],["Esther","EST",10],
+    ["Job","JOB",42],["Psaumes","PSA",150],["Proverbes","PRO",31],["Ecclésiaste","ECC",12],["Cantique des cantiques","SNG",8],
+    ["Ésaïe","ISA",66],["Jérémie","JER",52],["Lamentations","LAM",5],["Ézéchiel","EZK",48],["Daniel","DAN",12],
+    ["Osée","HOS",14],["Joël","JOL",3],["Amos","AMO",9],["Abdias","OBA",1],["Jonas","JON",4],["Michée","MIC",7],["Nahum","NAM",3],["Habacuc","HAB",3],["Sophonie","ZEP",3],["Aggée","HAG",2],["Zacharie","ZEC",14],["Malachie","MAL",4],
+    ["Matthieu","MAT",28],["Marc","MRK",16],["Luc","LUK",24],["Jean","JHN",21],["Actes","ACT",28],
+    ["Romains","ROM",16],["1 Corinthiens","1CO",16],["2 Corinthiens","2CO",13],["Galates","GAL",6],["Éphésiens","EPH",6],["Philippiens","PHP",4],["Colossiens","COL",4],["1 Thessaloniciens","1TH",5],["2 Thessaloniciens","2TH",3],
+    ["1 Timothée","1TI",6],["2 Timothée","2TI",4],["Tite","TIT",3],["Philémon","PHM",1],["Hébreux","HEB",13],
+    ["Jacques","JAS",5],["1 Pierre","1PE",5],["2 Pierre","2PE",3],["1 Jean","1JN",5],["2 Jean","2JN",1],["3 Jean","3JN",1],["Jude","JUD",1],["Apocalypse","REV",22]
+  ];
+
+  // mapping d’accès rapide
+  const BOOK_INDEX = new Map(BOOKS.map(b => [b[0], { osis: b[1], chapters: b[2] }]));
+
+  // ---- Remplit Livre/Chapitre (sans API) ----
+  function fillBooks() {
+    if (!SEL_BOOK) return;
+    // si déjà plein, ne pas dupliquer
+    if ((SEL_BOOK.options||[]).length > 10 && Array.from(SEL_BOOK.options).some(o => /gen[eè]se/i.test(o.text))) return;
+
+    SEL_BOOK.innerHTML = "";
+    for (const [name] of BOOKS) {
+      const opt = document.createElement("option");
+      opt.value = name; opt.textContent = name;
+      SEL_BOOK.appendChild(opt);
+    }
+  }
+
+  function fillChapters() {
+    if (!SEL_BOOK || !SEL_CHAP) return;
+    const selected = SEL_BOOK.value || "Genèse";
+    const info = BOOK_INDEX.get(selected) || BOOK_INDEX.get("Genèse");
+    const n = info ? info.chapters : 50;
+    SEL_CHAP.innerHTML = "";
+    for (let i = 1; i <= n; i++) {
+      const opt = document.createElement("option");
+      opt.value = String(i); opt.textContent = String(i);
+      SEL_CHAP.appendChild(opt);
+    }
+  }
+
+  // ---- Rendu Rubriques + Éditeur ----
+  let lastStudy = null;
   let rubriquesList = $("#rubriquesList");
   if (!rubriquesList) {
     rubriquesList = document.createElement("div");
@@ -109,50 +130,8 @@
     RUBR_COL.appendChild(rubriquesList);
   }
 
-  // ==== data mémoire =========================================================
-  let lastStudy = null; // { meta, sections[] }
-  let currentIndex = 1;
-
-  // ==== API helpers ==========================================================
-  async function getJSON(url) {
-    const r = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
-    const t = await r.text();
-    try { return { ok: r.ok, status: r.status, json: JSON.parse(t) }; }
-    catch { return { ok: r.ok, status: r.status, text: t }; }
-  }
-
-  // ==== books / chapters =====================================================
-  async function ensureBooks() {
-    if (!SEL_BOOK) return;
-    if ((SEL_BOOK.options || []).length > 2) return; // déjà rempli
-    const res = await getJSON("/api/bibleBooks");
-    const arr = (res.json && res.json.data) || res.json || [];
-    if (!Array.isArray(arr) || !arr.length) return;
-    SEL_BOOK.innerHTML = "";
-    for (const b of arr) {
-      const opt = document.createElement("option");
-      opt.value = b.name || b; opt.textContent = b.name || b;
-      SEL_BOOK.appendChild(opt);
-    }
-  }
-  async function ensureChapters() {
-    if (!SEL_BOOK || !SEL_CHAP) return;
-    const book = SEL_BOOK.value || (SEL_BOOK.options[SEL_BOOK.selectedIndex] || {}).text || "Genèse";
-    const res = await getJSON("/api/bibleChapters?book=" + encodeURIComponent(book));
-    const arr = (res.json && res.json.data) || res.json || [];
-    if (!Array.isArray(arr) || !arr.length) return;
-    SEL_CHAP.innerHTML = "";
-    for (const c of arr) {
-      const n = c.number || c; // accepte {number:1} ou 1
-      const opt = document.createElement("option");
-      opt.value = n; opt.textContent = n;
-      SEL_CHAP.appendChild(opt);
-    }
-  }
-
-  // ==== rendu rubriques + édition ===========================================
   function renderRubriques(sections) {
-    rubriquesList.innerHTML = ""; currentIndex = 1;
+    rubriquesList.innerHTML = "";
     const ul = document.createElement("ul");
     ul.style.listStyle = "none"; ul.style.margin = "0"; ul.style.padding = "0";
     for (const s of sections) {
@@ -167,93 +146,79 @@
       btn.style.border = "none";
       btn.style.background = "transparent";
       btn.style.cursor = "pointer";
-      btn.setAttribute("data-idx", s.index);
-      btn.addEventListener("click", () => showSection(s.index));
+      btn.addEventListener("click", () => {
+        EDITOR.set(`${s.index}. ${s.title}\n\n${s.content || ""}`);
+        // léger highlight
+        Array.from(ul.children).forEach(li2 => li2.style.background = "transparent");
+        li.style.background = "rgba(0,0,0,.06)";
+      });
       li.appendChild(btn);
       ul.appendChild(li);
     }
     rubriquesList.appendChild(ul);
   }
 
-  function showSection(idx) {
-    if (!lastStudy) return;
-    const s = lastStudy.sections.find(x => x.index === idx);
-    if (!s) return;
-    currentIndex = idx;
-    // applique dans la zone d’édition (texte brut)
-    EDITOR.set(`${s.index}. ${s.title}\n\n${s.content || ""}`);
-    // highlight optionnel (léger)
-    $$("[data-idx]", rubriquesList).forEach(b => b.style.background = (Number(b.dataset.idx) === idx) ? "rgba(0,0,0,0.06)" : "transparent");
+  // ---- API study-28 ----
+  async function getJSON(url) {
+    const r = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
+    const t = await r.text();
+    try { return { ok: r.ok, status: r.status, json: JSON.parse(t) }; }
+    catch { return { ok: r.ok, status: r.status, text: t }; }
   }
 
-  // ==== Generate =============================================================
   function normalizeVersion() {
-    const v = SEL_VERS ? (SEL_VERS.options[SEL_VERS.selectedIndex] || {}).text || SEL_VERS.value : "LSG";
-    const t = String(v||"").toLowerCase();
+    if (!SEL_VERS) return { translation: "LSG", bibleId: "" };
+    const label = (SEL_VERS.options[SEL_VERS.selectedIndex] || {}).text || SEL_VERS.value || "";
+    const t = String(label).toLowerCase();
     if (/darby|jnd/.test(t)) return { translation: "JND", bibleId: "a93a92589195411f-01" };
-    return { translation: "LSG", bibleId: "" }; // défaut LSG
+    return { translation: "LSG", bibleId: "" };
   }
 
   async function generateStudy() {
     const book = SEL_BOOK ? SEL_BOOK.value : "Genèse";
-    const chap = SEL_CHAP ? SEL_CHAP.value : "1";
+    const chapter = SEL_CHAP ? SEL_CHAP.value : "1";
     const { translation, bibleId } = normalizeVersion();
-    const qs = new URLSearchParams({
-      book, chapter: chap, translation, trace: "1"
-    });
+
+    const qs = new URLSearchParams({ book, chapter, translation });
     if (bibleId) qs.set("bibleId", bibleId);
 
     const res = await getJSON("/api/study-28?" + qs.toString());
     if (!res.ok || !res.json || !res.json.ok) {
-      alert("Erreur génération étude: " + (res.json?.error || res.status));
+      alert("Erreur /api/study-28: " + (res.json?.error || res.status));
       return;
     }
-    const data = res.json.data || {};
-    lastStudy = data;
-    renderRubriques(data.sections || []);
-    showSection(1);
+    lastStudy = res.json.data || {};
+    const sections = lastStudy.sections || [];
+    renderRubriques(sections);
+    if (sections[0]) EDITOR.set(`${sections[0].index}. ${sections[0].title}\n\n${sections[0].content || ""}`);
   }
 
-  // ==== Lire la Bible (BibleGateway) ========================================
+  // ---- BibleGateway ----
   function bibleGatewayVersion() {
-    const v = SEL_VERS ? (SEL_VERS.options[SEL_VERS.selectedIndex] || {}).text || SEL_VERS.value : "LSG";
-    const t = String(v||"").toLowerCase();
-    // codes BG : LSG = LSG ; Darby FR = DAR
-    if (/darby|jnd/.test(t)) return "DAR";
-    return "LSG";
+    if (!SEL_VERS) return "LSG";
+    const label = (SEL_VERS.options[SEL_VERS.selectedIndex] || {}).text || SEL_VERS.value || "";
+    return /darby|jnd/i.test(label) ? "DAR" : "LSG";
   }
   function openBibleGateway() {
     const book = SEL_BOOK ? SEL_BOOK.value : "Genèse";
-    const chap = SEL_CHAP ? SEL_CHAP.value : "1";
+    const chapter = SEL_CHAP ? SEL_CHAP.value : "1";
     const ver = bibleGatewayVersion();
-    const url = `https://www.biblegateway.com/passage/?search=${encodeURIComponent(book)}%20${encodeURIComponent(chap)}&version=${encodeURIComponent(ver)}`;
+    const url = `https://www.biblegateway.com/passage/?search=${encodeURIComponent(book)}%20${encodeURIComponent(chapter)}&version=${encodeURIComponent(ver)}`;
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
-  // ==== wires ================================================================
-  async function boot() {
-    try {
-      await ensureBooks();
-      await ensureChapters();
-    } catch {}
+  // ---- events / boot ----
+  function wire() {
+    if (SEL_BOOK && SEL_CHAP) SEL_BOOK.addEventListener("change", fillChapters);
+    if (BTN_GEN)  BTN_GEN.addEventListener("click", (e) => { e.preventDefault(); generateStudy(); });
+    if (BTN_READ) BTN_READ.addEventListener("click", (e) => { e.preventDefault(); openBibleGateway(); });
+  }
+  function boot() {
+    fillBooks();
+    fillChapters();
+    wire();
   }
 
-  // réagit au changement de livre -> recharge chapitres
-  if (SEL_BOOK && SEL_CHAP) {
-    SEL_BOOK.addEventListener("change", ensureChapters);
-  }
-
-  if (BTN_GEN) BTN_GEN.addEventListener("click", (e) => { e.preventDefault(); generateStudy(); });
-  if (BTN_READ) BTN_READ.addEventListener("click", (e) => { e.preventDefault(); openBibleGateway(); });
-
-  // fallback : si l’utilisateur presse Alt+E -> générer
-  window.addEventListener("keydown", (ev) => {
-    if (ev.altKey && (ev.key === "e" || ev.key === "E")) {
-      ev.preventDefault(); generateStudy();
-    }
-  });
-
-  // démarre quand le DOM est prêt
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);
   } else {
