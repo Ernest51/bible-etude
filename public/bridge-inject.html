@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Bridge inject — Étude 28 points</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Arial;margin:0;background:#f6f7fb;color:#0f172a}
+  header,main{max-width:1100px;margin:16px auto;padding:0 12px}
+  .row{display:grid;grid-template-columns:repeat(5,minmax(160px,1fr));gap:8px}
+  input,select,button{padding:10px;border:1px solid #e5e7eb;border-radius:10px;background:#fff}
+  button{background:#0ea5e9;color:#fff;border:none;font-weight:700;cursor:pointer}
+  .cols{display:grid;grid-template-columns:300px 1fr;gap:12px;margin-top:12px}
+  .list{border:1px solid #e5e7eb;border-radius:12px;background:#fff;max-height:520px;overflow:auto}
+  .item{padding:8px 10px;border-bottom:1px dashed #e5e7eb;cursor:pointer}
+  .item[data-active="1"]{background:#eef6ff}
+  textarea{width:100%;min-height:520px;border:1px solid #e5e7eb;border-radius:12px;padding:10px;background:#fff}
+  .muted{color:#64748b}
+</style>
+</head>
+<body>
+<header>
+  <h1>Bridge inject — Étude 28 points</h1>
+  <p class="muted">Appelle /api/study-28 puis injecte localement (liste + éditeur), sans dépendre de ta page principale.</p>
+</header>
+
+<main>
+  <div class="row">
+    <input id="book" value="Genèse" />
+    <input id="chapter" type="number" min="1" value="1" />
+    <input id="verse" placeholder="ex: 1-5 (facultatif)" />
+    <input id="translation" value="JND" />
+    <button id="run">🧪 Générer</button>
+  </div>
+
+  <p id="status" class="muted">—</p>
+
+  <div class="cols">
+    <div class="list" id="left">Remplis puis clique sur un item…</div>
+    <textarea id="editor" placeholder="Écris ici…"></textarea>
+  </div>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+let state = { sections:[], idx:0 };
+
+function strip(html){return String(html||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim()}
+function esc(s=""){return s.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")}
+
+function renderList(){
+  const L = $("#left");
+  if (!state.sections.length){ L.textContent = "—"; return; }
+  L.innerHTML = state.sections.map((s,i)=>`
+    <div class="item" data-i="${i}" ${i===state.idx?'data-active="1"':''}>
+      <b>${s.index}. ${esc(s.title||"")}</b><br>${esc((s.content||"").slice(0,120))}${(s.content||"").length>120?"…":""}
+    </div>
+  `).join("");
+  L.querySelectorAll(".item").forEach(el=>{
+    el.onclick=()=>{
+      // sauvegarde l’éditeur dans la section active (simulation)
+      state.sections[state.idx]._note = $("#editor").value;
+      state.idx = +el.dataset.i;
+      $("#editor").value = state.sections[state.idx]._note || strip(state.sections[state.idx].content||"");
+      renderList();
+    };
+  });
+}
+
+async function run(){
+  const book = $("#book").value.trim();
+  const chapter = $("#chapter").value.trim();
+  const verse = $("#verse").value.trim();
+  const translation = $("#translation").value.trim() || "JND";
+  const sp = new URLSearchParams({book,chapter,translation,mode:"full",trace:"1"});
+  if (verse) sp.set("verse", verse);
+
+  $("#status").textContent = "⏳ appel /api/study-28…";
+  const r = await fetch("/api/study-28?"+sp.toString(),{headers:{accept:"application/json"},cache:"no-store"});
+  const t = await r.text();
+  let j=null; try{ j=JSON.parse(t);}catch{}
+  if(!r.ok || !j || j.ok===false){ $("#status").textContent = `⚠️ ${r.status} ${j?.error||""}`; return; }
+
+  const meta = j.data?.meta || {};
+  $("#status").textContent = `✅ ${meta.reference||"?"} · OSIS ${meta.osis||"?"} · Trad ${meta.translation||"?"}`;
+
+  state.sections = Array.isArray(j.data?.sections)? j.data.sections : [];
+  state.idx = 0;
+  state.sections.forEach(s=>s._note=""); // bloc notes local
+  renderList();
+  $("#editor").value = state.sections.length ? strip(state.sections[0].content||"") : "";
+}
+
+$("#run").onclick = run;
+</script>
+</body>
+</html>
