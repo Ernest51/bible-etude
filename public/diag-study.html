@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Diagnostic — Étude 28 points (api.bible)</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Inter,Arial,sans-serif;background:#f6f7fb;margin:0;padding:20px;color:#0f172a}
+  h1{margin:.2rem 0 1rem}
+  label{display:block;margin:.6rem 0 .2rem}
+  input,select,button{padding:.55rem .7rem;border:1px solid #e5e7eb;border-radius:10px}
+  button{background:#111827;color:#fff;font-weight:700;cursor:pointer}
+  .row{display:grid;grid-template-columns:repeat(2,minmax(280px,420px));gap:16px;align-items:end}
+  .row+ .row{margin-top:10px}
+  .out{margin-top:18px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px}
+  pre{white-space:pre-wrap;background:#0b1020;color:#e2e8f0;padding:10px;border-radius:8px;max-height:400px;overflow:auto}
+  .ok{color:#16a34a}.ko{color:#dc2626}
+</style>
+</head>
+<body>
+  <h1>Diagnostic — Étude 28 points (api.bible)</h1>
+
+  <div class="row">
+    <div>
+      <label>Livre</label>
+      <input id="book" value="Genèse"/>
+    </div>
+    <div>
+      <label>Chapitre</label>
+      <input id="chapter" value="1"/>
+    </div>
+  </div>
+  <div class="row">
+    <div>
+      <label>Verset (optionnel)</label>
+      <input id="verse" placeholder="ex: 1, 1-5…"/>
+    </div>
+    <div>
+      <label>Traduction (meta)</label>
+      <input id="translation" value="JND"/>
+    </div>
+  </div>
+  <div class="row">
+    <div>
+      <label>bibleId (optionnel)</label>
+      <input id="bibleId" placeholder="ex: a93a92589195411f-01"/>
+    </div>
+    <div>
+      <label>Mode</label>
+      <select id="mode">
+        <option value="full" selected>full (28 rubriques)</option>
+        <option value="mini">mini</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:10px">
+    <button id="run">🧪 Lancer (live api.bible)</button>
+    <button id="dry">Dry-run (hors-ligne)</button>
+  </div>
+
+  <div class="out">
+    <div id="status"></div>
+    <h3>Meta</h3>
+    <pre id="meta"></pre>
+    <h3>Réponse brute</h3>
+    <pre id="raw"></pre>
+    <h3>Trace</h3>
+    <pre id="trace"></pre>
+  </div>
+
+<script>
+const $ = s=>document.querySelector(s);
+
+async function call(url){
+  const r = await fetch(url, { headers:{ "cache-control":"no-store" } });
+  const text = await r.text();
+  try {
+    return { status:r.status, ok:r.ok, json: JSON.parse(text) };
+  } catch {
+    return { status:r.status, ok:r.ok, text };
+  }
+}
+
+function render(res){
+  const s = $("#status"), m=$("#meta"), raw=$("#raw"), t=$("#trace");
+  s.innerHTML = res.ok ? `<b class="ok">HTTP ${res.status} (OK)</b>` : `<b class="ko">HTTP ${res.status}</b>`;
+  if (res.json) {
+    raw.textContent = JSON.stringify(res.json, null, 2);
+    const meta = res.json?.data?.meta || {};
+    m.textContent = JSON.stringify(meta, null, 2);
+    const tr = res.json?.trace || null;
+    t.textContent = tr ? JSON.stringify(tr, null, 2) : "—";
+  } else {
+    raw.textContent = res.text || "—";
+    m.textContent = "—";
+    t.textContent = "—";
+  }
+}
+
+async function run(live){
+  const book = $("#book").value.trim();
+  const chapter = $("#chapter").value.trim();
+  const verse = $("#verse").value.trim();
+  const translation = $("#translation").value.trim() || "JND";
+  const bibleId = $("#bibleId").value.trim();
+  const mode = $("#mode").value;
+
+  const sp = new URLSearchParams({ book, chapter, translation, mode, trace:"1" });
+  if (verse) sp.set("verse", verse);
+  if (bibleId) sp.set("bibleId", bibleId);
+  if (!live) sp.set("dry", "1");
+
+  const url = "/api/study-28?" + sp.toString();
+  const res = await call(url);
+  render(res);
+}
+
+$("#run").addEventListener("click", ()=>run(true));
+$("#dry").addEventListener("click", ()=>run(false));
+</script>
+</body>
+</html>
