@@ -1,11 +1,11 @@
 // api/generate-study.js
 //
 // Étude 28 points – Génération côté serveur (Next/Vercel).
-// ✅ Source texte: api.bible (version Darby côté serveur), mais le mot "Darby" N'EST JAMAIS affiché.
-// ✅ Sortie HTML: <strong>, <em>, <p>, <br>, <ul>, <li> (aucun **markdown**).
-// ✅ Rubriques 1 et 28: PRIÈRES longues (~1300 caractères chacune), adaptées au livre+chapitre,
-//    en s'appuyant sur les mots-clés, le verset-clé et un thème doctrinal déduit.
-// ✅ Les autres rubriques restent comme avant (courtes) jusqu’à validation rubrique par rubrique.
+// ✅ Source texte: api.bible (version serveur), mais le nom de la version n'est jamais affiché.
+// ✅ Prières d'ouverture (1) et de fin (28) en PREMIÈRE PERSONNE ("je") et spécifiques à CHAQUE chapitre.
+// ✅ Le contenu varie avec: mots-clés, verset-clé, versets d'ouverture/milieu/fin, nombre de versets, testament, meta du livre.
+// ✅ Sortie HTML: <strong>, <em>, <p> (aucun markdown **).
+// ✅ Pas de cache côté API pour éviter toute répétition visible.
 //
 // ENV (Vercel):
 //   - API_BIBLE_KEY
@@ -57,7 +57,6 @@ const BOOK_META = {
   "Jean":{ genre:"Évangile", ouverture:"Verbe fait chair, lumière et vie." },
   "Actes":{ genre:"Histoire", ouverture:"Esprit Saint, Église en mission." },
   "Romains":{ genre:"Épître", ouverture:"Justice de Dieu, foi, grâce." }
-  // (compléter selon besoin)
 };
 
 // ---------- Utilitaires texte ----------
@@ -70,7 +69,7 @@ function normalize(s){
 }
 const STOP = new Set("a ai afin ainsi alors apres au aux avec avant bien car ce cela ces comme dans de des du donc elle elles en encore est et etre il ils je la le les leur lui mais me meme mes mon ne nos notre nous on ou par pas plus pour quand que qui sans selon si son sont sur ta te tes toi ton tous tout tres tu un une vos votre vous".split(" "));
 
-function keywordStats(text, topN=14){
+function keywordStats(text, topN=18){
   const words = normalize(text).split(" ").filter(w=>w && !STOP.has(w) && !/^\d+$/.test(w));
   const freq = new Map();
   for(const w of words){ freq.set(w,(freq.get(w)||0)+1); }
@@ -79,6 +78,7 @@ function keywordStats(text, topN=14){
 
 function splitVerses(raw){
   const t = String(raw).replace(/\r/g," ").replace(/\s+/g," ").trim();
+  // Texte "1 Au commencement ... 2 La terre ..." -> détecter "numéro + espace + texte"
   const re = /(?:^|\s)(\d{1,3})\s(.*?)(?=\s\d{1,3}\s|$)/gs;
   const verses=[], seen = new Set();
   let m; while((m=re.exec(t))){
@@ -117,7 +117,7 @@ async function loadStudyPoints(req){
   const proto = req.headers["x-forwarded-proto"] || "https";
   const host  = req.headers.host;
   try{
-    const r = await fetchFn(`${proto}://${host}/api/study-28`);
+    const r = await fetchFn(`${proto}://${host}/api/study-28`, { cache: "no-store" });
     if(!r.ok) throw new Error();
     const j = await r.json();
     if(Array.isArray(j) && j.length) return j;
@@ -128,18 +128,20 @@ async function loadStudyPoints(req){
 // ---------- api.bible : passages -> chapters (fallback) ----------
 async function fetchDarbyText(osisId){
   if(!API_KEY || !BIBLE_ID) throw new Error("Config API_BIBLE_KEY / BIBLE_ID_DARBY manquante.");
-  // Essai 1
+  // Essai 1: passages, texte avec numéros de versets
   const url1 = `${API_BASE}/bibles/${encodeURIComponent(BIBLE_ID)}/passages/${encodeURIComponent(osisId)}?content-type=text&include-chapter-numbers=false&include-verse-numbers=true`;
-  let r = await fetchFn(url1, { headers:{ "accept":"application/json", "api-key":API_KEY }});
+  let r = await fetchFn(url1, { headers:{ "accept":"application/json", "api-key":API_KEY }, cache:"no-store" });
   let data = r.ok ? await r.json() : null;
   let raw = data?.data?.content || (Array.isArray(data?.data?.passages) && data.data.passages[0]?.content) || "";
-  // Essai 2
+
+  // Essai 2: chapters/plaintext (fallback)
   if(!raw || !String(raw).trim()){
     const url2 = `${API_BASE}/bibles/${encodeURIComponent(BIBLE_ID)}/chapters/${encodeURIComponent(osisId)}?content-type=plaintext&include-chapter-numbers=false&include-verse-numbers=true`;
-    r = await fetchFn(url2, { headers:{ "accept":"application/json", "api-key":API_KEY }});
+    r = await fetchFn(url2, { headers:{ "accept":"application/json", "api-key":API_KEY }, cache:"no-store" });
     data = r.ok ? await r.json() : null;
     raw = data?.data?.content || "";
   }
+
   return String(raw)
     .replace(/<[^>]+>/g," ")
     .replace(/\u00A0/g," ")
@@ -157,55 +159,93 @@ async function fetchPrevChapterText(bookFr, chapterNum){
   try{ return await fetchDarbyText(osisId); }catch{ return ""; }
 }
 
-// ---------- Génération des PRIÈRES longues (≈1300 caractères) ----------
-function composeOpeningPrayer({book, chapter, theme, keyVerseText, meta, testament}){
-  // Sélection d’axes doctrinaux selon le testament / thème
-  const axes = [];
-  if (OT.has(book)) {
-    axes.push("Tu parles et les mondes existent, tu appelles et l’histoire s’ordonne sous ta main.");
-    axes.push("Ton alliance trace un chemin de fidélité où la promesse soutient la marche des faibles.");
-  } else {
-    axes.push("Par ton Fils, Parole faite chair, tu nous ouvres le sens véritable des Écritures.");
-    axes.push("Par l’Esprit Saint, tu illumines nos coeurs pour comprendre et aimer ta volonté.");
-  }
-  const axeTheme = {
-    "Création et souveraineté de Dieu": "Que la lumière de ta sagesse dissipe nos ténèbres, comme au commencement, et que tout désordre se convertisse en louange.",
-    "Salut par la grâce et la foi": "Accorde-nous la grâce d’une foi vivante, qui reçoit le salut sans mérite, et te répond par l’obéissance reconnaissante.",
-    "Sainteté et repentance": "Rends-nous sensibles à ta sainteté afin que la repentance devienne pour nous une porte de vie et de joie.",
-    "Œuvre du Saint-Esprit": "Souffle de l’Esprit, viens rendre notre lecture féconde, unissant vérité et puissance dans un même élan.",
-    "Amour et vie de l’Église": "Apprends-nous la charité qui édifie, afin que ta Parole nous rassemble et nous envoie comme un seul corps.",
-    "Royaume et justice de Dieu": "Fais grandir en nous la justice de ton Royaume et la douceur de ta souveraineté sur nos vies."
-  }[theme] || "Que ta présence gouverne notre intelligence et notre coeur, pour que la vérité devienne chemin et vie.";
-
-  const metaLine = meta?.ouverture ? `Tu nous introduis ici dans une page où ${meta.ouverture.toLowerCase()}` : `Tu nous introduis ici dans une page où ta sagesse se révèle.`;
-  const kv = keyVerseText ? `Tu as déjà gravé dans ce chapitre cette parole qui nous oriente&nbsp;: <em>«&nbsp;${keyVerseText.trim()}&nbsp;»</em>. ` : "";
-
-  // Construction ~1300 caractères (deux grands paragraphes + doxologie)
-  const p1 = `<p><strong>Seigneur notre Dieu</strong>, alors que nous ouvrons ${book} ${chapter}, nous reconnaissons que ta Parole est vivante et qu’elle sonde les coeurs. ${metaLine}. ${axes[0]} ${axes[1]} ${kv}Donne-nous un esprit d’écoute docile : que nos pensées se taisent devant ta voix, que nos attentes s’alignent sur la tienne, et que notre désir le plus profond soit d’aimer ce que tu commandes.</p>`;
-  const p2 = `<p><strong>Père de toute consolation</strong>, fais que ce chapitre devienne pour nous une école de vérité et de liberté : éclaire nos intelligences, affermis nos affections, redresse nos pas. ${axeTheme} Épargne-nous la curiosité stérile ; accorde-nous plutôt la simplicité des disciples qui cherchent ta face pour accomplir ta volonté. Que la cohérence de l’Écriture, depuis la première promesse jusqu’à l’espérance ultime, se déploie devant nous et nous conduise à te glorifier en actes et en paroles.</p>`;
-  const p3 = `<p><strong>Nous te le demandons</strong> dans la paix que tu donnes : que la lecture de ${book} ${chapter} façonne notre vie, console nos blessures et fortifie notre espérance. Que ta Parole, reçue avec foi, porte un fruit qui demeure. <em>Amen</em>.</p>`;
-  return (p1 + p2 + p3);
+// ---------- Aides pour varier VRAIMENT selon le chapitre ----------
+function sampleVerse(verses, where="start"){
+  if(!verses.length) return null;
+  if(where==="start") return verses[0];
+  if(where==="end") return verses[verses.length-1];
+  const midIdx = Math.max(0, Math.min(verses.length-1, Math.floor(verses.length/2)));
+  return verses[midIdx];
+}
+function clip(s, n=140){
+  s = String(s||"").replace(/\s+/g," ").trim();
+  if(s.length<=n) return s;
+  return s.slice(0, n-1).trim()+"…";
+}
+function tokensSnippet(kws, n=5){
+  return kws.slice(0, n).map(k=>k.word).join(", ");
 }
 
-function composeClosingPrayer({book, chapter, theme, keyVerseText, testament}){
+// ---------- PRIÈRES (première personne) ----------
+function composeOpeningPrayerJe(ctx){
+  const {book, chapter, theme, keyVerseText, meta, testament, verses} = ctx;
+  const vStart = sampleVerse(verses, "start");
+  const vMid   = sampleVerse(verses, "mid");
+  const vEnd   = sampleVerse(verses, "end");
+  const nVers  = verses.length;
+
+  const metaLine = meta?.ouverture
+    ? `Tu ouvres devant moi une page où ${meta.ouverture.toLowerCase()}`
+    : `Tu ouvres devant moi une page où ta sagesse se révèle`;
+
+  const axisOT = [
+    "Tu parles et l’histoire se met en ordre ; je reconnais ta souveraineté qui fonde ma confiance.",
+    "Par ton alliance tu soutiens la marche des faibles ; je veux me souvenir de tes promesses."
+  ];
+  const axisNT = [
+    "Par Jésus, Parole faite chair, tu éclaires mon intelligence ; je reçois sa lumière sur ${book} ${chapter}.",
+    "Par l’Esprit Saint, tu ouvres mon coeur ; je te prie d’unir vérité et obéissance en moi."
+  ];
+  const axes = OT.has(book) ? axisOT : axisNT;
+
+  const lineTheme = {
+    "Création et souveraineté de Dieu": "Comme au commencement, fais briller ta lumière et dissipe mes ténèbres ; ordonne le chaos de mes pensées pour que tout devienne louange.",
+    "Salut par la grâce et la foi": "Rappelle à mon coeur que tout est grâce ; que ma foi vive produise l’obéissance reconnaissante.",
+    "Sainteté et repentance": "Rends-moi sensible à ta sainteté ; que la repentance ouvre en moi un chemin de joie et de vie.",
+    "Œuvre du Saint-Esprit": "Souffle de l’Esprit, viens féconder ma lecture ; grave en moi ce que tu m’enseignes.",
+    "Amour et vie de l’Église": "Apprends-moi la charité qui édifie, afin que ta Parole me rassemble et m’envoie.",
+    "Royaume et justice de Dieu": "Fais grandir en moi la douceur de ton règne et la droiture de ta justice."
+  }[theme] || "Gouverne mon intelligence et mon coeur pour que ta vérité devienne mon chemin.";
+
+  const kv = keyVerseText ? `Tu as placé dans ${book} ${chapter} une parole qui m’oriente : <em>« ${keyVerseText.trim()} »</em>. ` : "";
+  const startLine = vStart ? `Dès l’ouverture (v.${vStart.n}), j’entends : <em>${clip(vStart.text, 120)}</em>. ` : "";
+  const midLine   = vMid   ? `Au milieu (v.${vMid.n}), tu poursuis : <em>${clip(vMid.text, 120)}</em>. ` : "";
+  const endLine   = vEnd   ? `Et vers la fin (v.${vEnd.n}), tu scelles : <em>${clip(vEnd.text, 120)}</em>. ` : "";
+  const countLine = `Ce chapitre compte ${nVers} versets : donne-moi de les recevoir non comme des mots, mais comme ta voix pour aujourd’hui.`;
+
+  const p1 = `<p><strong>Seigneur</strong>, j’ouvre ${book} ${chapter} et je me tiens devant toi. ${metaLine}. ${axes[0]} ${axes[1]} ${kv}Fais taire en moi ce qui ne vient pas de toi ; accorde-moi un coeur humble et une intelligence docile, afin que je lise pour t’aimer et t’obéir.</p>`;
+  const p2 = `<p><strong>Père</strong>, éclaire ma pensée et affermis ma volonté. ${lineTheme} ${startLine}${midLine}${endLine}${countLine} Préserve-moi d’une curiosité stérile ; donne-moi la simplicité du disciple qui écoute pour mettre en pratique ce que tu commandes.</p>`;
+  const p3 = `<p><strong>Je te le demande</strong> : que la lecture de ${book} ${chapter} transforme mon regard, pacifie mes relations et oriente mes choix. Que ta Parole porte en moi un fruit qui demeure. <em>Amen</em>.</p>`;
+
+  return (p1+p2+p3);
+}
+
+function composeClosingPrayerJe(ctx){
+  const {book, chapter, theme, keyVerseText, verses} = ctx;
+  const vStart = sampleVerse(verses, "start");
+  const vEnd   = sampleVerse(verses, "end");
+
   const accents = {
-    "Création et souveraineté de Dieu": "Tu demeures Seigneur du temps et de l’histoire ; rien n’échappe à ta sagesse.",
-    "Salut par la grâce et la foi": "Tu nous as rappelé que tout vient de ta grâce ; fais-nous marcher dans une foi active.",
-    "Sainteté et repentance": "Tu as visité nos consciences ; fais de la repentance un chemin quotidien vers ta joie.",
-    "Œuvre du Saint-Esprit": "Ton Esprit a ouvert l’Écriture ; qu’il grave en nous ce que nous avons reçu.",
-    "Amour et vie de l’Église": "Tu nous rassembles pour nous envoyer ; donne-nous d’aimer comme tu aimes.",
-    "Royaume et justice de Dieu": "Tu fais lever ton Royaume au milieu de nous ; apprends-nous la justice et la douceur."
-  }[theme] || "Tu as parlé ; apprends-nous à répondre avec droiture, persévérance et joie.";
+    "Création et souveraineté de Dieu": "Tu demeures Seigneur de l’histoire ; je m’abandonne avec confiance à ta sagesse.",
+    "Salut par la grâce et la foi": "Tu m’as rappelé que tout est grâce ; apprends-moi une foi qui agit par l’amour.",
+    "Sainteté et repentance": "Tu as visité ma conscience ; fais de la repentance un mouvement quotidien vers ta joie.",
+    "Œuvre du Saint-Esprit": "Ton Esprit a ouvert l’Écriture ; qu’il grave en moi ce que j’ai reçu.",
+    "Amour et vie de l’Église": "Tu me rassembles et m’envoies ; fais de moi un artisan de paix.",
+    "Royaume et justice de Dieu": "Ton Royaume avance ; rends-moi droit et doux sous ton règne."
+  }[theme] || "Tu as parlé ; donne-moi de répondre avec droiture, persévérance et joie.";
 
-  const kv = keyVerseText ? `Garde en nos mémoires la parole entendue aujourd’hui&nbsp;: <em>«&nbsp;${keyVerseText.trim()}&nbsp;»</em>, afin qu’elle nous conduise avec sûreté.` : "Grave en nous ce que tu as fait entendre aujourd’hui.";
-  const ecclesia = OT.has(book)
-    ? "Que notre méditation s’unisse au long témoignage de ton peuple, de génération en génération."
-    : "Que la communion des saints nous fortifie pour rendre témoignage au Christ dans le monde.";
+  const kv = keyVerseText
+    ? `Garde en moi cette parole : <em>« ${keyVerseText.trim()} »</em>, qu’elle me conduise avec sûreté. `
+    : "";
 
-  const p1 = `<p><strong>Dieu de vérité</strong>, au terme de cette étude de ${book} ${chapter}, nous te bénissons pour la lumière reçue. ${accents} ${kv} Donne-nous d’honorer ta Parole non par des promesses vite oubliées, mais par l’obéissance humble et fidèle, afin que chaque devoir ordinaire devienne lieu de ta présence.</p>`;
-  const p2 = `<p><strong>Seigneur fidèle</strong>, fais descendre dans notre vie l’intelligence que tu as donnée : éclaire nos décisions, pacifie nos relations, oriente notre service. ${ecclesia} Apprends-nous à discerner ta volonté au coeur des complexités, et, lorsque nous faiblissons, relève-nous par la consolation de l’Évangile et la force de l’Esprit Saint.</p>`;
-  const p3 = `<p><strong>Nous nous remettons à toi</strong> : que ${book} ${chapter} demeure pour nous un repère et une source. Que la semence déposée aujourd’hui porte un fruit de justice, pour la gloire de ton Nom. <em>Amen</em>.</p>`;
-  return (p1 + p2 + p3);
+  const startSeal = vStart ? `Ce que j’ai entendu dès le début (v.${vStart.n}) demeure : <em>${clip(vStart.text,120)}</em>. ` : "";
+  const endSeal   = vEnd   ? `Et ce sceau final (v.${vEnd.n}) m’accompagne : <em>${clip(vEnd.text,120)}</em>. ` : "";
+
+  const p1 = `<p><strong>Dieu de vérité</strong>, au terme de ${book} ${chapter}, je te bénis pour la lumière reçue. ${accents} ${kv}${startSeal}${endSeal}Je ne veux pas sortir de cette étude en oubliant ce que j’ai vu ; fais de ma vie l’écho de ta Parole.</p>`;
+  const p2 = `<p><strong>Seigneur fidèle</strong>, fais descendre en moi l’intelligence que tu m’as donnée : éclaire mes décisions, pacifie mes relations, oriente mon service. Quand je faiblis, relève-moi par ta consolation et la force de l’Esprit Saint.</p>`;
+  const p3 = `<p><strong>Je me remets à toi</strong> : que ${book} ${chapter} reste un repère pour ma route. Que la semence déposée aujourd’hui porte un fruit de justice pour la gloire de ton Nom. <em>Amen</em>.</p>`;
+
+  return (p1+p2+p3);
 }
 
 // ---------- Construction des 28 rubriques ----------
@@ -213,7 +253,7 @@ function buildSections(book, chapter, points, textCurr, textPrev){
   const ref = `${book} ${chapter}`;
   const verses = splitVerses(textCurr);
   const full   = verses.map(v=>`${v.n}. ${v.text}`).join(" ");
-  const kws    = keywordStats(full, 14);
+  const kws    = keywordStats(full, 18);
   const keyV   = chooseKeyVerse(verses, kws);
   const theme  = guessTheme(kws);
   const testament = OT.has(book) ? "Ancien Testament" : "Nouveau Testament";
@@ -221,13 +261,16 @@ function buildSections(book, chapter, points, textCurr, textPrev){
 
   const keyVerseText = keyV?.text || "";
 
-  // -- 1. Prière d’ouverture (≈1300 caractères) --
-  const opening = composeOpeningPrayer({ book, chapter, theme, keyVerseText, meta, testament });
+  // CONTEXTE pour les prières
+  const prayerCtx = { book, chapter, theme, keyVerseText, meta, testament, verses };
 
-  // -- 28. Prière de fin (≈1300 caractères) --
-  const closing = composeClosingPrayer({ book, chapter, theme, keyVerseText, testament });
+  // -- 1. Prière d’ouverture (première personne) --
+  const opening = composeOpeningPrayerJe(prayerCtx);
 
-  // --- Autres sections : on garde une version courte TEMPORAIRE (on les enrichira ensuite rubrique par rubrique) ---
+  // -- 28. Prière de fin (première personne) --
+  const closing = composeClosingPrayerJe(prayerCtx);
+
+  // --- Autres sections (placeholders courts — on les enrichira rub./rub.) ---
   function bullets(arr){ return arr.filter(Boolean).map(s=>`- ${s}`).join("\n"); }
   const n = verses[verses.length-1]?.n || verses.length || 1;
   const a = Math.max(1, Math.floor(n*0.33));
@@ -244,12 +287,12 @@ function buildSections(book, chapter, points, textCurr, textPrev){
     content: `<p><strong>Livre :</strong> ${book} — <strong>${testament}</strong><br><strong>Genre :</strong> ${meta.genre || "—"}</p>`
   });
 
-  // 3 (résumé questions précédent, version courte pour l’instant)
+  // 3 (questions du chapitre précédent — court pour l’instant)
   const prevShort = textPrev ? splitVerses(textPrev).slice(0,3).map(v=>`v.${v.n} ${v.text}`).join(" ").slice(0,300) : "";
   sections.push({
     n:3, title: points[2]?.title || "Questions du chapitre précédent",
     content: prevShort
-      ? `<p><strong>Contexte menant à ${ref} :</strong> ${prevShort}…</p><p>Qu’attendons-nous que ${ref} éclaire et résolve&nbsp;?</p>`
+      ? `<p><strong>Contexte menant à ${ref} :</strong> ${prevShort}…</p><p>Qu’attends-je que ${ref} éclaire et résolve&nbsp;?</p>`
       : `<p><em>Ouverture du livre ou indisponibilité du chapitre précédent.</em> Cette étude posera le contexte doctrinal et narratif nécessaire pour lire ${ref} avec intelligence.</p>`
   });
 
@@ -257,7 +300,7 @@ function buildSections(book, chapter, points, textCurr, textPrev){
   const titleProp = kws[0]?.word ? `${book} ${chapter} — ${kws[0].word.replace(/^./,c=>c.toUpperCase())}` : `${book} ${chapter} — Aperçu doctrinal`;
   sections.push({ n:4, title: points[3]?.title || "Titre du chapitre", content: `<p><strong>Proposition de titre :</strong> <em>${titleProp}</em></p>` });
 
-  // 5 Contexte (bref)
+  // 5 Contexte
   sections.push({ n:5, title: points[4]?.title || "Contexte historique",
     content: `<p>${BOOK_META[book]?.ouverture || "Contexte à préciser selon le livre."}</p>` });
 
@@ -265,7 +308,7 @@ function buildSections(book, chapter, points, textCurr, textPrev){
   sections.push({ n:6, title: points[5]?.title || "Structure littéraire",
     content: bullets([`v.1–${a} : ouverture/situation`,`v.${a+1}–${b} : développement/tension`,`v.${b+1}–${n} : résolution/transition`]) });
 
-  // 7-27 (placeholder courts, on enrichira après validation des prières)
+  // 7–27 placeholders (seront enrichis ensuite, rub./rub.)
   for(let i=7;i<=27;i++){
     sections.push({
       n:i, title: points[i-1]?.title || `Point ${i}`,
@@ -304,16 +347,24 @@ export default async function handler(req, res){
     ]);
 
     const sections = buildSections(book, chapter, points, text, prevText);
-    const payload = { reference:`${book} ${chapter}`, version:"", sections }; // version vide => n'affiche rien
+    const payload = { reference:`${book} ${chapter}`, version:"", sections };
 
+    // Désactiver le cache pour éviter la réutilisation d'une prière précédente
     res.setHeader("Content-Type","application/json; charset=utf-8");
-    res.setHeader("Cache-Control","private, max-age=60");
+    res.setHeader("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma","no-cache");
+    res.setHeader("Expires","0");
+
     res.status(200).json(payload);
 
   }catch(err){
     // En cas d’échec API, produire quand même des prières (sans keyVerse)
     const points = await loadStudyPoints(req);
     const sections = buildSections(book, chapter, points, "", "");
+    res.setHeader("Content-Type","application/json; charset=utf-8");
+    res.setHeader("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma","no-cache");
+    res.setHeader("Expires","0");
     res.status(200).json({
       reference:`${book} ${chapter}`, version:"", sections,
       warning: err?.message || "Erreur inconnue api.bible"
