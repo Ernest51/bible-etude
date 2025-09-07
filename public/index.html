@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Méditation</title>
-  <meta name="description" content="Étude biblique — 28 rubriques, une zone de saisie, liens cliquables automatiques." />
+  <meta name="description" content="Étude biblique — 28 rubriques, génération par livre et chapitre, liens cliquables automatiques." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   <style>
@@ -33,6 +33,7 @@
     .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
     .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
     .btn.warn{background:var(--accent)}
+    .btn[disabled]{opacity:.65;cursor:not-allowed}
     .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
     @media (max-width:1000px){.layout{grid-template-columns:1fr}}
     .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
@@ -67,6 +68,13 @@
     #noteView strong{font-weight:700} #noteView em{font-style:italic}
     #noteView ul, #noteView ol{padding-left:1.25rem}
     #noteView h3{margin:1rem 0 .5rem 0}
+
+    /* Spinner sur le bouton Générer */
+    .spinner {
+      display:inline-block; width:14px; height:14px; border:2px solid #fff; border-top-color:transparent;
+      border-radius:50%; vertical-align:-2px; margin-right:8px; animation:spin .8s linear infinite;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
   </style>
 </head>
 <body data-theme="cyan">
@@ -99,7 +107,7 @@
       </label>
 
       <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
-      <button id="validate" class="btn" type="button">Valider</button>
+      <button id="generateBtn" class="btn warn" type="button">Générer</button>
     </div>
 
     <div class="layout">
@@ -138,6 +146,7 @@
     <div class="status-row" style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <span class="badge"><span id="dot-health" class="mini"></span> health</span>
       <span class="badge"><span id="dot-ping" class="mini"></span> ping</span>
+      <span class="badge"><span id="dot-gen" class="mini"></span> génération</span>
       <button id="debugBtn" type="button">Debug</button>
     </div>
     <div id="debugPanel">[init]</div>
@@ -153,22 +162,24 @@
     };
 
     // UI refs
-    const pointsList = document.getElementById('pointsList');
-    const edTitle = document.getElementById('edTitle');
-    const noteArea = document.getElementById('noteArea');
-    const noteView = document.getElementById('noteView');
+    const pointsList   = document.getElementById('pointsList');
+    const edTitle      = document.getElementById('edTitle');
+    const noteArea     = document.getElementById('noteArea');
+    const noteView     = document.getElementById('noteView');
     const enrichToggle = document.getElementById('enrichToggle');
-    const metaInfo = document.getElementById('metaInfo');
-    const themeSelect = document.getElementById('themeSelect');
-    const progressBar = document.getElementById('progressBar');
-    const debugBtn = document.getElementById('debugBtn');
-    const debugPanel = document.getElementById('debugPanel');
-    const readBtn = document.getElementById('readBtn');
-    const versionSelect = document.getElementById('versionSelect');
-    const bookSelect = document.getElementById('bookSelect');
-    const chapterSelect = document.getElementById('chapterSelect');
-    const verseSelect = document.getElementById('verseSelect');
-    const searchRef = document.getElementById('searchRef');
+    const metaInfo     = document.getElementById('metaInfo');
+    const themeSelect  = document.getElementById('themeSelect');
+    const progressBar  = document.getElementById('progressBar');
+    const debugBtn     = document.getElementById('debugBtn');
+    const debugPanel   = document.getElementById('debugPanel');
+    const readBtn      = document.getElementById('readBtn');
+    const generateBtn  = document.getElementById('generateBtn');
+    const versionSelect= document.getElementById('versionSelect');
+    const bookSelect   = document.getElementById('bookSelect');
+    const chapterSelect= document.getElementById('chapterSelect');
+    const verseSelect  = document.getElementById('verseSelect');
+    const searchRef    = document.getElementById('searchRef');
+    const dotGen       = document.getElementById('dot-gen');
 
     function log(s){ debugPanel.style.display='block'; debugPanel.textContent += '\\n' + s; }
 
@@ -313,46 +324,113 @@
       }catch{}
     }
 
-    // ---- LECTURE VIA BIBLEGATEWAY (ouverture nouvel onglet) ----
-    // Mapping des versions UI -> codes BibleGateway (FR)
-    const gatewayVersionMap = {
-      'LSG':'LSG',        // Louis Segond 1910
-      'S21':'SG21',       // Segond 21
-      'PDV':'LSG',        // Fallback (PDV indisponible sur BG)
-      'BFC':'SG21'        // Fallback (BFC indisponible sur BG)
-    };
-
+    // ---- BIBLEGATEWAY (lecture dans nouvel onglet) ----
+    const gatewayVersionMap = { 'LSG':'LSG', 'S21':'SG21', 'PDV':'LSG', 'BFC':'SG21' };
     function normalizeRef(s){ return (s||'').trim().replace(/\s+/g,' '); }
-
     function openOnBibleGateway(ref){
       const uiVersion = versionSelect.value || 'LSG';
       const gwCode = gatewayVersionMap[uiVersion] || 'LSG';
-      // Format BG: https://www.biblegateway.com/passage/?search=<ref>&version=<gwCode>
       const url = 'https://www.biblegateway.com/passage/?search=' + encodeURIComponent(ref) + '&version=' + encodeURIComponent(gwCode);
       log('[gateway] ' + url);
       window.open(url, '_blank', 'noopener,noreferrer');
     }
-
-    // Bouton Lire: si champ libre “searchRef” présent, sinon composer depuis selects
     readBtn.addEventListener('click', ()=>{
       const raw = normalizeRef(searchRef.value);
-      if(raw){
-        openOnBibleGateway(raw);
-        return;
-      }
+      if(raw){ openOnBibleGateway(raw); return; }
       const book = (bookSelect.value||'').trim();
       const ch = (chapterSelect.value||'').trim();
       const v = (verseSelect.value||'').trim();
-      if(!book || !ch){
-        alert('Indique un livre et un chapitre (ex : Jean 3, ou Jean 3:16).');
-        return;
-      }
+      if(!book || !ch){ alert('Indique un livre et un chapitre (ex : Jean 3, ou Jean 3:16).'); return; }
       const ref = book + ' ' + ch + (v?(':'+v):'');
       openOnBibleGateway(ref);
     });
 
+    // ---- GÉNÉRATION (api.bible → DARBY) ----
+    function setGenerating(on){
+      if(on){
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '<span class="spinner"></span>Génération…';
+        dotGen.classList.add('ok');
+      }else{
+        generateBtn.disabled = false;
+        generateBtn.textContent = 'Générer';
+        dotGen.classList.remove('ok');
+      }
+    }
+
+    function formatSection(n, title, content, refMeta){
+      const head = `### ${n}. ${title}`;
+      const meta = refMeta ? `\n*Référence :* ${refMeta}` : '';
+      return [head, meta, '', (content||'').trim()].join('\n').trim();
+    }
+
+    function renderAllSectionsIntoNotes(payload){
+      // payload attendu: { reference: "Jean 3", version: "DARBY", sections: [{n,title,content}, ...] }
+      const sec = Array.isArray(payload.sections) ? payload.sections : [];
+      const refMeta = (payload.reference ? payload.reference : '') + (payload.version ? ' — ' + payload.version : '');
+      // nettoie d'abord les 28 notes en local pour éviter mélanges
+      for(let i=0;i<state.points.length;i++){ state.notes[i] = ''; }
+      // peuple chaque point si dispo
+      sec.forEach(s=>{
+        const i = (s.n ? (s.n-1) : 0);
+        if(i>=0 && i<state.points.length){
+          const title = state.points[i]?.title || ('Point '+(i+1));
+          state.notes[i] = formatSection(s.n || (i+1), title, s.content || '', refMeta);
+        }
+      });
+      // si contenu manquant, mets juste l’entête
+      for(let i=0;i<state.points.length;i++){
+        if(!state.notes[i]){
+          const title = state.points[i]?.title || ('Point '+(i+1));
+          state.notes[i] = formatSection(i+1, title, '_à compléter…_', refMeta);
+        }
+      }
+      localStorage.setItem('notes28', JSON.stringify(state.notes));
+      updateEditor();
+    }
+
+    async function generateStudy(){
+      const book = (bookSelect.value||'').trim();
+      const ch   = (chapterSelect.value||'').trim();
+      if(!book || !ch){
+        alert('Sélectionne un **livre** et un **chapitre** pour générer.');
+        return;
+      }
+      // Toujours DARBY pour api.bible (exigence)
+      const params = new URLSearchParams({ book, chapter: ch, version: 'DARBY' });
+      const url = '/api/generate-study?' + params.toString();
+
+      setGenerating(true);
+      log('[generate] GET '+url);
+      try{
+        const r = await fetch(url);
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        const data = await r.json();
+        // data attendu: { reference, version:"DARBY", sections:[{n,title,content}] }
+        renderAllSectionsIntoNotes(data);
+      }catch(e){
+        // Fallback propre : on pose les 28 titres et une marque "à compléter"
+        log('[generate] fallback: '+e.message);
+        const reference = book+' '+ch;
+        const fake = {
+          reference, version:'DARBY',
+          sections: state.points.map((p,idx)=>({
+            n: idx+1,
+            title: p.title,
+            content: `Contenu généré indisponible pour le moment.\n\nRéférence: ${reference} (DARBY).\n\n_À compléter manuellement ou réessayer plus tard._`
+          }))
+        };
+        renderAllSectionsIntoNotes(fake);
+        alert('La génération n’a pas pu s’achever côté serveur.\nUn gabarit des 28 points a été inséré.');
+      }finally{
+        setGenerating(false);
+      }
+    }
+
+    generateBtn.addEventListener('click', generateStudy);
+
     // Livres/chapitres/versets (liste simple)
-    const simpleBooks = ["Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth","1 Jean","2 Jean","3 Jean","1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther","Job","Psaumes","Proverbes","Ecclésiaste","Cantique des Cantiques","Ésaïe","Jérémie","Lamentations","Ézéchiel","Daniel","Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie","Aggée","Zacharie","Malachie","Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","Jude","Apocalypse"];
+    const simpleBooks = ["Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth","1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther","Job","Psaumes","Proverbes","Ecclésiaste","Cantique des Cantiques","Ésaïe","Jérémie","Lamentations","Ézéchiel","Daniel","Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie","Aggée","Zacharie","Malachie","Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"];
     function initSelects(){
       bookSelect.innerHTML = '<option value="">Livre…</option>' + simpleBooks.map(b=>`<option>${b}</option>`).join('');
       chapterSelect.innerHTML = '<option value="">Chapitre…</option>' + Array.from({length:150},(_,i)=>`<option>${i+1}</option>`).join('');
