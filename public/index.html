@@ -8,13 +8,13 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   <style>
-    :root{ --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --accent:#0891b2; --accent-soft:#e0f2fe; }
+    :root{ --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b; --accent:#0891b2; --accent-soft:#e0f2fe; }
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
     header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:14px 18px;position:sticky;top:0;z-index:10}
     h1{margin:0;font-size:28px;font-weight:800;text-align:center}
     main{max-width:1200px;margin:14px auto;padding:0 12px}
-    .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto;gap:10px;margin:12px 0}
+    .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto auto;gap:10px;margin:12px 0}
     @media (max-width:1100px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}.controls .wide{grid-column:1/-1}}
     input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%}
     .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
@@ -30,7 +30,7 @@
     .item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
     .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
     .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
-    .dot{width:8px;height:8px;border-radius:999px;background:#f59e0b;margin-left:auto}
+    .dot{width:8px;height:8px;border-radius:999px;background:var(--warn);margin-left:auto}
     .dot.ok{background:var(--ok)}
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
@@ -40,6 +40,8 @@
     #noteView a{color:var(--accent);text-decoration:underline}
     .links-panel{background:#fafafa;border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
     .links-panel.empty{display:none}
+    .last-study{margin:10px 0 0 0; padding:10px 12px; background:#fff; border:1px solid var(--border); border-radius:10px; font-size:14px; display:flex; align-items:center; gap:8px}
+    .last-study a{color:var(--accent); text-decoration:underline}
   </style>
 </head>
 <body>
@@ -59,6 +61,14 @@
       </select>
       <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
       <button id="generateBtn" class="btn warn" type="button">Générer</button>
+      <button id="resetBtn" class="btn secondary" type="button" title="Vider l’étude et remettre les diodes en orange">Réinitialiser</button>
+    </div>
+
+    <div id="lastStudyPanel" class="last-study" style="display:none;">
+      <strong>Dernière étude :</strong>
+      <span id="lastStudyText"></span>
+      <a id="lastStudyOpen" href="#" target="_blank" rel="noopener">Ouvrir sur BibleGateway</a>
+      <button id="lastStudyUse" class="btn secondary" type="button" style="margin-left:auto;">Recharger</button>
     </div>
 
     <div class="layout">
@@ -89,7 +99,9 @@
   <script>
   (function(){
     // ---- ÉTAT ----
-    const state = { points: [], current: 0, notes: JSON.parse(localStorage.getItem('notes28')||'{}') };
+    const STORAGE_NOTES = 'notes28';
+    const STORAGE_LAST  = 'lastStudy';
+    const state = { points: [], current: 0, notes: JSON.parse(localStorage.getItem(STORAGE_NOTES)||'{}') };
 
     // ---- UI refs ----
     const edTitle = document.getElementById('edTitle');
@@ -98,12 +110,17 @@
     const metaInfo = document.getElementById('metaInfo');
     const pointsList = document.getElementById('pointsList');
     const generateBtn = document.getElementById('generateBtn');
+    const resetBtn = document.getElementById('resetBtn');
     const versionSelect = document.getElementById('versionSelect');
     const bookSelect = document.getElementById('bookSelect');
     const chapterSelect = document.getElementById('chapterSelect');
     const verseSelect = document.getElementById('verseSelect');
     const readBtn = document.getElementById('readBtn');
     const searchRef = document.getElementById('searchRef');
+    const lastPanel = document.getElementById('lastStudyPanel');
+    const lastText  = document.getElementById('lastStudyText');
+    const lastOpen  = document.getElementById('lastStudyOpen');
+    const lastUse   = document.getElementById('lastStudyUse');
 
     // ---- BibleGateway helpers ----
     const gatewayVersionMap = { LSG:'LSG', S21:'SG21', PDV:'LSG', BFC:'SG21' };
@@ -114,120 +131,130 @@
     }
     function openOnBibleGateway(ref){ window.open(buildGatewayUrl(ref), '_blank', 'noopener,noreferrer'); }
 
-    // ---- Liste de livres (FR) ----
+    // ---- Livres (FR) ----
     const BOOKS = ["Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth","1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther","Job","Psaumes","Proverbes","Ecclésiaste","Cantique des Cantiques","Ésaïe","Esaïe","Jérémie","Lamentations","Ézéchiel","Ezechiel","Daniel","Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie","Aggée","Zacharie","Malachie","Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"];
 
-    // ---- Linkifier (robuste) : parcourt le DOM et remplace UNIQUEMENT les nœuds texte ----
-    // Gère :
-    //  - Références complètes : Livre Chapitre[:Versets[-Versets]]
-    //  - Abrégées : v.12, v.3–7, v.1, 3, 5 -> liées au livre+chapitre courants
-    //  - Guillemets français « », espaces insécables, ponctuation finale
+    // ---- Linkifier robuste (inclut multi-références héritées) ----
     const BOOKS_RE_SRC = '\\b(' + BOOKS.map(b=>b.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')).join('|') + ')\\s+(\\d+)(?::\\s*(\\d+(?:\\s*[–-]\\s*\\d+)?(?:\\s*,\\s*\\d+(?:\\s*[–-]\\s*\\d+)?)*)\\s*)?';
     const BOOKS_RE = new RegExp(BOOKS_RE_SRC, 'gi');
-
-    // v.12 ; v.1–5 ; v.3, 6, 9-10 ; (autorise espace insécable et tiret en-dash)
-    const V_RE = /(?:^|[\s\[(«"'])v\.\s*(\d+(?:\s*[–-]\s*\d+)?(?:\s*,\s*\d+(?:\s*[–-]\s*\d+)?)*)\b/gi;
+    const V_RE = /(?:^|[\s\[(«"';])v\.\s*(\d+(?:\s*[–-]\s*\d+)?(?:\s*,\s*\d+(?:\s*[–-]\s*\d+)?)*)\b/gi;
+    // segments hérités après un match complet : "; 18–20", "; 4:1-3", "; 1 Jean 2:1" (le dernier cas sera repris par BOOKS_RE)
+    const INHERIT_RE = /;\s*(\d+(?::\d+(?:\s*[–-]\s*\d+)?)?)\b/g;
 
     function linkifyContainer(root, currentBookChapterRef){
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
         acceptNode: (node)=>{
           if(!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-          if(node.parentElement && (node.parentElement.closest('a'))) return NodeFilter.FILTER_REJECT;
+          if(node.parentElement && node.parentElement.closest('a')) return NodeFilter.FILTER_REJECT;
           return NodeFilter.FILTER_ACCEPT;
         }
       });
-
       const toProcess = [];
       while(walker.nextNode()) toProcess.push(walker.currentNode);
 
       toProcess.forEach(textNode=>{
-        const original = textNode.nodeValue;
+        const text = textNode.nodeValue;
+        let lastBook=null, lastChapter=null;
+        const frag = document.createDocumentFragment();
+        let idx=0;
 
-        // 1) Références complètes (Livre Chapitre[:Versets…])
-        let replaced = original.replace(BOOKS_RE, (m, book, ch, versPart)=>{
-          const ref = book + ' ' + ch + (versPart ? (':' + versPart.replace(/\s+/g,'').replace(/–/g,'-')) : '');
-          const a = document.createElement('a');
+        function pushText(s){ if(s) frag.appendChild(document.createTextNode(s)); }
+        function pushLink(label, ref){
+          const a=document.createElement('a');
           a.href = buildGatewayUrl(ref);
-          a.target = '_blank'; a.rel = 'noopener'; a.setAttribute('data-ref', ref);
-          a.textContent = m;
-          return `§§§REF§§§${injectNode(a)}§§§END§§§`;
+          a.target='_blank'; a.rel='noopener';
+          a.setAttribute('data-ref', ref);
+          a.textContent = label;
+          frag.appendChild(a);
+        }
+
+        // On parcourt la chaîne, on cherche d'abord les matchs "Livre Chapitre[:vers...]"
+        text.replace(BOOKS_RE, (m,book,ch,vers,offset)=>{
+          // chunk avant
+          pushText(text.slice(idx, offset));
+          idx = offset + m.length;
+
+          lastBook = book; lastChapter = ch;
+          const ref = book + ' ' + ch + (vers ? (':' + vers.replace(/\s+/g,'').replace(/–/g,'-')) : '');
+          pushLink(m, ref);
+
+          // ensuite, on regarde les héritages immédiatement après (dans la portion suivante jusqu’au prochain livre explicite)
+          // On va consommer des segments "; 18–20" etc. tant qu'ils sont contigus
+          let tail = text.slice(idx);
+          let consumed = 0;
+          let mInh;
+          while((mInh = INHERIT_RE.exec(tail)) && (!BOOKS_RE.test(tail.slice(0, mInh.index)))){ // stop si un nouveau livre apparaît avant
+            const seg = mInh[0]; // y compris "; "
+            const payload = mInh[1];
+            const segStart = idx + mInh.index;
+            pushText(text.slice(idx, segStart)); // texte entre deux segments
+            const clean = payload.replace(/\s+/g,'').replace(/–/g,'-');
+            let ref2;
+            if(clean.includes(':')){
+              // a son propre chapitre: "4:1-3" (hérite juste du livre)
+              ref2 = `${lastBook} ${clean}`;
+              lastChapter = clean.split(':')[0];
+            }else{
+              // seulement des versets: "18-20" (hérite livre+chapitre)
+              const chap = lastChapter || ch;
+              ref2 = `${lastBook} ${chap}:${clean}`;
+            }
+            pushLink(seg, ref2);
+            idx = segStart + seg.length;
+            consumed += seg.length;
+          }
+          // reset exec positions
+          INHERIT_RE.lastIndex = 0;
+          BOOKS_RE.lastIndex = 0;
+
+          return m;
         });
 
-        // 2) Références abrégées v.X… (rattachées au livre+chapitre courants)
-        if(currentBookChapterRef){
-          replaced = replaced.replace(V_RE, (m, versSpec)=>{
-            const ref = currentBookChapterRef + ':' + versSpec.replace(/\s+/g,'').replace(/–/g,'-');
-            const a = document.createElement('a');
-            a.href = buildGatewayUrl(ref);
-            a.target = '_blank'; a.rel = 'noopener'; a.setAttribute('data-ref', ref);
-            a.textContent = m.replace(/\s+/g,' ').trim();
-            return `§§§REF§§§${injectNode(a)}§§§END§§§`;
-          });
-        }
+        // texte restant après derniers livres explicites
+        let rest = text.slice(idx);
 
-        if(replaced === original) return; // rien à faire
-
-        // Remplacer le nœud texte par un fragment contenant <a>… et textes
-        const frag = document.createDocumentFragment();
-        const parts = replaced.split(/§§§REF§§§|§§§END§§§/);
-        for(let i=0;i<parts.length;i++){
-          const part = parts[i];
-          if(!part) continue;
-          if(i % 2 === 1){
-            // part contient un placeholder de node serialisé -> re-créer l'élément
-            frag.appendChild(extractNode(part));
-          }else{
-            frag.appendChild(document.createTextNode(part));
+        // Références abrégées "v.12" rattachées au contexte courant (UI) si pas de lastBook/lastChapter
+        // Sinon, si lastBook/lastChapter connus dans ce même nœud, utiliser ceux-là en priorité
+        const currentBC = (lastBook && lastChapter) ? `${lastBook} ${lastChapter}` : (currentBookChapterRef || null);
+        if(currentBC){
+          const parts=[]; let last=0; let mV;
+          while((mV = V_RE.exec(rest))){
+            parts.push(rest.slice(last, mV.index));
+            const label = mV[0].replace(/\s+/g,' ').trim();
+            const verses = mV[1].replace(/\s+/g,'').replace(/–/g,'-');
+            parts.push({ref:`${currentBC}:${verses}`, label});
+            last = mV.index + mV[0].length;
           }
+          parts.push(rest.slice(last));
+          // injecter parts
+          parts.forEach(p=>{
+            if(typeof p === 'string'){ pushText(p); }
+            else{ pushLink(p.label, p.ref); }
+          });
+        }else{
+          pushText(rest);
         }
+
         textNode.parentNode.replaceChild(frag, textNode);
       });
     }
 
-    // -- Helpers pour sérialiser temporairement un <a> pendant le replace, puis le reconstruire --
-    function injectNode(aEl){
-      // on stocke l’HTML de l’élément dans data-serialized (simple)
-      const div = document.createElement('div');
-      div.appendChild(aEl);
-      return div.innerHTML; // <a ...>texte</a>
-    }
-    function extractNode(html){
-      const div = document.createElement('div');
-      div.innerHTML = html;
-      return div.firstElementChild;
-    }
+    // ---- Décoder entités & convertir **…** -> <strong> ----
+    function decodeEntities(str){ const ta=document.createElement('textarea'); ta.innerHTML=str; return ta.value; }
+    function mdBoldToStrong(str){ return str.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'); }
 
-    // ---- Décoder les entités HTML (pour transformer &lt;strong&gt; en <strong>) ----
-    function decodeEntities(str){
-      const ta = document.createElement('textarea');
-      ta.innerHTML = str;
-      return ta.value;
-    }
-
-    // ---- Convertir le markdown **gras** en <strong> ----
-    function mdBoldToStrong(str){
-      return str.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    }
-
-    // ---- Rendu enrichi : décoder -> normaliser -> injecter HTML -> linkifier DOM ----
+    // ---- Rendu enrichi ----
     function renderEnriched(text){
-      // 1) Décoder d'éventuelles entités
       let html = decodeEntities(text);
-      // 2) Convertir **…** -> <strong>…</strong>
       html = mdBoldToStrong(html);
-      // 3) Normaliser les sauts de ligne
       html = html.replace(/\r\n/g,"\n").split('\n').map(l => l==='' ? '<br>' : l).join('\n');
-
-      // 4) Injecter le HTML (sans échapper)
       noteView.innerHTML = html;
 
-      // 5) Linkifier dans le DOM (complet + v.X ...) selon livre+chapitre en cours
       const currentBook = (bookSelect.value||'').trim();
       const currentCh   = (chapterSelect.value||'').trim();
       const currentRef  = (currentBook && currentCh) ? (currentBook + ' ' + currentCh) : null;
       linkifyContainer(noteView, currentRef);
 
-      // 6) Remplir le panneau des liens
       const links = [...noteView.querySelectorAll('a')];
       const panel = document.getElementById('linksPanel');
       const list = document.getElementById('linksList');
@@ -258,7 +285,7 @@
       clearTimeout(saveTimer);
       saveTimer = setTimeout(()=>{
         state.notes[state.current] = noteArea.value;
-        localStorage.setItem('notes28', JSON.stringify(state.notes));
+        localStorage.setItem(STORAGE_NOTES, JSON.stringify(state.notes));
         updateProgressDots();
         syncView();
       }, 800);
@@ -279,7 +306,7 @@
       [...pointsList.children].forEach((el,i)=>{
         const dot = el.querySelector('.dot');
         const ok = !!(state.notes[i] && state.notes[i].trim());
-        dot.classList.toggle('ok', ok);
+        dot.classList.toggle('ok', ok); // vert si texte présent, sinon orange
       });
     }
     function buildList(){
@@ -319,7 +346,7 @@
     function renderIntoNotes(payload){
       const sec = Array.isArray(payload.sections)?payload.sections:[];
       // reset complet (évite vieux contenus)
-      localStorage.removeItem('notes28');
+      localStorage.removeItem(STORAGE_NOTES);
       state.notes = {};
       for(let i=0;i<state.points.length;i++) state.notes[i]='';
 
@@ -336,7 +363,7 @@
           state.notes[i] = formatSection(i+1, title, '_à compléter…_');
         }
       }
-      localStorage.setItem('notes28', JSON.stringify(state.notes));
+      localStorage.setItem(STORAGE_NOTES, JSON.stringify(state.notes));
       updateEditor();
     }
 
@@ -351,13 +378,17 @@
         if(!r.ok) throw new Error('HTTP '+r.status);
         const data = await r.json();
         renderIntoNotes(data);
+
+        // Sauvegarder la dernière étude (Livre + Chapitre)
+        const last = { book, chapter: ch, ts: Date.now() };
+        localStorage.setItem(STORAGE_LAST, JSON.stringify(last));
+        renderLastStudyPanel();
       }catch(e){
         alert('Génération indisponible pour le moment.');
       }finally{
         setGenerating(false);
       }
     }
-
     generateBtn.addEventListener('click', generateStudy);
 
     // ---- Lire la Bible (Gateway) ----
@@ -372,19 +403,61 @@
       openOnBibleGateway(ref);
     });
 
-    // ---- Met à jour les href quand la version change ----
+    // ---- Réinitialiser : vider l’étude et repasser toutes les diodes en orange ----
+    function resetStudy(){
+      if(!confirm('Réinitialiser : vider l’étude en cours et remettre toutes les diodes en orange ?')) return;
+      localStorage.removeItem(STORAGE_NOTES);
+      state.notes = {};
+      // vider l’éditeur
+      noteArea.value = '';
+      noteView.innerHTML = '';
+      // repasser les diodes en orange
+      [...pointsList.children].forEach(el=> el.querySelector('.dot')?.classList.remove('ok'));
+      // garder la dernière étude mémorisée (ne pas toucher STORAGE_LAST)
+      syncView();
+    }
+    resetBtn.addEventListener('click', resetStudy);
+
+    // ---- Panneau "Dernière étude" ----
+    function renderLastStudyPanel(){
+      const raw = localStorage.getItem(STORAGE_LAST);
+      if(!raw){ lastPanel.style.display='none'; return; }
+      const { book, chapter } = JSON.parse(raw);
+      if(!book || !chapter){ lastPanel.style.display='none'; return; }
+      lastText.textContent = `${book} ${chapter}`;
+      lastOpen.href = buildGatewayUrl(`${book} ${chapter}`);
+      lastPanel.style.display='flex';
+      lastUse.onclick = ()=>{
+        // Recharger les sélecteurs et (optionnel) relancer génération
+        setSelectValue(bookSelect, book);
+        setSelectValue(chapterSelect, String(chapter));
+        // On ne regénère pas automatiquement pour éviter une charge involontaire ; l’utilisateur clique "Générer"
+      };
+    }
+
+    // ---- Met à jour tous les href quand la version change ----
     versionSelect.addEventListener('change', ()=>{
       noteView.querySelectorAll('a[data-ref]').forEach(a=>{
         const ref = a.getAttribute('data-ref');
         a.href = buildGatewayUrl(ref);
       });
+      // Mettre à jour lien "Dernière étude"
+      const raw = localStorage.getItem(STORAGE_LAST);
+      if(raw){
+        const { book, chapter } = JSON.parse(raw);
+        if(book && chapter){ lastOpen.href = buildGatewayUrl(`${book} ${chapter}`); }
+      }
     });
 
-    // ---- Selects simples ----
+    // ---- Selects ----
     function initSelects(){
       bookSelect.innerHTML = '<option value="">Livre…</option>' + BOOKS.map(b=>`<option>${b}</option>`).join('');
       chapterSelect.innerHTML = '<option value="">Chapitre…</option>' + Array.from({length:150},(_,i)=>`<option>${i+1}</option>`).join('');
       verseSelect.innerHTML = '<option value="">Verset…</option>' + Array.from({length:176},(_,i)=>`<option>${i+1}</option>`).join('');
+    }
+    function setSelectValue(sel, val){
+      const opt = [...sel.options].find(o=>o.value===val || o.textContent===val);
+      if(opt){ sel.value = opt.value; }
     }
 
     document.getElementById('prev').addEventListener('click', ()=>{ state.current=(state.current-1+state.points.length)%state.points.length; updateEditor(); });
@@ -394,6 +467,7 @@
     (async function init(){
       initSelects();
       await loadPoints();
+      renderLastStudyPanel(); // affiche si une dernière étude existe
       syncView();
     })();
   })();
