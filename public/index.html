@@ -4,33 +4,20 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Méditation</title>
-  <meta name="description" content="Étude biblique — 28 rubriques, génération par livre et chapitre, liens cliquables automatiques." />
+  <meta name="description" content="Étude biblique — 28 rubriques, génération et liens BibleGateway." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   <style>
-    :root{
-      --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b;
-      --accent:#0891b2; --accent-soft:#e0f2fe;
-    }
-    [data-theme="cyan"]  { --accent:#0891b2; --accent-soft:#e0f2fe; }
-    [data-theme="violet"]{ --accent:#7c3aed; --accent-soft:#ede9fe; }
-    [data-theme="vert"]  { --accent:#059669; --accent-soft:#dcfce7; }
-    [data-theme="rouge"] { --accent:#dc2626; --accent-soft:#fee2e2; }
-    [data-theme="mauve"] { --accent:#a855f7; --accent-soft:#f3e8ff; }
-    [data-theme="indigo"]{ --accent:#4f46e5; --accent-soft:#e0e7ff; }
-
+    :root{ --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --accent:#0891b2; --accent-soft:#e0f2fe; }
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    .progress-wrap{position:sticky;top:0;z-index:20}
-    .progress{height:4px;background:#e5e7eb}
-    .progress>.bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#16a34a);transition:width .2s}
-    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:14px 18px;position:sticky;top:4px;z-index:10}
-    h1{margin:0;font-size:28px;font-weight:800;letter-spacing:.2px;text-align:center}
+    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:14px 18px;position:sticky;top:0;z-index:10}
+    h1{margin:0;font-size:28px;font-weight:800;text-align:center}
     main{max-width:1200px;margin:14px auto;padding:0 12px}
     .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto;gap:10px;margin:12px 0}
     @media (max-width:1100px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}.controls .wide{grid-column:1/-1}}
     input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%}
-    .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
+    .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
     .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
     .btn.warn{background:var(--accent)}
     .btn[disabled]{opacity:.65;cursor:not-allowed}
@@ -40,7 +27,7 @@
     .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700}
     .list{max-height:70vh;overflow:auto}
     .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
-    .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
+    .item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
     .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
     .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
     .dot{width:8px;height:8px;border-radius:999px;background:#f59e0b;margin-left:auto}
@@ -49,36 +36,13 @@
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
     .ed-title{font-weight:800;flex:1}.ed-body{padding:12px}
     textarea#noteArea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;white-space:pre-wrap}
-    .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
-    .mini{width:8px;height:8px;border-radius:999px;background:#d97706}.mini.ok{background:#16a34a}.mini.ko{background:#dc2626}
-    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
+    #noteView{display:none;width:100%;min-height:460px;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;background:#fff;outline:none}
+    #noteView a{color:var(--accent);text-decoration:underline}
     .links-panel{background:#fafafa;border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
-    .links-panel b{color:var(--accent)} .links-panel a{color:var(--accent);text-decoration:underline}
     .links-panel.empty{display:none}
-    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:#64748b;font-size:14px}
-    #debugBtn{margin-left:6px;background:var(--dark);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
-    #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;font-size:12px}
-    @media print{.progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row,#debugPanel{display:none!important} textarea{min-height:unset}}
-
-    /* Vue enrichie */
-    #noteView{display:none; width:100%; min-height:460px; border:1px solid var(--border); border-radius:10px; padding:14px;
-      font-family:Spectral,Georgia,serif; line-height:1.6; background:#fff; outline:none}
-    #noteView p{margin:0 0 .75rem 0}
-    #noteView a{color:var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor:pointer}
-    #noteView strong{font-weight:700} #noteView em{font-style:italic}
-    #noteView ul, #noteView ol{padding-left:1.25rem}
-    #noteView h3{margin:1rem 0 .5rem 0}
-
-    /* Spinner sur le bouton Générer */
-    .spinner {
-      display:inline-block; width:14px; height:14px; border:2px solid #fff; border-top-color:transparent;
-      border-radius:50%; vertical-align:-2px; margin-right:8px; animation:spin .8s linear infinite;
-    }
-    @keyframes spin{to{transform:rotate(360deg)}}
   </style>
 </head>
-<body data-theme="cyan">
-  <div class="progress-wrap"><div class="progress"><div id="progressBar" class="bar"></div></div></div>
+<body>
   <header><h1>Méditation</h1></header>
 
   <main>
@@ -93,19 +57,6 @@
         <option value="S21">Segond 21 (S21)</option>
         <option value="BFC">Français Courant (BFC)</option>
       </select>
-      <select id="themeSelect" title="Thème">
-        <option value="cyan" selected>Thème : Cyan</option>
-        <option value="violet">Thème : Violet</option>
-        <option value="vert">Thème : Vert</option>
-        <option value="rouge">Thème : Rouge</option>
-        <option value="mauve">Thème : Mauve</option>
-        <option value="indigo">Thème : Indigo</option>
-      </select>
-      <label style="display:flex;align-items:center;gap:8px;">
-        <input id="enrichToggle" type="checkbox" checked />
-        <span>Mode enrichi</span>
-      </label>
-
       <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
       <button id="generateBtn" class="btn warn" type="button">Générer</button>
     </div>
@@ -122,17 +73,11 @@
           <button id="prev" class="btn secondary" type="button">◀ Précédent</button>
           <button id="next" class="btn secondary" type="button">Suivant ▶</button>
         </div>
-
         <div class="ed-body">
           <textarea id="noteArea" placeholder="Écris ici…"></textarea>
           <div id="noteView" contenteditable="true" spellcheck="false" aria-label="Contenu enrichi"></div>
-
-          <div id="linksPanel" class="links-panel empty">
-            <b>Liens détectés :</b>
-            <div id="linksList"></div>
-          </div>
+          <div id="linksPanel" class="links-panel empty"><b>Liens détectés :</b><div id="linksList"></div></div>
         </div>
-
         <div class="ed-foot">
           <span class="small" id="metaInfo">Point — / 28</span>
           <span class="small">Sauvegarde auto (2s) après saisie.</span>
@@ -141,92 +86,83 @@
     </div>
   </main>
 
-  <footer>
-    © <span id="y"></span> — Méditation
-    <div class="status-row" style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-      <span class="badge"><span id="dot-health" class="mini"></span> health</span>
-      <span class="badge"><span id="dot-ping" class="mini"></span> ping</span>
-      <span class="badge"><span id="dot-gen" class="mini"></span> génération</span>
-      <button id="debugBtn" type="button">Debug</button>
-    </div>
-    <div id="debugPanel">[init]</div>
-  </footer>
-
-  <!-- Script inline -->
   <script>
   (function(){
-    const state = {
-      points: [],
-      current: 0,
-      notes: JSON.parse(localStorage.getItem('notes28')||'{}')
-    };
+    // ---- ÉTAT ----
+    const state = { points: [], current: 0, notes: JSON.parse(localStorage.getItem('notes28')||'{}') };
 
-    // UI refs
-    const pointsList   = document.getElementById('pointsList');
-    const edTitle      = document.getElementById('edTitle');
-    const noteArea     = document.getElementById('noteArea');
-    const noteView     = document.getElementById('noteView');
-    const enrichToggle = document.getElementById('enrichToggle');
-    const metaInfo     = document.getElementById('metaInfo');
-    const themeSelect  = document.getElementById('themeSelect');
-    const progressBar  = document.getElementById('progressBar');
-    const debugBtn     = document.getElementById('debugBtn');
-    const debugPanel   = document.getElementById('debugPanel');
-    const readBtn      = document.getElementById('readBtn');
-    const generateBtn  = document.getElementById('generateBtn');
-    const versionSelect= document.getElementById('versionSelect');
-    const bookSelect   = document.getElementById('bookSelect');
-    const chapterSelect= document.getElementById('chapterSelect');
-    const verseSelect  = document.getElementById('verseSelect');
-    const searchRef    = document.getElementById('searchRef');
-    const dotGen       = document.getElementById('dot-gen');
+    // ---- UI ----
+    const edTitle = document.getElementById('edTitle');
+    const noteArea = document.getElementById('noteArea');
+    const noteView = document.getElementById('noteView');
+    const metaInfo = document.getElementById('metaInfo');
+    const pointsList = document.getElementById('pointsList');
+    const generateBtn = document.getElementById('generateBtn');
+    const versionSelect = document.getElementById('versionSelect');
+    const bookSelect = document.getElementById('bookSelect');
+    const chapterSelect = document.getElementById('chapterSelect');
+    const verseSelect = document.getElementById('verseSelect');
+    const readBtn = document.getElementById('readBtn');
+    const searchRef = document.getElementById('searchRef');
 
-    function log(s){ debugPanel.style.display='block'; debugPanel.textContent += '\\n' + s; }
+    // ---- BibleGateway helpers ----
+    const gatewayVersionMap = { LSG:'LSG', S21:'SG21', PDV:'LSG', BFC:'SG21' };
+    function buildGatewayUrl(ref){
+      const uiVersion = versionSelect.value || 'LSG';
+      const v = gatewayVersionMap[uiVersion] || 'LSG';
+      return 'https://www.biblegateway.com/passage/?search=' + encodeURIComponent(ref) + '&version=' + encodeURIComponent(v);
+    }
+    function openOnBibleGateway(ref){ window.open(buildGatewayUrl(ref), '_blank', 'noopener,noreferrer'); }
 
-    // Theme
-    themeSelect.addEventListener('change', e=>{
-      document.body.setAttribute('data-theme', e.target.value);
-    });
+    // ---- Linkify références bibliques dans le HTML ----
+    const BOOKS = ["Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth","1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther","Job","Psaumes","Proverbes","Ecclésiaste","Cantique des Cantiques","Ésaïe","Esaïe","Jérémie","Lamentations","Ézéchiel","Ezechiel","Daniel","Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie","Aggée","Zacharie","Malachie","Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"];
+    const BOOKS_RE = new RegExp('\\b(' + BOOKS.map(b=>b.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|') + ')\\s+(\\d+)(?::(\\d+(?:[-–]\\d+)?))?', 'g');
 
-    // Year + progress
-    document.getElementById('y').textContent = new Date().getFullYear();
-    document.addEventListener('scroll', ()=>{
-      const h = document.documentElement.scrollHeight - window.innerHeight;
-      const p = Math.max(0, (window.scrollY||document.documentElement.scrollTop)/Math.max(1,h));
-      progressBar.style.width = (p*100).toFixed(1)+'%';
-    });
+    function linkifyScriptureHTML(html){
+      // remplace expressions (Livre Chapitre[:Verset[-Verset]]) par <a data-ref="...">
+      return html.replace(BOOKS_RE, (m,book,ch,vers)=> {
+        const ref = book + ' ' + ch + (vers?(':'+vers):'');
+        const href = buildGatewayUrl(ref);
+        return `<a href="${href}" target="_blank" rel="noopener" data-ref="${ref}">${m}</a>`;
+      });
+    }
 
-    // Enrichi ↔ brut
+    // ---- Rendu enrichi (HTML du serveur conservé) ----
     function renderEnriched(text){
-      const esc = (s)=>s.replace(/[&<>]/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m]));
-      let html = esc(text)
-        .replace(/^### (.*)$/gm, '<h3>$1</h3>')
-        .replace(/^\s*[-*] (.*)$/gm, '<li>$1</li>')
-        .replace(/\n(<li>.*<\/li>)(?!(\n<li>))/gs, '\\n<ul>$1</ul>')
-        .replace(/(https?:\/\/[^\\s)]+)|(bible\\.com\/[^\\s)]+)/g, '<a href="$&" target="_blank" rel="noopener">$&</a>')
-        .replace(/\\n{2,}/g, '</p><p>');
-      html = '<p>' + html + '</p>';
+      // Si le serveur a envoyé du HTML (nos sections), on NE l’échappe PAS.
+      // On ne fait que transformer les références bibliques en liens.
+      let html = text
+        .replace(/\r\n/g,"\n")
+        .replace(/&lt;strong&gt;|&lt;\/strong&gt;/g,'') // au cas où un vieux cache aurait échappé
+        .split('\n').map(l => l.trim()==='' ? '<br>' : l).join('\n');
+      html = linkifyScriptureHTML(html);
       noteView.innerHTML = html;
+
+      // Liste des liens détectés (y compris ceux générés)
       const links = [...noteView.querySelectorAll('a')];
       const panel = document.getElementById('linksPanel');
       const list = document.getElementById('linksList');
       list.innerHTML = links.map(a=>`<div><a href="${a.href}" target="_blank" rel="noopener">${a.textContent}</a></div>`).join('');
       panel.classList.toggle('empty', links.length===0);
     }
+
+    // ---- Toggle brut/enrichi ----
+    const enrichToggle = document.createElement('label');
+    enrichToggle.style.display='flex'; enrichToggle.style.alignItems='center'; enrichToggle.style.gap='8px';
+    enrichToggle.innerHTML = `<input id="enrichToggle" type="checkbox" checked /> <span>Mode enrichi</span>`;
+    document.querySelector('.controls').appendChild(enrichToggle);
     function syncView(){
-      const v = noteArea.value;
-      if(enrichToggle.checked){
-        noteArea.style.display='none';
-        noteView.style.display='block';
+      const v = noteArea.value || '';
+      if(document.getElementById('enrichToggle').checked){
+        noteArea.style.display='none'; noteView.style.display='block';
         renderEnriched(v);
       }else{
-        noteView.style.display='none';
-        noteArea.style.display='block';
+        noteView.style.display='none'; noteArea.style.display='block';
       }
     }
-    enrichToggle.addEventListener('change', syncView);
+    document.addEventListener('change', (e)=>{ if(e.target && e.target.id==='enrichToggle') syncView(); });
 
-    // Persist notes
+    // ---- Persistance ----
     let saveTimer=null;
     noteArea.addEventListener('input', ()=>{
       clearTimeout(saveTimer);
@@ -234,11 +170,11 @@
         state.notes[state.current] = noteArea.value;
         localStorage.setItem('notes28', JSON.stringify(state.notes));
         updateProgressDots();
-      }, 2000);
-      syncView();
+        syncView();
+      }, 800);
     });
 
-    // Points list + nav
+    // ---- Points + navigation ----
     function updateEditor(){
       const item = state.points[state.current] || { title:'Point '+(state.current+1), hint:'' };
       edTitle.textContent = item.title || ('Point '+(state.current+1));
@@ -248,13 +184,7 @@
       highlightActive();
       updateProgressDots();
     }
-    function highlightActive(){
-      [...pointsList.children].forEach((el,i)=>{
-        el.classList.toggle('active', i===state.current);
-      });
-      const el = pointsList.children[state.current];
-      if(el) el.scrollIntoView({block:'nearest'});
-    }
+    function highlightActive(){ [...pointsList.children].forEach((el,i)=> el.classList.toggle('active', i===state.current)); }
     function updateProgressDots(){
       [...pointsList.children].forEach((el,i)=>{
         const dot = el.querySelector('.dot');
@@ -263,126 +193,54 @@
       });
     }
     function buildList(){
-      pointsList.innerHTML = '';
+      pointsList.innerHTML='';
       state.points.forEach((p,i)=>{
-        const li = document.createElement('div');
-        li.className = 'item';
-        li.innerHTML = `
-          <span class="idx">${i+1}</span>
-          <div>
-            <div>${p.title || ('Point '+(i+1))}</div>
-            ${p.hint ? `<small class="desc">${p.hint}</small>` : ''}
-          </div>
-          <span class="dot" title="progrès"></span>
-        `;
-        li.addEventListener('click', ()=>{ state.current=i; updateEditor(); });
-        pointsList.appendChild(li);
+        const row = document.createElement('div');
+        row.className='item';
+        row.innerHTML = `<span class="idx">${i+1}</span>
+          <div><div>${p.title || ('Point '+(i+1))}</div>${p.hint?`<small class="desc">${p.hint}</small>`:''}</div>
+          <span class="dot"></span>`;
+        row.addEventListener('click', ()=>{ state.current=i; updateEditor(); });
+        pointsList.appendChild(row);
       });
       updateEditor();
     }
 
-    // Charge TES 28 points
     async function loadPoints(){
       try{
         const r = await fetch('/api/study-28');
-        if(!r.ok) throw new Error('HTTP '+r.status);
+        if(!r.ok) throw new Error();
         const data = await r.json();
-        if(Array.isArray(data) && data.length){
-          state.points = data;
-        }else{
-          throw new Error('format inattendu');
-        }
-        log('[study-28] ok ('+state.points.length+' items)');
-      }catch(e){
-        log('[study-28] fallback ('+e.message+')');
+        if(Array.isArray(data) && data.length) state.points = data;
+      }catch{
         state.points = Array.from({length:28},(_,i)=>({title:'Point '+(i+1), hint:''}));
       }
       buildList();
     }
 
-    // Nav
-    document.getElementById('prev').addEventListener('click', ()=>{
-      state.current = (state.current-1+state.points.length)%state.points.length;
-      updateEditor();
-    });
-    document.getElementById('next').addEventListener('click', ()=>{
-      state.current = (state.current+1)%state.points.length;
-      updateEditor();
-    });
-
-    // Ping/health
-    async function ping(){
-      try{
-        const ok = await fetch('/api/env').then(r=>r.ok);
-        document.getElementById('dot-ping').classList.toggle('ok', ok);
-      }catch{}
-    }
-    async function health(){
-      try{
-        const r = await fetch('/api/study-28', { method:'HEAD' });
-        document.getElementById('dot-health').classList.toggle('ok', r.ok);
-      }catch{}
-    }
-
-    // ---- BIBLEGATEWAY (lecture dans nouvel onglet) ----
-    const gatewayVersionMap = { 'LSG':'LSG', 'S21':'SG21', 'PDV':'LSG', 'BFC':'SG21' };
-    function normalizeRef(s){ return (s||'').trim().replace(/\s+/g,' '); }
-    function openOnBibleGateway(ref){
-      const uiVersion = versionSelect.value || 'LSG';
-      const gwCode = gatewayVersionMap[uiVersion] || 'LSG';
-      const url = 'https://www.biblegateway.com/passage/?search=' + encodeURIComponent(ref) + '&version=' + encodeURIComponent(gwCode);
-      log('[gateway] ' + url);
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
-    readBtn.addEventListener('click', ()=>{
-      const raw = normalizeRef(searchRef.value);
-      if(raw){ openOnBibleGateway(raw); return; }
-      const book = (bookSelect.value||'').trim();
-      const ch = (chapterSelect.value||'').trim();
-      const v = (verseSelect.value||'').trim();
-      if(!book || !ch){ alert('Indique un livre et un chapitre (ex : Jean 3, ou Jean 3:16).'); return; }
-      const ref = book + ' ' + ch + (v?(':'+v):'');
-      openOnBibleGateway(ref);
-    });
-
-    // ---- GÉNÉRATION (api.bible → DARBY) ----
+    // ---- Génération ----
     function setGenerating(on){
-      if(on){
-        generateBtn.disabled = true;
-        generateBtn.innerHTML = '<span class="spinner"></span>Génération…';
-        dotGen.classList.add('ok');
-      }else{
-        generateBtn.disabled = false;
-        generateBtn.textContent = 'Générer';
-        dotGen.classList.remove('ok');
-      }
+      generateBtn.disabled = on;
+      generateBtn.textContent = on ? 'Génération…' : 'Générer';
     }
-
-    function formatSection(n, title, content, refMeta){
-      const head = `### ${n}. ${title}`;
-      const meta = refMeta ? `\n*Référence :* ${refMeta}` : '';
-      return [head, meta, '', (content||'').trim()].join('\n').trim();
+    function formatSection(n, title, content){
+      return `### ${n}. ${title}\n\n${content}`.trim();
     }
-
-    function renderAllSectionsIntoNotes(payload){
-      // payload attendu: { reference: "Jean 3", version: "DARBY", sections: [{n,title,content}, ...] }
-      const sec = Array.isArray(payload.sections) ? payload.sections : [];
-      const refMeta = (payload.reference ? payload.reference : '') + (payload.version ? ' — ' + payload.version : '');
-      // nettoie d'abord les 28 notes en local pour éviter mélanges
-      for(let i=0;i<state.points.length;i++){ state.notes[i] = ''; }
-      // peuple chaque point si dispo
+    function renderIntoNotes(payload){
+      const sec = Array.isArray(payload.sections)?payload.sections:[];
+      // reset
+      for(let i=0;i<state.points.length;i++) state.notes[i]='';
       sec.forEach(s=>{
-        const i = (s.n ? (s.n-1) : 0);
-        if(i>=0 && i<state.points.length){
-          const title = state.points[i]?.title || ('Point '+(i+1));
-          state.notes[i] = formatSection(s.n || (i+1), title, s.content || '', refMeta);
+        const idx = (s.n? s.n-1 : 0);
+        if(idx>=0 && idx<state.points.length){
+          const title = state.points[idx]?.title || ('Point '+(idx+1));
+          state.notes[idx] = formatSection(s.n || (idx+1), title, s.content || '');
         }
       });
-      // si contenu manquant, mets juste l’entête
       for(let i=0;i<state.points.length;i++){
         if(!state.notes[i]){
           const title = state.points[i]?.title || ('Point '+(i+1));
-          state.notes[i] = formatSection(i+1, title, '_à compléter…_', refMeta);
+          state.notes[i] = formatSection(i+1, title, '_à compléter…_');
         }
       }
       localStorage.setItem('notes28', JSON.stringify(state.notes));
@@ -392,36 +250,16 @@
     async function generateStudy(){
       const book = (bookSelect.value||'').trim();
       const ch   = (chapterSelect.value||'').trim();
-      if(!book || !ch){
-        alert('Sélectionne un **livre** et un **chapitre** pour générer.');
-        return;
-      }
-      // Toujours DARBY pour api.bible (exigence)
-      const params = new URLSearchParams({ book, chapter: ch, version: 'DARBY' });
-      const url = '/api/generate-study?' + params.toString();
-
+      if(!book || !ch){ alert('Sélectionne un livre et un chapitre.'); return; }
+      const url = '/api/generate-study?book='+encodeURIComponent(book)+'&chapter='+encodeURIComponent(ch);
       setGenerating(true);
-      log('[generate] GET '+url);
       try{
         const r = await fetch(url);
         if(!r.ok) throw new Error('HTTP '+r.status);
         const data = await r.json();
-        // data attendu: { reference, version:"DARBY", sections:[{n,title,content}] }
-        renderAllSectionsIntoNotes(data);
+        renderIntoNotes(data);
       }catch(e){
-        // Fallback propre : on pose les 28 titres et une marque "à compléter"
-        log('[generate] fallback: '+e.message);
-        const reference = book+' '+ch;
-        const fake = {
-          reference, version:'DARBY',
-          sections: state.points.map((p,idx)=>({
-            n: idx+1,
-            title: p.title,
-            content: `Contenu généré indisponible pour le moment.\n\nRéférence: ${reference} (DARBY).\n\n_À compléter manuellement ou réessayer plus tard._`
-          }))
-        };
-        renderAllSectionsIntoNotes(fake);
-        alert('La génération n’a pas pu s’achever côté serveur.\nUn gabarit des 28 points a été inséré.');
+        alert('Génération indisponible pour le moment.');
       }finally{
         setGenerating(false);
       }
@@ -429,25 +267,41 @@
 
     generateBtn.addEventListener('click', generateStudy);
 
-    // Livres/chapitres/versets (liste simple)
-    const simpleBooks = ["Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth","1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther","Job","Psaumes","Proverbes","Ecclésiaste","Cantique des Cantiques","Ésaïe","Jérémie","Lamentations","Ézéchiel","Daniel","Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie","Aggée","Zacharie","Malachie","Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"];
+    // ---- Lire la Bible (Gateway) ----
+    readBtn.addEventListener('click', ()=>{
+      const raw = (searchRef.value||'').trim().replace(/\s+/g,' ');
+      if(raw){ openOnBibleGateway(raw); return; }
+      const book = (bookSelect.value||'').trim();
+      const ch = (chapterSelect.value||'').trim();
+      const v = (verseSelect.value||'').trim();
+      if(!book || !ch){ alert('Indique un livre et un chapitre.'); return; }
+      const ref = book + ' ' + ch + (v?(':'+v):'');
+      openOnBibleGateway(ref);
+    });
+
+    // ---- Met à jour les href quand la version change ----
+    versionSelect.addEventListener('change', ()=>{
+      // régénère les href pour tous les <a data-ref>
+      noteView.querySelectorAll('a[data-ref]').forEach(a=>{
+        a.href = buildGatewayUrl(a.getAttribute('data-ref'));
+      });
+    });
+
+    // ---- Selects simples ----
     function initSelects(){
-      bookSelect.innerHTML = '<option value="">Livre…</option>' + simpleBooks.map(b=>`<option>${b}</option>`).join('');
+      bookSelect.innerHTML = '<option value="">Livre…</option>' + BOOKS.map(b=>`<option>${b}</option>`).join('');
       chapterSelect.innerHTML = '<option value="">Chapitre…</option>' + Array.from({length:150},(_,i)=>`<option>${i+1}</option>`).join('');
       verseSelect.innerHTML = '<option value="">Verset…</option>' + Array.from({length:176},(_,i)=>`<option>${i+1}</option>`).join('');
     }
 
-    // Debug
-    debugBtn.addEventListener('click', ()=>{ debugPanel.style.display = (debugPanel.style.display==='none'?'block':'none'); });
+    document.getElementById('prev').addEventListener('click', ()=>{ state.current=(state.current-1+state.points.length)%state.points.length; updateEditor(); });
+    document.getElementById('next').addEventListener('click', ()=>{ state.current=(state.current+1)%state.points.length; updateEditor(); });
 
-    // Init
+    // ---- Init ----
     (async function init(){
       initSelects();
       await loadPoints();
-      ping(); health();
       syncView();
-      document.body.setAttribute('data-theme', themeSelect.value);
-      log('[init] ok');
     })();
   })();
   </script>
