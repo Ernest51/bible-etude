@@ -1,167 +1,262 @@
-// public/app.js — Version "zéro impact": FAB + tiroir en Shadow DOM (aucune modif de ta mise en page)
+/* public/app.js — branche « tout recolle » (UI existante, zéro impact CSS)
+   - Remplit les selects Livre/Chapitre depuis /api/bibleBooks & /api/bibleChapters
+   - Bouton Générer -> /api/study-28 -> remplit la colonne Rubriques (28) + éditeur
+   - Bouton "Lire la Bible" -> BibleGateway (LSG / JND)
+*/
+
 (function () {
-  /* ---------- utils ---------- */
-  function $(s, r){return (r||document).querySelector(s);}
-  function readSel(sel, def){
-    if(!sel) return def||""; var i=sel.selectedIndex>=0?sel.selectedIndex:0; var o=sel.options[i];
-    return String((o&&(o.text||o.value))||(def||"")).trim();
-  }
-  function escapeHtml(s){s=String(s||"");return s.replace(/&/g,"&amp;").replace(/</g,"&lt;")
-    .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
+  // ==== helpers dom ==========================================================
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-  /* ---------- trouve les selects existants (lecture uniquement) ---------- */
-  function findBookSelect(){
-    var ids=["bookSelect","livre","book"]; for(var i=0;i<ids.length;i++){var el=$("#"+ids[i]); if(el) return el;}
-    var sels=document.querySelectorAll("select");
-    for(var j=0;j<sels.length;j++){
-      var t=[].slice.call(sels[j].options).map(o=>(o.text||o.value||"").toLowerCase()).join("|");
-      if(/gen[eè]se|psaumes|matthieu|apocalypse/.test(t)) return sels[j];
+  function textIncludes(el, needle) {
+    return el && (el.textContent || "").toLowerCase().includes(needle.toLowerCase());
+  }
+  function escapeHtml(s="") {
+    return String(s)
+      .replaceAll("&", "&amp;").replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;").replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  // ==== trouve les éléments existants, sans casser la page ===================
+  function findGenerateBtn() {
+    // bouton dont le texte contient "Générer"
+    return $$("button, a").find(b => textIncludes(b, "générer"));
+  }
+  function findReadBtn() {
+    return $$("button, a").find(b => textIncludes(b, "lire la bible"));
+  }
+  function findBookSelect() {
+    // select déjà présent qui liste des livres (Genèse, Exode…)
+    const ids = ["bookSelect","livre","book"];
+    for (const id of ids) { const el = $("#"+id); if (el) return el; }
+    const sels = $$("select");
+    for (const s of sels) {
+      const opts = $$("#", s) || [];
+      const t = Array.from(s.options || []).map(o => (o.text || o.value || "").toLowerCase()).join("|");
+      if (/gen[eè]se|exode|psaumes|matthieu|apocalypse/.test(t)) return s;
     }
+    // si rien n’existe, on crée un select discrètement et on le met
+    // à la place du premier select vide de la barre
+    const firstEmpty = $$("select").find(s => (s.options || []).length < 2);
+    if (firstEmpty) return firstEmpty;
     return null;
   }
-  function findChapterSelect(){
-    var ids=["chapterSelect","chapitre","chapter"]; for(var i=0;i<ids.length;i++){var el=$("#"+ids[i]); if(el) return el;}
-    var sels=document.querySelectorAll("select");
-    for(var j=0;j<sels.length;j++){
-      var first=[].slice.call(sels[j].options).slice(0,10).map(o=>(o.value||o.text||"").trim());
-      var nums=first.filter(v=>/^\d+$/.test(v)).length;
-      if(nums>=6) return sels[j];
+  function findChapterSelect() {
+    const ids = ["chapterSelect","chapitre","chapter"];
+    for (const id of ids) { const el = $("#"+id); if (el) return el; }
+    // heuristique: select qui contient beaucoup de chiffres (1..50)
+    const sels = $$("select");
+    for (const s of sels) {
+      const first = Array.from(s.options || []).slice(0, 12).map(o => (o.value || o.text || "").trim());
+      const nums = first.filter(v => /^\d+$/.test(v)).length;
+      if (nums >= 6) return s;
     }
-    return null;
+    const empty = $$("select").find(s => (s.options || []).length < 2 && s !== findBookSelect());
+    return empty || null;
   }
-  function findVersionSelect(){
-    var ids=["versionSelect","version"]; for(var i=0;i<ids.length;i++){var el=$("#"+ids[i]); if(el) return el;}
-    var sels=document.querySelectorAll("select");
-    for(var j=0;j<sels.length;j++){
-      var t=[].slice.call(sels[j].options).map(o=>(o.text||"").toLowerCase()).join("|");
-      if(/segond|darby|ostervald|neg|bds|s21|pdv/.test(t)) return sels[j];
+  function findVersionSelect() {
+    const ids = ["versionSelect","version"];
+    for (const id of ids) { const el = $("#"+id); if (el) return el; }
+    const sels = $$("select");
+    for (const s of sels) {
+      const t = Array.from(s.options || []).map(o => (o.text || o.value || "").toLowerCase()).join("|");
+      if (/segond|louis|darby|ostervald|neg|bds|s21|pdv/.test(t)) return s;
     }
-    return null;
+    return null; // pas grave : on assumera LSG
   }
-  var S_BOOK = findBookSelect();
-  var S_CHAP = findChapterSelect();
-  var S_VERSI = findVersionSelect();
-
-  function versionToApiLabel(v){
-    var t=String(v||"").toLowerCase();
-    if(/darby|jnd/.test(t)) return {translation:"JND", bibleId:"a93a92589195411f-01"};
-    if(/segond|lsg/.test(t)) return {translation:"LSG", bibleId:""};
-    return {translation:"JND", bibleId:"a93a92589195411f-01"};
-  }
-
-  /* ---------- Shadow host commun ---------- */
-  var host=document.createElement("div");
-  host.id="study28-shadow-host";
-  document.body.appendChild(host);
-  var root=host.attachShadow({mode:"open"});
-
-  /* ---------- styles (scopés) ---------- */
-  var css=document.createElement("style");
-  css.textContent = `
-    :host{all:initial}
-    .fab{position:fixed;right:20px;bottom:20px;z-index:2147483636;
-      width:56px;height:56px;border-radius:999px;
-      background:#0b1220;color:#fff;border:1px solid #1f2937;display:flex;
-      align-items:center;justify-content:center;font-weight:800;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.35)}
-    .fab:hover{filter:brightness(1.1)}
-    .overlay{position:fixed;inset:0;background:rgba(2,6,23,.55);opacity:0;pointer-events:none;transition:.2s;z-index:2147483637}
-    .drawer{position:fixed;top:0;right:-720px;width:min(720px,92vw);height:100vh;background:#0b1220;color:#e2e8f0;
-      box-shadow:-10px 0 28px rgba(0,0,0,.4);transition:right .25s ease;z-index:2147483638;display:flex;flex-direction:column}
-    .open .overlay{opacity:1;pointer-events:auto}
-    .open .drawer{right:0}
-    .head{padding:12px 16px;border-bottom:1px solid #1f2937;display:flex;gap:10px;align-items:center}
-    .title{font-weight:800}
-    .meta{color:#93a3b8}
-    .status{margin-left:auto;font-weight:700}
-    .btn{appearance:none;background:#60a5fa;border:none;color:#031225;padding:8px 12px;border-radius:10px;font-weight:700;cursor:pointer}
-    .ghost{background:#0f172a;color:#cbd5e1;border:1px solid #1f2937}
-    .body{flex:1;min-height:0;display:grid;grid-template-columns:280px 1fr}
-    .list{border-right:1px solid #1f2937;overflow:auto}
-    .item{display:block;width:100%;text-align:left;padding:10px 12px;background:transparent;border:none;color:#e2e8f0;cursor:pointer;border-bottom:1px dashed #1f2937}
-    .item.active{background:#0f172a}
-    .main{padding:16px;overflow:auto}
-    .main h3{margin:0 0 8px;font-size:18px}
-  `;
-  root.appendChild(css);
-
-  /* ---------- FAB ---------- */
-  var fab=document.createElement("button");
-  fab.className="fab";
-  fab.title="Étude auto (28)";
-  fab.textContent="28";
-  root.appendChild(fab);
-
-  /* ---------- overlay + drawer ---------- */
-  var overlay=document.createElement("div"); overlay.className="overlay";
-  var drawer=document.createElement("div"); drawer.className="drawer";
-  var head=document.createElement("div"); head.className="head";
-  var title=document.createElement("span"); title.className="title"; title.textContent="Étude (28 points)";
-  var meta=document.createElement("span"); meta.className="meta"; meta.textContent="";
-  var status=document.createElement("span"); status.className="status"; status.textContent="";
-  var close=document.createElement("button"); close.className="btn ghost"; close.textContent="Fermer";
-  head.appendChild(title); head.appendChild(meta); head.appendChild(status); head.appendChild(close);
-
-  var body=document.createElement("div"); body.className="body";
-  var list=document.createElement("div"); list.className="list";
-  var main=document.createElement("div"); main.className="main"; main.innerHTML="<em>Clique le bouton 28 pour générer.</em>";
-  body.appendChild(list); body.appendChild(main);
-  drawer.appendChild(head); drawer.appendChild(body);
-  root.appendChild(overlay); root.appendChild(drawer);
-
-  function openDrawer(){ host.classList.add("open"); }
-  function closeDrawer(){ host.classList.remove("open"); }
-  overlay.addEventListener("click", closeDrawer);
-  close.addEventListener("click", closeDrawer);
-
-  function setStatus(msg, ok){ status.textContent=msg||""; status.style.color = ok===false ? "#ef4444" : "#22c55e"; }
-  function setMeta(text){ meta.textContent=text||""; }
-
-  function renderSections(payload){
-    var metaObj=(payload&&payload.meta)||{};
-    var sections=(payload&&payload.sections)||[];
-    setMeta(sections.length?("OSIS: "+(metaObj.osis||"?")+" · Trad: "+(metaObj.translation||"")):"");
-    list.innerHTML="";
-    function show(idx){
-      var s=null,i; for(i=0;i<sections.length;i++){ if(sections[i].index===idx){ s=sections[i]; break; } }
-      if(!s){ main.innerHTML="<em>Aucune section</em>"; return; }
-      main.innerHTML="<h3>"+escapeHtml(s.index+". "+(s.title||""))+"</h3><p style='white-space:pre-wrap;line-height:1.5'>"+escapeHtml(s.content||"")+"</p>"+
-        (s.verses&&s.verses.length?("<div style='color:#a5b4fc;margin-top:6px'>Versets : "+s.verses.map(escapeHtml).join(", ")+"</div>"):"");
-      var btns=list.querySelectorAll(".item"); for(i=0;i<btns.length;i++){ btns[i].classList.remove("active"); }
-      var cur=list.querySelector('.item[data-idx="'+idx+'"]'); if(cur) cur.classList.add("active");
+  function findRubriquesColumn() {
+    // conteneur sous le titre "Rubriques"
+    const candidates = $$("*").filter(n => textIncludes(n, "rubriques"));
+    for (const h of candidates) {
+      // cherche un conteneur défilant sous ce titre
+      if (h.parentElement) return h.parentElement; // on écrira notre liste dedans
     }
-    for(var k=0;k<sections.length;k++){
-      var b=document.createElement("button"); b.className="item"; b.setAttribute("data-idx", String(sections[k].index));
-      b.textContent=sections[k].index+". "+(sections[k].title||"");
-      b.addEventListener("click",(function(n){return function(){show(n);};})(sections[k].index));
-      list.appendChild(b);
+    // fallback : crée un conteneur léger dans la première colonne (si deux colonnes)
+    const twoCols = $$("main, .container, .columns, .grid, body").find(c => $$(".col, [class*='col-'], [class*='sidebar'], [class*='left']", c).length >= 1);
+    return twoCols || document.body;
+  }
+  function findEditor() {
+    // zone d’édition à droite : textarea ou contenteditable
+    const ta = $("textarea");
+    if (ta) return { el: ta, set: v => (ta.value = v) };
+    const ed = $$("[contenteditable='true']").find(Boolean);
+    if (ed) return { el: ed, set: v => (ed.innerText = v) };
+    // conteneur de fallback : on injecte un <textarea> non stylé
+    const box = document.createElement("textarea");
+    box.style.width = "100%"; box.style.minHeight = "200px";
+    const spot = $("#app") || document.body;
+    spot.appendChild(box);
+    return { el: box, set: v => (box.value = v) };
+  }
+
+  // éléments (trouvés/assumés)
+  const BTN_GEN = findGenerateBtn();
+  const BTN_READ = findReadBtn();
+  const SEL_BOOK = findBookSelect();
+  const SEL_CHAP = findChapterSelect();
+  const SEL_VERS = findVersionSelect();
+  const RUBR_COL = findRubriquesColumn();
+  const EDITOR = findEditor();
+
+  // conteneur interne pour notre liste (zéro style imposé)
+  let rubriquesList = $("#rubriquesList");
+  if (!rubriquesList) {
+    rubriquesList = document.createElement("div");
+    rubriquesList.id = "rubriquesList";
+    RUBR_COL.appendChild(rubriquesList);
+  }
+
+  // ==== data mémoire =========================================================
+  let lastStudy = null; // { meta, sections[] }
+  let currentIndex = 1;
+
+  // ==== API helpers ==========================================================
+  async function getJSON(url) {
+    const r = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
+    const t = await r.text();
+    try { return { ok: r.ok, status: r.status, json: JSON.parse(t) }; }
+    catch { return { ok: r.ok, status: r.status, text: t }; }
+  }
+
+  // ==== books / chapters =====================================================
+  async function ensureBooks() {
+    if (!SEL_BOOK) return;
+    if ((SEL_BOOK.options || []).length > 2) return; // déjà rempli
+    const res = await getJSON("/api/bibleBooks");
+    const arr = (res.json && res.json.data) || res.json || [];
+    if (!Array.isArray(arr) || !arr.length) return;
+    SEL_BOOK.innerHTML = "";
+    for (const b of arr) {
+      const opt = document.createElement("option");
+      opt.value = b.name || b; opt.textContent = b.name || b;
+      SEL_BOOK.appendChild(opt);
     }
-    if(sections.length) show(1); else main.innerHTML="<em>Aucune section</em>";
+  }
+  async function ensureChapters() {
+    if (!SEL_BOOK || !SEL_CHAP) return;
+    const book = SEL_BOOK.value || (SEL_BOOK.options[SEL_BOOK.selectedIndex] || {}).text || "Genèse";
+    const res = await getJSON("/api/bibleChapters?book=" + encodeURIComponent(book));
+    const arr = (res.json && res.json.data) || res.json || [];
+    if (!Array.isArray(arr) || !arr.length) return;
+    SEL_CHAP.innerHTML = "";
+    for (const c of arr) {
+      const n = c.number || c; // accepte {number:1} ou 1
+      const opt = document.createElement("option");
+      opt.value = n; opt.textContent = n;
+      SEL_CHAP.appendChild(opt);
+    }
   }
 
-  function runStudy(){
-    openDrawer(); setStatus("génération…", true); setMeta("");
-    var book = S_BOOK ? readSel(S_BOOK,"Genèse") : "Genèse";
-    var chapter = S_CHAP ? readSel(S_CHAP,"1") : "1";
-    var verInfo = versionToApiLabel(S_VERSI ? readSel(S_VERSI,"LSG") : "LSG");
-    var qs = "book="+encodeURIComponent(book)+"&chapter="+encodeURIComponent(chapter)+
-             "&translation="+encodeURIComponent(verInfo.translation)+
-             (verInfo.bibleId ? "&bibleId="+encodeURIComponent(verInfo.bibleId) : "")+
-             "&trace=1";
-    fetch("/api/study-28?"+qs, {headers:{accept:"application/json"}, cache:"no-store"})
-      .then(r=>r.json().catch(()=>null).then(j=>({r,j})))
-      .then(p=>{
-        if(!p.j || !p.j.ok){ setStatus(p.j&&p.j.error ? p.j.error : ("HTTP "+(p.r?p.r.status:"?")), false); return; }
-        var ref=(p.j.data && p.j.data.meta && p.j.data.meta.reference) || (book+" "+chapter);
-        setStatus("Étude de "+ref, true);
-        renderSections(p.j.data||{});
-      })
-      .catch(e=>setStatus(e&&e.message||String(e), false));
+  // ==== rendu rubriques + édition ===========================================
+  function renderRubriques(sections) {
+    rubriquesList.innerHTML = ""; currentIndex = 1;
+    const ul = document.createElement("ul");
+    ul.style.listStyle = "none"; ul.style.margin = "0"; ul.style.padding = "0";
+    for (const s of sections) {
+      const li = document.createElement("li");
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = `${s.index}. ${s.title || ""}`;
+      btn.style.display = "block";
+      btn.style.width = "100%";
+      btn.style.textAlign = "left";
+      btn.style.padding = "8px 10px";
+      btn.style.border = "none";
+      btn.style.background = "transparent";
+      btn.style.cursor = "pointer";
+      btn.setAttribute("data-idx", s.index);
+      btn.addEventListener("click", () => showSection(s.index));
+      li.appendChild(btn);
+      ul.appendChild(li);
+    }
+    rubriquesList.appendChild(ul);
   }
 
-  fab.addEventListener("click", runStudy);
+  function showSection(idx) {
+    if (!lastStudy) return;
+    const s = lastStudy.sections.find(x => x.index === idx);
+    if (!s) return;
+    currentIndex = idx;
+    // applique dans la zone d’édition (texte brut)
+    EDITOR.set(`${s.index}. ${s.title}\n\n${s.content || ""}`);
+    // highlight optionnel (léger)
+    $$("[data-idx]", rubriquesList).forEach(b => b.style.background = (Number(b.dataset.idx) === idx) ? "rgba(0,0,0,0.06)" : "transparent");
+  }
 
-  /* BONUS: raccourci clavier Alt+E pour ouvrir sans FAB */
-  window.addEventListener("keydown", function(ev){
-    if(ev.altKey && (ev.key==="e" || ev.key==="E")){ runStudy(); }
+  // ==== Generate =============================================================
+  function normalizeVersion() {
+    const v = SEL_VERS ? (SEL_VERS.options[SEL_VERS.selectedIndex] || {}).text || SEL_VERS.value : "LSG";
+    const t = String(v||"").toLowerCase();
+    if (/darby|jnd/.test(t)) return { translation: "JND", bibleId: "a93a92589195411f-01" };
+    return { translation: "LSG", bibleId: "" }; // défaut LSG
+  }
+
+  async function generateStudy() {
+    const book = SEL_BOOK ? SEL_BOOK.value : "Genèse";
+    const chap = SEL_CHAP ? SEL_CHAP.value : "1";
+    const { translation, bibleId } = normalizeVersion();
+    const qs = new URLSearchParams({
+      book, chapter: chap, translation, trace: "1"
+    });
+    if (bibleId) qs.set("bibleId", bibleId);
+
+    const res = await getJSON("/api/study-28?" + qs.toString());
+    if (!res.ok || !res.json || !res.json.ok) {
+      alert("Erreur génération étude: " + (res.json?.error || res.status));
+      return;
+    }
+    const data = res.json.data || {};
+    lastStudy = data;
+    renderRubriques(data.sections || []);
+    showSection(1);
+  }
+
+  // ==== Lire la Bible (BibleGateway) ========================================
+  function bibleGatewayVersion() {
+    const v = SEL_VERS ? (SEL_VERS.options[SEL_VERS.selectedIndex] || {}).text || SEL_VERS.value : "LSG";
+    const t = String(v||"").toLowerCase();
+    // codes BG : LSG = LSG ; Darby FR = DAR
+    if (/darby|jnd/.test(t)) return "DAR";
+    return "LSG";
+  }
+  function openBibleGateway() {
+    const book = SEL_BOOK ? SEL_BOOK.value : "Genèse";
+    const chap = SEL_CHAP ? SEL_CHAP.value : "1";
+    const ver = bibleGatewayVersion();
+    const url = `https://www.biblegateway.com/passage/?search=${encodeURIComponent(book)}%20${encodeURIComponent(chap)}&version=${encodeURIComponent(ver)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  // ==== wires ================================================================
+  async function boot() {
+    try {
+      await ensureBooks();
+      await ensureChapters();
+    } catch {}
+  }
+
+  // réagit au changement de livre -> recharge chapitres
+  if (SEL_BOOK && SEL_CHAP) {
+    SEL_BOOK.addEventListener("change", ensureChapters);
+  }
+
+  if (BTN_GEN) BTN_GEN.addEventListener("click", (e) => { e.preventDefault(); generateStudy(); });
+  if (BTN_READ) BTN_READ.addEventListener("click", (e) => { e.preventDefault(); openBibleGateway(); });
+
+  // fallback : si l’utilisateur presse Alt+E -> générer
+  window.addEventListener("keydown", (ev) => {
+    if (ev.altKey && (ev.key === "e" || ev.key === "E")) {
+      ev.preventDefault(); generateStudy();
+    }
   });
+
+  // démarre quand le DOM est prêt
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
 })();
