@@ -1,127 +1,205 @@
-// /public/app.js
-// Front minimal & robuste pour déclencher l'étude via /api/study-28 et afficher 28 rubriques variées.
+// public/app.js
+// Ajoute un panneau "Étude auto (28)" sous les contrôles.
+// Ne modifie PAS ton UI existante : rendu autonome (liste + contenu).
 
 (function () {
-  const $  = (s, r=document) => r.querySelector(s);
-  const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
-  // Champs attendus si présents dans la page (optionnels)
-  const elBook   = $('[name="book"]')    || $('#book');
-  const elChap   = $('[name="chapter"]') || $('#chapter');
-  const elVerse  = $('[name="verse"]')   || $('#verse');
-  const elTrans  = $('[name="translation"]') || $('#translation');
-  const elBible  = $('[name="bibleId"]') || $('#bibleId');
-
-  const btnGen   = $('#generateBtn') || $('#generate') || $('button[type="submit"]');
-  const out      = $('#out') || createOut();
-  const statusEl = $('#status') || createStatus();
-
-  function createOut() {
-    const d = document.createElement('div');
-    d.id = 'out';
-    d.style.border = '1px solid #e5e7eb';
-    d.style.borderRadius = '12px';
-    d.style.padding = '16px';
-    d.style.background = '#fff';
-    document.body.appendChild(d);
-    return d;
-  }
-  function createStatus() {
-    const d = document.createElement('div');
-    d.id = 'status';
-    d.style.margin = '12px 0';
-    document.body.insertBefore(d, out);
-    return d;
+  // 1) Détection souple des champs (sans casser la page)
+  function guessSelectByOptions(matchFn) {
+    const sels = $$("select");
+    for (const s of sels) {
+      const txt = [...s.options].map(o => (o.text || "").toLowerCase());
+      if (matchFn(txt, s)) return s;
+    }
+    return null;
   }
 
-  function readVal(el, def="") {
-    return (el && el.value != null ? String(el.value) : def).trim();
+  // livre: un <select> qui contient des entrées type "Genèse"
+  const selBook = guessSelectByOptions(txts =>
+    txts.some(t => /gen[eè]se|genesis|exode|psaumes|matthieu|jean/.test(t))
+  );
+
+  // chapitre: un <select> majoritairement numérique
+  const selChapter = $$("select").find(s => {
+    const vals = [...s.options].slice(0, 15).map(o => o.value || o.textContent);
+    const nums = vals.filter(v => /^\d+$/.test(String(v).trim()));
+    return nums.length >= Math.max(5, Math.floor(vals.length * 0.6));
+  });
+
+  // traduction: un <select> qui contient "Segond"/"Darby" ou proche
+  const selTrans = guessSelectByOptions(txts =>
+    txts.some(t => /(segond|louis|darby|ostervald|pdv|français courant|parole)/.test(t))
+  );
+
+  // 2) Création d’un bouton “Étude auto (28)”
+  //    On essaie de l’insérer à côté du bouton "Générer" si présent
+  const btnGenerate =
+    [...$$("button, [role=button]")].find(
+      b => (b.textContent || "").trim().toLowerCase().includes("générer")
+    ) || null;
+
+  const bridgeBtn = document.createElement("button");
+  bridgeBtn.type = "button";
+  bridgeBtn.textContent = "Étude auto (28)";
+  bridgeBtn.style.cssText =
+    "margin-left:10px;background:#0f172a;color:#fff;border:1px solid #1f2937;border-radius:10px;padding:8px 12px;cursor:pointer;font-weight:600;";
+
+  if (btnGenerate && btnGenerate.parentElement) {
+    btnGenerate.parentElement.appendChild(bridgeBtn);
+  } else {
+    // fallback : tout en haut
+    const host = $("#top-controls") || document.body;
+    host.insertBefore(bridgeBtn, host.firstChild);
   }
 
-  async function runStudy(ev) {
-    if (ev && ev.preventDefault) ev.preventDefault();
-    statusEl.textContent = "⏳ génération en cours…";
-    out.innerHTML = "";
+  // 3) Panneau autonome (2 colonnes)
+  const wrap = document.createElement("section");
+  wrap.id = "study-panel";
+  wrap.style.cssText =
+    "margin:16px 0;padding:0; border:1px solid #e5e7eb; border-radius:12px; background:#fff;";
 
-    const book = readVal(elBook, "Genèse");
-    const chapter = readVal(elChap, "1");
-    const verse = readVal(elVerse, "");
-    const translation = readVal(elTrans, "JND");
-    const bibleId = readVal(elBible, "");
+  wrap.innerHTML = `
+    <div style="padding:12px 14px;border-bottom:1px solid #e5e7eb;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <strong>Étude (autonome)</strong>
+      <span id="study-status" style="color:#64748b"></span>
+      <span id="study-meta" style="color:#64748b"></span>
+      <button id="study-print" style="margin-left:auto;background:#111827;color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer">🖨️ Imprimer / PDF</button>
+    </div>
+    <div style="display:grid; grid-template-columns: 320px 1fr; gap:0; min-height:420px;">
+      <aside id="study-list" style="border-right:1px solid #e5e7eb; overflow:auto; max-height:70vh"></aside>
+      <main id="study-content" style="padding:16px;min-height:420px;">
+        <em>Cliquer « Étude auto (28) » pour générer.</em>
+      </main>
+    </div>
+  `;
+  // Insère le panneau juste sous la barre des contrôles
+  const anchor = btnGenerate ? btnGenerate.closest("section") || btnGenerate.parentElement : null;
+  (anchor?.parentElement || document.body).appendChild(wrap);
 
-    const usp = new URLSearchParams({ book, chapter, translation });
-    if (verse)   usp.set("verse", verse);
-    if (bibleId) usp.set("bibleId", bibleId);
-    usp.set("trace", "1"); // utile en cas d'erreur API
+  const statusEl = $("#study-status", wrap);
+  const metaEl = $("#study-meta", wrap);
+  const listEl = $("#study-list", wrap);
+  const contentEl = $("#study-content", wrap);
+
+  $("#study-print", wrap).addEventListener("click", () => window.print());
+
+  function readSelect(sel, def = "") {
+    if (!sel) return def;
+    const o = sel.options[sel.selectedIndex] || sel.options[0];
+    return (o?.text || o?.value || def).trim();
+  }
+
+  function mapTranslationLabel(label) {
+    const t = (label || "").toLowerCase();
+    if (/darby|jnd/.test(t)) return "JND";
+    if (/segond|lsg/.test(t)) return "LSG";
+    return "JND"; // valeur sûre tant que ton API Bible est sur Darby
+  }
+
+  function setStatus(msg, ok = true) {
+    statusEl.textContent = msg || "";
+    statusEl.style.color = ok ? "#16a34a" : "#dc2626";
+  }
+
+  function renderStudy(data) {
+    const { meta = {}, sections = [] } = data || {};
+    metaEl.textContent = sections.length
+      ? `OSIS: ${meta.osis || "?"} · Trad: ${meta.translation || ""}`
+      : "";
+
+    // Liste gauche
+    listEl.innerHTML = sections
+      .map(
+        s => `
+      <button class="study-item"
+              data-idx="${s.index}"
+              style="display:block;width:100%;text-align:left;padding:10px 12px;border:none;border-bottom:1px dashed #e5e7eb;background:#fff;cursor:pointer">
+        ${s.index}. ${escapeHtml(s.title || "")}
+      </button>`
+      )
+      .join("");
+
+    // Contenu
+    function show(i) {
+      const s = sections[i - 1];
+      if (!s) return;
+      contentEl.innerHTML = `
+        <h3 style="margin:0 0 8px">${s.index}. ${escapeHtml(s.title || "")}</h3>
+        <p style="white-space:pre-wrap;line-height:1.5">${escapeHtml(s.content || "")}</p>
+        ${
+          s.verses?.length
+            ? `<div style="color:#6366f1;margin-top:8px">Versets : ${s.verses.map(escapeHtml).join(", ")}</div>`
+            : ""
+        }
+      `;
+      // highlight
+      $$(".study-item", listEl).forEach(b => (b.style.background = "#fff"));
+      const btn = $(`.study-item[data-idx="${i}"]`, listEl);
+      if (btn) btn.style.background = "#f1f5f9";
+    }
+
+    listEl.addEventListener("click", e => {
+      const b = e.target.closest(".study-item");
+      if (!b) return;
+      const idx = Number(b.dataset.idx || "1");
+      show(idx);
+    });
+
+    if (sections.length) show(1);
+    else contentEl.innerHTML = `<em>Aucune section</em>`;
+  }
+
+  function escapeHtml(s = "") {
+    return String(s)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  async function run() {
+    setStatus("génération…", true);
+    contentEl.innerHTML = `<em>Patiente un instant…</em>`;
+    listEl.innerHTML = "";
+
+    const book = readSelect(selBook, "Genèse");
+    const chapter = (readSelect(selChapter, "1") || "1").replace(/\D+/g, "") || "1";
+    const translation = mapTranslationLabel(readSelect(selTrans, "Darby"));
+
+    // Si tu veux forcer la Darby API Bible :
+    const bibleId = "a93a92589195411f-01";
+
+    const usp = new URLSearchParams({
+      book,
+      chapter,
+      translation,
+      bibleId
+    });
+    usp.set("trace", "1"); // aide au debug
 
     try {
       const r = await fetch("/api/study-28?" + usp.toString(), {
-        headers: { "accept":"application/json" },
+        headers: { accept: "application/json" },
         cache: "no-store"
       });
-      const j = await r.json().catch(()=>null);
-
+      const j = await r.json().catch(() => null);
       if (!j || !j.ok) {
-        const msg = j?.error || `HTTP ${r.status}`;
-        statusEl.innerHTML = `<span style="color:#dc2626">⚠️ ${msg}</span>`;
-        out.textContent = j ? JSON.stringify(j, null, 2) : "Réponse vide.";
+        setStatus(j?.error || `HTTP ${r.status}`, false);
+        contentEl.innerHTML = `<pre style="white-space:pre-wrap;background:#0b1020;color:#e2e8f0;padding:10px;border-radius:8px">${escapeHtml(
+          JSON.stringify(j || {}, null, 2)
+        )}</pre>`;
         return;
       }
-
-      const data = j.data || {};
-      const meta = data.meta || {};
-      const sections = Array.isArray(data.sections) ? data.sections : [];
-
-      statusEl.innerHTML = `<span style="color:#16a34a">✅ Étude de ${meta.reference || (book+" "+chapter)} — ${sections.length} sections</span>
-        <div style="color:#64748b; margin-top:4px">OSIS: ${meta.osis || "?"} · Trad: ${meta.translation || translation}</div>`;
-
-      if (!sections.length) {
-        out.innerHTML = `<div style="color:#dc2626">⚠️ Aucune section trouvée</div>`;
-        return;
-      }
-
-      out.innerHTML = sections.map(s => `
-        <div class="sec" style="padding:10px 0; border-bottom:1px dashed #e5e7eb">
-          <h3 style="margin:0 0 6px">${s.index}. ${escapeHtml(s.title || "")}</h3>
-          <p style="margin:0">${escapeHtml(s.content || "")}</p>
-          ${Array.isArray(s.verses) && s.verses.length ? `<div style="color:#6366f1; margin-top:6px; font-size:12px">Versets : ${s.verses.map(escapeHtml).join(", ")}</div>` : ""}
-        </div>
-      `).join("");
+      setStatus(`Étude de ${j.data?.meta?.reference || `${book} ${chapter}`}`, true);
+      renderStudy(j.data);
     } catch (e) {
-      statusEl.innerHTML = `<span style="color:#dc2626">⚠️ Exception: ${e?.message || e}</span>`;
+      setStatus(e?.message || String(e), false);
+      contentEl.textContent = "Erreur réseau.";
     }
   }
 
-  function escapeHtml(s=""){
-    return String(s)
-      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;").replaceAll("'","&#39;");
-  }
-
-  // Auto-hydrate par querystring si la page est ouverte avec ?book=…&chapter=…
-  (function hydrateFromURL(){
-    const usp = new URLSearchParams(location.search);
-    const set = (name, el) => { if (el && usp.has(name)) el.value = usp.get(name); };
-    set("book", elBook); set("chapter", elChap); set("verse", elVerse);
-    set("translation", elTrans); set("bibleId", elBible);
-
-    if (usp.size && btnGen == null) runStudy(); // si pas de bouton, lance direct
-  })();
-
-  // Bouton (s’il existe)
-  if (btnGen) {
-    // Si c’est un <form>, on capte submit
-    if (btnGen.closest("form")) {
-      btnGen.closest("form").addEventListener("submit", runStudy);
-    } else {
-      btnGen.addEventListener("click", runStudy);
-    }
-  } else {
-    // Pas de bouton dans la page : on crée un petit déclencheur
-    const b = document.createElement("button");
-    b.textContent = "🧪 Générer l’étude (28 points)";
-    b.style.cssText = "background:#111827;color:#fff;border:none;border-radius:10px;padding:10px 14px;cursor:pointer;margin-bottom:10px";
-    b.addEventListener("click", runStudy);
-    statusEl.parentNode.insertBefore(b, statusEl);
-  }
+  bridgeBtn.addEventListener("click", run);
 })();
