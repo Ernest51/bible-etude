@@ -8,21 +8,48 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   <style>
-    :root{ --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b; --accent:#0891b2; --accent-soft:#e0f2fe; }
+    /* -------- Thèmes (8 palettes) -------- */
+    :root{
+      --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb;
+      --accent:#0891b2; --accent-600:#0e7490; --accent-700:#155e75; --accent-soft:#e0f2fe;
+      --ok:#16a34a; --warn:#f59e0b;
+      --btn-primary-bg:var(--accent); --btn-primary-fg:#fff;
+      --btn-secondary-bg:#fff; --btn-secondary-fg:var(--accent); --btn-secondary-bd:var(--accent);
+      --link:var(--accent);
+      --shadow:0 1px 2px rgba(0,0,0,.06);
+    }
+    /* Palette presets (inspirées Tailwind) */
+    [data-theme="cyan"]  { --accent:#0891b2; --accent-600:#0e7490; --accent-700:#155e75; --accent-soft:#e0f2fe; --bg:#f4f9fb; }
+    [data-theme="violet"]{ --accent:#7c3aed; --accent-600:#6d28d9; --accent-700:#5b21b6; --accent-soft:#ede9fe; --bg:#f7f5ff; }
+    [data-theme="vert"]  { --accent:#059669; --accent-600:#047857; --accent-700:#065f46; --accent-soft:#dcfce7; --bg:#f4fbf7; }
+    [data-theme="rouge"] { --accent:#dc2626; --accent-600:#b91c1c; --accent-700:#991b1b; --accent-soft:#fee2e2; --bg:#fff7f7; }
+    [data-theme="mauve"] { --accent:#a855f7; --accent-600:#9333ea; --accent-700:#7e22ce; --accent-soft:#f3e8ff; --bg:#fbf7ff; }
+    [data-theme="indigo"]{ --accent:#4f46e5; --accent-600:#4338ca; --accent-700:#3730a3; --accent-soft:#e0e7ff; --bg:#f5f6ff; }
+    [data-theme="ambre"] { --accent:#d97706; --accent-600:#b45309; --accent-700:#92400e; --accent-soft:#fef3c7; --bg:#fff9ef; }
+    [data-theme="slate"] { --accent:#334155; --accent-600:#1f2937; --accent-700:#0f172a; --accent-soft:#e2e8f0; --bg:#f3f5f8; }
+
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+
     header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:14px 18px;position:sticky;top:0;z-index:10}
     h1{margin:0;font-size:28px;font-weight:800;text-align:center}
     main{max-width:1200px;margin:14px auto;padding:0 12px}
-    .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto auto;gap:10px;margin:12px 0}
-    @media (max-width:1100px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}.controls .wide{grid-column:1/-1}}
-    input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%}
-    .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
-    .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
-    .btn.warn{background:var(--accent)}
+
+    .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto auto;gap:10px;margin:12px 0;align-items:center}
+    @media (max-width:1200px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}.controls .wide{grid-column:1/-1}}
+    input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%;background:#fff;color:var(--text)}
+
+    /* Boutons harmonisés par thème */
+    .btn{border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;box-shadow:var(--shadow);transition:transform .02s ease}
+    .btn:active{transform:translateY(1px)}
+    .btn.primary{background:var(--btn-primary-bg);color:var(--btn-primary-fg)}
+    .btn.secondary{background:var(--btn-secondary-bg);color:var(--btn-secondary-fg);border:1px solid var(--btn-secondary-bd)}
+    .btn.warn{background:var(--accent-600);color:#fff}
     .btn[disabled]{opacity:.65;cursor:not-allowed}
+
     .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
     @media (max-width:1000px){.layout{grid-template-columns:1fr}}
+
     .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
     .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700}
     .list{max-height:70vh;overflow:auto}
@@ -32,19 +59,31 @@
     .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
     .dot{width:8px;height:8px;border-radius:999px;background:var(--warn);margin-left:auto}
     .dot.ok{background:var(--ok)}
+
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
     .ed-title{font-weight:800;flex:1}.ed-body{padding:12px}
-    textarea#noteArea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;white-space:pre-wrap}
+    textarea#noteArea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;white-space:pre-wrap;background:#fff;color:var(--text)}
     #noteView{display:none;width:100%;min-height:460px;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;background:#fff;outline:none}
-    #noteView a{color:var(--accent);text-decoration:underline}
+    #noteView a{color:var(--link);text-decoration:underline}
+
     .links-panel{background:#fafafa;border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
     .links-panel.empty{display:none}
     .last-study{margin:10px 0 0 0; padding:10px 12px; background:#fff; border:1px solid var(--border); border-radius:10px; font-size:14px; display:flex; align-items:center; gap:8px}
-    .last-study a{color:var(--accent); text-decoration:underline}
+    .last-study a{color:var(--link); text-decoration:underline}
+
+    /* ---- Rubrique Thème : palette 8 couleurs ---- */
+    .theme-wrap{grid-column:1/-1;display:flex;align-items:center;gap:10px}
+    .theme-label{font-size:13px;color:var(--muted);min-width:90px}
+    .theme-bar{position:relative;flex:1;height:36px;border-radius:12px;border:1px solid var(--border);background:linear-gradient(90deg,
+      #0891b2 0%, #7c3aed 14.28%, #059669 28.56%, #dc2626 42.84%, #a855f7 57.12%, #4f46e5 71.4%, #d97706 85.68%, #334155 100%); cursor:ew-resize; overflow:hidden}
+    .theme-swatch{position:absolute;top:0;bottom:0;width:12.5%;border-right:1px dashed rgba(255,255,255,.25)}
+    .theme-thumb{position:absolute;top:2px;bottom:2px;width:22px;border-radius:10px;background:#fff;border:2px solid var(--accent-700);box-shadow:0 1px 3px rgba(0,0,0,.15);transform:translateX(-50%);pointer-events:none;transition:left .08s ease}
+    .theme-hints{display:flex;gap:8px;font-size:12px;color:var(--muted)}
+    .theme-dot{width:10px;height:10px;border-radius:999px;display:inline-block;vertical-align:middle}
   </style>
 </head>
-<body>
+<body data-theme="cyan">
   <header><h1>Méditation</h1></header>
 
   <main>
@@ -60,8 +99,34 @@
         <option value="BFC">Français Courant (BFC)</option>
       </select>
       <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
-      <button id="generateBtn" class="btn warn" type="button">Générer</button>
+      <button id="generateBtn" class="btn primary" type="button">Générer</button>
       <button id="resetBtn" class="btn secondary" type="button" title="Vider l’étude et remettre les diodes en orange">Réinitialiser</button>
+
+      <!-- RUBRIQUE THÈME -->
+      <div class="theme-wrap">
+        <div class="theme-label">Thème</div>
+        <div id="themeBar" class="theme-bar" title="Fais glisser horizontalement pour changer le thème">
+          <div class="theme-swatch" style="left:0%"></div>
+          <div class="theme-swatch" style="left:12.5%"></div>
+          <div class="theme-swatch" style="left:25%"></div>
+          <div class="theme-swatch" style="left:37.5%"></div>
+          <div class="theme-swatch" style="left:50%"></div>
+          <div class="theme-swatch" style="left:62.5%"></div>
+          <div class="theme-swatch" style="left:75%"></div>
+          <div class="theme-swatch" style="left:87.5%"></div>
+          <div id="themeThumb" class="theme-thumb" style="left:6.25%"></div>
+        </div>
+        <div class="theme-hints">
+          <span class="theme-dot" style="background:#0891b2"></span>
+          <span class="theme-dot" style="background:#7c3aed"></span>
+          <span class="theme-dot" style="background:#059669"></span>
+          <span class="theme-dot" style="background:#dc2626"></span>
+          <span class="theme-dot" style="background:#a855f7"></span>
+          <span class="theme-dot" style="background:#4f46e5"></span>
+          <span class="theme-dot" style="background:#d97706"></span>
+          <span class="theme-dot" style="background:#334155"></span>
+        </div>
+      </div>
     </div>
 
     <div id="lastStudyPanel" class="last-study" style="display:none;">
@@ -101,6 +166,7 @@
     // ---- ÉTAT ----
     const STORAGE_NOTES = 'notes28';
     const STORAGE_LAST  = 'lastStudy';
+    const STORAGE_THEME = 'theme8';
     const state = { points: [], current: 0, notes: JSON.parse(localStorage.getItem(STORAGE_NOTES)||'{}') };
 
     // ---- UI refs ----
@@ -122,6 +188,44 @@
     const lastOpen  = document.getElementById('lastStudyOpen');
     const lastUse   = document.getElementById('lastStudyUse');
 
+    // ---- Rubrique Thème ----
+    const themeBar = document.getElementById('themeBar');
+    const themeThumb = document.getElementById('themeThumb');
+    const THEMES = ["cyan","violet","vert","rouge","mauve","indigo","ambre","slate"];
+
+    function applyTheme(name){
+      if(!THEMES.includes(name)) name = "cyan";
+      document.body.setAttribute('data-theme', name);
+      // Harmoniser boutons/liens à partir des variables :
+      // (déjà basés sur --accent / --accent-600 / --accent-700)
+      localStorage.setItem(STORAGE_THEME, name);
+      positionThumbByTheme(name);
+    }
+    function positionThumbByTheme(name){
+      const idx = THEMES.indexOf(name);
+      const stepPct = 100 / 8;
+      themeThumb.style.left = (stepPct*idx + stepPct/2) + '%';
+    }
+    function themeAtX(clientX){
+      const rect = themeBar.getBoundingClientRect();
+      let x = Math.min(Math.max(clientX - rect.left, 0), rect.width - 1);
+      const idx = Math.floor((x / rect.width) * 8);
+      return THEMES[Math.max(0, Math.min(7, idx))];
+    }
+    let dragging=false;
+    themeBar.addEventListener('pointerdown', e=>{
+      dragging=true; themeBar.setPointerCapture(e.pointerId);
+      const t = themeAtX(e.clientX); applyTheme(t);
+    });
+    themeBar.addEventListener('pointermove', e=>{
+      if(!dragging) return;
+      const t = themeAtX(e.clientX); applyTheme(t);
+    });
+    themeBar.addEventListener('pointerup', e=>{
+      dragging=false; themeBar.releasePointerCapture(e.pointerId);
+    });
+    themeBar.addEventListener('pointerleave', ()=>{ dragging=false; });
+
     // ---- BibleGateway helpers ----
     const gatewayVersionMap = { LSG:'LSG', S21:'SG21', PDV:'LSG', BFC:'SG21' };
     function buildGatewayUrl(ref){
@@ -134,11 +238,10 @@
     // ---- Livres (FR) ----
     const BOOKS = ["Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth","1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther","Job","Psaumes","Proverbes","Ecclésiaste","Cantique des Cantiques","Ésaïe","Esaïe","Jérémie","Lamentations","Ézéchiel","Ezechiel","Daniel","Osée","Joël","Amos","Abdias","Jonas","Michée","Nahum","Habacuc","Sophonie","Aggée","Zacharie","Malachie","Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"];
 
-    // ---- Linkifier robuste (inclut multi-références héritées) ----
+    // ---- Linkifier robuste (inclut multi-références héritées & v.X) ----
     const BOOKS_RE_SRC = '\\b(' + BOOKS.map(b=>b.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')).join('|') + ')\\s+(\\d+)(?::\\s*(\\d+(?:\\s*[–-]\\s*\\d+)?(?:\\s*,\\s*\\d+(?:\\s*[–-]\\s*\\d+)?)*)\\s*)?';
     const BOOKS_RE = new RegExp(BOOKS_RE_SRC, 'gi');
     const V_RE = /(?:^|[\s\[(«"';])v\.\s*(\d+(?:\s*[–-]\s*\d+)?(?:\s*,\s*\d+(?:\s*[–-]\s*\d+)?)*)\b/gi;
-    // segments hérités après un match complet : "; 18–20", "; 4:1-3", "; 1 Jean 2:1" (le dernier cas sera repris par BOOKS_RE)
     const INHERIT_RE = /;\s*(\d+(?::\d+(?:\s*[–-]\s*\d+)?)?)\b/g;
 
     function linkifyContainer(root, currentBookChapterRef){
@@ -168,9 +271,7 @@
           frag.appendChild(a);
         }
 
-        // On parcourt la chaîne, on cherche d'abord les matchs "Livre Chapitre[:vers...]"
         text.replace(BOOKS_RE, (m,book,ch,vers,offset)=>{
-          // chunk avant
           pushText(text.slice(idx, offset));
           idx = offset + m.length;
 
@@ -178,44 +279,33 @@
           const ref = book + ' ' + ch + (vers ? (':' + vers.replace(/\s+/g,'').replace(/–/g,'-')) : '');
           pushLink(m, ref);
 
-          // ensuite, on regarde les héritages immédiatement après (dans la portion suivante jusqu’au prochain livre explicite)
-          // On va consommer des segments "; 18–20" etc. tant qu'ils sont contigus
+          // multi-références héritées après "; "
           let tail = text.slice(idx);
-          let consumed = 0;
           let mInh;
-          while((mInh = INHERIT_RE.exec(tail)) && (!BOOKS_RE.test(tail.slice(0, mInh.index)))){ // stop si un nouveau livre apparaît avant
-            const seg = mInh[0]; // y compris "; "
+          while((mInh = INHERIT_RE.exec(tail)) && (!BOOKS_RE.test(tail.slice(0, mInh.index)))){
+            const seg = mInh[0];
             const payload = mInh[1];
             const segStart = idx + mInh.index;
-            pushText(text.slice(idx, segStart)); // texte entre deux segments
+            pushText(text.slice(idx, segStart));
             const clean = payload.replace(/\s+/g,'').replace(/–/g,'-');
             let ref2;
             if(clean.includes(':')){
-              // a son propre chapitre: "4:1-3" (hérite juste du livre)
-              ref2 = `${lastBook} ${clean}`;
+              ref2 = `${lastBook} ${clean}`;               // ex: "; 4:1-3"
               lastChapter = clean.split(':')[0];
             }else{
-              // seulement des versets: "18-20" (hérite livre+chapitre)
-              const chap = lastChapter || ch;
+              const chap = lastChapter || ch;              // ex: "; 18-20"
               ref2 = `${lastBook} ${chap}:${clean}`;
             }
             pushLink(seg, ref2);
             idx = segStart + seg.length;
-            consumed += seg.length;
           }
-          // reset exec positions
-          INHERIT_RE.lastIndex = 0;
-          BOOKS_RE.lastIndex = 0;
-
+          INHERIT_RE.lastIndex = 0; BOOKS_RE.lastIndex = 0;
           return m;
         });
 
-        // texte restant après derniers livres explicites
         let rest = text.slice(idx);
-
-        // Références abrégées "v.12" rattachées au contexte courant (UI) si pas de lastBook/lastChapter
-        // Sinon, si lastBook/lastChapter connus dans ce même nœud, utiliser ceux-là en priorité
-        const currentBC = (lastBook && lastChapter) ? `${lastBook} ${lastChapter}` : (currentBookChapterRef || null);
+        const currentBC = (lastBook && lastChapter) ? `${lastBook} ${lastChapter}` :
+                          ((currentBookChapterRef||null));
         if(currentBC){
           const parts=[]; let last=0; let mV;
           while((mV = V_RE.exec(rest))){
@@ -226,11 +316,7 @@
             last = mV.index + mV[0].length;
           }
           parts.push(rest.slice(last));
-          // injecter parts
-          parts.forEach(p=>{
-            if(typeof p === 'string'){ pushText(p); }
-            else{ pushLink(p.label, p.ref); }
-          });
+          parts.forEach(p=>{ if(typeof p==='string') pushText(p); else pushLink(p.label, p.ref); });
         }else{
           pushText(rest);
         }
@@ -306,7 +392,7 @@
       [...pointsList.children].forEach((el,i)=>{
         const dot = el.querySelector('.dot');
         const ok = !!(state.notes[i] && state.notes[i].trim());
-        dot.classList.toggle('ok', ok); // vert si texte présent, sinon orange
+        dot.classList.toggle('ok', ok);
       });
     }
     function buildList(){
@@ -345,7 +431,6 @@
     }
     function renderIntoNotes(payload){
       const sec = Array.isArray(payload.sections)?payload.sections:[];
-      // reset complet (évite vieux contenus)
       localStorage.removeItem(STORAGE_NOTES);
       state.notes = {};
       for(let i=0;i<state.points.length;i++) state.notes[i]='';
@@ -403,17 +488,14 @@
       openOnBibleGateway(ref);
     });
 
-    // ---- Réinitialiser : vider l’étude et repasser toutes les diodes en orange ----
+    // ---- Réinitialiser ----
     function resetStudy(){
       if(!confirm('Réinitialiser : vider l’étude en cours et remettre toutes les diodes en orange ?')) return;
       localStorage.removeItem(STORAGE_NOTES);
       state.notes = {};
-      // vider l’éditeur
       noteArea.value = '';
       noteView.innerHTML = '';
-      // repasser les diodes en orange
       [...pointsList.children].forEach(el=> el.querySelector('.dot')?.classList.remove('ok'));
-      // garder la dernière étude mémorisée (ne pas toucher STORAGE_LAST)
       syncView();
     }
     resetBtn.addEventListener('click', resetStudy);
@@ -428,20 +510,17 @@
       lastOpen.href = buildGatewayUrl(`${book} ${chapter}`);
       lastPanel.style.display='flex';
       lastUse.onclick = ()=>{
-        // Recharger les sélecteurs et (optionnel) relancer génération
         setSelectValue(bookSelect, book);
         setSelectValue(chapterSelect, String(chapter));
-        // On ne regénère pas automatiquement pour éviter une charge involontaire ; l’utilisateur clique "Générer"
       };
     }
 
-    // ---- Met à jour tous les href quand la version change ----
+    // ---- Version change -> recalculer TOUS les liens (y compris "Dernière étude") ----
     versionSelect.addEventListener('change', ()=>{
       noteView.querySelectorAll('a[data-ref]').forEach(a=>{
         const ref = a.getAttribute('data-ref');
         a.href = buildGatewayUrl(ref);
       });
-      // Mettre à jour lien "Dernière étude"
       const raw = localStorage.getItem(STORAGE_LAST);
       if(raw){
         const { book, chapter } = JSON.parse(raw);
@@ -467,7 +546,10 @@
     (async function init(){
       initSelects();
       await loadPoints();
-      renderLastStudyPanel(); // affiche si une dernière étude existe
+      renderLastStudyPanel();
+      // Appliquer le thème mémorisé
+      const savedTheme = localStorage.getItem(STORAGE_THEME) || 'cyan';
+      applyTheme(savedTheme);
       syncView();
     })();
   })();
