@@ -7,7 +7,6 @@
   <meta name="description" content="Étude biblique — 28 rubriques, une zone de saisie, liens cliquables automatiques." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,600;1,400&display=swap" rel="stylesheet">
-
   <style>
     :root{
       --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b;
@@ -22,43 +21,95 @@
 
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    .progress-wrap{position:sticky;top:0;z-index:20}
+    .progress{height:4px;background:#e5e7eb}
+    .progress>.bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#16a34a);transition:width .2s}
     header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:14px 18px;position:sticky;top:4px;z-index:10}
     h1{margin:0;font-size:28px;font-weight:800;letter-spacing:.2px;text-align:center}
     main{max-width:1200px;margin:14px auto;padding:0 12px}
+
     .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto auto auto;gap:10px;margin:12px 0}
+    @media (max-width:1100px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}.controls .wide{grid-column:1/-1}}
     input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%}
-    .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
+    .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
     .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
     .btn.warn{background:var(--accent)}
-    .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
+
+    .layout{display:grid;grid-template-columns:320px 1fr;gap:12px; position:relative;} /* +position */
     @media (max-width:1000px){.layout{grid-template-columns:1fr}}
-    .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px}
+    .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden; position:relative; z-index:2;} /* z-index */
     .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700;text-align:center}
     .list{max-height:70vh;overflow:auto}
     .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
-    .item.active{background:var(--accent-soft)}
-    .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
+    .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
+    .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
+    .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+    .dot{width:8px;height:8px;border-radius:999px;background:#f59e0b;margin-left:auto}
+    .dot.ok{background:var(--ok)}
+
+    .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column; position:relative; z-index:1;} /* z-index */
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
-    .ed-title{font-weight:800;flex:1}.ed-body{padding:12px}
-    textarea#noteArea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6}
-    #noteView{display:none; width:100%; min-height:460px; border:1px solid var(--border); border-radius:10px; padding:14px;font-family:Spectral,Georgia,serif; line-height:1.6; background:#fff;}
+    .ed-title{font-weight:800;flex:1}
+    .ed-body{padding:12px; position:relative; overflow:hidden;} /* overflow guard */
+    textarea#noteArea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;white-space:pre-wrap}
+    #noteView{display:none; width:100%; min-height:460px; border:1px solid var(--border); border-radius:10px; padding:14px;
+      font-family:Spectral,Georgia,serif; line-height:1.6; background:#fff; outline:none}
+    #noteView p{margin:0 0 .75rem 0}
+    #noteView a{color:var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor:pointer}
+    #noteView strong{font-weight:700} #noteView em{font-style:italic}
+    #noteView ul, #noteView ol{padding-left:1.25rem}
+    #noteView h3{margin:1rem 0 .5rem 0}
+
+    .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+    .mini{width:8px;height:8px;border-radius:999px;background:#d97706}.mini.ok{background:#16a34a}.mini.ko{background:#dc2626}
+    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
+    .links-panel{background:#fafafa;border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
+    .links-panel b{color:var(--accent)} .links-panel a{color:var(--accent);text-decoration:underline}
+    .links-panel.empty{display:none}
+    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:#64748b;font-size:14px}
+    #debugBtn{margin-left:6px;background:var(--dark);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
+    #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;font-size:12px}
+    @media print{.progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row,#debugPanel{display:none!important} textarea{min-height:unset}}
+
+    /* Séparateurs discrets */
+    .ref-list li{margin-bottom:.25rem}
+    .ed-body a + a::before{content:" · "; color:var(--muted)}
+    .links-panel div a + a::before{content:" · "; color:var(--muted)}
   </style>
 </head>
-
 <body data-theme="cyan">
+  <div class="progress-wrap"><div class="progress"><div id="progressBar" class="bar"></div></div></div>
   <header><h1>Méditation</h1></header>
 
   <main>
     <div class="controls">
-      <input id="searchRef" class="wide" type="text" placeholder="Rechercher (ex : Marc 5:1)" />
-      <select id="bookSelect"></select>
-      <select id="chapterSelect"></select>
-      <select id="verseSelect"></select>
-      <select id="versionSelect"><option value="LSG" selected>Louis Segond</option></select>
-      <select id="themeSelect"><option value="cyan" selected>Cyan</option></select>
-      <button id="readBtn" class="btn secondary">Lire la Bible</button>
-      <button id="validate" class="btn">Valider</button>
-      <button id="generateBtn" class="btn warn">Générer</button>
+      <input id="searchRef" class="wide" type="text" placeholder="Rechercher (ex : Marc 5:1, 1 Jean 2, Genèse 1:1-5)" />
+      <select id="bookSelect" title="Livre"></select>
+      <select id="chapterSelect" title="Chapitre"></select>
+      <select id="verseSelect" title="Verset"></select>
+      <select id="versionSelect" title="Version">
+        <option value="LSG" selected>Louis Segond 1910 (LSG)</option>
+        <option value="PDV">Parole de Vie (PDV)</option>
+        <option value="S21">Segond 21 (S21)</option>
+        <option value="BFC">Français Courant (BFC)</option>
+      </select>
+      <select id="themeSelect" title="Thème">
+        <option value="cyan" selected>Thème : Cyan</option>
+        <option value="violet">Thème : Violet</option>
+        <option value="vert">Thème : Vert</option>
+        <option value="rouge">Thème : Rouge</option>
+        <option value="mauve">Thème : Mauve</option>
+        <option value="indigo">Thème : Indigo</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:8px;">
+        <input id="enrichToggle" type="checkbox" checked />
+        <span>Mode enrichi</span>
+      </label>
+
+      <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
+      <button id="validate" class="btn" type="button">Valider</button>
+      <button id="generateBtn" class="btn warn" type="button">Générer</button>
+      <a id="chatgptBtn" class="btn secondary" href="https://tchatgpt.com" target="_blank" rel="noopener" title="Ouvrir tchatgpt.com">ChatGPT</a>
     </div>
 
     <div class="layout">
@@ -69,13 +120,24 @@
 
       <section class="editor">
         <div class="ed-head">
-          <div id="edTitle">—</div>
-          <button id="prev" class="btn secondary">◀</button>
-          <button id="next" class="btn secondary">▶</button>
+          <div class="ed-title" id="edTitle">—</div>
+          <button id="prev" class="btn secondary" type="button">◀ Précédent</button>
+          <button id="next" class="btn secondary" type="button">Suivant ▶</button>
         </div>
+
         <div class="ed-body">
           <textarea id="noteArea" placeholder="Écris ici…"></textarea>
-          <div id="noteView" contenteditable="true"></div>
+          <div id="noteView" contenteditable="true" spellcheck="false" aria-label="Contenu enrichi"></div>
+
+          <div id="linksPanel" class="links-panel empty">
+            <b>Liens détectés :</b>
+            <div id="linksList"></div>
+          </div>
+        </div>
+
+        <div class="ed-foot">
+          <span class="small" id="metaInfo">Point — / 28</span>
+          <span class="small">Sauvegarde auto (2s) après saisie.</span>
         </div>
       </section>
     </div>
@@ -83,48 +145,15 @@
 
   <footer>
     © <span id="y"></span> — Méditation
+    <div class="status-row" style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span class="badge"><span id="dot-health" class="mini"></span> health</span>
+      <span class="badge"><span id="dot-chat" class="mini"></span> chat(POST)</span>
+      <span class="badge"><span id="dot-ping" class="mini"></span> ping</span>
+      <button id="debugBtn" type="button">Debug</button>
+    </div>
+    <div id="debugPanel">[init]</div>
   </footer>
 
-  <script>
-    const els = {
-      book: document.getElementById("bookSelect"),
-      chapter: document.getElementById("chapterSelect"),
-      verse: document.getElementById("verseSelect"),
-      version: document.getElementById("versionSelect"),
-      genBtn: document.getElementById("generateBtn"),
-      pointsList: document.getElementById("pointsList"),
-      edTitle: document.getElementById("edTitle"),
-      noteArea: document.getElementById("noteArea"),
-      noteView: document.getElementById("noteView")
-    };
-
-    const BOOKS=["Genèse","Exode","Lévitique","Nombres","Deutéronome","Josué","Juges","Ruth","1 Samuel","2 Samuel","1 Rois","2 Rois","1 Chroniques","2 Chroniques","Esdras","Néhémie","Esther","Job","Psaumes","Proverbes","Ecclésiaste","Cantique des cantiques","Ésaïe","Jérémie","Lamentations","Ézéchiel","Daniel","Osée","Joël","Amos","Abdias","Jonas","Michée","Nahoum","Habacuc","Sophonie","Aggée","Zacharie","Malachie","Matthieu","Marc","Luc","Jean","Actes","Romains","1 Corinthiens","2 Corinthiens","Galates","Éphésiens","Philippiens","Colossiens","1 Thessaloniciens","2 Thessaloniciens","1 Timothée","2 Timothée","Tite","Philémon","Hébreux","Jacques","1 Pierre","2 Pierre","1 Jean","2 Jean","3 Jean","Jude","Apocalypse"];
-
-    function init(){
-      els.book.innerHTML = BOOKS.map(b=>`<option>${b}</option>`).join("");
-      for(let i=1;i<=150;i++){els.chapter.innerHTML+=`<option>${i}</option>`;}
-      for(let i=1;i<=176;i++){els.verse.innerHTML+=`<option>${i}</option>`;}
-      document.getElementById("y").textContent=new Date().getFullYear();
-    }
-
-    async function onGeneratePlan(){
-      try{
-        const book=els.book.value,chapter=els.chapter.value;
-        if(!book||!chapter){alert("Sélectionne un livre et un chapitre.");return;}
-        const url=`/api/study-28?book=${encodeURIComponent(book)}&chapter=${chapter}&translation=${els.version.value}`;
-        const r=await fetch(url);
-        if(!r.ok) throw new Error("API study-28 — HTTP "+r.status);
-        const j=await r.json();
-        const sections=j.data?.sections||[];
-        if(!sections.length){alert("Aucune section reçue.");return;}
-        els.pointsList.innerHTML=sections.map((s,i)=>`<div class="item" data-i="${i}">${i+1}. ${s.title||"Rubrique"}</div>`).join("");
-        els.edTitle.textContent=sections[0].title;
-        els.noteArea.value=sections[0].content;
-      }catch(e){alert("Erreur: "+e.message);}
-    }
-
-    els.genBtn.addEventListener("click",onGeneratePlan);
-    document.addEventListener("DOMContentLoaded",init);
-  </script>
+  <script src="/app.js?v=2025-09-07-stable" defer></script>
 </body>
 </html>
