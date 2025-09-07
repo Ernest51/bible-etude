@@ -74,7 +74,7 @@
     .last-study{margin:10px 0 0 0; padding:10px 12px; background:#fff; border:1px solid var(--border); border-radius:10px; font-size:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
     .last-study a{color:var(--link); text-decoration:underline}
 
-    /* Palette — hauteur réduite */
+    /* Palette Thème (24px) */
     .theme-wrap{grid-column:1/-1;display:flex;align-items:center;gap:10px}
     .theme-label{font-size:13px;color:var(--muted);min-width:90px}
     .theme-bar{
@@ -128,7 +128,7 @@
       <a class="btn linklike" href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a>
       <button id="resetBtn" class="btn secondary" type="button" title="Vider l’étude et remettre les diodes en orange">Réinitialiser</button>
 
-      <!-- Palette de thème (24px) -->
+      <!-- Palette de thème -->
       <div class="theme-wrap">
         <div class="theme-label">Thème</div>
         <div id="themeBar" class="theme-bar" title="Fais glisser horizontalement pour changer le thème">
@@ -197,7 +197,7 @@
     const pdfCurrentBtn=$('#pdfCurrentBtn'), pdfAllBtn=$('#pdfAllBtn');
     const themeBar=$('#themeBar'), themeThumb=$('#themeThumb');
     const lastPanel=$('#lastStudyPanel'), lastText=$('#lastStudyText'), lastOpen=$('#lastStudyOpen'), lastUse=$('#lastStudyUse');
-    const resetBtn=$('#resetBtn'); const printDoc=$('#printDoc');
+    const resetBtn=$('#resetBtn'); const printDoc=$('#printDoc'); const searchRef=$('#searchRef');
 
     /* Thèmes */
     const THEMES=["cyan","violet","vert","rouge","mauve","indigo","ambre","slate"];
@@ -224,7 +224,7 @@
     const BOOKS=ORDER_66.slice();
     const BOOKS_RE_SRC='\\b(' + BOOKS.map(b=>b.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')).join('|') + ')\\s+(\\d+)(?::\\s*(\\d+(?:\\s*[–-]\\s*\\d+)?(?:\\s*,\\s*\\d+(?:\\s*[–-]\\s*\\d+)?)*)\\s*)?';
     const BOOKS_RE=new RegExp(BOOKS_RE_SRC,'gi');
-    const V_RE=/(?:^|[\s\[(«"';])v\.\s*(\d+(?:\s*[–-]\s*\d+)?(?:\s*,\s*\d+(?:\s*[–-]\s*\d+)?)*)\b/gi; // ✅ corrigé (plus de parenthèse en trop)
+    const V_RE=/(?:^|[\s\[(«"';])v\.\s*(\d+(?:\s*[–-]\s*\d+)?(?:\s*,\s*\d+(?:\s*[–-]\s*\d+)?)*)\b/gi; /* corrigé */
     const INHERIT_RE=/;\s*(\d+(?::\d+(?:\s*[–-]\s*\d+)?)?)\b/g;
 
     function decodeEntities(str){ const ta=document.createElement('textarea'); ta.innerHTML=str; return ta.value; }
@@ -335,7 +335,7 @@
       buildList();
     }
 
-    /* Sélecteurs */
+    /* Sélecteurs (limites chapitres selon 66 livres) */
     function initSelects(){
       bookSelect.innerHTML='<option value="">Livre…</option>'+ORDER_66.map(b=>`<option>${b}</option>`).join('');
       rebuildChapterOptions('Genèse'); rebuildVerseOptions();
@@ -346,6 +346,15 @@
     }
     function rebuildVerseOptions(){ let html='<option value="">Verset…</option>'; for(let i=1;i<=176;i++) html+=`<option>${i}</option>`; verseSelect.innerHTML=html; }
     function setSelectValue(sel,val){ const opt=[...sel.options].find(o=>o.value===val||o.textContent===val); if(opt) sel.value=opt.value; }
+
+    // Adapter les chapitres si l’utilisateur change de livre manuellement
+    bookSelect.addEventListener('change',()=>{
+      const book=bookSelect.value;
+      rebuildChapterOptions(book);
+      // Si l’ancien chapitre dépasse la limite, on repasse à 1
+      const ch=Number(chapterSelect.value||'1'); const max=CHAPTERS_66[book]||0;
+      if(ch>max) chapterSelect.value='1';
+    });
 
     /* Lecture */
     readBtn.addEventListener('click',()=>{
@@ -438,6 +447,82 @@
         doReset();
       }
     });
+
+    /* ========= RECHERCHE (livre / livre chapitre / livre chapitre:verset) ========= */
+    const NAME_MAP = (()=> {
+      // normalisation sans accents, minuscules, espaces supprimés
+      const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,'');
+      const map = {};
+      ORDER_66.forEach(name=>{
+        map[norm(name)] = name;
+        // quelques alias usuels
+        map[norm(name.replace('É','E').replace('é','e'))] = name;
+      });
+      // alias courts fréquents
+      map['psaumes']='Psaumes'; map['psaume']='Psaumes'; map['ps']='Psaumes';
+      map['prov']='Proverbes'; map['provverbes']='Proverbes';
+      map['cantique']='Cantique des Cantiques'; map['cantiques']='Cantique des Cantiques';
+      map['esaie']='Ésaïe'; map['esai'] ='Ésaïe';
+      map['ephesiens']='Éphésiens'; map['ephesien']='Éphésiens';
+      map['philip']='Philippiens'; map['philippiens']='Philippiens';
+      map['apoc']='Apocalypse';
+      return {norm, map};
+    })();
+
+    function parseSearch(input){
+      if(!input) return null;
+      const {norm, map} = NAME_MAP;
+      const raw = input.trim().replace(/\u00A0/g,' '); // no-break space
+      const m = /^([\p{L}\s'.0-9]+?)(?:\s+(\d+))?(?:\s*[:.,]\s*(\d+(?:-\d+)?(?:\s*,\s*\d+(?:-\d+)?)*)\s*)?$/iu.exec(raw);
+      if(!m) return null;
+      let bookGuess = (m[1]||'').trim();
+      // rapprocher vers le vrai nom
+      let key = norm(bookGuess);
+      key = key.replace(/\./g,''); // ex. "1jean." -> "1jean"
+      // gérer les livres avec chiffres "1 jean", "2jean"
+      key = key.replace(/^(\d)\s*/, '$1'); // "1 jean" -> "1jean"
+      // essayer correspondance exacte
+      let book = map[key];
+      if(!book){
+        // fallback: chercher parmi tous les livres celui dont la forme normalisée commence par le début saisi
+        const matches = ORDER_66
+          .map(n=>[n, NAME_MAP.norm(n)])
+          .filter(([n, nk])=> nk.startsWith(key));
+        if(matches.length) book = matches.sort((a,b)=>b[1].length-a[1].length)[0][0];
+      }
+      if(!book) return null;
+
+      const chapter = m[2] ? parseInt(m[2],10) : 1;
+      const max = CHAPTERS_66[book]||0;
+      const safeChapter = Math.min(Math.max(chapter,1), max||1);
+      const verse = (m[3]||'').trim(); // on garde tel quel, on sélectionne le 1er numéro pour la liste
+      let firstVerse='';
+      if(verse){
+        const vMatch = /^(\d+)/.exec(verse.replace(/\s+/g,''));
+        if(vMatch) firstVerse = vMatch[1];
+      }
+      return { book, chapter: String(safeChapter), verse:firstVerse, verseRaw:verse };
+    }
+
+    function applySearch(ref){
+      const res = parseSearch(ref);
+      if(!res) return;
+      setSelectValue(bookSelect, res.book);
+      rebuildChapterOptions(res.book);
+      setSelectValue(chapterSelect, res.chapter);
+      rebuildVerseOptions();
+      if(res.verse) setSelectValue(verseSelect, res.verse);
+    }
+
+    // Entrée clavier = valider
+    searchRef.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter'){
+        e.preventDefault();
+        applySearch(searchRef.value);
+      }
+    });
+    // Blur = applique aussi
+    searchRef.addEventListener('blur', ()=> applySearch(searchRef.value));
 
     /* Init */
     function initSelects(){ bookSelect.innerHTML='<option value="">Livre…</option>'+ORDER_66.map(b=>`<option>${b}</option>`).join(''); rebuildChapterOptions('Genèse'); rebuildVerseOptions(); }
