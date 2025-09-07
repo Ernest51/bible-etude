@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Test rapide — /api/study-28 → 28 sections</title>
+  <title>Diagnostic — Étude 28 points (api.bible)</title>
   <style>
     :root{
       --bg:#0b1220; --panel:#111a2e; --muted:#94a3b8; --text:#e2e8f0; --acc:#60a5fa; --ok:#22c55e; --err:#ef4444;
@@ -15,21 +15,20 @@
       font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial;
       padding:24px;
     }
-    .wrap{max-width:940px; margin:0 auto}
+    .wrap{max-width:980px; margin:0 auto}
     h1{font-size:24px; margin:0 0 12px}
     p.lead{color:var(--muted); margin:0 0 18px}
     form{
       background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; display:grid; gap:12px;
       grid-template-columns: repeat(6, 1fr);
     }
-    label{display:flex; flex-direction:column; gap:6px; color:#cbd5e1; font-weight:600; grid-column: span 2}
+    label{display:flex; flex-direction:column; gap:6px; color:#cbd5e1; font-weight:600}
+    .span-3{grid-column: span 3} .span-2{grid-column: span 2} .span-1{grid-column: span 1}
     input, select{
       background:#0f172a; border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px 12px; outline:none;
     }
     input:focus{border-color:#334155; box-shadow:0 0 0 3px #1e293b66}
-    .span-3{grid-column: span 3}
-    .span-2{grid-column: span 2}
-    .span-1{grid-column: span 1}
+    .row-opts{grid-column: 1 / -1; display:flex; gap:12px; align-items:center; flex-wrap:wrap}
     .actions-row{grid-column: 1 / -1; display:flex; gap:10px; align-items:center; flex-wrap:wrap}
     button{
       appearance:none; background:var(--acc); border:none; color:#031225; padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer;
@@ -48,6 +47,8 @@
     details{margin-top:12px}
     pre{white-space:pre-wrap; background:#0f172a; border:1px solid var(--border); border-radius:10px; padding:12px; color:#d1d5db}
     .hint{color:var(--muted); margin:8px 0 0; font-size:12px}
+    .hdrs{display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 14px; color:#93c5fd}
+    .pill{border:1px solid var(--border); background:#0f172a; padding:4px 8px; border-radius:999px}
     @media (max-width:760px){
       form{grid-template-columns: 1fr 1fr}
       .span-3,.span-2{grid-column: 1 / -1}
@@ -61,8 +62,8 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>Test rapide : <code>/api/study-28</code> → 28 sections</h1>
-    <p class="lead">Valide que l’étude structurée (1 → 28) se génère correctement à partir d’un passage fourni par <code>/api/bibleProvider</code>.</p>
+    <h1>Diagnostic — <code>/api/study-28</code> (api.bible)</h1>
+    <p class="lead">Génère l’étude 28 points et affiche la trace interne du fetch du passage (utile contre “api.bible 400”).</p>
 
     <form id="f" autocomplete="off">
       <label class="span-2">
@@ -86,13 +87,23 @@
         <input name="bibleId" placeholder="ex: a93a92589195411f-01" value="a93a92589195411f-01" />
       </label>
 
+      <div class="row-opts">
+        <label style="display:flex;gap:8px;align-items:center">
+          <input type="checkbox" id="trace" checked /> Trace détaillée (<code>?trace=1</code>)
+        </label>
+        <button type="button" id="btnSelf" class="secondary">Selftest</button>
+        <button type="button" id="btnDry" class="secondary">Dry-run</button>
+        <button type="button" id="btnRange" class="secondary">Remplir “Versets” avec 1–199</button>
+      </div>
+
       <div class="actions-row">
         <button type="submit">🧪 Lancer l’étude (28 points)</button>
-        <span class="hint">Astuce : laisse “Versets” vide pour le chapitre entier.</span>
+        <span class="hint">Astuce : “1–199” contourne parfois un refus sur <code>/passages/GEN.1</code> et force une plage.</span>
       </div>
     </form>
 
     <div id="status"></div>
+    <div id="hdrs" class="hdrs"></div>
 
     <div id="actions">
       <button id="btnExport">💾 Exporter JSON</button>
@@ -107,6 +118,11 @@
       <summary>JSON brut (debug)</summary>
       <pre id="raw"></pre>
     </details>
+
+    <details>
+      <summary>Trace interne (fetch api.bible)</summary>
+      <pre id="traceBox">—</pre>
+    </details>
   </div>
 
   <script>
@@ -119,75 +135,141 @@
     const btnPrint = $("#btnPrint");
     const copied = $("#copied");
     const raw = $("#raw");
+    const traceBox = $("#traceBox");
+    const hdrs = $("#hdrs");
 
-    let lastPayload = null;   // sauvegarde de la dernière réponse (pour export)
-    let lastParams  = null;   // sauvegarde des paramètres (pour permalien)
+    let lastPayload = null;
+    let lastParams  = null;
 
     $("#f").addEventListener("submit", onSubmit);
+    $("#btnSelf").addEventListener("click", selftest);
+    $("#btnDry").addEventListener("click", dryrun);
+    $("#btnRange").addEventListener("click", () => {
+      const v = document.querySelector('[name="verse"]');
+      v.value = "1-199";
+    });
 
     async function onSubmit(e){
       e.preventDefault();
-      out.innerHTML = "";
-      raw.textContent = "";
-      actions.style.display = "none";
-      copied.style.display = "none";
-      statusBox.textContent = "⏳ génération en cours…";
-      lastPayload = null;
+      await runLive();
+    }
 
-      const fd = new FormData(e.currentTarget);
+    function escapeHtml(s=""){
+      return String(s)
+        .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;").replaceAll("'","&#39;");
+    }
+
+    function showHeaders(res){
+      hdrs.innerHTML = "";
+      const pills = [];
+      pills.push(["status", String(res.status)]);
+      const xv = res.headers.get("x-vercel-id"); if (xv) pills.push(["x-vercel-id", xv]);
+      const xh = res.headers.get("x-handler");   if (xh) pills.push(["x-handler", xh]);
+      const cl = res.headers.get("content-length"); if (cl) pills.push(["content-length", cl]);
+      const ct = res.headers.get("content-type");   if (ct) pills.push(["content-type", ct]);
+      for (const [k,v] of pills){
+        const span = document.createElement("span");
+        span.className = "pill";
+        span.textContent = `${k}: ${v}`;
+        hdrs.appendChild(span);
+      }
+    }
+
+    function buildParams({selftest=false, dry=false} = {}){
+      const fd = new FormData($("#f"));
       const book = (fd.get("book") || "").trim();
       const chapter = (fd.get("chapter") || "").trim();
       const verse = (fd.get("verse") || "").trim();
       const translation = (fd.get("translation") || "JND").trim();
       const bibleId = (fd.get("bibleId") || "").trim();
+      const trace = $("#trace").checked;
 
-      const usp = new URLSearchParams({ book, chapter, translation });
-      if (verse) usp.set("verse", verse);
-      if (bibleId) usp.set("bibleId", bibleId);
-      lastParams = { book, chapter, verse, translation, bibleId };
-
-      try {
-        const res = await fetch(`/api/study-28?` + usp.toString(), {
-          headers: { "accept": "application/json" }
-        });
-        const j = await res.json().catch(() => null);
-
-        // Affiche le brut pour debug (si dispo)
-        if (j) raw.textContent = JSON.stringify(j, null, 2);
-
-        if (!j || !j.ok) {
-          const msg = j?.error || "Réponse vide ou invalide";
-          statusBox.innerHTML = `<div class="err">⚠️ ${msg}</div>`;
-          return;
-        }
-
-        const data = j.data || {};
-        lastPayload = data;
-
-        const meta = data.meta || {};
-        const ref  = meta.reference || `${book} ${chapter}${verse ? ":"+verse : ""}`;
-        const sections = Array.isArray(data.sections) ? data.sections : [];
-
-        statusBox.innerHTML = `<div class="ok">✅ Étude de ${ref} — ${sections.length} sections</div>
-          <div class="meta">OSIS: ${meta.osis || "?"} · Trad: ${meta.translation || translation}</div>`;
-
-        if (!sections.length) {
-          out.innerHTML = `<div class="err">⚠️ Aucune section trouvée</div>`;
-          return;
-        }
-
-        out.innerHTML = sections.map(s => `
-          <div class="sec">
-            <h3>${s.index}. ${escapeHtml(s.title || "")}</h3>
-            <p>${escapeHtml(s.content || "")}</p>
-            ${Array.isArray(s.verses) && s.verses.length ? `<div class="verses">Versets : ${s.verses.map(escapeHtml).join(", ")}</div>` : ""}
-          </div>
-        `).join("");
-
-        actions.style.display = "flex";
-      } catch (e2) {
-        statusBox.innerHTML = `<div class="err">⚠️ Exception: ${e2?.message || e2}</div>`;
+      const usp = new URLSearchParams();
+      if (selftest) usp.set("selftest","1");
+      else {
+        usp.set("book", book);
+        usp.set("chapter", chapter);
+        if (verse) usp.set("verse", verse);
+        usp.set("translation", translation);
+        if (bibleId) usp.set("bibleId", bibleId);
+        if (trace) usp.set("trace","1");
+        if (dry) usp.set("dry","1");
       }
+      return { usp, user: { book, chapter, verse, translation, bibleId } };
+    }
+
+    async function runLive(){
+      out.innerHTML = "";
+      raw.textContent = "";
+      traceBox.textContent = "—";
+      actions.style.display = "none";
+      copied.style.display = "none";
+      hdrs.innerHTML = "";
+      statusBox.textContent = "⏳ génération en cours…";
+      lastPayload = null;
+
+      const { usp, user } = buildParams();
+      lastParams = user;
+
+      const res = await fetch(`/api/study-28?` + usp.toString(), { headers: { "accept":"application/json", "cache-control":"no-store" } });
+      showHeaders(res);
+      const j = await res.json().catch(()=>null);
+      if (j) raw.textContent = JSON.stringify(j, null, 2);
+
+      if (!j || !j.ok) {
+        const msg = j?.error || "Réponse vide ou invalide";
+        statusBox.innerHTML = `<div class="err">⚠️ ${msg}</div>`;
+        if (j?.trace) traceBox.textContent = JSON.stringify(j.trace, null, 2);
+        return;
+      }
+
+      const data = j.data || {};
+      lastPayload = data;
+
+      const meta = data.meta || {};
+      const ref  = meta.reference || `${user.book} ${user.chapter}${user.verse ? ":"+user.verse : ""}`;
+      const sections = Array.isArray(data.sections) ? data.sections : [];
+
+      statusBox.innerHTML = `<div class="ok">✅ Étude de ${escapeHtml(ref)} — ${sections.length} sections</div>
+        <div class="meta">OSIS: ${escapeHtml(meta.osis || "?")} · Trad: ${escapeHtml(meta.translation || user.translation)}</div>`;
+
+      if (!sections.length) {
+        out.innerHTML = `<div class="err">⚠️ Aucune section trouvée</div>`;
+        if (j?.trace) traceBox.textContent = JSON.stringify(j.trace, null, 2);
+        return;
+      }
+
+      out.innerHTML = sections.map(s => `
+        <div class="sec">
+          <h3>${s.index}. ${escapeHtml(s.title || "")}</h3>
+          <p>${escapeHtml(s.content || "")}</p>
+          ${Array.isArray(s.verses) && s.verses.length ? `<div class="verses">Versets : ${s.verses.map(escapeHtml).join(", ")}</div>` : ""}
+        </div>
+      `).join("");
+
+      if (j?.trace) traceBox.textContent = JSON.stringify(j.trace, null, 2);
+      actions.style.display = "flex";
+    }
+
+    async function selftest(){
+      const { usp } = buildParams({ selftest:true });
+      const res = await fetch(`/api/study-28?` + usp.toString(), { headers: { "accept":"application/json", "cache-control":"no-store" } });
+      showHeaders(res);
+      const j = await res.json().catch(()=>null);
+      raw.textContent = JSON.stringify(j, null, 2);
+      statusBox.innerHTML = j?.ok ? `<div class="ok">✅ selftest OK</div>` : `<div class="err">⚠️ selftest KO</div>`;
+      traceBox.textContent = j?.trace ? JSON.stringify(j.trace, null, 2) : "—";
+    }
+
+    async function dryrun(){
+      const { usp } = buildParams({ dry:true });
+      const res = await fetch(`/api/study-28?` + usp.toString(), { headers: { "accept":"application/json", "cache-control":"no-store" } });
+      showHeaders(res);
+      const j = await res.json().catch(()=>null);
+      raw.textContent = JSON.stringify(j, null, 2);
+      statusBox.innerHTML = j?.ok ? `<div class="ok">✅ dry-run OK (${(j?.data?.sections||[]).length} sections)</div>` : `<div class="err">⚠️ dry-run KO</div>`;
+      traceBox.textContent = j?.trace ? JSON.stringify(j.trace, null, 2) : "—";
     }
 
     // Export JSON
@@ -195,13 +277,10 @@
       if (!lastPayload) return;
       const blob = new Blob([JSON.stringify(lastPayload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
       const ref = (lastPayload?.meta?.reference || "etude").replace(/\s+/g, "_");
-      a.href = url;
-      a.download = `${ref}.study28.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      const a = document.createElement("a");
+      a.href = url; a.download = `${ref}.study28.json`;
+      document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(url), 1000);
     });
 
@@ -209,9 +288,8 @@
     btnPermalink.addEventListener("click", async () => {
       if (!lastParams) return;
       const usp = new URLSearchParams();
-      for (const [k, v] of Object.entries(lastParams)) {
-        if (v) usp.set(k, v);
-      }
+      for (const [k, v] of Object.entries(lastParams)) if (v) usp.set(k, v);
+      if ($("#trace").checked) usp.set("trace","1");
       const url = `${location.origin}${location.pathname}?${usp.toString()}`;
       try { await navigator.clipboard.writeText(url); } catch {}
       copied.style.display = "inline-block";
@@ -221,21 +299,16 @@
     // Imprimer / PDF
     btnPrint.addEventListener("click", () => window.print());
 
-    // Utilitaires
-    function escapeHtml(s=""){
-      return String(s)
-        .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
-        .replaceAll('"',"&quot;").replaceAll("'","&#39;");
-    }
-
-    // Auto-hydrate depuis un permalien si query présente
+    // Auto-hydrate si query présente
     (function hydrateFromURL(){
       const usp = new URLSearchParams(location.search);
       for (const [k,v] of usp.entries()){
         const el = document.querySelector(`[name="${k}"]`);
         if (el) el.value = v;
       }
-      if (usp.size) document.getElementById("f").dispatchEvent(new Event("submit"));
+      const hasTrace = usp.get("trace")==="1";
+      $("#trace").checked = hasTrace;
+      if (usp.size) $("#f").dispatchEvent(new Event("submit"));
     })();
   </script>
 </body>
