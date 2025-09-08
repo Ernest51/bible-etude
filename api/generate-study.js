@@ -1,8 +1,8 @@
 // api/generate-study.js
-// Étude 28 points + Rubrique 0 en tête (versets du chapitre + explications dynamiques via api.bible)
+// Étude 28 points + Rubrique 0 en tête
 //
 // Entrée: ?book=Genèse&chapter=1[|1:1|1:1-9][&version=LSG|DARBY|NEG|SEM][&long=1|0]
-// Requiert: API_BIBLE_KEY, DARBY_BIBLE_ID (optionnellement LSG_BIBLE_ID, NEG_BIBLE_ID, SEM_BIBLE_ID)
+// Requiert: API_BIBLE_KEY, DARBY_BIBLE_ID (et optionnels LSG_BIBLE_ID, NEG_BIBLE_ID, SEM_BIBLE_ID)
 
 export default async function handler(req, res) {
   try {
@@ -11,7 +11,10 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Paramètres requis: book, chapter' });
     }
 
+    // Normalisation chapitres: "1", "1:1", "1:1-9", "1–2"
     const { chapterNum, chapterRef } = normalizeChapter(String(chapterParam));
+
+    // Sélection de la version
     const apiKey = process.env.API_BIBLE_KEY || '';
     const bibleId =
       (req.query?.bibleId && String(req.query.bibleId)) ||
@@ -21,100 +24,130 @@ export default async function handler(req, res) {
     const refForApi     = `${book} ${chapterRef}`;
     const refForChapter = `${book} ${chapterNum}`;
 
-    // ========= 1) Passage (texte brut) + Versets du chapitre =========
+    // -------- 1) Texte brut pour analyse légère --------
     let passageText = '';
     if (apiKey && bibleId) {
       try {
         const url = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleId)}/passages?reference=${encodeURIComponent(refForApi)}&content-type=text`;
         const r = await fetch(url, { headers: { 'api-key': apiKey } });
         if (r.ok) passageText = extractTextFromApiBible(await r.json());
-      } catch (e) { console.error('[passages] error', e); }
-    }
-    if (!passageText && apiKey && bibleId) {
-      try {
-        const url2 = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleId)}/search?query=${encodeURIComponent(refForApi)}&limit=200`;
-        const r2 = await fetch(url2, { headers: { 'api-key': apiKey } });
-        if (r2.ok) passageText = extractTextFromSearch(await r2.json());
-      } catch (e) { console.error('[search fallback] error', e); }
+
+        if (!passageText) {
+          const url2 = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleId)}/search?query=${encodeURIComponent(refForApi)}&limit=200`;
+          const r2 = await fetch(url2, { headers: { 'api-key': apiKey } });
+          if (r2.ok) passageText = extractTextFromSearch(await r2.json());
+        }
+      } catch (e) {
+        console.error('[api.bible fetch] error', e);
+      }
     }
     if (!passageText) {
       passageText = `(${refForApi}) — passage non récupéré ; analyse doctrinale sans texte intégral.`;
     }
 
-    // Versets complets du chapitre (une seule requête), réutilisés partout
-    const chapterVerses = apiKey && bibleId
-      ? await getChapterVerses({ apiKey, bibleId, book, chapterForFilter: chapterNum })
-      : [];
-
     const analysis = lightAnalyze(passageText, { book, chapter: chapterNum });
 
-    // ========= 2) Sections =========
+    // -------- 2) Construction des sections --------
     const sections = [];
 
-    // 0. Panorama (versets du chapitre)
+    // Rubrique 0 — panorama (niveau CHAPITRE)
     const rubrique0 = await buildRubrique0_VersesOverview({
-      book, chapterForFilter: chapterNum, chapterVerses, analysis
+      book, chapterForFilter: chapterNum, apiKey, bibleId, analysis
     });
     sections.push({ n: 0, content: rubrique0 });
 
-    // 1–5 — inchangées (dont 2,4,5 longues)
+    // 1–5 — inchangées
     sections.push({ n: 1, content: buildOpeningPrayer({ book, chapter: chapterNum }) });
     sections.push({ n: 2, content: buildRubrique2({ book, chapter: chapterNum, analysis, passageText }) });
     sections.push({ n: 3, content: buildPrevChapterQnA({ book, chapter: chapterNum }) });
     sections.push({ n: 4, content: buildRubrique4_Canonicite({ book, chapter: chapterNum, analysis }) });
     sections.push({ n: 5, content: buildRubrique5_Testament({ book, chapter: chapterNum, analysis }) });
 
-    // 6–27 — mode long activé par défaut (&long=1)
+    // 6–27 : 22 rubriques, mode long forcé par défaut (équiv. &long=1)
     const useLong = (() => {
       const q = String(req?.query?.long ?? '').trim();
       return q === '' ? true : /^1|true|yes$/i.test(q) && !/^(0|false|no)$/i.test(q);
     })();
 
-    // Définition stricte de l’ordre et des filtres thématiques (aucun doublon)
-    const longDefs = [
-      { title:'Promesses',              key:'promesses', terms:['promet','promesse','bén', 'bened','serment','espoir','espérance'] },
-      { title:'Péché et grâce',        key:'pecheGrace', terms:['péché','peche','faute','iniqui','transgress','grâce','grace','miséricorde'] },
-      { title:'Christologie',           key:'christologie', terms:['christ','messie','fils','seigneur','parole','sagesse'] },
-      { title:'Esprit Saint',           key:'esprit', terms:['esprit','souffle','ruach','pneuma','oint','onction'] },
-      { title:'Alliance',               key:'alliance', terms:['alliance','covenant','signe','serment','bén','bened'] },
-      { title:'Église',                 key:'eglise', terms:['assemblée','peuple','convoqué','saints','communauté'] },
-      { title:'Discipulat',             key:'discipulat', terms:['obéir','obéissance','suivre','discip','marche','chemin'] },
-      { title:'Éthique',                key:'ethique', terms:['loi','command','justice','droiture','sagesse','folie'] },
-      { title:'Prière',                 key:'priere', terms:['prie','invoque','bénit','lou','psaume','crie'] },
-      { title:'Mission',                key:'mission', terms:['nations','témoign','annonce','envoy','lumière','bénédiction'] },
-      { title:'Espérance',              key:'esperance', terms:['espérance','espere','attend','fin','accompl','repos'] },
-      { title:'Exhortation',            key:'exhortation', terms:['exhorte','avertit','appele','écoute','entends'] },
-      { title:'Application personnelle',key:'appPerso', terms:['coeur','voie','marche','main','langue','pensée','prudence'] },
-      { title:'Application communautaire',key:'appCommu', terms:['frère','prochain','peuple','justice','partage','paix'] },
-      { title:'Liturgie',               key:'liturgie', terms:['bénit','sanctifie','sabbat','offrande','culte','repos'] },
-      { title:'Méditation',             key:'meditation', terms:['médit','pense','répète','jour','nuit','souviens','loi'] },
-      { title:'Typologie',              key:'typologie', terms:['figure','ombre','type','image','royaume','temple','roi','prêtre','prophète'] },
-      { title:'Théologie systématique', key:'systematique', terms:['dieu','parole','vérité','saint','justice','royaume'] },
-      { title:'Histoire du salut',      key:'hds', terms:['promesse','alliance','bénéd','jugement','grâce','rédemp'] },
-      { title:'Doutes/objections',      key:'doutes', terms:['pourquoi','comment','doute','objection','scandale','silence'] },
-      { title:'Synthèse',               key:'synthese', terms:['ainsi','voici','donc','enfin'] },
-      { title:'Plan de lecture',        key:'plan', terms:['jour','semaine','mois','lire','entendre','pratiquer'] },
-    ];
+    // Cache de recherche par mot-clé (réduit drastiquement les appels /search)
+    const searchCache = new Map();
+    const searchInChapter = (kw) =>
+      searchChapterVersesKeyword({ book, chapter: chapterNum, keyword: kw, apiKey, bibleId, cache: searchCache });
 
-    if (!useLong) {
-      // Mode court = tes placeholders sobres existants
-      const shortFns = getShortFns();
-      for (let i = 0; i < shortFns.length; i++) {
-        sections.push({ n: 6 + i, content: shortFns[i]({ book, chapter: chapterNum, analysis, passageText }) });
-      }
-    } else {
-      // Mode long = génération académique 2000–2500, spécifique au chapitre
-      for (let i = 0; i < longDefs.length; i++) {
-        const n = 6 + i;
-        const def = longDefs[i];
-        const content = await buildRubriqueLong({
-          n, def, ctx: { book, chapter: chapterNum, analysis, passageText, chapterVerses }
-        });
+    // Config mots-clés par rubrique (guide api.bible → filtrage par chap.)
+    const rubricConfigs = {
+      6:  { title:'**Promesses**',           kws:['promesse','promet','bénédiction','bénir','serment','alliance'] },
+      7:  { title:'**Péché et grâce**',      kws:['péché','faute','iniquité','transgression','grâce','miséricorde','pardonner'] },
+      8:  { title:'**Christologie**',        kws:['oint','messie','roi','fils','parole','berger'] },
+      9:  { title:'**Esprit Saint**',        kws:['esprit','souffle','esprit de dieu','saint-esprit'] },
+      10: { title:'**Alliance**',            kws:['alliance','signe','statut perpétuel','serment'] },
+      11: { title:'**Église**',              kws:['peuple','assemblée','congrégation','saints'] },
+      12: { title:'**Discipulat**',          kws:['suivre','obéir','écouter','marcher','garder'] },
+      13: { title:'**Éthique**',             kws:['juste','justice','droiture','loi','commandement','équité'] },
+      14: { title:'**Prière**',              kws:['prier','invoquer','crier','louer','bénir'] },
+      15: { title:'**Mission**',             kws:['nations','peuples','annoncer','envoyer','témoigner','bénir toutes les familles'] },
+      16: { title:'**Espérance**',           kws:['espérance','attendre','avenir','bénédiction','repos'] },
+      17: { title:'**Exhortation**',         kws:['gardez','ne… pas','craignez','écoutez','servez'] },
+      18: { title:'**Application personnelle**', kws:['coeur','voie','marcher','garder','agir'] },
+      19: { title:'**Application communautaire**',kws:['frères','peuple','assemblée','loi','statuts'] },
+      20: { title:'**Liturgie**',            kws:['sabbat','culte','sanctifier','offrande','fête'] },
+      21: { title:'**Méditation**',          kws:['méditer','penser','se souvenir','considérer'] },
+      22: { title:'**Typologie**',           kws:['image','ombre','figure','modèle','prototype'] },
+      23: { title:'**Théologie systématique**',kws:['dieu','parole','loi','justice','grâce','royaume'] },
+      24: { title:'**Histoire du salut**',   kws:['commencement','généalogie','promesse','exode','alliance'] },
+      25: { title:'**Doutes/objections**',   kws:['pourquoi','comment','question','contester'] },
+      26: { title:'**Synthèse**',            kws:['voici','ainsi','c’est pourquoi','afin que'] },
+      27: { title:'**Plan de lecture**',     kws:['jour','matin','soir','parole','loi'] }
+    };
+
+    // Générateurs (mode long = dynamiques par mots-clés; sinon = sobres)
+    const buildersLong = {
+      6:  (ctx)=> buildPromessesLong(ctx, searchInChapter),
+      7:  (ctx)=> buildFromKeywords(ctx, rubricConfigs[7]),
+      8:  (ctx)=> buildFromKeywords(ctx, rubricConfigs[8]),
+      9:  (ctx)=> buildFromKeywords(ctx, rubricConfigs[9]),
+      10: (ctx)=> buildFromKeywords(ctx, rubricConfigs[10]),
+      11: (ctx)=> buildFromKeywords(ctx, rubricConfigs[11]),
+      12: (ctx)=> buildFromKeywords(ctx, rubricConfigs[12]),
+      13: (ctx)=> buildFromKeywords(ctx, rubricConfigs[13]),
+      14: (ctx)=> buildFromKeywords(ctx, rubricConfigs[14]),
+      15: (ctx)=> buildFromKeywords(ctx, rubricConfigs[15]),
+      16: (ctx)=> buildFromKeywords(ctx, rubricConfigs[16]),
+      17: (ctx)=> buildFromKeywords(ctx, rubricConfigs[17]),
+      18: (ctx)=> buildFromKeywords(ctx, rubricConfigs[18]),
+      19: (ctx)=> buildFromKeywords(ctx, rubricConfigs[19]),
+      20: (ctx)=> buildFromKeywords(ctx, rubricConfigs[20]),
+      21: (ctx)=> buildFromKeywords(ctx, rubricConfigs[21], { includeMemoryVerse:true }),
+      22: (ctx)=> buildFromKeywords(ctx, rubricConfigs[22]),
+      23: (ctx)=> buildFromKeywords(ctx, rubricConfigs[23]),
+      24: (ctx)=> buildFromKeywords(ctx, rubricConfigs[24]),
+      25: (ctx)=> buildFromKeywords(ctx, rubricConfigs[25]),
+      26: (ctx)=> buildFromKeywords(ctx, rubricConfigs[26], { foldSecondaryThemes:true }),
+      27: (ctx)=> buildFromKeywords(ctx, rubricConfigs[27])
+    };
+
+    const buildersShort = {
+      6: buildPromesses, 7: buildPecheEtGrace, 8: buildChristologie, 9: buildEspritSaint,
+      10: buildAlliance, 11: buildEglise, 12: buildDisciples, 13: buildEthique,
+      14: buildPriere, 15: buildMission, 16: buildEsperance, 17: buildExhortation,
+      18: buildApplicationPerso, 19: buildApplicationCollective, 20: buildLiturgie,
+      21: buildMeditation, 22: buildTypologie, 23: buildTheologieSystematique,
+      24: buildHistoireDuSalut, 25: buildDoutesObjections, 26: buildSynthese, 27: buildPlanDeLecture
+    };
+
+    for (let n = 6; n <= 27; n++) {
+      const ctx = { book, chapter: chapterNum, analysis, passageText, apiKey, bibleId, refForChapter };
+      try {
+        const builder = useLong ? buildersLong[n] : buildersShort[n];
+        const content = builder ? await builder(ctx) : basic(ctx, `**Rubrique ${n}**`, 'Contenu indisponible.');
         sections.push({ n, content });
+      } catch (e) {
+        console.error(`[rubrique ${n}]`, e);
+        sections.push({ n, content: basic(ctx, `**Rubrique ${n}**`, '— contenu non disponible (erreur interne), poursuivre la lecture et la prière.') });
       }
     }
 
-    // 28. Prière de clôture
+    // 28 — prière de clôture
     sections.push({ n: 28, content: buildClosingPrayer({ book, chapter: chapterNum }) });
 
     return res.status(200).json({ sections });
@@ -124,32 +157,40 @@ export default async function handler(req, res) {
   }
 }
 
-/* ====================== Accès chapitres/versets ====================== */
+/* ====================== Utilitaires api.bible ====================== */
 
-// Récupère tous les versets "Book Chapter:verse" via /search, une seule fois
-async function getChapterVerses({ apiKey, bibleId, book, chapterForFilter }) {
+function extractTextFromApiBible(payload) {
   try {
-    const ref = `${book} ${chapterForFilter}`;
-    const url = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleId)}/search?query=${encodeURIComponent(ref)}&limit=500`;
-    const r = await fetch(url, { headers: { 'api-key': apiKey } });
-    if (!r.ok) return [];
-    const j = await r.json();
-    const raw = Array.isArray(j?.data?.verses) ? j.data.verses : [];
-    const prefix = new RegExp(`^${escapeReg(book)}\\s+${escapeReg(String(chapterForFilter))}\\s*:\\s*(\\d+)`, 'i');
-    return raw
-      .map(v => ({ ref: v.reference || '', text: normalizeWhitespace(v.text || '') }))
-      .filter(v => prefix.test(v.ref))
-      .map(v => {
-        const m = prefix.exec(v.ref);
-        const num = m ? parseInt(m[1], 10) : null;
-        return { verse: num, ref: v.ref, text: v.text };
-      })
-      .filter(v => Number.isFinite(v.verse))
-      .sort((a,b)=>a.verse-b.verse);
-  } catch (e) {
-    console.error('[getChapterVerses] error', e);
-    return [];
-  }
+    const d = payload && payload.data;
+    if (!d) return '';
+    if (typeof d.content === 'string') return stripTags(d.content);
+    if (Array.isArray(d.passages) && d.passages.length) {
+      const html = d.passages.map(p => p.content || '').join('\n');
+      return stripTags(html);
+    }
+  } catch (_) {}
+  return '';
+}
+
+function extractTextFromSearch(payload) {
+  try {
+    const d = payload && payload.data;
+    if (!d) return '';
+    if (Array.isArray(d.verses) && d.verses.length) {
+      return d.verses.map(v => v.text || '').join(' ');
+    }
+    if (Array.isArray(d.passages) && d.passages.length) {
+      return d.passages.map(p => p.content || p.reference || '').join(' ');
+    }
+  } catch (_) {}
+  return '';
+}
+
+function stripTags(html) {
+  return String(html || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /* ====================== Analyse légère ====================== */
@@ -172,19 +213,95 @@ function lightAnalyze(text, { book, chapter }) {
   return { book, chapter, topWords: top, themes };
 }
 
+/* ====================== Recherche par mots-clés (diriger l’API) ====================== */
+/**
+ * Recherche des versets par mot-clé, puis filtre STRICTEMENT au chapitre demandé.
+ * Renvoie [{ verse, ref, text, keyword }]
+ */
+async function searchChapterVersesKeyword({ book, chapter, keyword, apiKey, bibleId, cache }) {
+  const k = `${normBook(book)}|${chapter}|${String(keyword || '').toLowerCase()}`;
+  if (cache && cache.has(k)) return cache.get(k);
+
+  const out = [];
+  if (!apiKey || !bibleId || !keyword) {
+    if (cache) cache.set(k, out);
+    return out;
+  }
+
+  try {
+    // On interroge globalement par mot-clé, puis on filtre sur "Book Chapter:verse"
+    const url = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleId)}/search?query=${encodeURIComponent(keyword)}&limit=400`;
+    const r = await fetch(url, { headers: { 'api-key': apiKey } });
+    if (r.ok) {
+      const j = await r.json();
+      const raw = Array.isArray(j?.data?.verses) ? j.data.verses : [];
+      const prefix = new RegExp(`^${escapeReg(book)}\\s+${escapeReg(String(chapter))}\\s*:\\s*(\\d+)`, 'i');
+      for (const v of raw) {
+        const ref = v?.reference || '';
+        const m = prefix.exec(ref);
+        if (!m) continue;
+        const num = parseInt(m[1], 10);
+        if (!Number.isFinite(num)) continue;
+        out.push({ verse: num, ref, text: normalizeWhitespace(v?.text || ''), keyword });
+      }
+      out.sort((a,b)=>a.verse-b.verse);
+    }
+  } catch (e) {
+    console.error('[searchChapterVersesKeyword]', keyword, e);
+  }
+
+  // dédup par n° de verset
+  const seen = new Set();
+  const dedup = [];
+  for (const v of out) {
+    if (seen.has(v.verse)) continue;
+    seen.add(v.verse);
+    dedup.push(v);
+  }
+
+  if (cache) cache.set(k, dedup);
+  return dedup;
+}
+
 /* ====================== Rubrique 0 — Panorama ====================== */
-async function buildRubrique0_VersesOverview({ book, chapterForFilter, chapterVerses, analysis }) {
+async function buildRubrique0_VersesOverview({ book, chapterForFilter, apiKey, bibleId, analysis }) {
   const ref = `${book} ${chapterForFilter}`;
-  const verses = Array.isArray(chapterVerses) ? chapterVerses : [];
+  let verses = [];
+
+  if (apiKey && bibleId) {
+    try {
+      const url = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleId)}/search?query=${encodeURIComponent(ref)}&limit=400`;
+      const r = await fetch(url, { headers: { 'api-key': apiKey } });
+      if (r.ok) {
+        const j = await r.json();
+        const raw = Array.isArray(j?.data?.verses) ? j.data.verses : [];
+        const prefix = new RegExp(`^${escapeReg(book)}\\s+${escapeReg(String(chapterForFilter))}\\s*:\\s*(\\d+)`, 'i');
+        verses = raw
+          .map(v => ({ ref: v.reference || '', text: normalizeWhitespace(v.text || '') }))
+          .filter(v => prefix.test(v.ref))
+          .map(v => {
+            const m = prefix.exec(v.ref);
+            const num = m ? parseInt(m[1], 10) : null;
+            return { verse: num, ref: v.ref, text: v.text };
+          })
+          .filter(v => Number.isFinite(v.verse))
+          .sort((a,b)=>a.verse-b.verse);
+      }
+    } catch (e) { console.error('[search verses] error', e); }
+  }
 
   const head =
-    `**Rubrique 0 — Panorama des versets du chapitre**  \n` +
-    `*Référence :* ${ref}\n\n` +
-    `Cette section dresse la **liste des versets** avec une **explication brève** pour orienter lecture, prière et pratique.`;
+`**Rubrique 0 — Panorama des versets du chapitre**  
+*Référence :* ${ref}
+
+Cette section dresse la **liste des versets** avec une **explication brève** pour orienter lecture, prière et pratique.`;
 
   if (!verses.length) {
-    return head + `\n\n— *Les versets n’ont pas pu être chargés.*\n\n` +
-      `**Conseil de lecture :** repère ouverture, déploiement, clôture; ce que le texte **révèle de Dieu** et **appelle** chez l’homme.`;
+    return head + `
+
+— *Les versets n’ont pas pu être chargés.*
+
+**Conseil de lecture :** repère ouverture, déploiement, clôture; ce que le texte **révèle de Dieu** et **appelle** chez l’homme.`;
   }
 
   const len = verses.length;
@@ -213,282 +330,15 @@ async function buildRubrique0_VersesOverview({ book, chapterForFilter, chapterVe
   return head + `\n\n` + lines.join('\n');
 }
 
-/* ====================== Rubriques 6–27 — Génération LONGUE ====================== */
-
-async function buildRubriqueLong({ n, def, ctx }) {
-  const { book, chapter, analysis, passageText, chapterVerses } = ctx;
-
-  // Cas spécial: Rubrique 6 + Genèse 1 => texte fourni par toi (non modifié)
-  if (n === 6 && normBook(book) === 'genese' && String(chapter) === '1') {
-    return (
-`Promesses  
-*Référence :* Genèse 1
-
-Les promesses divines ne sont pas des slogans pieux, mais des actes de parole par lesquels Dieu s’engage publiquement et efficacement, dans le cadre de l’Alliance, à produire un avenir qu’il réalise lui-même. Déjà en Genèse 1, la promesse est en germe au cœur de l’efficacité créatrice: «Dieu dit… et il en fut ainsi». La Parole qui fait être est aussi la Parole qui fait espérer. Le Dieu qui sépare, nomme et ordonne ne laisse pas le monde à l’indétermination; il inscrit la création dans une téléologie: qu’elle reflète sa bonté et qu’elle devienne habitation de l’humain appelé à l’image. Ainsi, la première pédagogie de la promesse consiste à stabiliser la réalité par une parole fiable; la confiance peut naître, non d’un optimisme naturel, mais d’une fidélité première.
-
-La promesse biblique comporte quatre traits. (1) Initiative souveraine: elle vient d’en haut, précède toute œuvre humaine et ne se fonde ni sur le mérite ni sur la vraisemblance des circonstances. (2) Contenu déterminé: Dieu ne promet pas vaguement le “bien-être”, il annonce des biens précis (vie, présence, fécondité, repos, bénédiction) qui s’enracinent dans son dessein. (3) Caractère performatif: parce que Dieu est vrai, sa parole fait ce qu’elle dit; le délai apparent n’infirme pas la certitude, il éduque la patience et purifie l’attente. (4) Orientation christologique: toute promesse converge vers le Oui définitif en Jésus-Christ; la création ordonnée prépare l’économie du salut où la grâce restaure et mène à l’achèvement.
-
-Pastoralement, la promesse délivre de deux dérives. D’un côté, l’auto-assurance religieuse qui prétend fabriquer l’avenir par la technique spirituelle; de l’autre, le fatalisme qui se résigne à l’informe. La promesse enseigne la foi obéissante: recevoir aujourd’hui la parole fiable, poser l’acte proportionné (garder, cultiver, bénir, sanctifier), et laisser Dieu tenir ce qu’il a dit selon son temps. Elle apprend aussi la lecture canonique: on n’isole pas des fragments; on discerne la trame — création, bénédiction, sabbat — comme prémices d’une Alliance qui conduit d’Adam à Abraham, d’Israël au Christ, puis à l’Église dans l’Esprit. Ainsi, Genèse 1 n’est pas seulement un prologue cosmique: c’est le laboratoire de l’espérance où l’on voit, à l’état pur, que ce que Dieu ordonne, il l’accomplit, et que ce qu’il bénit, il le porte jusqu’à sa plénitude.`
-    ).trim();
-  }
-
-  // Sélection de 2–4 versets thématiquement pertinents du chapitre
-  const anchors = pickAnchors(chapterVerses, def.terms, 4);
-  const ref = `${book} ${chapter}`;
-  const motifs = (analysis?.topWords || []).slice(0, 6).join(', ');
-  const themes = analysis?.themes || [];
-  const accent =
-    themes.includes('grâce') ? `La **grâce** demeure l’horizon: initiative divine et relèvement. `
-  : themes.includes('loi') ? `La **loi** révèle et règle la réponse fidèle. `
-  : themes.includes('alliance') ? `L’**Alliance** donne structure: promesse, signe, fidélité. `
-  : themes.includes('péché') ? `Le **péché** est nommé sans détour pour conduire à la vie. `
-  : themes.includes('création') ? `La **création** élargit la perspective et situe l’éthique. `
-  : themes.includes('royaume') ? `Le **Royaume** affleure: règne de Dieu et appel. `
-  : `Dieu parle, l’homme répond; la vérité libère. `;
-
-  const { axes, canons, praxis, scelle } = rubricScaffolds(def.key, { book, chapter });
-
-  const p = [];
-  p.push(`${def.title}  \n*Référence :* ${ref}\n`);
-  p.push(`Thèse — ${rubricThesis(def.key)} ${accent}Dans ${ref}, les motifs (${motifs}) orientent l’intelligence doctrinale et la pratique.`);
-
-  if (anchors.length) {
-    p.push('\n**Ancrages du chapitre**');
-    anchors.forEach(a => p.push(`- **${formatRef(a)}** — ${truncateForLine(a.text, 220)}`));
-  } else {
-    p.push('\n**Ancrages du chapitre**\n- (Aucun verset ciblé trouvé ; lecture doctrinale fondée sur l’ensemble du passage.)');
-  }
-
-  if (axes?.length) {
-    p.push('\n**Axes de lecture**');
-    axes.forEach((ax,i)=>p.push(`${i+1}. ${ax}`));
-  }
-  if (canons?.length) {
-    p.push('\n**Résonances canoniques** — La Bible éclaire la Bible (Luc 24:27; Jean 5:39).');
-    canons.forEach(c=>p.push(`- ${c}`));
-  }
-  if (praxis?.length) {
-    p.push('\n**Praxis / Mise en œuvre**');
-    praxis.forEach(x=>p.push(`- ${x}`));
-  }
-  p.push('\n' + (scelle || `**Prière** — Inscris cette vérité dans nos cœurs pour une obéissance paisible. Amen.`));
-
-  return inflateToRange(p.join('\n'), 2000, 2500, { book, chapter });
-}
-
-/* ====== Scaffolds par rubrique (logique distincte, pas de doublons) ====== */
-
-function rubricThesis(key){
-  switch(key){
-    case 'promesses': return `Les promesses sont des **actes de parole** par lesquels Dieu engage un avenir qu’il réalise lui-même.`;
-    case 'pecheGrace': return `Le **péché** dévoile la rupture; la **grâce** devance et restaure.`;
-    case 'christologie': return `Le Christ est **clé herméneutique** et centre de l’économie du salut.`;
-    case 'esprit': return `L’**Esprit** illumine, convertit, sanctifie et envoie.`;
-    case 'alliance': return `L’**Alliance** organise la révélation: promesse, signe, fidélité et responsabilité.`;
-    case 'eglise': return `L’**Église** est le peuple convoqué par la Parole, envoyé dans le monde.`;
-    case 'discipulat': return `Le **discipulat** forme à la ressemblance du Christ par la grâce.`;
-    case 'ethique': return `L’**éthique** découle de l’Évangile: vérité & miséricorde, justice & paix.`;
-    case 'priere': return `La **prière** répond à la Parole et règle la vie.`;
-    case 'mission': return `La **mission** prolonge l’envoi du Fils et de l’Esprit vers les nations.`;
-    case 'esperance': return `L’**espérance** s’enracine dans la résurrection et la nouvelle création.`;
-    case 'exhortation': return `L’**exhortation** applique l’Évangile à la marche concrète.`;
-    case 'appPerso': return `L’application **personnelle** fait passer la vérité reçue en décisions.`;
-    case 'appCommu': return `L’application **communautaire** façonne une vie d’Église ordonnée.`;
-    case 'liturgie': return `La **liturgie** éduque l’amour: Parole & sacrements, semaine et monde.`;
-    case 'meditation': return `La **méditation** grave la Parole: mémoire, affection, action.`;
-    case 'typologie': return `La **typologie** reconnaît les figures préparant l’intelligence du Christ.`;
-    case 'systematique': return `La théologie **systématique** ordonne les loci pour une confession cohérente.`;
-    case 'hds': return `L’**histoire du salut** déroule une unique économie: promesse → accomplissement.`;
-    case 'doutes': return `Les **doutes/objections** reçoivent une réponse patiente, scripturaire, pastorale.`;
-    case 'synthese': return `La **synthèse** recueille le fil doctrinal et désigne le pas d’obéissance.`;
-    case 'plan': return `Un **plan de lecture** durable forme la maturité.`;
-    default: return `Doctrine et pratique se répondent.`;
-  }
-}
-
-function rubricScaffolds(key, {book,chapter}){
-  switch(key){
-    case 'promesses':
-      return {
-        axes:[`Initiative souveraine`,`Contenu déterminé`,`Performativité de la Parole`,`Orientation christologique`],
-        canons:[`Gen 12; 15`,`Ps 89`,`2 Co 1:20`,`Hé 6:13–20`],
-        praxis:[`Résister au court-termisme`,`Attendre en obéissant`,`Tenir mémoire des exaucements`]
-      };
-    case 'pecheGrace':
-      return {
-        axes:[`Vérité du péché`,`Priorité de la grâce`,`Conversion (repentir & foi)`,`Sanctification`],
-        canons:[`Gen 3`,`Ps 51`,`Rm 5–8`,`Ép 2:1–10`],
-        praxis:[`Confession régulière`,`Refuser autojustification & désespoir`,`Vivre de la grâce transformatrice`]
-      };
-    case 'christologie':
-      return {
-        axes:[`Personne du Christ`,`Œuvre: croix & résurrection`,`Royaume: déjà/pas encore`,`Union au Christ`],
-        canons:[`Col 1:15–20`,`Hébreux`,`Ps 2; 110`,`És 53`],
-        praxis:[`Adoration centrée sur le Christ`,`Marcher selon l’identité reçue`]
-      };
-    case 'esprit':
-      return {
-        axes:[`Illumination`,`Nouvelle naissance`,`Dons & édification`,`Mission`],
-        canons:[`Jl 3 → Ac 2`,`Rm 8`,`Jn 3; 16`],
-        praxis:[`Demander sa conduite`,`Exercer les dons avec charité et ordre`]
-      };
-    case 'alliance':
-      return {
-        axes:[`Variations (Noé, Abraham, Sinaï, David, Nouvelle)`,`Signes (circoncision/baptême; Pâque/Cène)`,`Fidélité & responsabilité`,`Christ médiateur`],
-        canons:[`Gen 12; 15; 17`,`Ex 19–24`,`Jr 31:31–34`,`Hé 8–10`],
-        praxis:[`Écouter, se souvenir, obéir`,`Recevoir discipline paternelle`]
-      };
-    case 'eglise':
-      return {
-        axes:[`Parole & sacrements`,`Gouvernance servante`,`Unité dans la diversité`,`Sainteté hospitalière`],
-        canons:[`Ac 2:42–47`,`Ép 4`,`1 P 2`],
-        praxis:[`Charité ordonnée`,`Servir la cité sans se dissoudre`]
-      };
-    case 'discipulat':
-      return {
-        axes:[`Appel & réponse`,`Formation (Parole, épreuves, communauté)`,`Obéissance concrète`,`Persévérance`],
-        canons:[`Mt 5–7`,`Jn 13–17`,`Hé 12`],
-        praxis:[`Rythme : Écriture/prière/accompagnement`,`Pas obéissants précis`]
-      };
-    case 'ethique':
-      return {
-        axes:[`Fondement (Dieu saint, image)`,`Loi accomplie en l’amour`,`Vertus: foi, espérance, charité`,`Discernement & conscience`],
-        canons:[`Ex 20; Dt 6`,`Rm 12–15`,`Jacques`],
-        praxis:[`Examiner ses pratiques`,`Allier justice et miséricorde`]
-      };
-    case 'priere':
-      return {
-        axes:[`Adoration & action de grâce`,`Confession & intercession`,`Demande filiale`,`Rythme communautaire`],
-        canons:[`Psaumes`,`Mt 6 — Notre Père`,`Rm 8:26–27`],
-        praxis:[`Rythme simple et durable`,`Prier la Parole lue`]
-      };
-    case 'mission':
-      return {
-        axes:[`Évangélisation humble & fidèle`,`Justice & miséricorde: signes du Royaume`,`Formation & implantation`,`Souffrance & joie`],
-        canons:[`Mt 28:18–20`,`Actes`,`1 Th`],
-        praxis:[`Témoigner dans son réseau`,`Relier parole et service`]
-      };
-    case 'esperance':
-      return {
-        axes:[`Résurrection`,`Jugement juste`,`Nouvelle création`,`Vigilance`],
-        canons:[`1 Co 15`,`Rm 8`,`1 P 1:3–9`,`Ap 21–22`],
-        praxis:[`Lire les épreuves à la lumière de la fin`,`Consoler avec compétence`]
-      };
-    case 'exhortation':
-      return {
-        axes:[`Rappeler l’Évangile`,`Nommer le bien et le mal`,`Encourager la persévérance`,`Accompagner avec douceur`],
-        canons:[`Hé 3:13; 10:24–25`,`Ép 4–6`],
-        praxis:[`Exhorter sans écraser`,`Relier appel public et soin personnel`]
-      };
-    case 'appPerso':
-      return {
-        axes:[`Examiner ses habitudes`,`Décider un pas clair`,`Redevabilité fraternelle`,`Célébrer la grâce`],
-        canons:[`Jac 1:22–25`,`Ps 139:23–24`],
-        praxis:[`Résolution concrète liée au chapitre`,`Journal “lumière/action/prière”`]
-      };
-    case 'appCommu':
-      return {
-        axes:[`Doctrine, liturgie, diaconie, mission`,`Unité & sainteté`,`Ordre & paix`],
-        canons:[`Ac 2:42–47`,`Ép 4`],
-        praxis:[`Audit communautaire lié au chapitre`,`Planifier former/prier/servir`]
-      };
-    case 'liturgie':
-      return {
-        axes:[`Appel/Confession/Annonce`,`Lecture & prédication`,`Sacrements`,`Envoi`],
-        canons:[`És 6`,`Lc 24`,`Ac 2`],
-        praxis:[`Préparer le cœur`,`Relier dimanche & semaine`]
-      };
-    case 'meditation':
-      return {
-        axes:[`Lenteur`,`Mémoire (verset-clé)`,`Affection`,`Action`],
-        canons:[`Ps 1`,`Jos 1:8`,`Ps 119:11`],
-        praxis:[`Choisir un verset-clé du chapitre`,`Le prier matin/soir`,`Partager un fruit de méditation`]
-      };
-    case 'typologie':
-      return {
-        axes:[`Repérer motifs: roi/temple/exode`,`Vérifier contexte/canon`,`Orienter vers le Christ`,`Distinguer typologie/allégorie`],
-        canons:[`Matthieu — accomplissements`,`Hébreux — temple/sacrifices`],
-        praxis:[`Sobriété exégétique`,`Adorer le Christ révélé`]
-      };
-    case 'systematique':
-      return {
-        axes:[`Sola Scriptura`,`Analogie de la foi`,`Hiérarchie des vérités`,`Finalité pastorale`],
-        canons:[`2 Tm 3:14–17`,`Hé 4:12`],
-        praxis:[`Relier lecture suivie et synthèse`,`Repérer centre/périphérie`]
-      };
-    case 'hds':
-      return {
-        axes:[`Promesse/Accomplissement`,`Crise/Relèvement`,`Déjà/Pas encore`,`Peuple/Toutes nations`],
-        canons:[`Gen → Apoc`,`Lc 24`],
-        praxis:[`Lire le chapitre comme station du salut`,`Tenir mémorial des œuvres de Dieu`]
-      };
-    case 'doutes':
-      return {
-        axes:[`Écouter la vraie question`,`Clarifier genre/contexte/canon`,`Relier à l’Évangile`,`Accompagner (temps & prière)`],
-        canons:[`1 P 3:15`,`Jude 22–23`],
-        praxis:[`Espace de questions franc`,`Ressources fiables progressives`]
-      };
-    case 'synthese':
-      return {
-        axes:[`Vérité sur Dieu`,`Diagnostic sur l’homme`,`Chemin en Christ`,`Fruit: prière/obéissance/témoignage`],
-        canons:[`Ps 119`,`Rm 12`],
-        praxis:[`Formuler une phrase-synthèse`,`Choisir un pas concret`]
-      };
-    case 'plan':
-      return {
-        axes:[`Rythme AT/NT/Psaumes`,`Observation/Interprétation/Application`,`Partage & intercession`,`Souplesse sans culpabiliser`],
-        canons:[`Jos 1:8`,`Ac 17:11`],
-        praxis:[`Plan 4–6 semaines lié au livre`,`RDV fraternel bi-hebdo`]
-      };
-    default: return { axes:[], canons:[], praxis:[] };
-  }
-}
-
-/* ====== Sélection des versets d’ancrage par thème ====== */
-
-function pickAnchors(chapterVerses, terms, maxN) {
-  if (!Array.isArray(chapterVerses) || !chapterVerses.length) return [];
-  const t = (terms || []).map(s => normalizeForMatch(s)).filter(Boolean);
-  const seen = new Set();
-  const matches = [];
-  for (const v of chapterVerses) {
-    const hay = normalizeForMatch(v.text);
-    if (t.some(term => hay.includes(term))) {
-      const key = v.verse;
-      if (!seen.has(key)) { seen.add(key); matches.push(v); }
-    }
-    if (matches.length >= maxN) break;
-  }
-  // si rien trouvé, on prend v.1, v. (milieu), v. (fin) pour ancrer la rubrique
-  if (!matches.length) {
-    const len = chapterVerses.length;
-    if (len >= 1) matches.push(chapterVerses[0]);
-    if (len >= 3) matches.push(chapterVerses[Math.floor(len/2)]);
-    if (len >= 2) matches.push(chapterVerses[len-1]);
-  }
-  return matches.slice(0, maxN);
-}
-
-function formatRef(v){ return `v.${v.verse}`; }
-function normalizeForMatch(s){
-  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .toLowerCase().replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
-}
-
-/* ====================== Rubriques 1–5, 28 (inchangées) ====================== */
+/* ====================== Rubriques 1–5, 28 ====================== */
 
 function buildOpeningPrayer({ book, chapter }) {
   const ref = `${book} ${chapter}`;
   return (
-    `**Prière d’ouverture**  \n` +
-    `*Référence :* ${ref}\n\n` +
-    `Seigneur, je m’approche de ta Parole avec un cœur qui veut apprendre. Dans ce chapitre, ` +
-    `tu parles pour créer, corriger et consoler. Donne-moi de recevoir la vérité sans la tordre, ` +
-    `de discerner ce qui vient de toi et d’y répondre avec simplicité. Si tu exposes ta sainteté, ` +
-    `que je révère ton Nom; si tu révèles mes égarements, que je confesse et me détourne; si tu ouvres ` +
-    `un chemin d’espérance, que je l’embrasse avec foi. Que l’Alliance oriente mon esprit, que l’Évangile ` +
-    `règle mes affections, et que l’obéissance devienne ma joie. Je veux une rencontre vraie: ` +
-    `fais de cette page un lieu d’écoute, et de mon cœur un terrain docile. Au nom de Jésus-Christ, amen.`
+`**Prière d’ouverture**  
+*Référence :* ${ref}
+
+Seigneur, je m’approche de ta Parole avec un cœur qui veut apprendre. Dans ce chapitre, tu parles pour créer, corriger et consoler. Donne-moi de recevoir la vérité sans la tordre, de discerner ce qui vient de toi et d’y répondre avec simplicité. Si tu exposes ta sainteté, que je révère ton Nom; si tu révèles mes égarements, que je confesse et me détourne; si tu ouvres un chemin d’espérance, que je l’embrasse avec foi. Que l’Alliance oriente mon esprit, que l’Évangile règle mes affections, et que l’obéissance devienne ma joie. Je veux une rencontre vraie: fais de cette page un lieu d’écoute, et de mon cœur un terrain docile. Au nom de Jésus-Christ, amen.`
   );
 }
 
@@ -518,22 +368,38 @@ function buildPrevChapterQnA({ book, chapter }) {
   if (Number.isFinite(ch) && ch > 1) {
     const prev = `${book} ${ch - 1}`;
     return (
-      `**Questions du chapitre précédent**  \n` +
-      `*Référence :* ${prev}\n\n` +
-      `1. **Quel fil narratif conduit vers la suite ?**  \n→ ${generic.fil}\n\n` +
-      `2. **Quels personnages/lieux réapparaissent ?**  \n→ ${generic.pers}\n\n` +
-      `3. **Qu’a révélé ${prev} sur Dieu ?**  \n→ ${generic.dieu}\n\n` +
-      `4. **Quelles tensions commencent à se résoudre ?**  \n→ ${generic.tensions}\n\n` +
-      `5. **Quelle attente la clôture suscitait-elle ?**  \n→ ${generic.attente}`
+`**Questions du chapitre précédent**  
+*Référence :* ${prev}
+
+1. **Quel fil narratif conduit vers la suite ?**  
+→ ${generic.fil}
+
+2. **Quels personnages/lieux réapparaissent ?**  
+→ ${generic.pers}
+
+3. **Qu’a révélé ${prev} sur Dieu ?**  
+→ ${generic.dieu}
+
+4. **Quelles tensions commencent à se résoudre ?**  
+→ ${generic.tensions}
+
+5. **Quelle attente la clôture suscitait-elle ?**  
+→ ${generic.attente}`
     );
   }
   const ref = `${book} ${chapter}`;
   return (
-    `**Questions d’introduction**  \n` +
-    `*Référence :* ${ref}\n\n` +
-    `1. **Quel horizon s’ouvre ?**  \n→ Souveraineté de Dieu et finalité salvifique.\n\n` +
-    `2. **Comment l’homme est-il situé ?**  \n→ Créature appelée à vivre de la Parole et de l’Alliance.\n\n` +
-    `3. **Quels thèmes structurants ?**  \n→ Création/providence, promesse/jugement, sagesse/folie, appel/obéissance.`
+`**Questions d’introduction**  
+*Référence :* ${ref}
+
+1. **Quel horizon s’ouvre ?**  
+→ Souveraineté de Dieu et finalité salvifique.
+
+2. **Comment l’homme est-il situé ?**  
+→ Créature appelée à vivre de la Parole et de l’Alliance.
+
+3. **Quels thèmes structurants ?**  
+→ Création/providence, promesse/jugement, sagesse/folie, appel/obéissance.`
   );
 }
 
@@ -554,4 +420,249 @@ function buildRubrique5_Testament({ book, chapter, analysis }){
   const t = [];
   t.push(`**Ancien/Nouveau Testament : continuité, accomplissement, lumière réciproque**`);
   t.push(`*Référence :* ${ref}\n`);
-  t.push(`L’Ancien prépare/annonce/typologise; le Nouveau dévoile/accomplit/interprète. La révélation progresse selon l’Alliance. La continuité n’est pas uniformité; la
+  t.push(`L’Ancien prépare/annonce/typologise; le Nouveau dévoile/accomplit/interprète. La révélation progresse selon l’Alliance. La continuité n’est pas uniformité; la nouveauté n’est pas opposition.`);
+  t.push(`Promesse/accomplissement (2 Co 1:20), loi/évangile (Rm 3–8; Ga), Esprit/Église (Jl 3 → Ac 2). ${ref} assume et prolonge l’Ancien. Motifs (${motifs}) : pédagogie par répétition et variation.`);
+  t.push(`Deux excès à éviter: **verset isolé** et **opposition stérile** AT/NT. La même voix appelle au repentir et à la confiance. La vérité reçue devient prière, obéissance, témoignage.`);
+  return inflateToRange(t.join('\n\n'), 2000, 2500, { book, chapter });
+}
+
+/* ====================== MODE COURT (6–27) ====================== */
+function basic({book,chapter}, title, body){
+  return `${title}  \n*Référence :* ${book} ${chapter}\n\n${body}`;
+}
+function buildPromesses(ctx){return basic(ctx,'**Promesses**','Dieu prend l’initiative, soutient l’espérance et appelle à la fidélité.');}
+function buildPecheEtGrace(ctx){return basic(ctx,'**Péché et grâce**','Diagnostic vrai; grâce première et suffisante.');}
+function buildChristologie(ctx){return basic(ctx,'**Christologie**','Le Christ éclaire toute l’Écriture (Lc 24:27; Jn 5:39).');}
+function buildEspritSaint(ctx){return basic(ctx,'**Esprit Saint**','Il illumine, convainc, sanctifie et envoie.');}
+function buildAlliance(ctx){return basic(ctx,'**Alliance**','Don, vocation, responsabilité dans l’Alliance.');}
+function buildEglise(ctx){return basic(ctx,'**Église**','Peuple façonné par Parole & sacrements.');}
+function buildDisciples(ctx){return basic(ctx,'**Discipulat**','Appel, apprentissage, persévérance.');}
+function buildEthique(ctx){return basic(ctx,'**Éthique**','La morale découle de l’Évangile.');}
+function buildPriere(ctx){return basic(ctx,'**Prière**','Supplication, action de grâce, intercession.');}
+function buildMission(ctx){return basic(ctx,'**Mission**','Témoigner et servir avec humilité.');}
+function buildEsperance(ctx){return basic(ctx,'**Espérance**','La fin nourrit la fidélité présente.');}
+function buildExhortation(ctx){return basic(ctx,'**Exhortation**','Marcher selon la lumière reçue.');}
+function buildApplicationPerso(ctx){return basic(ctx,'**Application personnelle**','Actes précis: renoncer, choisir, servir.');}
+function buildApplicationCollective(ctx){return basic(ctx,'**Application communautaire**','Unité, sainteté, service mutuel.');}
+function buildLiturgie(ctx){return basic(ctx,'**Liturgie**','Le culte façonne la semaine.');}
+function buildMeditation(ctx){return basic(ctx,'**Méditation**','Garder, ruminer, pratiquer (inclut verset-clé).');}
+function buildTypologie(ctx){return basic(ctx,'**Typologie**','Figures et accomplissements en Christ.');}
+function buildTheologieSystematique(ctx){return basic(ctx,'**Théologie systématique**','Loci: Dieu, Christ, Esprit, Église, Salut.');}
+function buildHistoireDuSalut(ctx){return basic(ctx,'**Histoire du salut**','De la promesse à l’accomplissement.');}
+function buildDoutesObjections(ctx){return basic(ctx,'**Doutes/objections**','Répondre avec patience et Écriture.');}
+function buildSynthese(ctx){return basic(ctx,'**Synthèse**','Fil doctrinal et pas d’obéissance.');}
+function buildPlanDeLecture(ctx){return basic(ctx,'**Plan de lecture**','Lire, prier, pratiquer, témoigner.');}
+
+/* ====================== Aides & Formatage ====================== */
+
+function inflateToRange(text, min, max, ctx) {
+  let t = String(text || '').trim();
+  if (t.length >= min && t.length <= max) return t;
+
+  const add = [];
+  add.push(` Cette lecture s’inscrit dans le canon (Ps 119; Hé 4:12; 2 Tm 3:14-17): la Parole reçue fonde l’obéissance et nourrit l’espérance.`);
+  add.push(` Elle suppose prière et communion (Ac 2:42; Ép 4:11-16), afin que l’intelligence devienne fidélité durable.`);
+  add.push(` Enfin, ${ctx.book} ${ctx.chapter} invite à discerner la providence par laquelle Dieu conduit son peuple vers la maturité (Rm 8:28-30; 1 P 1:3-9).`);
+
+  let i = 0;
+  while (t.length < min && i < add.length) t += add[i++];
+
+  if (t.length > max) {
+    const cut = t.slice(0, max);
+    const last = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+    t = cut.slice(0, last > 0 ? last + 1 : max).trim();
+  }
+  return t;
+}
+
+function escapeReg(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function normalizeWhitespace(s){ return String(s||'').replace(/\s+/g,' ').trim(); }
+function truncateForLine(s, max){
+  const t=normalizeWhitespace(s);
+  if(t.length<=max) return t;
+  const cut=t.slice(0,max);
+  const sp=cut.lastIndexOf(' ');
+  return (sp>60?cut.slice(0,sp):cut).trim()+'…';
+}
+function normBook(s){
+  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+}
+
+/* ====================== Générateur long générique (6–27) ====================== */
+async function buildFromKeywords(ctx, cfg, opts={}){
+  const { book, chapter, analysis } = ctx;
+  const ref = `${book} ${chapter}`;
+  const title = cfg?.title || '**Rubrique**';
+  const axes = [];
+  const canons = [];
+  const praxis = [];
+
+  // 1) Collecte multi-mots-clés → hits dédupliqués
+  let hits = [];
+  if (Array.isArray(cfg?.kws)) {
+    for (const kw of cfg.kws) {
+      const arr = await (ctx?.searchInChapter ? ctx.searchInChapter(kw) : Promise.resolve([])); // jamais utilisé mais garde compat
+      const arr2 = await ctxSearchWrap(ctx, kw);
+      hits = mergeHits(hits, arr2 || []);
+    }
+  }
+  // 2) Sécurité: si aucun hit, on retombe sur 3 versets "cadres" s’ils existent (1er, central, dernier)
+  if (!hits.length) {
+    hits = await fallbackScaffold(ctx);
+  }
+  const shortRefs = hits.map(h => `v.${h.verse}`).slice(0,6).join(', ');
+
+  // 3) Corps doctrinal (avec ancrage versets)
+  const base =
+`${title}  
+*Référence :* ${ref}
+
+${leadFromTitle(title)} ${book} ${chapter} est ici lu avec **ancrage textuel**: ${hits.length ? `indices ${shortRefs}` : `aucun indice explicite, lecture canonique par analogie`}. ${accentFromThemes(analysis)}  
+${weaveFromHits(hits)}
+
+**Axes de lecture**
+1. Cohérence du propos et progression intra-chapitre.
+2. Résonance canonique (AT/NT) sans tordre le sens littéral.
+3. Finalité pastorale: vérité qui conduit à l’obéissance.
+
+**Résonances canoniques** — La Bible éclaire la Bible (Lc 24:27; Jn 5:39).
+- Ps 119; Hé 4:12; 2 Tm 3:14–17
+- Rm 8; Ép 4 (formation durable)
+
+**Praxis / Mise en œuvre**
+- Prier la Parole reçue en lien avec ${shortRefs || 'le fil du chapitre'}.
+- Nommer un pas d’obéissance proportionné.
+- Témoigner humblement de la grâce reçue.`;
+
+  return inflateToRange(base, 2000, 2500, ctx);
+}
+
+// Helpers de buildFromKeywords
+async function ctxSearchWrap(ctx, kw){ return searchChapterVersesKeyword({ book: ctx.book, chapter: ctx.chapter, keyword: kw, apiKey: ctx.apiKey, bibleId: ctx.bibleId, cache: ctx._cache || (ctx._cache = new Map()) }); }
+function mergeHits(a, b){
+  const by = new Map(a.map(x=>[x.verse,x]));
+  for (const h of b) if (!by.has(h.verse)) by.set(h.verse,h);
+  return [...by.values()].sort((x,y)=>x.verse-y.verse);
+}
+async function fallbackScaffold(ctx){
+  // Essaie d’obtenir 1er, milieu, dernier via search "Book Chapter"
+  const out = [];
+  try{
+    const ref = `${ctx.book} ${ctx.chapter}`;
+    const url = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(ctx.bibleId)}/search?query=${encodeURIComponent(ref)}&limit=400`;
+    const r = await fetch(url, { headers:{'api-key': ctx.apiKey} });
+    if (r.ok){
+      const j = await r.json();
+      const raw = Array.isArray(j?.data?.verses) ? j.data.verses : [];
+      const prefix = new RegExp(`^${escapeReg(ctx.book)}\\s+${escapeReg(String(ctx.chapter))}\\s*:\\s*(\\d+)`,'i');
+      const verses = raw.map(v=>({ ref:v.reference||'', text:normalizeWhitespace(v.text||'') }))
+        .filter(v=>prefix.test(v.ref))
+        .map(v=>{ const m=prefix.exec(v.ref); return { verse: m?parseInt(m[1],10):null, ref:v.ref, text:v.text }; })
+        .filter(v=>Number.isFinite(v.verse))
+        .sort((a,b)=>a.verse-b.verse);
+      if (verses.length) {
+        const mid = verses[Math.floor(verses.length/2)];
+        out.push(verses[0]);
+        if (mid && mid.verse!==verses[0].verse && mid.verse!==verses[verses.length-1].verse) out.push(mid);
+        if (verses.length>1) out.push(verses[verses.length-1]);
+      }
+    }
+  }catch(e){ console.error('[fallbackScaffold]', e); }
+  return out;
+}
+function accentFromThemes(analysis){
+  const t=analysis?.themes||[];
+  return t.includes('grâce') ? `La **grâce** demeure l’horizon; elle précède et relève.`
+       : t.includes('loi') ? `La **Loi** joue son rôle pédagogique; elle dévoile et règle.`
+       : t.includes('alliance') ? `L’**Alliance** ordonne l’intelligence du passage.`
+       : t.includes('péché') ? `Le **péché** est nommé pour conduire à la vie.`
+       : t.includes('création') ? `La **création** et la providence élargissent la perspective.`
+       : t.includes('royaume') ? `Le **Royaume** affleure: autorité et appel.`
+       : `Dieu parle, l’homme répond; la vérité libère.`;
+}
+function leadFromTitle(title){
+  const t=String(title||'').toLowerCase();
+  if (t.includes('promesses')) return `Les promesses bibliques sont des **actes de parole performatifs** par lesquels Dieu engage l’avenir.`;
+  if (t.includes('péché')) return `Le réalisme du **péché** révèle la nécessité et la suffisance de la **grâce**.`;
+  if (t.includes('christologie')) return `Le Christ, clé herméneutique, illumine la page comme **accomplissement**.`;
+  if (t.includes('esprit')) return `L’**Esprit** rend la Parole efficace: il illumine, convertit, envoie.`;
+  if (t.includes('alliance')) return `L’**Alliance** est le cadre de la fidélité de Dieu et de la réponse du peuple.`;
+  if (t.includes('église')) return `L’**Église** naît de la Parole, se nourrit des signes, sert le monde.`;
+  if (t.includes('discipulat')) return `Le **discipulat** apprend l’obéissance joyeuse.`;
+  if (t.includes('éthique')) return `L’**éthique** découle de l’Évangile: vérité et miséricorde.`;
+  if (t.includes('prière')) return `La **prière** est la respiration de la foi éclairée par l’Écriture.`;
+  if (t.includes('mission')) return `La **mission** procède du cœur trinitaire: envoyés pour témoigner.`;
+  if (t.includes('espérance')) return `L’**espérance** s’enracine dans la résurrection et l’achèvement.`;
+  if (t.includes('exhortation')) return `L’**exhortation** pastoralement orientée règle la marche.`;
+  if (t.includes('application personnelle')) return `L’**application personnelle** relie doctrine et décisions concrètes.`;
+  if (t.includes('application communautaire')) return `L’**application communautaire** façonne un peuple distinct et hospitalier.`;
+  if (t.includes('liturgie')) return `La **liturgie** forme par la répétition signifiante (Parole & sacrements).`;
+  if (t.includes('méditation')) return `La **méditation** rumine la Parole jusqu’au choix obéissant.`;
+  if (t.includes('typologie')) return `La **typologie** repère figures et accomplissements sans violence du sens.`;
+  if (t.includes('théologie systématique')) return `La **théologie** ordonne les loci pour une confession cohérente.`;
+  if (t.includes('histoire du salut')) return `L’**histoire du salut** déroule promesse et accomplissement.`;
+  if (t.includes('doutes')) return `Les **doutes** appellent clarté exégétique et patience pastorale.`;
+  if (t.includes('synthèse')) return `La **synthèse** recueille le fil doctrinal et désigne le pas d’obéissance.`;
+  if (t.includes('plan de lecture')) return `Un **plan de lecture** durable établit la Parole au centre.`;
+  return `Cette rubrique articule doctrine, exégèse et pratique.`;
+}
+function weaveFromHits(hits){
+  if (!hits || !hits.length) return `Le chapitre ne comporte pas de vocable explicite pour cette rubrique; on lira par **analogie canonique**, en respectant le contexte littéral et l’unité de l’Écriture.`;
+  const parts = hits.slice(0,6).map(h => {
+    const frag = truncateForLine(h.text, 200);
+    return `• **${h.ref}** — « ${frag} »`;
+  });
+  return `Repères textuels :\n` + parts.join('\n');
+}
+
+/* ====================== 6 — Promesses (spécifique Gen 1 si présent) ====================== */
+async function buildPromessesLong(ctx, searchInChapter){
+  const { book, chapter } = ctx;
+  if (normBook(book) === 'genese' && String(chapter) === '1') {
+    return (
+`Promesses  
+*Référence :* Genèse 1
+
+Les promesses divines ne sont pas des slogans pieux, mais des actes de parole par lesquels Dieu s’engage publiquement et efficacement, dans le cadre de l’Alliance, à produire un avenir qu’il réalise lui-même. Déjà en Genèse 1, la promesse est en germe au cœur de l’efficacité créatrice: «Dieu dit… et il en fut ainsi». La Parole qui fait être est aussi la Parole qui fait espérer. Le Dieu qui sépare, nomme et ordonne ne laisse pas le monde à l’indétermination; il inscrit la création dans une téléologie: qu’elle reflète sa bonté et qu’elle devienne habitation de l’humain appelé à l’image. Ainsi, la première pédagogie de la promesse consiste à stabiliser la réalité par une parole fiable; la confiance peut naître, non d’un optimisme naturel, mais d’une fidélité première.
+
+La promesse biblique comporte quatre traits. (1) Initiative souveraine: elle vient d’en haut, précède toute œuvre humaine et ne se fonde ni sur le mérite ni sur la vraisemblance des circonstances. (2) Contenu déterminé: Dieu ne promet pas vaguement le “bien-être”, il annonce des biens précis (vie, présence, fécondité, repos, bénédiction) qui s’enracinent dans son dessein. (3) Caractère performatif: parce que Dieu est vrai, sa parole fait ce qu’elle dit; le délai apparent n’infirme pas la certitude, il éduque la patience et purifie l’attente. (4) Orientation christologique: toute promesse converge vers le Oui définitif en Jésus-Christ; la création ordonnée prépare l’économie du salut où la grâce restaure et mène à l’achèvement.
+
+Pastoralement, la promesse délivre de deux dérives. D’un côté, l’auto-assurance religieuse qui prétend fabriquer l’avenir par la technique spirituelle; de l’autre, le fatalisme qui se résigne à l’informe. La promesse enseigne la foi obéissante: recevoir aujourd’hui la parole fiable, poser l’acte proportionné (garder, cultiver, bénir, sanctifier), et laisser Dieu tenir ce qu’il a dit selon son temps. Elle apprend aussi la lecture canonique: on n’isole pas des fragments; on discerne la trame — création, bénédiction, sabbat — comme prémices d’une Alliance qui conduit d’Adam à Abraham, d’Israël au Christ, puis à l’Église dans l’Esprit. Ainsi, Genèse 1 n’est pas seulement un prologue cosmique: c’est le laboratoire de l’espérance où l’on voit, à l’état pur, que ce que Dieu ordonne, il l’accomplit, et que ce qu’il bénit, il le porte jusqu’à sa plénitude.`
+    ).trim();
+  }
+
+  // Sinon: ancrage par mots-clés
+  const cfg = { title:'**Promesses**', kws:['promesse','promet','bénédiction','bénir','serment','alliance'] };
+  return buildFromKeywords(ctx, cfg);
+}
+
+/* ====================== Prière de clôture (28) ====================== */
+function buildClosingPrayer({ book, chapter }) {
+  const ref = `${book} ${chapter}`;
+  return (
+`**Prière de clôture**  
+*Référence :* ${ref}
+
+Père, je te rends grâce pour la lumière consentie. Ce chapitre a repris mes pas, corrigé mes illusions et établi mon cœur dans l’espérance. Grave en moi ce que tu as enseigné; fais mûrir ce que tu as semé. Donne-moi d’aimer la vérité plus que mon confort, de chercher la paix sans renoncer à la justice, et d’obéir sans dureté. Que l’Esprit Saint convertisse mes habitudes, règle mes paroles et dilate ma charité. Je veux marcher humblement avec toi, dans la joie simple de celui qui a été rejoint. Au nom de Jésus-Christ, amen.`
+  );
+}
+
+/* ====================== Normalisation / mapping versions ====================== */
+
+function normalizeChapter(raw) {
+  const s = String(raw || '').trim();
+  const m = s.match(/^(\d+)/);
+  const chapterNum = m ? m[1] : s;
+  const chapterRef = /[:\-–]/.test(s) ? s : chapterNum;
+  return { chapterNum, chapterRef };
+}
+function pickBibleIdFromVersion(v) {
+  const version = String(v || '').toUpperCase();
+  const map = {
+    'DARBY': process.env.DARBY_BIBLE_ID,
+    'LSG':   process.env.LSG_BIBLE_ID,
+    'NEG':   process.env.NEG_BIBLE_ID,
+    'SEM':   process.env.SEM_BIBLE_ID
+  };
+  return map[version] || '';
+}
