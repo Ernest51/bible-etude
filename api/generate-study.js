@@ -1,7 +1,7 @@
 // api/generate-study.js
-// Route robuste (Vercel): aucune dépendance externe, jamais d'exception non gérée,
-// normalisation des noms de livres (accents/majuscules), et export compatible CJS/ESM.
-// Génère 0..28 (0 = placeholder). On rebranchera Rubrique 0 sur l'API après validation.
+// Version ESM stable : génère 0..28 (0 = placeholder). Aucune dépendance externe.
+// Compatible avec Vercel (export default), normalise les noms de livres (accents/espaces),
+// et renvoie toujours 200 (fallback en cas d'imprévu).
 
 const CHAPTERS_66 = {
   "Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,
@@ -26,7 +26,7 @@ const padTo = (txt, target) => {
   return out;
 };
 const norm = (s) => String(s||"")
-  .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+  .normalize("NFD").replace(/[\u0300-\u036f]/g,"")   // supprime accents
   .replace(/[’']/g,"'")
   .replace(/\s+/g," ")
   .trim()
@@ -94,6 +94,7 @@ function buildAllSections(book, ch, dens){
   const L = dens||1500;
   const out = [];
 
+  // 0 (placeholder : on rebranchera l’API après validation)
   out.push({ n:0, content:
 `### Rubrique 0 — Panorama des versets du chapitre
 
@@ -101,10 +102,12 @@ function buildAllSections(book, ch, dens){
 
 Lecture du chapitre. Utilise **Lire la Bible** pour lire l’intégralité du texte.` });
 
+  // 1..3
   out.push({ n:1, content: prayerOpening(book, ch, 1300) });
   out.push({ n:2, content: contextAndNarrative(book, ch, L) });
   out.push({ n:3, content: prevChapterQA(book, ch, L) });
 
+  // 4..27
   out.push({ n:4,  content: doctrinalBlock('4. Canonicité et cohérence', book, ch, 'la cohérence de la Révélation', L) });
   out.push({ n:5,  content: doctrinalBlock('5. Ancien/Nouveau Testament', book, ch, 'le lien entre ancienne et nouvelle alliance', L) });
   out.push({ n:6,  content: doctrinalBlock('6. Promesses', book, ch, 'les promesses divines et leur finalité', L) });
@@ -130,13 +133,14 @@ Lecture du chapitre. Utilise **Lire la Bible** pour lire l’intégralité du te
   out.push({ n:26, content: doctrinalBlock('26. Thèmes secondaires', book, ch, 'motifs complémentaires du passage', L) });
   out.push({ n:27, content: doctrinalBlock('27. Doutes/objections', book, ch, 'questions honnêtes et réponses scripturaires', L) });
 
+  // 28
   out.push({ n:28, content: closingPrayer(book, ch, 1300) });
 
   return out;
 }
 
-// ---------- handler ----------
-async function handler(req, res){
+// ---------- handler ESM ----------
+export default async function handler(req, res) {
   try{
     const q = req.query || {};
     const rawBook   = q.book || "Genèse";
@@ -151,18 +155,11 @@ async function handler(req, res){
     const sections = buildAllSections(bookCanon, chap, dens);
     res.status(200).json({ ok:true, book:bookCanon, chapter:chap, sections });
   }catch(err){
-    try{
-      const sections = buildAllSections("Genèse", 1, 1500);
-      res.status(200).json({ ok:true, book:"Genèse", chapter:1, sections, warning:String(err && err.message || err) });
-    }catch{
-      res.status(200).json({ ok:true, book:"Genèse", chapter:1, sections:[
-        { n:0, content:"### Rubrique 0\n\n*Référence :* Genèse 1" },
-        { n:1, content:"### 1. Prière d’ouverture\n\n—" }
-      ], warning:"hard-fallback" });
-    }
+    // Fallback dur : retourner quand même 200 avec contenu minimal
+    const sections = [
+      { n:0, content:"### Rubrique 0 — Panorama des versets du chapitre\n\n*Référence :* Genèse 1" },
+      { n:1, content:"### 1. Prière d’ouverture\n\n—" }
+    ];
+    res.status(200).json({ ok:true, book:"Genèse", chapter:1, sections, warning:String(err && err.message || err) });
   }
 }
-
-// Export compatible Vercel (CJS & ESM)
-module.exports = handler;
-module.exports.default = handler;
