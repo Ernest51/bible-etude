@@ -1,6 +1,7 @@
 // api/generate-study.js
-// Version stable : génère 1..28 (Rubrique 0 = placeholder). Aucun appel externe.
-// Tolérant sur le nom du livre (accents/majuscules/espaces).
+// Route robuste (Vercel): aucune dépendance externe, jamais d'exception non gérée,
+// normalisation des noms de livres (accents/majuscules), et export compatible CJS/ESM.
+// Génère 0..28 (0 = placeholder). On rebranchera Rubrique 0 sur l'API après validation.
 
 const CHAPTERS_66 = {
   "Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,
@@ -14,7 +15,7 @@ const CHAPTERS_66 = {
   "2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22
 };
 
-// ---- utils sûrs
+// ---------- utils ----------
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 const padTo = (txt, target) => {
   if (!target) return txt;
@@ -34,16 +35,14 @@ const norm = (s) => String(s||"")
 function resolveBookName(input){
   if (!input) return null;
   const target = norm(input);
-  // index normalisé -> clé canonique
   const index = {};
   Object.keys(CHAPTERS_66).forEach(k => { index[norm(k)] = k; });
   if (index[target]) return index[target];
-  // match "startsWith"
   const cand = Object.keys(index).find(n => n.startsWith(target) || target.startsWith(n));
   return cand ? index[cand] : null;
 }
 
-// ---- générateurs de rubriques
+// ---------- générateurs ----------
 function prayerOpening(book, ch, target=1300){
   const p = [
     `*Référence :* ${book} ${ch}`,
@@ -95,7 +94,6 @@ function buildAllSections(book, ch, dens){
   const L = dens||1500;
   const out = [];
 
-  // 0 (placeholder simple – on branchera l’API plus tard)
   out.push({ n:0, content:
 `### Rubrique 0 — Panorama des versets du chapitre
 
@@ -103,14 +101,10 @@ function buildAllSections(book, ch, dens){
 
 Lecture du chapitre. Utilise **Lire la Bible** pour lire l’intégralité du texte.` });
 
-  // 1
   out.push({ n:1, content: prayerOpening(book, ch, 1300) });
-  // 2
   out.push({ n:2, content: contextAndNarrative(book, ch, L) });
-  // 3
   out.push({ n:3, content: prevChapterQA(book, ch, L) });
 
-  // 4..27 (doctrinal/explicatif)
   out.push({ n:4,  content: doctrinalBlock('4. Canonicité et cohérence', book, ch, 'la cohérence de la Révélation', L) });
   out.push({ n:5,  content: doctrinalBlock('5. Ancien/Nouveau Testament', book, ch, 'le lien entre ancienne et nouvelle alliance', L) });
   out.push({ n:6,  content: doctrinalBlock('6. Promesses', book, ch, 'les promesses divines et leur finalité', L) });
@@ -136,14 +130,13 @@ Lecture du chapitre. Utilise **Lire la Bible** pour lire l’intégralité du te
   out.push({ n:26, content: doctrinalBlock('26. Thèmes secondaires', book, ch, 'motifs complémentaires du passage', L) });
   out.push({ n:27, content: doctrinalBlock('27. Doutes/objections', book, ch, 'questions honnêtes et réponses scripturaires', L) });
 
-  // 28
   out.push({ n:28, content: closingPrayer(book, ch, 1300) });
 
   return out;
 }
 
-// ----- handler (style CJS, compatible Vercel Node / Next API)
-module.exports = async (req, res) => {
+// ---------- handler ----------
+async function handler(req, res){
   try{
     const q = req.query || {};
     const rawBook   = q.book || "Genèse";
@@ -158,16 +151,18 @@ module.exports = async (req, res) => {
     const sections = buildAllSections(bookCanon, chap, dens);
     res.status(200).json({ ok:true, book:bookCanon, chapter:chap, sections });
   }catch(err){
-    // En cas d'exception inattendue, on renvoie quand même 200 avec un fallback.
     try{
       const sections = buildAllSections("Genèse", 1, 1500);
       res.status(200).json({ ok:true, book:"Genèse", chapter:1, sections, warning:String(err && err.message || err) });
     }catch{
-      // Dernier recours : JSON minimal
       res.status(200).json({ ok:true, book:"Genèse", chapter:1, sections:[
         { n:0, content:"### Rubrique 0\n\n*Référence :* Genèse 1" },
         { n:1, content:"### 1. Prière d’ouverture\n\n—" }
       ], warning:"hard-fallback" });
     }
   }
-};
+}
+
+// Export compatible Vercel (CJS & ESM)
+module.exports = handler;
+module.exports.default = handler;
