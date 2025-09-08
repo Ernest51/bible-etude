@@ -1,68 +1,79 @@
 // api/generate-study.js
 // Étude 28 points + Rubrique 0 en tête (versets du chapitre + explications dynamiques via api.bible)
 //
-// Entrée: ?book=Genèse&chapter=1[&version=LSG|DARBY|NEG|SEM][&long=1|0]
+// Entrée: ?book=Genèse&chapter=1[|1:1][&version=LSG|DARBY|NEG|SEM][&long=1|0]
 // Requiert en env: API_BIBLE_KEY, DARBY_BIBLE_ID (et éventuellement LSG_BIBLE_ID, NEG_BIBLE_ID, SEM_BIBLE_ID)
 // NB: La “Rubrique 0” est renvoyée en PREMIER dans le JSON (n:0). Les autres rubriques suivent 1→28.
 
 export default async function handler(req, res) {
   try {
-    const { book, chapter } = req.query || {};
-    if (!book || !chapter) {
+    const { book, chapter: chapterParam } = req.query || {};
+    if (!book || !chapterParam) {
       return res.status(400).json({ error: 'Paramètres requis: book, chapter' });
     }
+
+    // Normalise "1:1", "1:1-9", "1–2" → { chapterNum: "1", chapterRef: "1:1" (ou "1") }
+    const { chapterNum, chapterRef } = normalizeChapter(String(chapterParam));
 
     const apiKey = process.env.API_BIBLE_KEY || '';
     const bibleId =
       (req.query?.bibleId && String(req.query.bibleId)) ||
       pickBibleIdFromVersion(req.query?.version) ||
       process.env.DARBY_BIBLE_ID || '';
-    const refLabel = `${book} ${chapter}`;
+
+    // Pour l’API bible, si l’utilisateur a donné un verset précis, on utilise chapterRef (ex: "1:1"),
+    // sinon on prend le chapitre (ex: "1"). Pour l’analyse et l’affichage, on reste au niveau du chapitre.
+    const refForApi = `${book} ${chapterRef}`;
+    const refForChapter = `${book} ${chapterNum}`;
 
     // ========= 1) Récupération du passage (texte brut) pour analyse légère =========
     let passageText = '';
     if (apiKey && bibleId) {
       try {
-        const url = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleId)}/passages?reference=${encodeURIComponent(refLabel)}&content-type=text`;
+        const url = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleId)}/passages?reference=${encodeURIComponent(refForApi)}&content-type=text`;
         const r = await fetch(url, { headers: { 'api-key': apiKey } });
         if (r.ok) passageText = extractTextFromApiBible(await r.json());
 
         if (!passageText) {
-          const url2 = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleId)}/search?query=${encodeURIComponent(refLabel)}&limit=200`;
+          const url2 = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleId)}/search?query=${encodeURIComponent(refForApi)}&limit=200`;
           const r2 = await fetch(url2, { headers: { 'api-key': apiKey } });
           if (r2.ok) passageText = extractTextFromSearch(await r2.json());
         }
-      } catch (_) {}
+      } catch (e) {
+        console.error('[api.bible fetch] error', e);
+      }
     }
     if (!passageText) {
-      passageText = `(${refLabel}) — passage non récupéré ; analyse doctrinale sans texte intégral.`;
+      passageText = `(${refForApi}) — passage non récupéré ; analyse doctrinale sans texte intégral.`;
     }
 
-    const analysis = lightAnalyze(passageText, { book, chapter });
+    const analysis = lightAnalyze(passageText, { book, chapter: chapterNum });
 
     // ========= 2) Construire les sections =========
     const sections = [];
 
-    // 0. Panorama des versets
-    const rubrique0 = await buildRubrique0_VersesOverview({ book, chapter, apiKey, bibleId, analysis });
+    // 0. Panorama des versets (on force au niveau CHAPITRE pour balayer tous les versets)
+    const rubrique0 = await buildRubrique0_VersesOverview({
+      book, chapterForFilter: chapterNum, apiKey, bibleId, analysis
+    });
     sections.push({ n: 0, content: rubrique0 });
 
     // 1. Prière d’ouverture (~1000–1300)
-    sections.push({ n: 1, content: buildOpeningPrayer({ book, chapter }) });
+    sections.push({ n: 1, content: buildOpeningPrayer({ book, chapter: chapterNum }) });
 
     // 2. Contexte & fil narratif (2000–2500)
-    sections.push({ n: 2, content: buildRubrique2({ book, chapter, analysis, passageText }) });
+    sections.push({ n: 2, content: buildRubrique2({ book, chapter: chapterNum, analysis, passageText }) });
 
     // 3. Q/R du chapitre précédent
-    sections.push({ n: 3, content: buildPrevChapterQnA({ book, chapter }) });
+    sections.push({ n: 3, content: buildPrevChapterQnA({ book, chapter: chapterNum }) });
 
     // 4. Canonicité (longue)
-    sections.push({ n: 4, content: buildRubrique4_Canonicite({ book, chapter, analysis }) });
+    sections.push({ n: 4, content: buildRubrique4_Canonicite({ book, chapter: chapterNum, analysis }) });
 
     // 5. AT/NT (longue)
-    sections.push({ n: 5, content: buildRubrique5_Testament({ book, chapter, analysis }) });
+    sections.push({ n: 5, content: buildRubrique5_Testament({ book, chapter: chapterNum, analysis }) });
 
-    // 6–27 : MODE LONG ACTIVÉ PAR DÉFAUT (équiv. &long=1). Permet de revenir au court avec &long=0|false|no.
+    // 6–27 : MODE LONG ACTIVÉ PAR DÉFAUT (équiv. &long=1). Revenir au court: &long=0|false|no.
     const qLong = String(req?.query?.long ?? '').trim();
     const useLong = qLong === '' ? true : /^1|true|yes$/i.test(qLong) && !/^(0|false|no)$/i.test(qLong);
 
@@ -85,12 +96,12 @@ export default async function handler(req, res) {
         ];
     let idx = 6;
     for (const fn of others) {
-      sections.push({ n: idx, content: fn({ book, chapter, analysis, passageText }) });
+      sections.push({ n: idx, content: fn({ book, chapter: chapterNum, analysis, passageText }) });
       idx++;
     }
 
     // 28. Prière de clôture (~1000–1300)
-    sections.push({ n: 28, content: buildClosingPrayer({ book, chapter }) });
+    sections.push({ n: 28, content: buildClosingPrayer({ book, chapter: chapterNum }) });
 
     return res.status(200).json({ sections });
   } catch (e) {
@@ -99,7 +110,19 @@ export default async function handler(req, res) {
   }
 }
 
-/* ====================== Utilitaires api.bible ====================== */
+/* ====================== Utilitaires ====================== */
+
+// Accepte "1", "1:1", "1:1-9", "1–2"… et renvoie { chapterNum: "1", chapterRef: "1" ou "1:1" etc. }
+function normalizeChapter(raw) {
+  const s = String(raw || '').trim();
+  // numéro de chapitre = avant le 1er ":" ou tiret
+  const m = s.match(/^(\d+)/);
+  const chapterNum = m ? m[1] : s;
+  // on garde la référence complète telle que fournie si elle ressemble à chapitre(:versets)
+  const hasColonOrDash = /[:\-–]/.test(s);
+  const chapterRef = hasColonOrDash ? s : chapterNum;
+  return { chapterNum, chapterRef };
+}
 
 function pickBibleIdFromVersion(v) {
   const version = String(v || '').toUpperCase();
@@ -166,9 +189,10 @@ function lightAnalyze(text, { book, chapter }) {
   return { book, chapter, topWords: top, themes };
 }
 
-/* ====================== Rubrique 0 — Panorama des versets ====================== */
-async function buildRubrique0_VersesOverview({ book, chapter, apiKey, bibleId, analysis }) {
-  const ref = `${book} ${chapter}`;
+/* ====================== Rubrique 0 — Panorama des versets (par CHAPITRE) ====================== */
+async function buildRubrique0_VersesOverview({ book, chapterForFilter, apiKey, bibleId, analysis }) {
+  // On interroge la recherche au NIVEAU CHAPITRE pour assembler tous les v.N proprement
+  const ref = `${book} ${chapterForFilter}`;
   let verses = [];
 
   if (apiKey && bibleId) {
@@ -178,7 +202,7 @@ async function buildRubrique0_VersesOverview({ book, chapter, apiKey, bibleId, a
       if (r.ok) {
         const j = await r.json();
         const raw = Array.isArray(j?.data?.verses) ? j.data.verses : [];
-        const prefix = new RegExp(`^${escapeReg(book)}\\s+${escapeReg(String(chapter))}\\s*:\\s*(\\d+)`, 'i');
+        const prefix = new RegExp(`^${escapeReg(book)}\\s+${escapeReg(String(chapterForFilter))}\\s*:\\s*(\\d+)`, 'i');
         verses = raw
           .map(v => ({ ref: v.reference || '', text: normalizeWhitespace(v.text || '') }))
           .filter(v => prefix.test(v.ref))
@@ -190,7 +214,9 @@ async function buildRubrique0_VersesOverview({ book, chapter, apiKey, bibleId, a
           .filter(v => Number.isFinite(v.verse))
           .sort((a,b)=>a.verse-b.verse);
       }
-    } catch (_) {}
+    } catch (e) {
+      console.error('[search verses] error', e);
+    }
   }
 
   const head =
@@ -510,7 +536,7 @@ function buildLongDoctrineSection(ctx, { title, thesis, axes, canons, praxis, sc
     axes.forEach((ax, i) => p.push(`${i + 1}. ${ax}`));
   }
   if (canons?.length) {
-    p.push('\n**Résonances canoniques** — La Bible éclaire la Bible (Luc 24:27; Jean 5:39).`);
+    p.push('\n**Résonances canoniques** — La Bible éclaire la Bible (Luc 24:27; Jean 5:39).');
     canons.forEach(c => p.push(`- ${c}`));
   }
   if (praxis?.length) {
