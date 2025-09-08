@@ -392,4 +392,303 @@ function buildRubrique5_Testament({ book, chapter, analysis }){
   );
   t.push('');
   t.push(
-    `Concrètement, replacer ${ref} dans cette lumière conjointe, c’est discerner la m
+    `Concrètement, replacer ${ref} dans cette lumière conjointe, c’est discerner la même voix de Dieu appelant au repentir et à la confiance, ` +
+    `instruisant la prière et ordonnant la charité. La vérité reçue devient **prière**, puis **obéissance**, enfin **témoignage** humble et ferme.`
+  );
+  return inflateToRange(t.join('\n'), 2000, 2500, { book, chapter });
+}
+
+/* ==== Rubriques sobres (6–27) ==== */
+function basic({book,chapter}, title, body){
+  return `${title}  \n*Référence :* ${book} ${chapter}\n\n${body}`;
+}
+function buildPromesses(ctx){return basic(ctx,'**Promesses**','Dieu prend l’initiative, soutient l’espérance et appelle à la fidélité.');}
+function buildPecheEtGrace(ctx){return basic(ctx,'**Péché et grâce**','Le diagnostic est vrai; la grâce est première et suffisante.');}
+function buildChristologie(ctx){return basic(ctx,'**Christologie**','Le Christ éclaire l’ensemble des Écritures (Luc 24:27; Jean 5:39).');}
+function buildEspritSaint(ctx){return basic(ctx,'**Esprit Saint**','Il illumine, convainc, sanctifie et envoie.');}
+function buildAlliance(ctx){return basic(ctx,'**Alliance**','La relation à Dieu est réglée par sa Parole: don, vocation, responsabilité.');}
+function buildEglise(ctx){return basic(ctx,'**Église**','Peuple modelé par Parole et sacrements, pour la louange et le service.');}
+function buildDisciples(ctx){return basic(ctx,'**Discipulat**','Appel, apprentissage, persévérance; la grâce soutient l’obéissance.');}
+function buildEthique(ctx){return basic(ctx,'**Éthique**','La vérité fonde la vie juste; la morale découle de l’Évangile.');}
+function buildPriere(ctx){return basic(ctx,'**Prière**','La Parole reçue devient supplication, action de grâce et intercession.');}
+function buildMission(ctx){return basic(ctx,'**Mission**','Dieu rassemble et envoie vers les nations, dans l’humilité et la vérité.');}
+function buildEsperance(ctx){return basic(ctx,'**Espérance**','Le jugement sert la vie; la fin nourrit la fidélité présente.');}
+function buildExhortation(ctx){return basic(ctx,'**Exhortation**','Marcher selon la lumière reçue, sans dureté ni mollesse.');}
+function buildApplicationPerso(ctx){return basic(ctx,'**Application personnelle**','La vérité devient actes précis: renoncer, choisir, servir.');}
+function buildApplicationCollective(ctx){return basic(ctx,'**Application communautaire**','Unité, sainteté, service mutuel: la charité ordonnée.');}
+function buildLiturgie(ctx){return basic(ctx,'**Liturgie**','Le culte oriente l’amour de Dieu et du prochain et façonne la semaine.');}
+function buildMeditation(ctx){return basic(ctx,'**Méditation**','Garder, ruminer, pratiquer: mémoire et obéissance se répondent.');}
+function buildMemoVerset({book,chapter}){return `**Verset-clé**  \n*Référence :* ${book} ${chapter}; v.1  \nÀ mémoriser et vivre.`;}
+function buildTypologie(ctx){return basic(ctx,'**Typologie**','Figures et accomplissements convergent en Christ, sans violence du sens.');}
+function buildTheologieSystematique(ctx){return basic(ctx,'**Théologie systématique**','Locus principaux: Dieu, Christ, Esprit, Église, Salut.');}
+function buildHistoireDuSalut(ctx){return basic(ctx,'**Histoire du salut**','Une seule histoire: de la promesse à l’accomplissement.');}
+function buildThemesSecondaires(ctx){return basic(ctx,'**Thèmes secondaires**','Repérer motifs récurrents et nuances textuelles.');}
+function buildDoutesObjections(ctx){return basic(ctx,'**Doutes/objections**','Répondre avec patience et Écriture, non par slogans.');}
+function buildSynthese(ctx){return basic(ctx,'**Synthèse**','Résumer le propos et son effet spirituel; discerner le pas à faire.');}
+function buildPlanDeLecture(ctx){return basic(ctx,'**Plan de lecture**','Continuer: lire, prier, pratiquer, témoigner; inscrire la Parole dans la durée.');}
+
+/* === Prière de clôture (28) === */
+function buildClosingPrayer({ book, chapter }) {
+  const ref = `${book} ${chapter}`;
+  return (
+    `**Prière de clôture**  \n` +
+    `*Référence :* ${ref}\n\n` +
+    `Père, je te rends grâce pour la lumière consentie. Ce chapitre a repris mes pas, ` +
+    `corrigé mes illusions et établi mon cœur dans l’espérance. Grave en moi ce que tu as enseigné; ` +
+    `fais mûrir ce que tu as semé. Donne-moi d’aimer la vérité plus que mon confort, de chercher la paix ` +
+    `sans renoncer à la justice, et d’obéir sans dureté. Que l’Esprit Saint convertisse mes habitudes, ` +
+    `règle mes paroles et dilate ma charité. Je veux marcher humblement avec toi, dans la joie simple ` +
+    `de celui qui a été rejoint. Au nom de Jésus-Christ, amen.`
+  );
+}
+
+/* ====== Aides ====== */
+function inflateToRange(text, min, max, ctx) {
+  let t = String(text || '').trim();
+  if (t.length >= min && t.length <= max) return t;
+
+  const add = [];
+  add.push(
+    ` Cette lecture s’inscrit dans l’ensemble du canon (Psaumes 119; Hébreux 4:12; 2 Timothée 3:14-17): ` +
+    `la Parole qui éclaire fonde l’obéissance et nourrit l’espérance.`
+  );
+  add.push(
+    ` Elle suppose une vie de prière et de communion (Actes 2:42; Éphésiens 4:11-16), ` +
+    `afin que l’intelligence devienne fidélité durable.`
+  );
+  add.push(
+    ` Enfin, ${ctx.book} ${ctx.chapter} invite à discerner la providence par laquelle Dieu conduit son peuple ` +
+    `vers la maturité (Romains 8:28-30; 1 Pierre 1:3-9).`
+  );
+
+  let i = 0;
+  while (t.length < min && i < add.length) t += add[i++];
+
+  if (t.length > max) {
+    const cut = t.slice(0, max);
+    const last = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+    t = cut.slice(0, last > 0 ? last + 1 : max).trim();
+  }
+  return t;
+}
+
+function escapeReg(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function normalizeWhitespace(s){ return String(s||'').replace(/\s+/g,' ').trim(); }
+function truncateForLine(s, max){
+  const t=normalizeWhitespace(s);
+  if(t.length<=max) return t;
+  const cut=t.slice(0,max);
+  const sp=cut.lastIndexOf(' ');
+  return (sp>60?cut.slice(0,sp):cut).trim()+'…';
+}
+
+/* ===== Helper doctrinal long (2000–2500) + Versions longues (6–27) ===== */
+function buildLongDoctrineSection(ctx, { title, thesis, axes, canons, praxis, scelle }) {
+  const { book, chapter, analysis } = ctx;
+  const ref = `${book} ${chapter}`;
+  const mots = (analysis?.topWords || []).slice(0, 6).join(', ');
+  const themes = analysis?.themes || [];
+  const accent =
+    themes.includes('grâce') ? `La **grâce** demeure l’horizon: initiative divine et relèvement durable. `
+  : themes.includes('loi') ? `La **Loi** joue son rôle pédagogique: dévoiler la vérité et régler la réponse fidèle. `
+  : themes.includes('alliance') ? `L’**Alliance** structure l’interprétation: promesse, signe, fidélité. `
+  : themes.includes('péché') ? `Le **péché** est nommé pour conduire à la vie, non au découragement. `
+  : themes.includes('création') ? `La **création** et la providence élargissent la perspective de ce passage. `
+  : themes.includes('royaume') ? `Le **Royaume** affleure: règne de Dieu et appel à l’obéissance. `
+  : `Dieu parle, l’homme répond, la vérité libère. `;
+
+  const p = [];
+  p.push(`${title}  \n*Référence :* ${ref}\n`);
+  p.push(`${thesis} ${book} ${chapter} agence des motifs (${mots}) pour former le discernement. ${accent}`);
+
+  if (axes?.length) {
+    p.push('\n**Axes de lecture**');
+    axes.forEach((ax, i) => p.push(`${i + 1}. ${ax}`));
+  }
+  if (canons?.length) {
+    p.push('\n**Résonances canoniques** — La Bible éclaire la Bible (Luc 24:27; Jean 5:39).');
+    canons.forEach(c => p.push(`- ${c}`));
+  }
+  if (praxis?.length) {
+    p.push('\n**Praxis / Mise en œuvre** — La doctrine règle la vie ordinaire:');
+    praxis.forEach(x => p.push(`- ${x}`));
+  }
+  p.push('\n' + (scelle || `**Prière** — Inscris cette vérité dans nos cœurs pour une obéissance paisible. Amen.`));
+
+  return inflateToRange(p.join('\n'), 2000, 2500, ctx);
+}
+
+function buildPromessesLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Promesses**',
+  thesis:`Les promesses sont des **actes de parole** par lesquels Dieu garantit un avenir qu’il réalise lui-même, dans le cadre de l’Alliance.`,
+  axes:[
+    `**Promesse & serment** (Hé 6:13–20) — fiabilité divine.`,
+    `**Temps de Dieu** (2 P 3:9) — délai apparent, exactitude souveraine.`,
+    `**Christ accomplissement** (2 Co 1:20) — le “oui” en Lui.`,
+    `**Foi obéissante** — l’espérance enclenche la sainteté.`
+  ],
+  canons:[`Gen 12; 15`,`Ps 89`,`Luc 1–2`,`Rom 4`],
+  praxis:[`Résister au court-termisme spirituel`,`Lire les promesses comme appels à vivre saintement`,`Consolation et exigence tenues ensemble`]
+});}
+function buildPecheEtGraceLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Péché et grâce**',
+  thesis:`Le **péché** est révolte objective et corruption intérieure; la **grâce** est initiative souveraine qui pardonne, renouvelle et agrège à l’Alliance.`,
+  axes:[`**Vérité du péché** (Rom 3)`,`**Priorité de la grâce** (Éph 2:1–10)`,`**Conversion** — repentance & foi`,`**Sanctification** (Tt 2:11–14)`],
+  canons:[`Gen 3`,`Ps 51`,`Rom 5–8`],
+  praxis:[`Confession régulière`,`Refuser autojustification et désespoir`,`Accueillir la grâce comme puissance de transformation`]
+});}
+function buildChristologieLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Christologie**',
+  thesis:`Le Christ, vrai Dieu et vrai homme, est **clé herméneutique** et centre de l’économie du salut: promesse accomplie, révélation du Père, sacrifice et règne.`,
+  axes:[`**Personne** — une personne, deux natures`,`**Œuvre** — incarnation, croix, résurrection, ascension`,`**Royaume** — déjà/pas encore`,`**Union au Christ** (Rom 6)`],
+  canons:[`És 53`,`Ps 2; 110`,`Col 1:15–20`,`Hébreux`],
+  praxis:[`Adoration centrée sur le Christ`,`Vivre de l’union au Christ`,`Éthique découlant de l’identité`]
+});}
+function buildEspritSaintLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Esprit Saint**',
+  thesis:`L’Esprit est Dieu: il illumine, convertit, sanctifie, édifie l’Église et envoie en mission.`,
+  axes:[`**Illumination** (Jn 16)`,`**Nouvelle naissance** (Jn 3)`,`**Édification** (1 Co 12–14)`,`**Mission** (Ac 1:8)`],
+  canons:[`Jl 3 → Ac 2`,`Rom 8`],
+  praxis:[`Demander sa conduite`,`Exercer les dons avec charité et ordre`,`Relier piété et mission`]
+});}
+function buildAllianceLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Alliance**',
+  thesis:`Cadre structurant: Dieu se donne par promesse et commandement et forme un peuple; tout converge en la **Nouvelle Alliance**.`,
+  axes:[`**Variations** — Noé, Abraham, Sinaï, David, Nouvelle`,`**Signes** — circoncision/baptême; Pâque/Cène`,`**Fidélité de Dieu** & responsabilité du peuple`,`**Christ médiateur**; Esprit scellé`],
+  canons:[`Gen 12; 15; 17`,`Ex 19–24`,`Jr 31:31–34`,`Lc 22:20; Hé 8–10`],
+  praxis:[`Écoute, signes, obéissance`,`Mémorial des œuvres de Dieu`,`Recevoir la discipline paternelle`]
+});}
+function buildEgliseLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Église**',
+  thesis:`Peuple convoqué par la Parole, rassemblé par l’Esprit autour du Christ; une, sainte, catholique, apostolique.`,
+  axes:[`**Parole & sacrements** — moyens de grâce`,`**Gouvernance servante**; discipline`,`**Unité dans la diversité** des dons`,`**Sainteté hospitalière**`],
+  canons:[`Ac 2:42–47`,`Ép 4`,`1 P 2`],
+  praxis:[`Ancrer Parole & prière`,`Charité ordonnée: accueil, vérité, justice`,`Servir la cité sans se dissoudre`]
+});}
+function buildDisciplesLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Discipulat**',
+  thesis:`Être disciple: apprendre du Christ pour lui ressembler; la grâce rend l’apprentissage possible.`,
+  axes:[`**Appel & réponse** (Mc 1)`,`**Formation** — Parole, épreuves, communauté`,`**Obéissance concrète**`,`**Persévérance** — croix quotidienne`],
+  canons:[`Mt 5–7`,`Jn 13–17`,`Hé 12`],
+  praxis:[`Rythme: Écriture, prière, accompagnement`,`Pas obéissants précis`,`Recevoir pour donner`]
+});}
+function buildEthiqueLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Éthique**',
+  thesis:`L’éthique découle de l’Évangile: elle en exprime la forme (vérité & miséricorde, justice & paix).`,
+  axes:[`**Fondement** — Dieu saint, image, loi accomplie en l’amour`,`**Vertus** — foi, espérance, charité`,`**Discernement** — conscience éclairée`,`**Communauté** — correction fraternelle`],
+  canons:[`Ex 20; Dt 6`,`Rom 12–15`,`Jacques`],
+  praxis:[`Examiner ses pratiques`,`Habitudes vertueuses`,`Justice sans perdre la miséricorde`]
+});}
+function buildPriereLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Prière**',
+  thesis:`Réponse confiante à la Parole; structurée par le Notre Père; nourrie par l’Esprit.`,
+  axes:[`**Adoration & action de grâce**`,`**Confession & intercession**`,`**Demande filiale** (Lc 11)`,`**Rythme communautaire**`],
+  canons:[`Psaumes`,`Mt 6 — Notre Père`,`Rom 8:26–27`],
+  praxis:[`Rythme simple et durable`,`Sujets précis & mémorial des exaucements`,`Prier la Parole lue`]
+});}
+function buildMissionLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Mission**',
+  thesis:`Du cœur de Dieu: le Père envoie le Fils; l’Esprit envoie l’Église. Témoigner, servir, faire des disciples.`,
+  axes:[`**Évangélisation** fidèle et humble`,`**Justice & miséricorde** — signes du Royaume`,`**Implantation & formation**`,`**Souffrance & joie**`],
+  canons:[`Mt 28:18–20`,`Actes`,`1 Th`],
+  praxis:[`Témoigner dans son réseau`,`Relier parole et service`,`Soutenir par prière et dons`]
+});}
+function buildEsperanceLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Espérance**',
+  thesis:`Fondée sur la **résurrection** et la nouvelle création; elle transforme la persévérance présente.`,
+  axes:[`**Résurrection** (1 Co 15)`,`**Jugement** — justice pour les victimes`,`**Nouvelle création** (Ap 21–22)`,`**Vigilance** — enfants du jour`],
+  canons:[`Rom 8`,`1 P 1:3–9`,`Apocalypse`],
+  praxis:[`Lire les épreuves à la lumière de la fin`,`Signes de vie nouvelle dès maintenant`,`Consoler avec compétence`]
+});}
+function buildExhortationLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Exhortation**',
+  thesis:`Appel paternel fondé sur l’Évangile, orientant la marche concrète du peuple.`,
+  axes:[`**Rappeler l’Évangile** d’abord`,`**Nommer** le bien et le mal`,`**Encourager** la persévérance`,`**Accompagner** avec douceur`],
+  canons:[`Hé 3:13; 10:24–25`,`Ép 4–6`],
+  praxis:[`Exhorter sans écraser`,`Relier appel public et soins personnels`,`Mesurer des progrès concrets`]
+});}
+function buildApplicationPersoLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Application personnelle**',
+  thesis:`La vraie application naît de la doctrine reçue: intelligence → conscience → volonté.`,
+  axes:[`**Examiner** ses habitudes`,`**Décider** un pas clair`,`**Redevabilité** fraternelle`,`**Célébrer** la grâce à l’œuvre`],
+  canons:[`Jac 1:22–25`,`Ps 139:23–24`],
+  praxis:[`Résolution concrète liée au chapitre`,`Revue & action de grâce`,`Prière + action`]
+});}
+function buildApplicationCollectiveLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Application communautaire**',
+  thesis:`Dieu façonne un peuple: doctrine, liturgie, diaconie, mission, fraternité.`,
+  axes:[`**Unité doctrinale essentielle**`,`**Liturgie formative**`,`**Diaconie** concrète`,`**Mission locale**`],
+  canons:[`Ac 2:42–47`,`Ép 4`],
+  praxis:[`Auditer à la lumière du chapitre`,`Planifier: former, prier, servir`,`Mesurer: paix, justice, joie`]
+});}
+function buildLiturgieLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Liturgie**',
+  thesis:`Le culte façonne l’amour: pédagogie de l’Évangile; Parole & sacrements ordonnent la semaine.`,
+  axes:[`**Appel/Confession/Annonce**`,`**Lecture & prédication**`,`**Sacrements** — signes de la grâce`,`**Envoi** — liturgie du monde`],
+  canons:[`És 6`,`Lc 24`,`Ac 2`],
+  praxis:[`Préparer le cœur`,`Chanter vrai: vérité + affection`,`Relier dimanche et semaine`]
+});}
+function buildMeditationLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Méditation**',
+  thesis:`Ruminer la Parole jusqu’à façonner affections et choix: verbale, doctrinale, priante, orientée vers l’obéissance.`,
+  axes:[`**Lenteur**`,`**Mémoire**`,`**Affection**`,`**Action**`],
+  canons:[`Ps 1`,`Jos 1:8`],
+  praxis:[`Verset-clé matin/soir`,`Note “lumière / action / prière”`,`Partager un fruit de méditation`]
+});}
+function buildMemoVersetLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Verset-clé**',
+  thesis:`Mémoriser, c’est inscrire la Parole pour la prière, le combat et le témoignage.`,
+  axes:[`**Choix** du verset directeur`,`**Mémorisation** espacée`,`**Intégration** dans la décision`,`**Transmission** à un proche`],
+  canons:[`Ps 119:11`,`Col 3:16`],
+  praxis:[`Écrire, afficher, prier le verset`,`Le citer en tentation/angoisse`,`Rendre grâce pour chaque rappel`],
+  scelle:`**Prière** — Grave ce verset dans nos cœurs et règle nos pas. Amen.`
+});}
+function buildTypologieLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Typologie**',
+  thesis:`Reconnaître les **figures** par lesquelles Dieu prépare l’intelligence du Christ, sans violence du sens.`,
+  axes:[`**Repérer** motifs: roi, prophète, temple, exode`,`**Vérifier** contexte/canon`,`**Orienter** vers le Christ`,`**Distinguer** typologie/allégorie`],
+  canons:[`Matthieu — accomplissements`,`Hébreux — temple/sacrifices`],
+  praxis:[`Lire les figures pour adorer le Christ`,`Sobriété exégétique`,`Éviter sur-lectures symbolistes`]
+});}
+function buildTheologieSystematiqueLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Théologie systématique**',
+  thesis:`Ordonner les **loci** (Dieu, Christ, Esprit, Écriture, Église, Salut, Fins) pour une confession cohérente.`,
+  axes:[`**Sola Scriptura**`,`**Analogie de la foi**`,`**Hiérarchie des vérités**`,`**Finalité pastorale**`],
+  canons:[`2 Tm 3:14–17`,`Hé 4:12`],
+  praxis:[`Relier lecture suivie et synthèse`,`Repérer centre/périphérie`,`Confesser avec l’Église`]
+});}
+function buildHistoireDuSalutLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Histoire du salut**',
+  thesis:`Une seule économie: création, chute, promesse, élection, loi, prophètes, Christ, Église, Parousie.`,
+  axes:[`**Promesse/Accomplissement**`,`**Crise/Relèvement**`,`**Déjà/Pas encore**`,`**Peuple/Toutes nations**`],
+  canons:[`Gen → Apoc`,`Lc 24`],
+  praxis:[`Lire chaque chapitre comme station du salut`,`Mémorial des œuvres de Dieu`,`Espérance située`]
+});}
+function buildThemesSecondairesLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Thèmes secondaires**',
+  thesis:`Autour du fil directeur gravitent des **thèmes satellites** (lexique, motifs, personnages, lieux) qui affinent la doctrine.`,
+  axes:[`**Lexique** — champs sémantiques`,`**Rythmes littéraires**`,`**Géographie & temps**`,`**Voix secondaires**`],
+  canons:[`Proverbes`,`Actes`],
+  praxis:[`Noter deux motifs secondaires`,`Garder le centre sans absolutiser`,`Transformer nuances en décisions`]
+});}
+function buildDoutesObjectionsLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Doutes/objections**',
+  thesis:`Réponses patientes: précision exégétique, clarté doctrinale, accompagnement pastoral.`,
+  axes:[`**Écouter** la vraie question`,`**Clarifier** contexte/genre/canon`,`**Relier** à l’Évangile`,`**Accompagner** — temps & prière`],
+  canons:[`1 P 3:15`,`Jude 22–23`],
+  praxis:[`Espace de questions franc`,`Ressources fiables progressives`,`Chemin de maturité dans l’Église`]
+});}
+function buildSyntheseLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Synthèse**',
+  thesis:`Recueillir le fil doctrinal, ordonner les résonances, désigner le pas d’obéissance pour aujourd’hui.`,
+  axes:[`**Vérité sur Dieu**`,`**Diagnostic sur l’homme**`,`**Chemin en Christ**`,`**Fruit** — prière/obéissance/témoignage`],
+  canons:[`Ps 119`,`Rom 12`],
+  praxis:[`Formuler une phrase-synthèse`,`Choisir un pas concret`,`Partager la grâce reçue`]
+});}
+function buildPlanDeLectureLong(ctx){return buildLongDoctrineSection(ctx,{
+  title:'**Plan de lecture**',
+  thesis:`La Parole forme par **durée**: discipline simple, joyeuse, communautaire.`,
+  axes:[`**Rythme** — portions réalistes; AT/NT; Psaumes`,`**Profondeur** — O/I/A`,`**Communauté** — partage/redevabilité/intercession`,`**Souplesse** — adapter sans culpabiliser`],
+  canons:[`Jos 1:8`,`Ac 17:11`],
+  praxis:[`Plan 4–6 semaines lié au livre`,`Journal “lumière / action / prière”`,`RDV fraternel bi-hebdo`]
+});}
