@@ -1,10 +1,9 @@
 // api/generate-study.js
 // Étude 28 points + Rubrique 0 en tête (versets du chapitre + explications dynamiques via api.bible)
 //
-// Entrée: ?book=Genèse&chapter=1
-// Requiert en env: API_BIBLE_KEY, DARBY_BIBLE_ID (version française)
-// NB: La “Rubrique 0” est renvoyée en PREMIER dans le JSON, avec un titre commençant par “Rubrique 0 — …”.
-//     Les autres rubriques suivent (1 à 28), sans casser ton front actuel.
+// Entrée: ?book=Genèse&chapter=1[&version=LSG|DARBY|NEG|SEM][&long=1]
+// Requiert en env: API_BIBLE_KEY, DARBY_BIBLE_ID (et éventuellement LSG_BIBLE_ID, NEG_BIBLE_ID, SEM_BIBLE_ID)
+// NB: La “Rubrique 0” est renvoyée en PREMIER dans le JSON (n:0). Les autres rubriques suivent 1→28.
 
 export default async function handler(req, res) {
   try {
@@ -13,8 +12,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Paramètres requis: book, chapter' });
     }
 
-    const apiKey  = process.env.API_BIBLE_KEY || '';
-    const bibleId = process.env.DARBY_BIBLE_ID || '';
+    const apiKey = process.env.API_BIBLE_KEY || '';
+    const bibleId =
+      (req.query?.bibleId && String(req.query.bibleId)) ||
+      pickBibleIdFromVersion(req.query?.version) ||
+      process.env.DARBY_BIBLE_ID || '';
     const refLabel = `${book} ${chapter}`;
 
     // ========= 1) Récupération du passage (texte brut) pour analyse légère =========
@@ -41,7 +43,7 @@ export default async function handler(req, res) {
     // ========= 2) Construire les sections =========
     const sections = [];
 
-    // ——— Rubrique 0 (NOUVEAU) ———
+    // 0. Panorama des versets
     const rubrique0 = await buildRubrique0_VersesOverview({ book, chapter, apiKey, bibleId, analysis });
     sections.push({ n: 0, content: rubrique0 });
 
@@ -51,7 +53,7 @@ export default async function handler(req, res) {
     // 2. Contexte & fil narratif (2000–2500)
     sections.push({ n: 2, content: buildRubrique2({ book, chapter, analysis, passageText }) });
 
-    // 3. Questions du chapitre précédent (Q en **gras** + réponses)
+    // 3. Q/R du chapitre précédent
     sections.push({ n: 3, content: buildPrevChapterQnA({ book, chapter }) });
 
     // 4. Canonicité (longue)
@@ -60,15 +62,26 @@ export default async function handler(req, res) {
     // 5. AT/NT (longue)
     sections.push({ n: 5, content: buildRubrique5_Testament({ book, chapter, analysis }) });
 
-    // 6–27 : placeholders sobres (inchangés)
-    const others = [
-      buildPromesses, buildPecheEtGrace, buildChristologie,
-      buildEspritSaint, buildAlliance, buildEglise, buildDisciples, buildEthique,
-      buildPriere, buildMission, buildEsperance, buildExhortation, buildApplicationPerso,
-      buildApplicationCollective, buildLiturgie, buildMeditation, buildMemoVerset,
-      buildTypologie, buildTheologieSystematique, buildHistoireDuSalut, buildThemesSecondaires,
-      buildDoutesObjections, buildSynthese, buildPlanDeLecture
-    ];
+    // 6–27 : par défaut SOBRES ; activer versions longues si ?long=1|true|yes
+    const useLong = /^1|true|yes$/i.test(String(req?.query?.long || '').trim());
+
+    const others = useLong
+      ? [
+          buildPromessesLong, buildPecheEtGraceLong, buildChristologieLong,
+          buildEspritSaintLong, buildAllianceLong, buildEgliseLong, buildDisciplesLong, buildEthiqueLong,
+          buildPriereLong, buildMissionLong, buildEsperanceLong, buildExhortationLong, buildApplicationPersoLong,
+          buildApplicationCollectiveLong, buildLiturgieLong, buildMeditationLong, buildMemoVersetLong,
+          buildTypologieLong, buildTheologieSystematiqueLong, buildHistoireDuSalutLong, buildThemesSecondairesLong,
+          buildDoutesObjectionsLong, buildSyntheseLong, buildPlanDeLectureLong
+        ]
+      : [
+          buildPromesses, buildPecheEtGrace, buildChristologie,
+          buildEspritSaint, buildAlliance, buildEglise, buildDisciples, buildEthique,
+          buildPriere, buildMission, buildEsperance, buildExhortation, buildApplicationPerso,
+          buildApplicationCollective, buildLiturgie, buildMeditation, buildMemoVerset,
+          buildTypologie, buildTheologieSystematique, buildHistoireDuSalut, buildThemesSecondaires,
+          buildDoutesObjections, buildSynthese, buildPlanDeLecture
+        ];
     let idx = 6;
     for (const fn of others) {
       sections.push({ n: idx, content: fn({ book, chapter, analysis, passageText }) });
@@ -78,7 +91,6 @@ export default async function handler(req, res) {
     // 28. Prière de clôture (~1000–1300)
     sections.push({ n: 28, content: buildClosingPrayer({ book, chapter }) });
 
-    // On renvoie l’ensemble, Rubrique 0 en tête
     return res.status(200).json({ sections });
   } catch (e) {
     console.error('[generate-study] error', e);
@@ -87,6 +99,17 @@ export default async function handler(req, res) {
 }
 
 /* ====================== Utilitaires api.bible ====================== */
+
+function pickBibleIdFromVersion(v) {
+  const version = String(v || '').toUpperCase();
+  const map = {
+    'DARBY': process.env.DARBY_BIBLE_ID,
+    'LSG': process.env.LSG_BIBLE_ID,
+    'NEG': process.env.NEG_BIBLE_ID,
+    'SEM': process.env.SEM_BIBLE_ID
+  };
+  return map[version] || '';
+}
 
 function extractTextFromApiBible(payload) {
   try {
@@ -143,26 +166,17 @@ function lightAnalyze(text, { book, chapter }) {
 }
 
 /* ====================== Rubrique 0 — Panorama des versets ====================== */
-/**
- * Construit : "Rubrique 0 — Panorama des versets du chapitre"
- * - Récupère via /search tous les versets contenant "Book Chapter"
- * - Filtre strictement "Book Chapter:verse"
- * - Forme une liste des versets v.N — texte + explication claire et narrative, fidèle à la doctrine
- * - Aucune mention de la version n’est rendue (pas de “Darby” dans le texte)
- */
 async function buildRubrique0_VersesOverview({ book, chapter, apiKey, bibleId, analysis }) {
   const ref = `${book} ${chapter}`;
   let verses = [];
 
   if (apiKey && bibleId) {
     try {
-      // On récupère large (jusqu’à 400 occurrences)
       const url = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleId)}/search?query=${encodeURIComponent(ref)}&limit=400`;
       const r = await fetch(url, { headers: { 'api-key': apiKey } });
       if (r.ok) {
         const j = await r.json();
         const raw = Array.isArray(j?.data?.verses) ? j.data.verses : [];
-        // Filtre strict: "Book Chapter:verse"
         const prefix = new RegExp(`^${escapeReg(book)}\\s+${escapeReg(String(chapter))}\\s*:\\s*(\\d+)`, 'i');
         verses = raw
           .map(v => ({ ref: v.reference || '', text: normalizeWhitespace(v.text || '') }))
@@ -219,15 +233,13 @@ async function buildRubrique0_VersesOverview({ book, chapter, apiKey, bibleId, a
 
   const lines = verses.map((v, i) => {
     const shown = truncateForLine(v.text, 240);
-    // Chaque ligne: - v.N — texte
-    //               → explication
     return `- **v.${v.verse}** — ${shown}\n  → ${explain(i)}`;
   });
 
   return head + `\n\n` + lines.join('\n');
 }
 
-/* ====================== Rubriques existantes ====================== */
+/* ====================== Rubriques existantes (1–5, 28) ====================== */
 
 function buildOpeningPrayer({ book, chapter }) {
   const ref = `${book} ${chapter}`;
@@ -244,7 +256,7 @@ function buildOpeningPrayer({ book, chapter }) {
   );
 }
 
-function buildRubrique2({ book, chapter, analysis, passageText }) {
+function buildRubrique2({ book, chapter, analysis }) {
   const ref = `${book} ${chapter}`;
   const motifs = (analysis.topWords || []).slice(0, 6).join(', ');
   const t = [];
@@ -289,21 +301,12 @@ function buildRubrique2({ book, chapter, analysis, passageText }) {
   );
   t.push('');
   t.push(
-    `Si l’accent porte sur la fragilité humaine, ce n’est pas une fatalité, mais l’exaltation de la suffisance de la grâce. ` +
-    `L’obéissance n’est jamais la monnaie d’un salut mérité: elle est le fruit d’une fidélité première. De là naît une lecture ` +
-    `« devant Dieu »: je n’assieds pas l’Écriture au banc des accusés; j’accueille son jugement qui libère. La mémoire de ses œuvres ` +
-    `fonde l’obéissance; la mémoire de mes égarements appelle la vigilance; la mémoire de ses promesses entretient la persévérance.`
-  );
-  t.push('');
-  t.push(
     `En somme, cette page est un atelier de formation spirituelle. La vérité reçue devient prière; la prière enfante l’obéissance; ` +
     `l’obéissance devient témoignage. Le chapitre s’inscrit ainsi dans une trajectoire où l’on apprend à marcher humblement avec Dieu, ` +
     `porté par sa Parole qui éclaire, corrige et console.`
   );
 
-  let out = t.join('\n');
-  out = inflateToRange(out, 2000, 2500, { book, chapter });
-  return out;
+  return inflateToRange(t.join('\n'), 2000, 2500, { book, chapter });
 }
 
 function buildPrevChapterQnA({ book, chapter }) {
@@ -311,7 +314,7 @@ function buildPrevChapterQnA({ book, chapter }) {
   const generic = {
     fil: `Le chapitre précédent a posé un cadre théologique (origine, alliance, loi ou promesse) qui ouvre logiquement sur l’approfondissement présent: ce qui était énoncé devient enjeu vécu.`,
     pers: `Les acteurs déjà introduits reviennent avec des fonctions clarifiées (responsabilité, épreuve, mission). Le décor n’est pas neutre: il sert la pédagogie divine.`,
-    dieu: `Sa sainteté interdit l’autojustification; sa miséricorde interdit le désespoir; sa fidélité rend l’obéissance possible. Ce triptyque oriente l’interprétation de la section actuelle.`,
+    dieu: `Sa sainteté interdit l’autojustification; sa miséricorde interdit le désespoir; sa fidélité rend l’obéissance possible.`,
     tensions: `Limites humaines, attente d’une promesse, conflit latent: la suite reprend ces fils pour dresser un diagnostic vrai et proposer un chemin de vie.`,
     attente: `Une mise au clair doctrinale ou un déplacement narratif que la section présente commence à honorer en orientant le lecteur vers la fidélité concrète.`
   };
@@ -320,18 +323,12 @@ function buildPrevChapterQnA({ book, chapter }) {
     const prev = `${book} ${ch - 1}`;
     return (
       `**Questions du chapitre précédent**  \n` +
-      `Questions et réponses sur le chapitre précédent  \n` +
       `*Référence :* ${prev}\n\n` +
-      `1. **Quel fil narratif conduit vers la suite ?**  \n` +
-      `→ ${generic.fil}\n\n` +
-      `2. **Quels personnages ou lieux réapparaissent et que gagnent-ils en précision ?**  \n` +
-      `→ ${generic.pers}\n\n` +
-      `3. **Qu’a révélé ${prev} sur Dieu et comment cela règle la lecture actuelle ?**  \n` +
-      `→ ${generic.dieu}\n\n` +
-      `4. **Quelles tensions restaient ouvertes et commencent à se résoudre ?**  \n` +
-      `→ ${generic.tensions}\n\n` +
-      `5. **Quelle attente la clôture de ${prev} suscitait-elle ?**  \n` +
-      `→ ${generic.attente}`
+      `1. **Quel fil narratif conduit vers la suite ?**  \n→ ${generic.fil}\n\n` +
+      `2. **Quels personnages ou lieux réapparaissent et que gagnent-ils en précision ?**  \n→ ${generic.pers}\n\n` +
+      `3. **Qu’a révélé ${prev} sur Dieu et comment cela règle la lecture actuelle ?**  \n→ ${generic.dieu}\n\n` +
+      `4. **Quelles tensions restaient ouvertes et commencent à se résoudre ?**  \n→ ${generic.tensions}\n\n` +
+      `5. **Quelle attente la clôture de ${prev} suscitait-elle ?**  \n→ ${generic.attente}`
     );
   }
 
@@ -339,12 +336,9 @@ function buildPrevChapterQnA({ book, chapter }) {
   return (
     `**Questions d’introduction**  \n` +
     `*Référence :* ${ref}\n\n` +
-    `1. **Quel horizon théologique s’ouvre dès l’entrée ?**  \n` +
-    `→ Le texte installe la souveraineté de Dieu et la finalité salvifique de l’histoire; on lira la suite dans cette perspective.\n\n` +
-    `2. **Comment l’homme est-il situé d’emblée ?**  \n` +
-    `→ Créature appelée à vivre de la Parole, à recevoir l’Alliance et à exercer une responsabilité réglée par Dieu.\n\n` +
-    `3. **Quels thèmes structurants émergent ?**  \n` +
-    `→ Création/providence, promesse/jugement, sagesse/folie, appel/obéissance; autant d’axes qui guideront la lecture.`
+    `1. **Quel horizon théologique s’ouvre dès l’entrée ?**  \n→ Souveraineté de Dieu et finalité salvifique de l’histoire.\n\n` +
+    `2. **Comment l’homme est-il situé d’emblée ?**  \n→ Créature appelée à vivre de la Parole, recevoir l’Alliance et exercer une responsabilité réglée par Dieu.\n\n` +
+    `3. **Quels thèmes structurants émergent ?**  \n→ Création/providence, promesse/jugement, sagesse/folie, appel/obéissance.`
   );
 }
 
@@ -398,92 +392,4 @@ function buildRubrique5_Testament({ book, chapter, analysis }){
   );
   t.push('');
   t.push(
-    `Concrètement, replacer ${ref} dans cette lumière conjointe, c’est discerner la même voix de Dieu appelant au repentir et à la confiance, ` +
-    `instruisant la prière et ordonnant la charité. La vérité reçue devient **prière**, puis **obéissance**, enfin **témoignage** humble et ferme.`
-  );
-  return inflateToRange(t.join('\n'), 2000, 2500, { book, chapter });
-}
-
-/* ==== Rubriques sobres (6–27) ==== */
-function basic({book,chapter}, title, body){
-  return `${title}  \n*Référence :* ${book} ${chapter}\n\n${body}`;
-}
-function buildPromesses(ctx){return basic(ctx,'**Promesses**','Dieu prend l’initiative, soutient l’espérance et appelle à la fidélité.');}
-function buildPecheEtGrace(ctx){return basic(ctx,'**Péché et grâce**','Le diagnostic est vrai; la grâce est première et suffisante.');}
-function buildChristologie(ctx){return basic(ctx,'**Christologie**','Le Christ éclaire l’ensemble des Écritures (Luc 24:27; Jean 5:39).');}
-function buildEspritSaint(ctx){return basic(ctx,'**Esprit Saint**','Il illumine, convainc, sanctifie et envoie.');}
-function buildAlliance(ctx){return basic(ctx,'**Alliance**','La relation à Dieu est réglée par sa Parole: don, vocation, responsabilité.');}
-function buildEglise(ctx){return basic(ctx,'**Église**','Peuple modelé par Parole et sacrements, pour la louange et le service.');}
-function buildDisciples(ctx){return basic(ctx,'**Discipulat**','Appel, apprentissage, persévérance; la grâce soutient l’obéissance.');}
-function buildEthique(ctx){return basic(ctx,'**Éthique**','La vérité fonde la vie juste; la morale découle de l’Évangile.');}
-function buildPriere(ctx){return basic(ctx,'**Prière**','La Parole reçue devient supplication, action de grâce et intercession.');}
-function buildMission(ctx){return basic(ctx,'**Mission**','Dieu rassemble et envoie vers les nations, dans l’humilité et la vérité.');}
-function buildEsperance(ctx){return basic(ctx,'**Espérance**','Le jugement sert la vie; la fin nourrit la fidélité présente.');}
-function buildExhortation(ctx){return basic(ctx,'**Exhortation**','Marcher selon la lumière reçue, sans dureté ni mollesse.');}
-function buildApplicationPerso(ctx){return basic(ctx,'**Application personnelle**','La vérité devient actes précis: renoncer, choisir, servir.');}
-function buildApplicationCollective(ctx){return basic(ctx,'**Application communautaire**','Unité, sainteté, service mutuel: la charité ordonnée.');}
-function buildLiturgie(ctx){return basic(ctx,'**Liturgie**','Le culte oriente l’amour de Dieu et du prochain et façonne la semaine.');}
-function buildMeditation(ctx){return basic(ctx,'**Méditation**','Garder, ruminer, pratiquer: mémoire et obéissance se répondent.');}
-function buildMemoVerset({book,chapter}){return `**Verset-clé**  \n*Référence :* ${book} ${chapter}; v.1  \nÀ mémoriser et vivre.`;}
-function buildTypologie(ctx){return basic(ctx,'**Typologie**','Figures et accomplissements convergent en Christ, sans violence du sens.');}
-function buildTheologieSystematique(ctx){return basic(ctx,'**Théologie systématique**','Locus principaux: Dieu, Christ, Esprit, Église, Salut.');}
-function buildHistoireDuSalut(ctx){return basic(ctx,'**Histoire du salut**','Une seule histoire: de la promesse à l’accomplissement.');}
-function buildThemesSecondaires(ctx){return basic(ctx,'**Thèmes secondaires**','Repérer motifs récurrents et nuances textuelles.');}
-function buildDoutesObjections(ctx){return basic(ctx,'**Doutes/objections**','Répondre avec patience et Écriture, non par slogans.');}
-function buildSynthese(ctx){return basic(ctx,'**Synthèse**','Résumer le propos et son effet spirituel; discerner le pas à faire.');}
-function buildPlanDeLecture(ctx){return basic(ctx,'**Plan de lecture**','Continuer: lire, prier, pratiquer, témoigner; inscrire la Parole dans la durée.');}
-
-/* === Prière de clôture === */
-function buildClosingPrayer({ book, chapter }) {
-  const ref = `${book} ${chapter}`;
-  return (
-    `**Prière de clôture**  \n` +
-    `*Référence :* ${ref}\n\n` +
-    `Père, je te rends grâce pour la lumière consentie. Ce chapitre a repris mes pas, ` +
-    `corrigé mes illusions et établi mon cœur dans l’espérance. Grave en moi ce que tu as enseigné; ` +
-    `fais mûrir ce que tu as semé. Donne-moi d’aimer la vérité plus que mon confort, de chercher la paix ` +
-    `sans renoncer à la justice, et d’obéir sans dureté. Que l’Esprit Saint convertisse mes habitudes, ` +
-    `règle mes paroles et dilate ma charité. Je veux marcher humblement avec toi, dans la joie simple ` +
-    `de celui qui a été rejoint. Au nom de Jésus-Christ, amen.`
-  );
-}
-
-/* ====== Aides ====== */
-function inflateToRange(text, min, max, ctx) {
-  let t = String(text || '').trim();
-  if (t.length >= min && t.length <= max) return t;
-
-  const add = [];
-  add.push(
-    ` Cette lecture s’inscrit dans l’ensemble du canon (Psaumes 119; Hébreux 4:12; 2 Timothée 3:14-17): ` +
-    `la Parole qui éclaire fonde l’obéissance et nourrit l’espérance.`
-  );
-  add.push(
-    ` Elle suppose une vie de prière et de communion (Actes 2:42; Éphésiens 4:11-16), ` +
-    `afin que l’intelligence devienne fidélité durable.`
-  );
-  add.push(
-    ` Enfin, ${ctx.book} ${ctx.chapter} invite à discerner la providence par laquelle Dieu conduit son peuple ` +
-    `vers la maturité (Romains 8:28-30; 1 Pierre 1:3-9).`
-  );
-
-  let i = 0;
-  while (t.length < min && i < add.length) t += add[i++];
-
-  if (t.length > max) {
-    const cut = t.slice(0, max);
-    const last = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
-    t = cut.slice(0, last > 0 ? last + 1 : max).trim();
-  }
-  return t;
-}
-
-function escapeReg(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-function normalizeWhitespace(s){ return String(s||'').replace(/\s+/g,' ').trim(); }
-function truncateForLine(s, max){
-  const t=normalizeWhitespace(s);
-  if(t.length<=max) return t;
-  const cut=t.slice(0,max);
-  const sp=cut.lastIndexOf(' ');
-  return (sp>60?cut.slice(0,sp):cut).trim()+'…';
-}
+    `Concrètement, replacer ${ref} dans cette lumière conjointe, c’est discerner la m
