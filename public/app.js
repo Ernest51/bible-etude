@@ -1,4 +1,4 @@
-/* app.js — Réunifié : Rubrique 0 + Densité + Palette + Reset + PDF + Dernière étude + Liens BG + Recherche intelligente */
+/* app.js — Fix palette + Dernière étude + Générer avec fallback + titres centrés + mobile Valider */
 
 (function () {
   const $ = (s) => document.querySelector(s);
@@ -103,13 +103,12 @@
     // Remplir sélecteurs
     fillBooks(); fillChapters(); fillVerses();
 
-    // Événements
+    // Events UI
     $('#debugBtn')?.addEventListener('click', ()=>{ const d=$('#debugPanel'); if(d) d.style.display=(d.style.display==='none'?'block':'none'); });
     readBtn?.addEventListener('click', openBibleGatewayFromSelectors);
     generateBtn?.addEventListener('click', onGenerate);
     resetBtn?.addEventListener('click', onReset);
-    pdfBtn?.addEventListener('click', exportPdf);
-
+    pdfBtn?.addEventListener('click', ()=>window.print());
     prevBtn?.addEventListener('click', ()=>goTo(state.currentIdx-1));
     nextBtn?.addEventListener('click', ()=>goTo(state.currentIdx+1));
 
@@ -124,22 +123,26 @@
     versionSelect?.addEventListener('change', ()=>{ state.version=versionSelect.value; });
 
     // Palette
-    if (themeBar) themeBar.addEventListener('pointerdown', onThemePointer);
+    if (themeBar) {
+      themeBar.addEventListener('pointerdown', onThemePointer);
+      // position initiale du pouce selon theme
+      placeThumbForTheme(document.body.getAttribute('data-theme')||'cyan');
+    }
 
-    // Densité (injection select)
+    // Densité (persistée)
     injectDensitySelector();
 
     // Restaurer dernière étude
     restoreLastStudy();
     refreshLastBadge();
 
-    // Leds par défaut (orange)
-    for (let i=0;i<=28;i++) state.leds.set(i, 'warn');
+    // Leds par défaut orange
+    for (let i=0;i<=28;i++) state.leds.set(i,'warn');
 
     // Liste et affichage initial
     renderPointsList();
     updateHeader();
-    renderSection(0); // Rubrique 0 par défaut
+    renderSection(0);
   }
 
   /* ---------- Densité ---------- */
@@ -158,8 +161,10 @@
     sel.value = (saved && ['500','1500','2500'].includes(saved)) ? saved : String(state.density);
     state.density = parseInt(sel.value,10);
     sel.addEventListener('change', ()=>{ state.density=parseInt(sel.value,10); localStorage.setItem(STORAGE_DENS, String(state.density)); });
+    // insérer juste avant "Lire la Bible"
+    const anchor = readBtn || controls.lastChild;
+    controls.insertBefore(wrap, anchor);
     wrap.appendChild(label); wrap.appendChild(sel);
-    controls.insertBefore(wrap, readBtn || controls.lastChild);
   }
 
   /* ---------- Liste Rubrique 0 + 28 ---------- */
@@ -174,7 +179,7 @@
   function renderItem({ idx, title, desc }){
     const li=document.createElement('div'); li.className='item'; li.dataset.idx=String(idx);
     const idxEl=document.createElement('div'); idxEl.className='idx'; idxEl.textContent=String(idx);
-    const txt=document.createElement('div'); txt.style.textAlign='left';
+    const txt=document.createElement('div'); txt.className='txt';
     txt.innerHTML=`<div>${escapeHtml(title)}</div>${desc?`<span class="desc">${escapeHtml(desc)}</span>`:''}`;
     const dot=document.createElement('div'); dot.className='dot '+(state.leds.get(idx)==='ok'?'ok':'');
     li.appendChild(idxEl); li.appendChild(txt); li.appendChild(dot);
@@ -185,7 +190,7 @@
   function goTo(idx){ if(idx<0) idx=0; if(idx>28) idx=28; state.currentIdx=idx; updateHeader(); renderSection(idx); highlightActive(); }
   function updateHeader(){ const t = state.currentIdx===0?TITLE0:(TITLES[state.currentIdx]||`Point ${state.currentIdx}`); edTitle.textContent=t; metaInfo.textContent=`Point ${state.currentIdx} / 28`; }
 
-  /* ---------- Génération API ---------- */
+  /* ---------- Génération API + fallback ---------- */
   async function onGenerate(){
     const old=generateBtn.textContent; generateBtn.disabled=true; generateBtn.textContent='Génération…';
     try{
@@ -197,11 +202,34 @@
       if (Array.isArray(j.sections)) for (const s of j.sections) state.sectionsByN.set(Number(s.n), String(s.content||'').trim());
       for (const n of state.sectionsByN.keys()) state.leds.set(n,'ok'); // LEDs vertes
       renderPointsList(); renderSection(state.currentIdx); saveLastStudy(); refreshLastBadge();
-    }catch(err){ console.error(err); alert('La génération a échoué. Vérifie API_BIBLE_KEY / DARBY_BIBLE_ID.'); }
-    finally{ generateBtn.disabled=false; generateBtn.textContent=old; }
+    }catch(err){
+      log('generate error', String(err));
+      alert('La génération a échoué. Un gabarit a été inséré.');
+      insertSkeleton();                 // <-- gabarit de secours
+      renderPointsList(); renderSection(state.currentIdx);
+    } finally {
+      generateBtn.disabled=false; generateBtn.textContent=old;
+    }
   }
 
-  /* ---------- Reset (vide étude + LEDs orange) ---------- */
+  function insertSkeleton(){
+    // 0
+    state.sectionsByN.set(0, `### Rubrique 0 — Panorama des versets du chapitre
+*Référence :* ${state.book} ${state.chapter}
+
+Cliquer sur **Lire la Bible** pour lire le texte source, puis utiliser **Générer** quand l’API sera disponible.`);
+    // 1..28
+    for (let i=1;i<=28;i++){
+      const t=TITLES[i]||`Point ${i}`;
+      state.sectionsByN.set(i, `### ${t}
+*Référence :* ${state.book} ${state.chapter}
+
+Contenu provisoire (gabarit). Réessaie la génération plus tard.`);
+      state.leds.set(i,'warn');
+    }
+  }
+
+  /* ---------- Reset ---------- */
   function onReset(){
     if (!confirm('Vider l’étude en cours et repasser les voyants en orange ?')) return;
     state.sectionsByN.clear();
@@ -226,14 +254,22 @@
     } else { linksPanel.classList.add('empty'); linksList.innerHTML=''; }
   }
   function defaultContent(n){
-    if (n===0) return `### Rubrique 0 — Panorama des versets du chapitre\n\n*Référence :* ${state.book} ${state.chapter}\n\nClique sur **Générer** pour charger chaque verset avec explications.`;
-    const t=TITLES[n]||`Point ${n}`; return `### ${t}\n\n*Référence :* ${state.book} ${state.chapter}\n\nÀ générer…`;
+    if (n===0) return `### Rubrique 0 — Panorama des versets du chapitre
+
+*Référence :* ${state.book} ${state.chapter}
+
+Clique sur **Générer** pour charger chaque verset avec explications.`;
+    const t=TITLES[n]||`Point ${n}`; 
+    return `### ${t}
+
+*Référence :* ${state.book} ${state.chapter}
+
+À générer…`;
   }
 
-  /* ---------- Recherche intelligente ---------- */
+  /* ---------- Recherche intelligente (garde le bouton Valider sur mobile) ---------- */
   function applySearch(){
     const raw=(searchRef.value||'').trim(); if(!raw) return;
-    // "Marc 5:2" ou "Marc 5" ou "Luc"
     const m = /^([\p{L}\d\s]+?)\s+(\d+)(?::(\d+(?:-\d+)?))?$/u.exec(raw);
     if (m){
       const bookName=normalizeBook(m[1]); const chap=parseInt(m[2],10); const vers=m[3]||null;
@@ -255,27 +291,48 @@
   function fillChapters(){ const max=CHAPTERS_66[state.book]||1; chapterSelect.innerHTML=''; for(let i=1;i<=max;i++){ const o=document.createElement('option'); o.value=String(i); o.textContent=String(i); chapterSelect.appendChild(o);} if(state.chapter>max) state.chapter=max; chapterSelect.value=String(state.chapter); }
   function fillVerses(){ verseSelect.innerHTML=''; for(let i=1;i<=150;i++){ const o=document.createElement('option'); o.value=String(i); o.textContent=String(i); verseSelect.appendChild(o);} verseSelect.value=String(state.verse); }
 
-  /* ---------- Palette thème ---------- */
+  /* ---------- Palette thème (fiable) ---------- */
   function onThemePointer(ev){
+    themeBar.setPointerCapture?.(ev.pointerId);
     const rect=themeBar.getBoundingClientRect();
-    const move=(e)=>{ const x=(e.touches?e.touches[0].clientX:e.clientX)-rect.left; const pct=Math.max(0,Math.min(1,x/rect.width)); themeThumb.style.left=(pct*100)+'%'; applyThemeFromPct(pct); };
-    const up=()=>{ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); window.removeEventListener('touchmove',move); window.removeEventListener('touchend',up); saveTheme(); };
-    window.addEventListener('pointermove',move); window.addEventListener('pointerup',up); window.addEventListener('touchmove',move); window.addEventListener('touchend',up); move(ev);
+    const move=(e)=>{
+      const clientX = (e.touches?e.touches[0].clientX:e.clientX);
+      const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
+      const pct = x / rect.width;
+      themeThumb.style.left = (pct*100)+'%';
+      applyThemeFromPct(pct);
+    };
+    const up=()=>{
+      saveTheme();
+      window.removeEventListener('pointermove',move);
+      window.removeEventListener('pointerup',up);
+      window.removeEventListener('touchmove',move);
+      window.removeEventListener('touchend',up);
+    };
+    window.addEventListener('pointermove',move);
+    window.addEventListener('pointerup',up);
+    window.addEventListener('touchmove',move,{passive:false});
+    window.addEventListener('touchend',up);
+    move(ev);
   }
-  function applyThemeFromPct(pct){ const themes=['cyan','violet','vert','rouge','mauve','indigo','ambre','slate']; const idx=Math.min(themes.length-1,Math.max(0,Math.floor(pct*themes.length))); document.body.setAttribute('data-theme', themes[idx]); }
+  function applyThemeFromPct(pct){
+    const themes=['cyan','violet','vert','rouge','mauve','indigo','ambre','slate'];
+    const idx=Math.min(themes.length-1,Math.max(0,Math.floor(pct*themes.length)));
+    document.body.setAttribute('data-theme', themes[idx]);
+  }
+  function placeThumbForTheme(theme){
+    const themes=['cyan','violet','vert','rouge','mauve','indigo','ambre','slate'];
+    const idx=Math.max(0, themes.indexOf(theme));
+    const pct = (idx + 0.5)/themes.length;
+    themeThumb.style.left=(pct*100)+'%';
+  }
   function saveTheme(){ localStorage.setItem(STORAGE_THEME, document.body.getAttribute('data-theme')||'cyan'); }
   function restoreTheme(){ const t=localStorage.getItem(STORAGE_THEME); if(t) document.body.setAttribute('data-theme', t); }
 
   /* ---------- Dernière étude ---------- */
-  function refreshLastBadge(){ if(!lastBadge) return; const label=`${state.book} ${state.chapter}${state.verse?':'+state.verse:''}`; lastBadge.textContent='Dernière: '+label; }
+  function refreshLastBadge(){ if(!lastBadge) return; const label=`${state.book} ${state.chapter}${state.verse?':'+state.verse:''}`; lastBadge.textContent='Dernière : '+label; }
   function saveLastStudy(){ const payload={ book:state.book, chapter:state.chapter, verse:state.verse, version:state.version, density:state.density }; localStorage.setItem(STORAGE_LAST, JSON.stringify(payload)); }
   function restoreLastStudy(){ try{ const raw=localStorage.getItem(STORAGE_LAST); if(!raw) return; const j=JSON.parse(raw); if(j&&CHAPTERS_66[j.book]){ state.book=j.book; state.chapter=clamp(parseInt(j.chapter,10)||1,1,CHAPTERS_66[j.book]); state.verse=parseInt(j.verse,10)||1; state.version=j.version||'LSG'; if(typeof j.density==='number') state.density=j.density; bookSelect.value=state.book; fillChapters(); chapterSelect.value=String(state.chapter); fillVerses(); versionSelect.value=state.version; } }catch{} }
-
-  /* ---------- PDF (28 points) ---------- */
-  async function exportPdf(){
-    // stratégie simple : ouvrir la fenêtre d’impression (le CSS print masque les contrôles)
-    window.print();
-  }
 
   /* ---------- BibleGateway ---------- */
   function openBibleGatewayFromSelectors(){ const url=bibleGatewayURL(state.book,state.chapter,null,state.version); window.open(url,'_blank','noopener'); }
