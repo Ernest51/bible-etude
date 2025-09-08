@@ -1,10 +1,17 @@
-/* app.js — + Sélecteur "Densité" (500 / 1500 / 2500) injecté sans modifier le HTML. */
+/* app.js — Rubrique 0 + Sélecteur Densité + Logs Debug */
 
 (function () {
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
+  const log = (...a) => {
+    try {
+      const d = $('#debugPanel');
+      if (d) { d.textContent += '\n' + a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' '); }
+      console.debug('[DBG]', ...a);
+    } catch {}
+  };
 
-  // Éléments existants
+  // Elements
   const pointsList = $('#pointsList');
   const edTitle = $('#edTitle');
   const noteView = $('#noteView');
@@ -23,12 +30,8 @@
   const verseSelect = $('#verseSelect');
   const versionSelect = $('#versionSelect');
 
-  const themeBar = $('#themeBar');   // peut ne pas exister selon ta version
-  const themeThumb = $('#themeThumb');
-
   // Constantes
   const STORAGE_LAST   = 'lastStudy';
-  const STORAGE_THEME  = 'theme8';
   const STORAGE_DENS   = 'density8';
 
   const TITLE0 = 'Rubrique 0 — Panorama des versets du chapitre';
@@ -79,7 +82,7 @@
 
   const BG_VERSION = { 'LSG':'LSG','PDV':'PDV-FR','S21':'SG21','BFC':'BFC' };
 
-  // État
+  // State
   const state = {
     book: 'Genèse',
     chapter: 1,
@@ -91,64 +94,54 @@
     density: 1500, // 500 | 1500 | 2500
   };
 
-  // Init
   init();
 
   function init() {
-    // Année footer
+    log('init start');
+
+    // Checks de base
+    if (!pointsList || !noteView || !readBtn || !generateBtn) {
+      log('DOM manquant:', { pointsList: !!pointsList, noteView: !!noteView, readBtn: !!readBtn, generateBtn: !!generateBtn });
+    }
+
+    // Footer année
     const yEl = $('#y'); if (yEl) yEl.textContent = String(new Date().getFullYear());
 
-    // Remplit sélecteurs livre/chapitre/verset
     fillBooks(); fillChapters(); fillVerses();
-
-    // Injecte le sélecteur "Densité" dans la barre d’outils (sans modifier le HTML)
     injectDensitySelector();
 
-    // Liste 0..28
     renderPointsList();
 
-    // Events
     $('#debugBtn')?.addEventListener('click', () => {
       const d = $('#debugPanel'); if (!d) return;
       d.style.display = d.style.display === 'none' ? 'block' : 'none';
     });
 
-    $('#readBtn')?.addEventListener('click', openBibleGatewayFromSelectors);
-    $('#generateBtn')?.addEventListener('click', onGenerate);
-    $('#prev')?.addEventListener('click', () => goTo(state.currentIdx - 1));
-    $('#next')?.addEventListener('click', () => goTo(state.currentIdx + 1));
+    readBtn?.addEventListener('click', openBibleGatewayFromSelectors);
+    generateBtn?.addEventListener('click', onGenerate);
+    prevBtn?.addEventListener('click', () => goTo(state.currentIdx - 1));
+    nextBtn?.addEventListener('click', () => goTo(state.currentIdx + 1));
 
-    bookSelect?.addEventListener('change', () => {
-      state.book = bookSelect.value; state.chapter = 1;
-      fillChapters(); fillVerses(); saveLastStudy();
-    });
-    chapterSelect?.addEventListener('change', () => {
-      state.chapter = parseInt(chapterSelect.value,10)||1; fillVerses(); saveLastStudy();
-    });
-    verseSelect?.addEventListener('change', () => {
-      state.verse = parseInt(verseSelect.value,10)||1; saveLastStudy();
-    });
-    versionSelect?.addEventListener('change', () => {
-      state.version = versionSelect.value;
-    });
+    bookSelect?.addEventListener('change', () => { state.book = bookSelect.value; state.chapter = 1; fillChapters(); fillVerses(); saveLastStudy(); log('book change', state.book); });
+    chapterSelect?.addEventListener('change', () => { state.chapter = parseInt(chapterSelect.value,10)||1; fillVerses(); saveLastStudy(); log('chapter change', state.chapter); });
+    verseSelect?.addEventListener('change', () => { state.verse = parseInt(verseSelect.value,10)||1; saveLastStudy(); });
+    versionSelect?.addEventListener('change', () => { state.version = versionSelect.value; });
 
-    // Recherche
-    const applySearchBtn = $('#applySearchBtn');
-    applySearchBtn?.addEventListener('click', applySearch);
-    searchRef?.addEventListener('keydown', (e)=>{ if(e.key==='Enter') applySearch(); });
+    // Recherche rapide (Enter)
+    searchRef?.addEventListener('keydown', (e) => { if (e.key === 'Enter') applySearch(); });
 
-    restoreTheme();
     restoreLastStudy();
-    restoreDensity();
 
     updateHeader();
-    renderSection(0);
+    renderSection(0); // Rubrique 0 visible dès le départ (contenu par défaut)
+
+    log('init done');
   }
 
-  /* ========== Sélecteur densité (500/1500/2500) ========== */
+  /* ===== Densité ===== */
   function injectDensitySelector() {
     const controls = document.querySelector('.controls');
-    if (!controls) return;
+    if (!controls) { log('controls missing'); return; }
 
     const wrap = document.createElement('div');
     wrap.style.display = 'flex';
@@ -173,7 +166,7 @@
       <option value="2500">2500 caractères</option>
     `;
 
-    // valeur initiale (persistée)
+    // Restore/persist
     const saved = localStorage.getItem(STORAGE_DENS);
     if (saved && ['500','1500','2500'].includes(saved)) {
       sel.value = saved;
@@ -185,27 +178,32 @@
     sel.addEventListener('change', () => {
       state.density = parseInt(sel.value,10);
       localStorage.setItem(STORAGE_DENS, String(state.density));
-      // On n’impose pas une régénération immédiate pour ne pas perdre le travail en cours.
-      // La densité sera prise en compte au prochain "Générer".
+      log('density change', state.density);
     });
 
     wrap.appendChild(label);
     wrap.appendChild(sel);
 
-    // On ajoute le bloc juste avant le bouton "Lire la Bible"
-    const beforeNode = readBtn;
-    controls.insertBefore(wrap, beforeNode || controls.lastChild);
+    // Insertion juste avant "Lire la Bible"
+    if (readBtn && readBtn.parentElement === controls) {
+      controls.insertBefore(wrap, readBtn);
+    } else {
+      controls.appendChild(wrap);
+    }
+
+    log('density selector injected');
   }
 
-  /* ========== Liste Rubrique 0 + 28 ========== */
+  /* ===== Liste Rubrique 0 + 28 ===== */
   function renderPointsList() {
     pointsList.innerHTML = '';
 
     pointsList.appendChild(renderItem({ idx: 0, title: TITLE0, desc: 'Aperçu du chapitre verset par verset' }));
     for (let i=1;i<=28;i++){
-      pointsList.appendChild(renderItem({ idx:i, title: TITLES[i]||`Point ${i}`, desc: '' }));
+      pointsList.appendChild(renderItem({ idx:i, title:TITLES[i]||`Point ${i}`, desc:'' }));
     }
     highlightActive();
+    log('points rendered');
   }
 
   function renderItem({ idx, title, desc }) {
@@ -228,28 +226,18 @@
   }
 
   function highlightActive(){ $$('#pointsList .item').forEach(d=>d.classList.toggle('active', Number(d.dataset.idx)===state.currentIdx)); }
-
   function goTo(idx){ if(idx<0) idx=0; if(idx>28) idx=28; state.currentIdx=idx; updateHeader(); renderSection(idx); highlightActive(); }
+  function updateHeader(){ const t = state.currentIdx===0 ? TITLE0 : (TITLES[state.currentIdx]||`Point ${state.currentIdx}`); edTitle.textContent = t; metaInfo.textContent = `Point ${state.currentIdx} / 28`; }
 
-  function updateHeader() {
-    const t = state.currentIdx===0 ? TITLE0 : (TITLES[state.currentIdx]||`Point ${state.currentIdx}`);
-    edTitle.textContent = t;
-    metaInfo.textContent = `Point ${state.currentIdx} / 28`;
-  }
-
-  /* ========== Génération (avec ?length=) ========== */
+  /* ===== Génération ===== */
   async function onGenerate() {
     const old = generateBtn.textContent;
     generateBtn.disabled = true;
     generateBtn.textContent = 'Génération…';
+    log('generate start', { book: state.book, chapter: state.chapter, density: state.density });
 
     try {
-      const q = new URLSearchParams({
-        book: state.book,
-        chapter: String(state.chapter),
-        length: String(state.density) // <<<<<< DENSITÉ
-      }).toString();
-
+      const q = new URLSearchParams({ book: state.book, chapter: String(state.chapter), length: String(state.density) }).toString();
       const r = await fetch(`/api/generate-study?${q}`);
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const j = await r.json();
@@ -259,27 +247,32 @@
         for (const s of j.sections) state.sectionsByN.set(Number(s.n), String(s.content || '').trim());
       }
 
-      // leds → vert pour sections reçues
+      // leds → vert
       for (const n of state.sectionsByN.keys()) state.leds.set(n, 'ok');
+
       renderPointsList();
       renderSection(state.currentIdx);
       saveLastStudy();
+
+      log('generate done', { received: Array.from(state.sectionsByN.keys()) });
     } catch (e) {
       console.error(e);
-      alert('La génération a échoué. Réessaie.');
+      log('generate error', String(e));
+      alert('La génération a échoué. Vérifie l’API et réessaie.');
     } finally {
       generateBtn.disabled = false;
       generateBtn.textContent = old;
     }
   }
 
-  /* ========== Rendu section + liens BG ========== */
+  /* ===== Rendu section ===== */
   function renderSection(n) {
     const md = state.sectionsByN.get(n) || defaultContent(n);
     const html = mdToHtml(md);
     const htmlWithLinks = linkifyScripture(html, state.version);
     noteView.innerHTML = htmlWithLinks;
 
+    // Liens détectés (panel)
     const refs = extractRefsFromHtml(htmlWithLinks);
     if (refs.length) {
       linksPanel.classList.remove('empty');
@@ -296,7 +289,7 @@
     return `### ${t}\n\n*Référence :* ${state.book} ${state.chapter}\n\nÀ générer…`;
   }
 
-  /* ========== BibleGateway ========== */
+  /* ===== BibleGateway ===== */
   function openBibleGatewayFromSelectors() {
     const url = bibleGatewayURL(state.book, state.chapter, null, state.version);
     window.open(url, '_blank', 'noopener');
@@ -317,11 +310,11 @@
     return u.toString();
   }
 
-  /* ========== Recherche ========== */
+  /* ===== Recherche rapide ===== */
   function applySearch() {
     const raw = (searchRef.value || '').trim();
     if (!raw) return;
-    const m = /^([\p{L}\d\s]+?)\s+(\d+)(?::(\d+(?:-\d+)?))?$/u.exec(raw);
+    const m = /^([\p{L}\d\s]+?)\s+(\d+)(?::(\d+(?:-\\d+)?))?$/u.exec(raw);
     if (m) {
       const bookName = normalizeBook(m[1]);
       const chap = parseInt(m[2], 10);
@@ -350,12 +343,14 @@
     return null;
   }
 
-  /* ========== Sélecteurs Livre/Chapitre/Verset ========== */
+  /* ===== Sélecteurs ===== */
   function fillBooks(){
+    if (!bookSelect) return;
     bookSelect.innerHTML = ORDER_66.map(b=>`<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
     bookSelect.value = state.book;
   }
   function fillChapters(){
+    if (!chapterSelect) return;
     const max = CHAPTERS_66[state.book] || 1;
     chapterSelect.innerHTML = '';
     for(let i=1;i<=max;i++){ const o=document.createElement('option'); o.value=String(i); o.textContent=String(i); chapterSelect.appendChild(o); }
@@ -363,15 +358,13 @@
     chapterSelect.value = String(state.chapter);
   }
   function fillVerses(){
+    if (!verseSelect) return;
     verseSelect.innerHTML = '';
     for(let i=1;i<=150;i++){ const o=document.createElement('option'); o.value=String(i); o.textContent=String(i); verseSelect.appendChild(o); }
     verseSelect.value = String(state.verse);
   }
 
-  /* ========== Thème (si palette existe dans ta version) ========== */
-  function restoreTheme(){ const t=localStorage.getItem(STORAGE_THEME); if(t) document.body.setAttribute('data-theme', t); }
-
-  /* ========== Persistance ========== */
+  /* ===== Persistance ===== */
   function saveLastStudy(){
     const payload = { book: state.book, chapter: state.chapter, verse: state.verse, version: state.version, density: state.density };
     localStorage.setItem(STORAGE_LAST, JSON.stringify(payload));
@@ -384,13 +377,13 @@
         state.book=j.book; state.chapter=clamp(parseInt(j.chapter,10)||1,1,CHAPTERS_66[j.book]);
         state.verse=parseInt(j.verse,10)||1; state.version=j.version||'LSG';
         if (typeof j.density==='number') state.density=j.density;
-        bookSelect.value=state.book; fillChapters(); chapterSelect.value=String(state.chapter); fillVerses(); versionSelect.value=state.version;
+        if (bookSelect) bookSelect.value=state.book; if (chapterSelect){ fillChapters(); chapterSelect.value=String(state.chapter); } if (verseSelect){ fillVerses(); verseSelect.value=String(state.verse); }
+        if (versionSelect) versionSelect.value=state.version;
       }
     }catch{}
   }
-  function restoreDensity(){ const saved = localStorage.getItem(STORAGE_DENS); if(saved && ['500','1500','2500'].includes(saved)) state.density=parseInt(saved,10); }
 
-  /* ========== Mini Markdown → HTML + liens ========== */
+  /* ===== Mini Markdown ===== */
   function mdToHtml(md){
     let h = String(md||'');
     h = h.replace(/^### (.*)$/gm,'<h3>$1</h3>')
