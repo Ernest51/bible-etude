@@ -1,10 +1,10 @@
 // api/generate-study.js
-// Pages Router (Next.js). Génère 28 rubriques avec ton narratif + explicatif, style “école de théologie”.
-// Mises à jour clés conservées :
-// - Rubrique 2 : 2000–2500, formulée sans répétitions lourdes.
-// - Rubrique 3 : questions en **gras** + réponses distinctes.
-// - Rubrique 4 : longue (canonicité).
-// - NOUVEAU : Rubrique 5 (Ancien/Nouveau Testament) en version longue (2000–2500).
+// Étude 28 points + Rubrique 0 en tête (versets du chapitre + explications dynamiques via api.bible)
+//
+// Entrée: ?book=Genèse&chapter=1
+// Requiert en env: API_BIBLE_KEY, DARBY_BIBLE_ID (version française)
+// NB: La “Rubrique 0” est renvoyée en PREMIER dans le JSON, avec un titre commençant par “Rubrique 0 — …”.
+//     Les autres rubriques suivent (1 à 28), sans casser ton front actuel.
 
 export default async function handler(req, res) {
   try {
@@ -17,48 +17,50 @@ export default async function handler(req, res) {
     const bibleId = process.env.DARBY_BIBLE_ID || '';
     const refLabel = `${book} ${chapter}`;
 
-    // 1) Passage via api.bible (repli gracieux si indisponible)
+    // ========= 1) Récupération du passage (texte brut) pour analyse légère =========
     let passageText = '';
     if (apiKey && bibleId) {
       try {
         const url = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleId)}/passages?reference=${encodeURIComponent(refLabel)}&content-type=text`;
         const r = await fetch(url, { headers: { 'api-key': apiKey } });
-        if (r.ok) {
-          const j = await r.json();
-          passageText = extractTextFromApiBible(j);
-        }
+        if (r.ok) passageText = extractTextFromApiBible(await r.json());
+
         if (!passageText) {
-          const url2 = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleId)}/search?query=${encodeURIComponent(refLabel)}&limit=1`;
+          const url2 = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleId)}/search?query=${encodeURIComponent(refLabel)}&limit=200`;
           const r2 = await fetch(url2, { headers: { 'api-key': apiKey } });
-          if (r2.ok) {
-            const j2 = await r2.json();
-            passageText = extractTextFromSearch(j2);
-          }
+          if (r2.ok) passageText = extractTextFromSearch(await r2.json());
         }
-      } catch (_) {
-        // repli
-      }
+      } catch (_) {}
     }
     if (!passageText) {
-      passageText = `(${refLabel}) — passage non récupéré chez api.bible ; génération doctrinale assurée sans le texte intégral.`;
+      passageText = `(${refLabel}) — passage non récupéré ; analyse doctrinale sans texte intégral.`;
     }
 
-    // 2) Analyse légère
     const analysis = lightAnalyze(passageText, { book, chapter });
 
-    // 3) Sections
+    // ========= 2) Construire les sections =========
     const sections = [];
+
+    // ——— Rubrique 0 (NOUVEAU) ———
+    const rubrique0 = await buildRubrique0_VersesOverview({ book, chapter, apiKey, bibleId, analysis });
+    sections.push({ n: 0, content: rubrique0 });
+
+    // 1. Prière d’ouverture (~1000–1300)
     sections.push({ n: 1, content: buildOpeningPrayer({ book, chapter }) });
+
+    // 2. Contexte & fil narratif (2000–2500)
     sections.push({ n: 2, content: buildRubrique2({ book, chapter, analysis, passageText }) });
+
+    // 3. Questions du chapitre précédent (Q en **gras** + réponses)
     sections.push({ n: 3, content: buildPrevChapterQnA({ book, chapter }) });
 
-    // 4 : longue (déjà validée)
+    // 4. Canonicité (longue)
     sections.push({ n: 4, content: buildRubrique4_Canonicite({ book, chapter, analysis }) });
 
-    // 5 : NOUVEAU — longue 2000–2500
+    // 5. AT/NT (longue)
     sections.push({ n: 5, content: buildRubrique5_Testament({ book, chapter, analysis }) });
 
-    // 6–27 : versions sobres (on les allongera à la suite, rubrique par rubrique)
+    // 6–27 : placeholders sobres (inchangés)
     const others = [
       buildPromesses, buildPecheEtGrace, buildChristologie,
       buildEspritSaint, buildAlliance, buildEglise, buildDisciples, buildEthique,
@@ -67,10 +69,16 @@ export default async function handler(req, res) {
       buildTypologie, buildTheologieSystematique, buildHistoireDuSalut, buildThemesSecondaires,
       buildDoutesObjections, buildSynthese, buildPlanDeLecture
     ];
-    let n = 6; for (const fn of others) { sections.push({ n, content: fn({ book, chapter, analysis, passageText }) }); n++; }
+    let idx = 6;
+    for (const fn of others) {
+      sections.push({ n: idx, content: fn({ book, chapter, analysis, passageText }) });
+      idx++;
+    }
 
+    // 28. Prière de clôture (~1000–1300)
     sections.push({ n: 28, content: buildClosingPrayer({ book, chapter }) });
 
+    // On renvoie l’ensemble, Rubrique 0 en tête
     return res.status(200).json({ sections });
   } catch (e) {
     console.error('[generate-study] error', e);
@@ -134,11 +142,95 @@ function lightAnalyze(text, { book, chapter }) {
   return { book, chapter, topWords: top, themes };
 }
 
-/* ====================== Rubriques ====================== */
+/* ====================== Rubrique 0 — Panorama des versets ====================== */
+/**
+ * Construit : "Rubrique 0 — Panorama des versets du chapitre"
+ * - Récupère via /search tous les versets contenant "Book Chapter"
+ * - Filtre strictement "Book Chapter:verse"
+ * - Forme une liste des versets v.N — texte + explication claire et narrative, fidèle à la doctrine
+ * - Aucune mention de la version n’est rendue (pas de “Darby” dans le texte)
+ */
+async function buildRubrique0_VersesOverview({ book, chapter, apiKey, bibleId, analysis }) {
+  const ref = `${book} ${chapter}`;
+  let verses = [];
+
+  if (apiKey && bibleId) {
+    try {
+      // On récupère large (jusqu’à 400 occurrences)
+      const url = `https://api.scripture.api.bible/v1/bibles/${encodeURIComponent(bibleId)}/search?query=${encodeURIComponent(ref)}&limit=400`;
+      const r = await fetch(url, { headers: { 'api-key': apiKey } });
+      if (r.ok) {
+        const j = await r.json();
+        const raw = Array.isArray(j?.data?.verses) ? j.data.verses : [];
+        // Filtre strict: "Book Chapter:verse"
+        const prefix = new RegExp(`^${escapeReg(book)}\\s+${escapeReg(String(chapter))}\\s*:\\s*(\\d+)`, 'i');
+        verses = raw
+          .map(v => ({ ref: v.reference || '', text: normalizeWhitespace(v.text || '') }))
+          .filter(v => prefix.test(v.ref))
+          .map(v => {
+            const m = prefix.exec(v.ref);
+            const num = m ? parseInt(m[1], 10) : null;
+            return { verse: num, ref: v.ref, text: v.text };
+          })
+          .filter(v => Number.isFinite(v.verse))
+          .sort((a,b)=>a.verse-b.verse);
+      }
+    } catch (_) {}
+  }
+
+  const head =
+    `**Rubrique 0 — Panorama des versets du chapitre**  \n` +
+    `*Référence :* ${ref}\n\n` +
+    `Cette section dresse la **liste des versets** du chapitre, chacun suivi d’une **explication claire** pour orienter la lecture, ` +
+    `la prière et la mise en pratique. L’enjeu n’est pas l’exhaustivité technique, mais une **compréhension fidèle** et narrative, ` +
+    `digne d’un travail théologique solide.`;
+
+  if (!verses.length) {
+    return head + `\n\n— *Les versets n’ont pas pu être chargés.*\n\n` +
+      `**Conseil de lecture :** repère l’ouverture (thème posé), le déploiement (développement doctrinal et appels) et la clôture ` +
+      `(résolution ou tension maintenue). Identifie ce que le texte **révèle de Dieu** (sa sainteté, sa grâce, sa fidélité) et ` +
+      `ce qu’il **appelle** chez l’homme (écoute, repentance, foi, obéissance).`;
+  }
+
+  const len = verses.length;
+  const explain = (i) => {
+    const pos = i + 1;
+    const t = analysis.themes || [];
+    const lead = pos === 1
+      ? `Ouverture: le cadre se pose et le mouvement s’annonce. `
+      : (pos === len
+        ? `Clôture: la portée théologique s’affirme et appelle la pratique. `
+        : (pos <= Math.ceil(len/3)
+          ? `Mise en route: la thématique s’installe et ordonne la lecture. `
+          : (pos <= Math.ceil((2*len)/3)
+            ? `Déploiement: les enjeux se précisent et le discernement s’affine. `
+            : `Transition vers la conclusion: les motifs convergent et éclairent l’appel. `)));
+
+    const motif = t.includes('grâce') ? `La **grâce** traverse le texte: initiative divine et relèvement. `
+                : t.includes('loi') ? `La **loi** révèle la vérité et règle la réponse. `
+                : t.includes('alliance') ? `L’**Alliance** structure l’espérance et la fidélité. `
+                : t.includes('péché') ? `Le **péché** est nommé sans détour pour conduire à la vie. `
+                : t.includes('création') ? `La **création** et la providence élargissent la perspective. `
+                : t.includes('royaume') ? `Le **Royaume** affleure: autorité de Dieu et appel. `
+                : `Le fil doctrinal demeure: Dieu parle, l’homme répond, la vérité libère. `;
+
+    return `${lead}${motif}Tiens ensemble **vérité** et **miséricorde**, pour que la foi devienne **obéissance paisible**.`;
+  };
+
+  const lines = verses.map((v, i) => {
+    const shown = truncateForLine(v.text, 240);
+    // Chaque ligne: - v.N — texte
+    //               → explication
+    return `- **v.${v.verse}** — ${shown}\n  → ${explain(i)}`;
+  });
+
+  return head + `\n\n` + lines.join('\n');
+}
+
+/* ====================== Rubriques existantes ====================== */
 
 function buildOpeningPrayer({ book, chapter }) {
   const ref = `${book} ${chapter}`;
-  // ~1000–1300 caractères
   return (
     `**Prière d’ouverture**  \n` +
     `*Référence :* ${ref}\n\n` +
@@ -147,14 +239,12 @@ function buildOpeningPrayer({ book, chapter }) {
     `de discerner ce qui vient de toi et d’y répondre avec simplicité. Si tu exposes ta sainteté, ` +
     `que je révère ton Nom; si tu révèles mes égarements, que je confesse et me détourne; si tu ouvres ` +
     `un chemin d’espérance, que je l’embrasse avec foi. Que l’Alliance oriente mon esprit, que l’Évangile ` +
-    `règle mes affections, et que l’obéissance devienne ma joie. Je te demande non une lecture brillante, ` +
-    `mais une rencontre vraie: fais de cette page un lieu d’écoute, et de mon cœur un terrain docile. ` +
-    `Au nom de Jésus-Christ, amen.`
+    `règle mes affections, et que l’obéissance devienne ma joie. Je veux une rencontre vraie: ` +
+    `fais de cette page un lieu d’écoute, et de mon cœur un terrain docile. Au nom de Jésus-Christ, amen.`
   );
 }
 
 function buildRubrique2({ book, chapter, analysis, passageText }) {
-  // 2000–2500 caractères — éviter les répétitions lourdes du ref.
   const ref = `${book} ${chapter}`;
   const motifs = (analysis.topWords || []).slice(0, 6).join(', ');
   const t = [];
@@ -166,20 +256,20 @@ function buildRubrique2({ book, chapter, analysis, passageText }) {
     `Ce chapitre ne se comprend qu’à l’intérieur d’une architecture plus vaste. L’auteur n’empile pas des scènes, ` +
     `il conduit un itinéraire: ce qui précède pose des repères, ce qui suit reprend et approfondit. La section ` +
     `présente rassemble des motifs ( ${motifs} ) et les agence pour faire ressortir une ligne maîtresse. Le lecteur ` +
-    `est ainsi guidé d’un repère doctrinal à l’autre: Dieu prend l’initiative, l’être humain répond, et la ` +
-    `pédagogie divine façonne progressivement un peuple.`
+    `est guidé d’un repère doctrinal à l’autre: Dieu prend l’initiative, l’être humain répond, et la pédagogie ` +
+    `divine façonne un peuple.`
   );
   t.push('');
   t.push(
-    `Sur le plan littéraire, la progression se fait par unités cohérentes — récit, discours, oracle ou généalogie selon ` +
-    `le genre — qui convergent vers un **thème directeur**. Les répétitions ne sont pas des redites: elles jouent ` +
-    `le rôle d’un marteau doux qui imprime la vérité. Les contrastes forcent le discernement (lumière/ténèbres, ` +
-    `fidélité/infidélité, sagesse/folie) et mettent au jour l’appel de Dieu.`
+    `Sur le plan littéraire, la progression se fait par unités cohérentes — récit, discours, oracle ou généalogie — ` +
+    `qui convergent vers un **thème directeur**. Les répétitions ne sont pas des redites: elles jouent le rôle d’un ` +
+    `marteau doux qui imprime la vérité. Les contrastes forcent le discernement (lumière/ténèbres, fidélité/infidélité, ` +
+    `sagesse/folie) et mettent au jour l’appel de Dieu.`
   );
   t.push('');
   t.push(
-    `Canoniquement, la page s’éclaire par résonance: création et providence (Psaumes 19; Psaumes 104), pédagogie de la ` +
-    `Loi (Deutéronome 6; Proverbes 1:7), promesse et accomplissement qui convergent en Christ (Luc 24:27; Jean 5:39). ` +
+    `Canoniquement, la page s’éclaire par résonance: création et providence (Psaumes 19; 104), pédagogie de la Loi ` +
+    `(Deutéronome 6; Proverbes 1:7), promesse et accomplissement convergeant en Christ (Luc 24:27; Jean 5:39). ` +
     `Ces échos ne tordent pas le texte: ils lui donnent profondeur en le situant dans l’unique histoire du salut.`
   );
   t.push('');
@@ -187,29 +277,28 @@ function buildRubrique2({ book, chapter, analysis, passageText }) {
     `Doctrinalement, la dynamique est tripartite. **D’abord l’initiative de Dieu**: sujet véritable, il crée, appelle, ` +
     `juge et sauve; la grâce devance tout mérite. **Ensuite la réponse humaine**: fidélité hésitante, confiance ou ` +
     `résistance; l’Écriture éduque plutôt qu’elle ne flatte. **Enfin la patience du Seigneur**: corrections, promesses, ` +
-    `relèvements ; la vérité s’inscrit dans la durée et sanctifie la vie ordinaire. Ainsi la narration devient doctrine, ` +
+    `relèvements; la vérité s’inscrit dans la durée et sanctifie la vie ordinaire. Ainsi la narration devient doctrine, ` +
     `et la doctrine devient chemin.`
   );
   t.push('');
   t.push(
     `À la lumière du Christ, la section prend sa portée entière: promesse en germe, figure typologique ou annonce directe, ` +
-    `elle oriente vers la croix et la résurrection, où la justice et la miséricorde se rencontrent. Ce passage ` +
-    `enseigne moins la performance que la conversion: apprendre à nommer le mal pour s’en détourner, à célébrer la bonté ` +
-    `de Dieu pour y demeurer, à poser aujourd’hui l’acte qui convient à la vérité reçue.`
+    `elle oriente vers la croix et la résurrection, où la justice et la miséricorde se rencontrent. Ce passage enseigne ` +
+    `moins la performance que la conversion: nommer le mal pour s’en détourner, célébrer la bonté de Dieu pour y demeurer, ` +
+    `poser aujourd’hui l’acte qui convient à la vérité reçue.`
   );
   t.push('');
   t.push(
-    `Si l’accent porte sur la fragilité humaine, ce n’est pas pour l’ériger en fatalité, mais pour exalter la suffisance ` +
-    `de la grâce. S’il met en avant l’obéissance, ce n’est jamais la monnaie d’échange d’un salut à gagner, mais le ` +
-    `fruit naturel d’une fidélité première. De là naît une lecture « devant Dieu »: je ne juge pas l’Écriture, ` +
-    `j’accueille son jugement qui libère. La mémoire de ses œuvres fonde l’obéissance; la mémoire de mes égarements ` +
-    `appelle la vigilance; la mémoire de ses promesses entretient la persévérance.`
+    `Si l’accent porte sur la fragilité humaine, ce n’est pas une fatalité, mais l’exaltation de la suffisance de la grâce. ` +
+    `L’obéissance n’est jamais la monnaie d’un salut mérité: elle est le fruit d’une fidélité première. De là naît une lecture ` +
+    `« devant Dieu »: je n’assieds pas l’Écriture au banc des accusés; j’accueille son jugement qui libère. La mémoire de ses œuvres ` +
+    `fonde l’obéissance; la mémoire de mes égarements appelle la vigilance; la mémoire de ses promesses entretient la persévérance.`
   );
   t.push('');
   t.push(
-    `En somme, cette page est un atelier de formation spirituelle. La vérité reçue devient prière; la prière ` +
-    `enfante l’obéissance; l’obéissance devient témoignage. Le chapitre s’inscrit ainsi dans une trajectoire ` +
-    `où l’on apprend à marcher humblement avec Dieu, porté par sa Parole qui éclaire, corrige et console.`
+    `En somme, cette page est un atelier de formation spirituelle. La vérité reçue devient prière; la prière enfante l’obéissance; ` +
+    `l’obéissance devient témoignage. Le chapitre s’inscrit ainsi dans une trajectoire où l’on apprend à marcher humblement avec Dieu, ` +
+    `porté par sa Parole qui éclaire, corrige et console.`
   );
 
   let out = t.join('\n');
@@ -219,7 +308,6 @@ function buildRubrique2({ book, chapter, analysis, passageText }) {
 
 function buildPrevChapterQnA({ book, chapter }) {
   const ch = parseInt(chapter, 10);
-
   const generic = {
     fil: `Le chapitre précédent a posé un cadre théologique (origine, alliance, loi ou promesse) qui ouvre logiquement sur l’approfondissement présent: ce qui était énoncé devient enjeu vécu.`,
     pers: `Les acteurs déjà introduits reviennent avec des fonctions clarifiées (responsabilité, épreuve, mission). Le décor n’est pas neutre: il sert la pédagogie divine.`,
@@ -267,19 +355,17 @@ function buildRubrique4_Canonicite({ book, chapter, analysis }){
   p.push(`**Canonicité et cohérence**`);
   p.push(`*Référence :* ${ref}`);
   p.push('');
-  p.push(`Ce chapitre prend sa pleine mesure lorsqu’on le replace dans l’économie du canon, où promesse et accomplissement ne s’opposent pas mais se répondent. La Bible n’est pas une mosaïque d’assertions sans lien; elle déroule l’histoire unique du salut, depuis l’initiative créatrice de Dieu jusqu’à l’accomplissement en Christ, puis l’envoi de l’Église dans l’Esprit. Dans ce cadre, le passage présent n’est ni une parenthèse ni une redite: il est une pierre portante dont la place explique la forme et la charge. On y entend des motifs récurrents (${motifs}) qui ne relèvent pas d’un hasard lexical, mais d’une pédagogie: Dieu enseigne en reprenant, en approfondissant, en replaçant les mêmes vérités dans des contextes variés pour former un peuple intelligent et obéissant.`);
+  p.push(`Ce chapitre prend sa pleine mesure lorsqu’on le replace dans l’économie du canon, où promesse et accomplissement se répondent. La Bible n’est pas une mosaïque de slogans; elle déroule l’histoire unique du salut, de l’initiative créatrice jusqu’à l’accomplissement en Christ, puis l’envoi de l’Église dans l’Esprit. Ici, les motifs (${motifs}) relèvent d’une pédagogie: Dieu reprend, approfondit, et place les mêmes vérités dans des contextes variés pour former un peuple intelligent et obéissant.`);
   p.push('');
-  p.push(`Lire canoniquement, c’est accepter d’être conduit par les résonances. Certaines sont proches: échos au sein du même livre, rappels d’un épisode antérieur, promesses reprises. D’autres sont lointaines: Psaumes 119 invite à aimer la Loi parce qu’elle libère; Proverbes 1:7 établit la crainte du Seigneur comme principe de la sagesse; les prophètes, d’Ésaïe à Malachie, rattachent l’éthique à l’Alliance; le Nouveau Testament éclaire l’ensemble en Christ (Luc 24:27; Jean 5:39). Ces correspondances ne sont pas des artifices: elles traduisent l’unité d’un dessein où Dieu demeure fidèle à lui-même, et où la diversité des genres – récit, loi, sagesse, prophétie, évangile, épître – sert une même finalité, la communion du pécheur réconcilié avec son Dieu.`);
+  p.push(`Lire canoniquement, c’est se laisser guider par les résonances proches (au sein du livre) et lointaines (Psaumes 119; Proverbes 1:7; la prédication prophétique; l’éclairage du Nouveau Testament en Luc 24:27 et Jean 5:39). Ces correspondances manifestent l’unité d’un dessein où Dieu demeure fidèle, et où la diversité des genres — récit, loi, sagesse, prophétie, évangile, épître — sert une même finalité: la communion du pécheur réconcilié avec Dieu.`);
   p.push('');
-  p.push(`Dans ce chapitre, la cohérence se perçoit à trois niveaux. **D’abord l’axe théologique**: Dieu reste le sujet véritable, et l’homme, sans être écrasé, n’occupe jamais la place centrale. Cette disposition interdit l’orgueil religieux; elle fonde la paix. **Ensuite l’axe narratif**: ce qui a été posé auparavant trouve ici un approfondissement, et la clôture prépare discrètement la suite; c’est la logique de l’Alliance qui avance par engagements réitérés, jugements salutaires et consolations. **Enfin l’axe ecclésial**: la communauté qui reçoit ce texte est appelée à se laisser façonner; doctrine, culte et vie ordinaire sont ajustés ensemble, non par contrainte extérieure, mais par la vérité reconnue comme bonne.`);
+  p.push(`La cohérence se perçoit à trois niveaux: **théologique** (Dieu sujet véritable; l’homme n’est pas centre), **narratif** (ce qui a été posé est ici approfondi, et la clôture prépare la suite), **ecclésial** (le peuple est façonné: doctrine, culte et vie ordinaire s’accordent). Cette cohérence n’étouffe pas la diversité; elle l’harmonise, comme une polyphonie au service de la grâce souveraine.`);
   p.push('');
-  p.push(`Cette vision canonique protège des lectures morcelées. D’un côté, elle refuse le biblicisme qui découpe des versets comme des slogans: un verset s’entend dans sa phrase, la phrase dans sa section, la section dans l’architecture du livre, le livre dans le canon. De l’autre, elle refuse l’individualisme qui ferait de l’expérience subjective la norme de l’interprétation. Le texte exerce au contraire un jugement bienfaisant: il corrige nos projections, ordonne nos affections, et nous apprend à penser avec l’Église, sur la longue durée. Ainsi la cohérence n’étouffe pas la diversité; elle l’harmonise, comme une polyphonie où chaque voix, entendue à sa place, magnifie le thème commun de la grâce souveraine.`);
-  p.push('');
-  p.push(`Concrètement, replacer ${ref} dans cette unité, c’est entendre à nouveaux frais ses appels: si le passage met au jour le péché, c’est pour mieux dévoiler la suffisance de la grâce; s’il insiste sur l’obéissance, c’est comme fruit d’une fidélité première; s’il parle de jugement, c’est au service de la vie. Une telle lecture devient performative: la vérité reçue engendre la prière, la prière nourrit l’obéissance, l’obéissance se fait témoignage paisible et ferme. **Cohérence canonique** ne signifie pas abstraction; elle désigne l’art de Dieu de conduire, de rappeler, de relancer, jusqu’à faire mûrir un peuple qui marche humblement avec lui.`);
+  p.push(`Concrètement, replacer ${ref} dans l’unité biblique, c’est mieux entendre les appels: si le passage nomme le péché, c’est pour mieux dévoiler la suffisance de la grâce; s’il insiste sur l’obéissance, c’est comme fruit d’une fidélité première; s’il parle de jugement, c’est en vue de la vie. La vérité reçue engendre prière, l’obéissance devient témoignage, et la communauté progresse dans la paix ferme de l’Évangile.`);
   return inflateToRange(p.join('\n'),2000,2500,{book,chapter});
 }
 
-/* ===== Rubrique 5 : NOUVEAU — longue (Ancien/Nouveau Testament) ===== */
+/* ===== Rubrique 5 : longue (Ancien/Nouveau Testament) ===== */
 function buildRubrique5_Testament({ book, chapter, analysis }){
   const ref = `${book} ${chapter}`;
   const motifs = (analysis.topWords || []).slice(0, 5).join(', ');
@@ -289,58 +375,36 @@ function buildRubrique5_Testament({ book, chapter, analysis }){
   t.push('');
   t.push(
     `Pour lire ce chapitre avec justesse, il faut honorer la manière dont l’Ancien et le Nouveau Testament s’éclairent sans se confondre. ` +
-    `La révélation n’avance ni par ruptures arbitraires ni par simple répétition: elle progresse selon une logique d’Alliance, où Dieu ` +
-    `parle, promet, juge et console, jusqu’à l’accomplissement en Jésus-Christ. L’Ancien prépare, annonce et typologise; le Nouveau ` +
-    `dévoile, accomplit et interprète. Ainsi la continuité n’est pas une uniformité, et la nouveauté n’est pas une opposition: le même ` +
-    `Dieu fidèle conduit son dessein, et l’unité de l’Écriture se reconnaît à la cohérence de cette trajectoire.`
+    `La révélation progresse selon la logique de l’Alliance: Dieu parle, promet, juge et console, jusqu’à l’accomplissement en Jésus-Christ. ` +
+    `L’Ancien prépare, annonce et typologise; le Nouveau dévoile, accomplit et interprète. La continuité n’est pas uniformité; la nouveauté n’est pas opposition.`
   );
   t.push('');
   t.push(
-    `Dans l’Ancien Testament, les réalités du salut sont données sous forme de promesses, de figures et d’ordonnances: la création et la ` +
-    `providence fondent la confiance (Psaumes 19; 104), la Loi éduque à la sagesse (Deutéronome 6; Proverbes 1:7), les sacrifices ` +
-    `enseignent que le péché n’est pas une anecdote, mais une offense qui requiert purification. Les prophètes relient l’éthique à la ` +
-    `communion avec Dieu et gardent vive l’attente. Le Nouveau Testament reprend ces fils, non pour les abolir, mais pour en manifester le ` +
-    `sens plein: le Christ se présente comme clé herméneutique (Luc 24:27; Jean 5:39), non pour écraser les textes anciens, mais pour les ` +
-    `faire sonner à leur juste hauteur.`
+    `Dans l’Ancien Testament, les réalités du salut sont données comme promesses, figures et ordonnances: création et providence (Psaumes 19; 104), ` +
+    `Loi formatrice (Deutéronome 6; Proverbes 1:7), sacrifices qui disent le sérieux du péché. Le Nouveau reprend ces fils non pour les abolir, ` +
+    `mais pour en manifester le sens plein: le Christ est la clé herméneutique (Luc 24:27; Jean 5:39).`
   );
   t.push('');
   t.push(
-    `Cette relation se discerne selon trois axes. **Premier axe: la promesse et l’accomplissement.** Les engagements de Dieu dans ` +
-    `l’Alliance trouvent leur oui en Jésus (2 Corinthiens 1:20). La naissance, la vie, la mort et la résurrection du Seigneur ` +
-    `récapitulent l’histoire d’Israël en la portant à sa fin salvifique: l’Exode, la Pâque, la manne, le Temple, la Sagesse elle-même ` +
-    `reçoivent leur sens ultime. **Deuxième axe: loi et évangile.** La Loi révèle la sainteté de Dieu et la vérité sur l’homme; ` +
-    `l’Évangile proclame la grâce qui justifie et régénère. Il n’y a ni concurrence ni confusion: la Loi demeure règle de vie pour le ` +
-    `croyant, non monnaie d’échange du salut (Romains 3–8; Galates). **Troisième axe: Esprit et Église.** L’effusion promise (Joël 3) ` +
-    `devient réalité à la Pentecôte (Actes 2), formant un peuple qui vit de la Parole et des sacrements.`
+    `Trois axes structurent ce rapport: **promesse/accomplissement** (2 Corinthiens 1:20), **loi/évangile** (Romains 3–8; Galates), ` +
+    `**Esprit/Église** (Joël 3 → Actes 2). Dans ce cadre, ${ref} assume et prolonge l’Ancien en orientant vers l’Évangile. Les motifs (${motifs}) ` +
+    `nourrissent une pédagogie où la répétition grave la vérité et la variation en déploie les implications.`
   );
   t.push('');
   t.push(
-    `Dans ce cadre, la page présente assume et prolonge l’Ancien Testament en orientant vers l’Évangile. Si le texte met en scène ` +
-    `la faiblesse humaine, c’est pour manifester la suffisance de la grâce; s’il insiste sur l’obéissance, c’est comme fruit de la ` +
-    `fidélité première de Dieu. Les motifs récurrents (${motifs}) ne sont pas décoratifs: ils participent d’une pédagogie où la répétition ` +
-    `grave la vérité et où la variation en déploie les implications. On apprend à reconnaître la main de Dieu dans la durée: promesses ` +
-    `réitérées, jugements médicinaux, consolations qui ne masquent pas l’exigence de la vérité.`
+    `Cette lecture protège de deux excès: **le biblicisme plat** (verset isolé hors contexte) et **l’opposition stérile** (Nouveau contre Ancien). ` +
+    `La nouveauté chrétienne révèle la portée ultime de ce qui précède dans la personne du Fils. L’intelligence spirituelle consiste à laisser ` +
+    `l’Ancien préparer la foi et le Nouveau l’établir, afin que la vie devienne obéissance joyeuse.`
   );
   t.push('');
   t.push(
-    `Cette lecture protège de deux excès. **D’un côté, le biblicisme plat**, qui traite chaque verset comme un îlot isolé: il oublie que ` +
-    `les Écritures sont une symphonie et non un cahier de maximes. **De l’autre, l’opposition stérile** qui ferait du Nouveau un démenti de ` +
-    `l’Ancien: elle nie l’Alliance et affaiblit l’Évangile. Or, la nouveauté chrétienne n’abolit pas ce qui la précède; elle en révèle la ` +
-    `portée ultime dans la personne du Fils, Verbe fait chair. C’est pourquoi le lecteur reçoit ici une formation de l’intelligence ` +
-    `spirituelle: apprendre à laisser l’Ancien préparer la foi, et le Nouveau l’établir, afin que la vie devienne obéissance joyeuse.`
-  );
-  t.push('');
-  t.push(
-    `Concrètement, replacer ${ref} dans la lumière conjointe des deux Testaments, c’est discerner la même voix de Dieu appelant au ` +
-    `repentir et à la confiance, instruisant la prière et ordonnant la charité. La vérité reçue se fait **prière** — reconnaissance pour ` +
-    `l’accomplissement et supplication pour la sanctification — puis **obéissance** — gestes concrets ajustés à la volonté révélée —, ` +
-    `enfin **témoignage** — parole humble et ferme qui confesse le Christ. La lecture devient chemin: l’Ancien indique la route, le Nouveau ` +
-    `ouvre le passage, et l’Esprit rend possible la marche.`
+    `Concrètement, replacer ${ref} dans cette lumière conjointe, c’est discerner la même voix de Dieu appelant au repentir et à la confiance, ` +
+    `instruisant la prière et ordonnant la charité. La vérité reçue devient **prière**, puis **obéissance**, enfin **témoignage** humble et ferme.`
   );
   return inflateToRange(t.join('\n'), 2000, 2500, { book, chapter });
 }
 
-/* ==== Autres rubriques sobres (6–27) — à enrichir ensuite ==== */
+/* ==== Rubriques sobres (6–27) ==== */
 function basic({book,chapter}, title, body){
   return `${title}  \n*Référence :* ${book} ${chapter}\n\n${body}`;
 }
@@ -384,7 +448,7 @@ function buildClosingPrayer({ book, chapter }) {
   );
 }
 
-/* ====== Aide : étendre à la plage demandée (2000–2500) ====== */
+/* ====== Aides ====== */
 function inflateToRange(text, min, max, ctx) {
   let t = String(text || '').trim();
   if (t.length >= min && t.length <= max) return t;
@@ -412,4 +476,14 @@ function inflateToRange(text, min, max, ctx) {
     t = cut.slice(0, last > 0 ? last + 1 : max).trim();
   }
   return t;
+}
+
+function escapeReg(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function normalizeWhitespace(s){ return String(s||'').replace(/\s+/g,' ').trim(); }
+function truncateForLine(s, max){
+  const t=normalizeWhitespace(s);
+  if(t.length<=max) return t;
+  const cut=t.slice(0,max);
+  const sp=cut.lastIndexOf(' ');
+  return (sp>60?cut.slice(0,sp):cut).trim()+'…';
 }
