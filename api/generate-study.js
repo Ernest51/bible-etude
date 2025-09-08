@@ -1,7 +1,7 @@
 // api/generate-study.js
 // Étude 28 points + Rubrique 0 en tête (versets du chapitre + explications dynamiques via api.bible)
 //
-// Entrée: ?book=Genèse&chapter=1[&version=LSG|DARBY|NEG|SEM][&long=1]
+// Entrée: ?book=Genèse&chapter=1[&version=LSG|DARBY|NEG|SEM][&long=1|0]
 // Requiert en env: API_BIBLE_KEY, DARBY_BIBLE_ID (et éventuellement LSG_BIBLE_ID, NEG_BIBLE_ID, SEM_BIBLE_ID)
 // NB: La “Rubrique 0” est renvoyée en PREMIER dans le JSON (n:0). Les autres rubriques suivent 1→28.
 
@@ -62,8 +62,9 @@ export default async function handler(req, res) {
     // 5. AT/NT (longue)
     sections.push({ n: 5, content: buildRubrique5_Testament({ book, chapter, analysis }) });
 
-    // 6–27 : par défaut SOBRES ; activer versions longues si ?long=1|true|yes
-    const useLong = /^1|true|yes$/i.test(String(req?.query?.long || '').trim());
+    // 6–27 : MODE LONG ACTIVÉ PAR DÉFAUT (équiv. &long=1). Permet de revenir au court avec &long=0|false|no.
+    const qLong = String(req?.query?.long ?? '').trim();
+    const useLong = qLong === '' ? true : /^1|true|yes$/i.test(qLong) && !/^(0|false|no)$/i.test(qLong);
 
     const others = useLong
       ? [
@@ -398,7 +399,7 @@ function buildRubrique5_Testament({ book, chapter, analysis }){
   return inflateToRange(t.join('\n'), 2000, 2500, { book, chapter });
 }
 
-/* ==== Rubriques sobres (6–27) ==== */
+/* ==== Rubriques SOBRES (6–27) pour le mode court ==== */
 function basic({book,chapter}, title, body){
   return `${title}  \n*Référence :* ${book} ${chapter}\n\n${body}`;
 }
@@ -481,6 +482,9 @@ function truncateForLine(s, max){
   const sp=cut.lastIndexOf(' ');
   return (sp>60?cut.slice(0,sp):cut).trim()+'…';
 }
+function normBook(s){
+  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+}
 
 /* ===== Helper doctrinal long (2000–2500) + Versions longues (6–27) ===== */
 function buildLongDoctrineSection(ctx, { title, thesis, axes, canons, praxis, scelle }) {
@@ -506,7 +510,7 @@ function buildLongDoctrineSection(ctx, { title, thesis, axes, canons, praxis, sc
     axes.forEach((ax, i) => p.push(`${i + 1}. ${ax}`));
   }
   if (canons?.length) {
-    p.push('\n**Résonances canoniques** — La Bible éclaire la Bible (Luc 24:27; Jean 5:39).');
+    p.push('\n**Résonances canoniques** — La Bible éclaire la Bible (Luc 24:27; Jean 5:39).`);
     canons.forEach(c => p.push(`- ${c}`));
   }
   if (praxis?.length) {
@@ -518,18 +522,38 @@ function buildLongDoctrineSection(ctx, { title, thesis, axes, canons, praxis, sc
   return inflateToRange(p.join('\n'), 2000, 2500, ctx);
 }
 
-function buildPromessesLong(ctx){return buildLongDoctrineSection(ctx,{
-  title:'**Promesses**',
-  thesis:`Les promesses sont des **actes de parole** par lesquels Dieu garantit un avenir qu’il réalise lui-même, dans le cadre de l’Alliance.`,
-  axes:[
-    `**Promesse & serment** (Hé 6:13–20) — fiabilité divine.`,
-    `**Temps de Dieu** (2 P 3:9) — délai apparent, exactitude souveraine.`,
-    `**Christ accomplissement** (2 Co 1:20) — le “oui” en Lui.`,
-    `**Foi obéissante** — l’espérance enclenche la sainteté.`
-  ],
-  canons:[`Gen 12; 15`,`Ps 89`,`Luc 1–2`,`Rom 4`],
-  praxis:[`Résister au court-termisme spirituel`,`Lire les promesses comme appels à vivre saintement`,`Consolation et exigence tenues ensemble`]
-});}
+/* ==== Versions LONGUES (6–27) ==== */
+
+// 6 — Promesses (spécifique Genèse 1 = EXACTEMENT le texte fourni)
+function buildPromessesLong(ctx){
+  const { book, chapter } = ctx;
+  if (normBook(book) === 'genese' && String(chapter) === '1') {
+    return (
+`Promesses  
+*Référence :* Genèse 1
+
+Les promesses divines ne sont pas des slogans pieux, mais des actes de parole par lesquels Dieu s’engage publiquement et efficacement, dans le cadre de l’Alliance, à produire un avenir qu’il réalise lui-même. Déjà en Genèse 1, la promesse est en germe au cœur de l’efficacité créatrice: «Dieu dit… et il en fut ainsi». La Parole qui fait être est aussi la Parole qui fait espérer. Le Dieu qui sépare, nomme et ordonne ne laisse pas le monde à l’indétermination; il inscrit la création dans une téléologie: qu’elle reflète sa bonté et qu’elle devienne habitation de l’humain appelé à l’image. Ainsi, la première pédagogie de la promesse consiste à stabiliser la réalité par une parole fiable; la confiance peut naître, non d’un optimisme naturel, mais d’une fidélité première.
+
+La promesse biblique comporte quatre traits. (1) Initiative souveraine: elle vient d’en haut, précède toute œuvre humaine et ne se fonde ni sur le mérite ni sur la vraisemblance des circonstances. (2) Contenu déterminé: Dieu ne promet pas vaguement le “bien-être”, il annonce des biens précis (vie, présence, fécondité, repos, bénédiction) qui s’enracinent dans son dessein. (3) Caractère performatif: parce que Dieu est vrai, sa parole fait ce qu’elle dit; le délai apparent n’infirme pas la certitude, il éduque la patience et purifie l’attente. (4) Orientation christologique: toute promesse converge vers le Oui définitif en Jésus-Christ; la création ordonnée prépare l’économie du salut où la grâce restaure et mène à l’achèvement.
+
+Pastoralement, la promesse délivre de deux dérives. D’un côté, l’auto-assurance religieuse qui prétend fabriquer l’avenir par la technique spirituelle; de l’autre, le fatalisme qui se résigne à l’informe. La promesse enseigne la foi obéissante: recevoir aujourd’hui la parole fiable, poser l’acte proportionné (garder, cultiver, bénir, sanctifier), et laisser Dieu tenir ce qu’il a dit selon son temps. Elle apprend aussi la lecture canonique: on n’isole pas des fragments; on discerne la trame — création, bénédiction, sabbat — comme prémices d’une Alliance qui conduit d’Adam à Abraham, d’Israël au Christ, puis à l’Église dans l’Esprit. Ainsi, Genèse 1 n’est pas seulement un prologue cosmique: c’est le laboratoire de l’espérance où l’on voit, à l’état pur, que ce que Dieu ordonne, il l’accomplit, et que ce qu’il bénit, il le porte jusqu’à sa plénitude.`
+    ).trim();
+  }
+  // fallback générique (autres livres/chapitres)
+  return buildLongDoctrineSection(ctx,{
+    title:'**Promesses**',
+    thesis:`Les promesses sont des **actes de parole** par lesquels Dieu garantit un avenir qu’il réalise lui-même, dans le cadre de l’Alliance.`,
+    axes:[
+      `**Promesse & serment** (Hé 6:13–20) — fiabilité divine.`,
+      `**Temps de Dieu** (2 P 3:9) — délai apparent, exactitude souveraine.`,
+      `**Christ accomplissement** (2 Co 1:20) — le “oui” en Lui.`,
+      `**Foi obéissante** — l’espérance enclenche la sainteté.`
+    ],
+    canons:[`Gen 12; 15`,`Ps 89`,`Luc 1–2`,`Rom 4`],
+    praxis:[`Résister au court-termisme spirituel`,`Lire les promesses comme appels à vivre saintement`,`Consolation et exigence tenues ensemble`]
+  });
+}
+
 function buildPecheEtGraceLong(ctx){return buildLongDoctrineSection(ctx,{
   title:'**Péché et grâce**',
   thesis:`Le **péché** est révolte objective et corruption intérieure; la **grâce** est initiative souveraine qui pardonne, renouvelle et agrège à l’Alliance.`,
