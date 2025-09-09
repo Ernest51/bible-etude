@@ -1,8 +1,10 @@
+'use strict';
+
 // api/generate-study.js
-// Handler CommonJS pour Vercel Serverless Functions (dossier /api à la racine).
-// -> AUCUN import/export ESM, pas d'appel externe, jamais d'exception non gérée.
-// -> Génère les rubriques 0..28 (0 = placeholder). L’intégration api.bible pour la Rubrique 0
-//    sera branchée après validation. Ici on stabilise 1–28 sans régression.
+// CJS (CommonJS) pour Vercel Serverless Functions.
+// - Pas d'import ESM.
+// - Try/catch global + logs côté serveur.
+// - Modes de diagnostic: ?diag=1 (ping), ?short=1 (réponse légère).
 
 const CHAPTERS_66 = {
   "Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,
@@ -19,29 +21,18 @@ const CHAPTERS_66 = {
 // ---------- utils ----------
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 
-/**
- * Gonflage “propre” : ajoute des compléments doctrinaux variés (non répétitifs),
- * puis coupe proprement en fin de phrase si on dépasse la cible.
- * Remplace l’ancien padTo répétitif.
- */
 function padTo(txt, target){
   if (!target) return txt;
   let out = String(txt || '').trim();
-
   const addenda = [
     " Cette lecture s’inscrit dans l’unité du canon : promesse et accomplissement se répondent, et la grâce précède toute obéissance.",
     " La Parole reçue devient prière, la prière façonne l’obéissance, et l’obéissance rend témoignage dans la vie ordinaire.",
     " L’Esprit éclaire l’intelligence et affermit le cœur : vérité, repentance, confiance, charité concrète.",
     " L’alliance éclaire l’histoire : Dieu demeure fidèle, corrige et console, afin de former un peuple qui marche humblement avec lui."
   ];
-
   let i = 0;
-  while (out.length < target && i < addenda.length) {
-    out += addenda[i++];
-  }
-  // Si c’est encore court, on réutilise le dernier addendum mais on tronque proprement ensuite
+  while (out.length < target && i < addenda.length) out += addenda[i++];
   while (out.length < target) out += addenda[addenda.length - 1];
-
   if (out.length > target) {
     const cut = out.slice(0, target + 60);
     const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
@@ -111,7 +102,8 @@ function closingPrayer(book, ch, target=1300){
   ].join("\n\n");
   return padTo(`### 28. Prière de clôture\n\n${p}`, target);
 }
-function buildAllSections(book, ch, dens){
+
+function buildAllSections(book, ch, dens, shortMode){
   const L = dens||1500;
   const out = [];
   out.push({ n:0, content:
@@ -120,44 +112,65 @@ function buildAllSections(book, ch, dens){
 *Référence :* ${book} ${ch}
 
 Lecture du chapitre. Utilise **Lire la Bible** pour lire l’intégralité du texte.` });
+
+  // en mode court on ne fabrique que 1..5 (pour écarter un problème de taille de réponse)
+  const last = shortMode ? 5 : 28;
+
   out.push({ n:1, content: prayerOpening(book, ch, 1300) });
   out.push({ n:2, content: contextAndNarrative(book, ch, L) });
   out.push({ n:3, content: prevChapterQA(book, ch, L) });
-  out.push({ n:4,  content: doctrinalBlock('4. Canonicité et cohérence', book, ch, 'la cohérence de la Révélation', L) });
-  out.push({ n:5,  content: doctrinalBlock('5. Ancien/Nouveau Testament', book, ch, 'le lien entre ancienne et nouvelle alliance', L) });
-  out.push({ n:6,  content: doctrinalBlock('6. Promesses', book, ch, 'les promesses divines et leur finalité', L) });
-  out.push({ n:7,  content: doctrinalBlock('7. Péché et grâce', book, ch, 'le diagnostic du cœur et la gratuité du pardon', L) });
-  out.push({ n:8,  content: doctrinalBlock('8. Christologie', book, ch, 'le témoignage rendu au Fils', L) });
-  out.push({ n:9,  content: doctrinalBlock('9. Esprit Saint', book, ch, 'la présence et l’œuvre de l’Esprit', L) });
-  out.push({ n:10, content: doctrinalBlock('10. Alliance', book, ch, 'les engagements de Dieu et la réponse du peuple', L) });
-  out.push({ n:11, content: doctrinalBlock('11. Église', book, ch, 'la communauté appelée, instruite et envoyée', L) });
-  out.push({ n:12, content: doctrinalBlock('12. Discipulat', book, ch, 'l’apprentissage de la foi: écoute, imitation, service', L) });
-  out.push({ n:13, content: doctrinalBlock('13. Éthique', book, ch, 'la vérité vécue dans la charité', L) });
-  out.push({ n:14, content: doctrinalBlock('14. Prière', book, ch, 'la prière façonnée par l’Écriture', L) });
-  out.push({ n:15, content: doctrinalBlock('15. Mission', book, ch, 'le témoignage humble et vrai', L) });
-  out.push({ n:16, content: doctrinalBlock('16. Espérance', book, ch, 'l’attente vivante qui soutient la persévérance', L) });
-  out.push({ n:17, content: doctrinalBlock('17. Exhortation', book, ch, 'les appels concrets à marcher dans la lumière', L) });
-  out.push({ n:18, content: doctrinalBlock('18. Application personnelle', book, ch, 'le cœur, la pensée et la volonté', L) });
-  out.push({ n:19, content: doctrinalBlock('19. Application communautaire', book, ch, 'la vie d’Église, la diaconie et la communion', L) });
-  out.push({ n:20, content: doctrinalBlock('20. Liturgie', book, ch, 'écoute, confession, louange, envoi', L) });
-  out.push({ n:21, content: doctrinalBlock('21. Méditation', book, ch, 'l’assimilation priante de la Parole', L) });
-  out.push({ n:22, content: doctrinalBlock('22. Verset-clé', book, ch, 'un verset gouvernant qui condense le message', L) });
-  out.push({ n:23, content: doctrinalBlock('23. Typologie', book, ch, 'figures et préfigurations', L) });
-  out.push({ n:24, content: doctrinalBlock('24. Théologie systématique', book, ch, 'l’articulation des doctrines', L) });
-  out.push({ n:25, content: doctrinalBlock('25. Histoire du salut', book, ch, 'création, chute, promesse, accomplissement, espérance', L) });
-  out.push({ n:26, content: doctrinalBlock('26. Thèmes secondaires', book, ch, 'motifs complémentaires du passage', L) });
-  out.push({ n:27, content: doctrinalBlock('27. Doutes/objections', book, ch, 'questions honnêtes et réponses scripturaires', L) });
-  out.push({ n:28, content: closingPrayer(book, ch, 1300) });
+  out.push({ n:4, content: doctrinalBlock('4. Canonicité et cohérence', book, ch, 'la cohérence de la Révélation', L) });
+  out.push({ n:5, content: doctrinalBlock('5. Ancien/Nouveau Testament', book, ch, 'le lien entre ancienne et nouvelle alliance', L) });
+
+  if (!shortMode){
+    out.push({ n:6,  content: doctrinalBlock('6. Promesses', book, ch, 'les promesses divines et leur finalité', L) });
+    out.push({ n:7,  content: doctrinalBlock('7. Péché et grâce', book, ch, 'le diagnostic du cœur et la gratuité du pardon', L) });
+    out.push({ n:8,  content: doctrinalBlock('8. Christologie', book, ch, 'le témoignage rendu au Fils', L) });
+    out.push({ n:9,  content: doctrinalBlock('9. Esprit Saint', book, ch, 'la présence et l’œuvre de l’Esprit', L) });
+    out.push({ n:10, content: doctrinalBlock('10. Alliance', book, ch, 'les engagements de Dieu et la réponse du peuple', L) });
+    out.push({ n:11, content: doctrinalBlock('11. Église', book, ch, 'la communauté appelée, instruite et envoyée', L) });
+    out.push({ n:12, content: doctrinalBlock('12. Discipulat', book, ch, 'l’apprentissage de la foi: écoute, imitation, service', L) });
+    out.push({ n:13, content: doctrinalBlock('13. Éthique', book, ch, 'la vérité vécue dans la charité', L) });
+    out.push({ n:14, content: doctrinalBlock('14. Prière', book, ch, 'la prière façonnée par l’Écriture', L) });
+    out.push({ n:15, content: doctrinalBlock('15. Mission', book, ch, 'le témoignage humble et vrai', L) });
+    out.push({ n:16, content: doctrinalBlock('16. Espérance', book, ch, 'l’attente vivante qui soutient la persévérance', L) });
+    out.push({ n:17, content: doctrinalBlock('17. Exhortation', book, ch, 'les appels concrets à marcher dans la lumière', L) });
+    out.push({ n:18, content: doctrinalBlock('18. Application personnelle', book, ch, 'le cœur, la pensée et la volonté', L) });
+    out.push({ n:19, content: doctrinalBlock('19. Application communautaire', book, ch, 'la vie d’Église, la diaconie et la communion', L) });
+    out.push({ n:20, content: doctrinalBlock('20. Liturgie', book, ch, 'écoute, confession, louange, envoi', L) });
+    out.push({ n:21, content: doctrinalBlock('21. Méditation', book, ch, 'l’assimilation priante de la Parole', L) });
+    out.push({ n:22, content: doctrinalBlock('22. Verset-clé', book, ch, 'un verset gouvernant qui condense le message', L) });
+    out.push({ n:23, content: doctrinalBlock('23. Typologie', book, ch, 'figures et préfigurations', L) });
+    out.push({ n:24, content: doctrinalBlock('24. Théologie systématique', book, ch, 'l’articulation des doctrines', L) });
+    out.push({ n:25, content: doctrinalBlock('25. Histoire du salut', book, ch, 'création, chute, promesse, accomplissement, espérance', L) });
+    out.push({ n:26, content: doctrinalBlock('26. Thèmes secondaires', book, ch, 'motifs complémentaires du passage', L) });
+    out.push({ n:27, content: doctrinalBlock('27. Doutes/objections', book, ch, 'questions honnêtes et réponses scripturaires', L) });
+    out.push({ n:28, content: closingPrayer(book, ch, 1300) });
+  }
+
   return out;
 }
 
 // ---------- handler CJS ----------
 module.exports = async function (req, res) {
   try {
-    const q = req.query || {};
-    const rawBook   = q.book || "Genèse";
-    const rawChap   = q.chapter || "1";
-    const rawLength = q.length || "1500";
+    const q = (req && req.query) ? req.query : {};
+
+    // --- DIAGNOSTIC: ping simple ---
+    if (q && q.diag){
+      return res.status(200).json({
+        ok: true,
+        route: "/api/generate-study",
+        diag: true,
+        node: process.version,
+        now: new Date().toISOString()
+      });
+    }
+
+    const rawBook   = (q && q.book)   || "Genèse";
+    const rawChap   = (q && q.chapter)|| "1";
+    const rawLength = (q && q.length) || "1500";
+    const shortMode = !!(q && (q.short === '1' || q.short === 'true'));
 
     const bookCanon = resolveBookName(rawBook) || "Genèse";
     const maxChap   = CHAPTERS_66[bookCanon] || 1;
@@ -165,14 +178,16 @@ module.exports = async function (req, res) {
     const densNum   = parseInt(rawLength,10);
     const dens      = [500,1500,2500].includes(densNum) ? densNum : 1500;
 
-    const sections = buildAllSections(bookCanon, chap, dens);
-    res.status(200).json({ ok:true, book:bookCanon, chapter:chap, sections });
+    const sections = buildAllSections(bookCanon, chap, dens, shortMode);
+    return res.status(200).json({ ok:true, book:bookCanon, chapter:chap, short:shortMode, sections });
   } catch (err) {
+    console.error('[generate-study] crash:', err);
     try {
-      const sections = buildAllSections("Genèse", 1, 1500);
-      res.status(200).json({ ok:true, book:"Genèse", chapter:1, sections, warning:String(err && err.message || err) });
-    } catch {
-      res.status(200).json({ ok:true, book:"Genèse", chapter:1, sections:[
+      const sections = buildAllSections("Genèse", 1, 1500, true);
+      return res.status(200).json({ ok:true, book:"Genèse", chapter:1, sections, warning:String(err && err.message || err) });
+    } catch (err2) {
+      console.error('[generate-study] hard-fallback failed:', err2);
+      return res.status(200).json({ ok:true, book:"Genèse", chapter:1, sections:[
         { n:0, content:"### Rubrique 0 — Panorama des versets du chapitre\n\n*Référence :* Genèse 1" },
         { n:1, content:"### 1. Prière d’ouverture\n\n—" }
       ], warning:"hard-fallback" });
