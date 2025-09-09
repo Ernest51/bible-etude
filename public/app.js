@@ -1,4 +1,4 @@
-/* app.js — Synchro titres avec l’API (28 points perso) + palette + mock + densité */
+/* app.js — Synchro titres API (title|titre) + palette + mock + densité */
 
 (function () {
   const $ = (s) => document.querySelector(s);
@@ -50,63 +50,27 @@
 
   const TITLE0 = 'Rubrique 0 — Panorama des versets du chapitre';
 
-  // Titres par défaut (fallback visuel si l’API est KO)
+  // Titres par défaut si l’API est KO (fallback visuel)
   const TITLES_DEFAULT = {
-    1: 'Prière d’ouverture',
-    2: 'Contexte et fil narratif',
-    3: 'Questions du chapitre précédent',
-    4: 'Canonicité et cohérence',
-    5: 'Ancien/Nouveau Testament',
-    6: 'Promesses',
-    7: 'Péché et grâce',
-    8: 'Christologie',
-    9: 'Esprit Saint',
-    10: 'Alliance',
-    11: 'Église',
-    12: 'Discipulat',
-    13: 'Éthique',
-    14: 'Prière',
-    15: 'Mission',
-    16: 'Espérance',
-    17: 'Exhortation',
-    18: 'Application personnelle',
-    19: 'Application communautaire',
-    20: 'Liturgie',
-    21: 'Méditation',
-    22: 'Verset-clé',
-    23: 'Typologie',
-    24: 'Théologie systématique',
-    25: 'Histoire du salut',
-    26: 'Thèmes secondaires',
-    27: 'Doutes/objections',
-    28: 'Synthèse & plan de lecture',
+    1:'Prière d’ouverture',2:'Contexte et fil narratif',3:'Questions du chapitre précédent',4:'Canonicité et cohérence',
+    5:'Ancien/Nouveau Testament',6:'Promesses',7:'Péché et grâce',8:'Christologie',9:'Esprit Saint',
+    10:'Alliance',11:'Église',12:'Discipulat',13:'Éthique',14:'Prière',15:'Mission',16:'Espérance',17:'Exhortation',
+    18:'Application personnelle',19:'Application communautaire',20:'Liturgie',21:'Méditation',22:'Verset-clé',
+    23:'Typologie',24:'Théologie systématique',25:'Histoire du salut',26:'Thèmes secondaires',27:'Doutes/objections',28:'Synthèse & plan de lecture'
   };
 
-  const CHAPTERS_66 = {
-    "Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,
-    "1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,
-    "Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,
-    "Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,
-    "Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,
-    "Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,
-    "Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,
-    "2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,
-    "2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22
-  };
+  const CHAPTERS_66 = {"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
   const ORDER_66 = Object.keys(CHAPTERS_66);
   const BG_VERSION = { 'LSG':'LSG','PDV':'PDV-FR','S21':'SG21','BFC':'BFC' };
 
   // Etat
   const state = {
-    book: 'Genèse',
-    chapter: 1,
-    verse: 1,
-    version: 'LSG',
-    currentIdx: 0,
-    sectionsByN: new Map(),   // n -> markdown
-    leds: new Map(),          // n -> 'ok' | 'warn'
-    density: 1500,
-    titles: {...TITLES_DEFAULT} // sera remplacé par les titres venant de l’API
+    book:'Genèse', chapter:1, verse:1, version:'LSG',
+    currentIdx:0,
+    sectionsByN:new Map(),   // n -> markdown
+    leds:new Map(),          // n -> 'ok' | 'warn'
+    density:1500,
+    titles:{...TITLES_DEFAULT} // remplacé par l’API
   };
 
   init();
@@ -169,17 +133,17 @@
     wrap.appendChild(label); wrap.appendChild(sel);
   }
 
-  /* ---------- Titre helpers ---------- */
+  /* ---------- Titres depuis l’API ---------- */
   function getTitle(n){ return state.titles[n] || TITLES_DEFAULT[n] || `Point ${n}`; }
   function setTitlesFromAPI(sections){
     if (!Array.isArray(sections)) return;
     const t = {};
     for (const s of sections){
       const id = Number(s.id ?? s.n);
-      const title = String(s.title || '').trim();
+      // ✅ accepte 'title' OU 'titre'
+      const title = String((s.title ?? s.titre ?? '')).trim();
       if (id>=1 && id<=28 && title) t[id] = title;
     }
-    // si on a bien quelques titres, on remplace le mapping
     if (Object.keys(t).length) state.titles = { ...TITLES_DEFAULT, ...t };
   }
 
@@ -210,16 +174,10 @@
   async function onGenerate(){
     const old=generateBtn.textContent; generateBtn.disabled=true; generateBtn.textContent='Génération…';
     try{
-      // params communs
       const passage = `${state.book} ${state.chapter}`;
-      const q = new URLSearchParams({ book: state.book, chapter: String(state.chapter), length: String(state.density) }).toString();
-
-      let fetchOpts = { cache:'no-store' };
-      let url = `/api/generate-study`;
 
       if (MOCK_PUBLIC) {
-        // mode mock : on lit un JSON statique
-        const key = `${normMock(state.book).replace(/\s+/g,'-')}-${state.chapter}`; // ex: jeremie-1
+        const key = `${normMock(state.book).replace(/\s+/g,'-')}-${state.chapter}`;
         let testUrl = `/tests/generate-study.${key}.json`;
         let r = await fetch(testUrl, { cache:'no-store' });
         if (!r.ok) {
@@ -228,11 +186,9 @@
           if (!r.ok) throw new Error('Mock introuvable');
         }
         const j = await r.json();
-        // support des deux formats possibles
         const sections = j.study?.sections || j.sections || [];
         setTitlesFromAPI(sections);
         state.sectionsByN.clear();
-        // si le mock a du contenu par section
         for (const s of sections){
           const n = Number(s.id ?? s.n);
           if (!Number.isFinite(n)) continue;
@@ -240,21 +196,16 @@
           if (content) state.sectionsByN.set(n, content);
         }
       } else {
-        // mode API réel : POST JSON vers notre endpoint
-        fetchOpts = {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          cache: 'no-store',
-          body: JSON.stringify({ passage, options: { length: state.density } })
-        };
-        const r = await fetch(url, fetchOpts);
+        const r = await fetch('/api/generate-study', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          cache:'no-store',
+          body: JSON.stringify({ passage, options:{ length: state.density } })
+        });
         if (!r.ok) throw new Error('HTTP '+r.status);
         const j = await r.json();
-
         const sections = j.study?.sections || j.sections || [];
         setTitlesFromAPI(sections);
-
-        // Remplit la map de contenus (vide pour l’instant, mais prêt pour l’IA)
         state.sectionsByN.clear();
         for (const s of sections){
           const n = Number(s.id ?? s.n);
@@ -264,7 +215,7 @@
         }
       }
 
-      // voyants OK pour les rubriques reçues
+      // voyants OK pour tous les titres reçus
       for (let i=1;i<=28;i++){
         if (state.titles[i]) state.leds.set(i,'ok');
       }
@@ -327,7 +278,7 @@ Contenu provisoire (gabarit). Réessaie la génération plus tard.`);
 *Référence :* ${state.book} ${state.chapter}
 
 Clique sur **Générer** pour charger chaque verset avec explications.`;
-    const t=getTitle(n); 
+    const t=getTitle(n);
     return `### ${t}
 
 *Référence :* ${state.book} ${state.chapter}
@@ -354,7 +305,7 @@ Clique sur **Générer** pour charger chaque verset avec explications.`;
   function normalizeBook(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase(); }
   function findBook(normName){ for(const b of ORDER_66){ const n=normalizeBook(b); if(n===normName||n.startsWith(normName)||normName.startsWith(n)) return b; } return null; }
 
-  /* ---------- Sélecteurs Livre/Chapitre/Verset ---------- */
+  /* ---------- Sélecteurs ---------- */
   function fillBooks(){ bookSelect.innerHTML=ORDER_66.map(b=>`<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join(''); bookSelect.value=state.book; }
   function fillChapters(){ const max=CHAPTERS_66[state.book]||1; chapterSelect.innerHTML=''; for(let i=1;i<=max;i++){ const o=document.createElement('option'); o.value=String(i); o.textContent=String(i); chapterSelect.appendChild(o);} if(state.chapter>max) state.chapter=max; chapterSelect.value=String(state.chapter); }
   function fillVerses(){ verseSelect.innerHTML=''; for(let i=1;i<=150;i++){ const o=document.createElement('option'); o.value=String(i); o.textContent=String(i); verseSelect.appendChild(o);} verseSelect.value=String(state.verse); }
