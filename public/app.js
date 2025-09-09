@@ -1,5 +1,5 @@
-/* app.js — Sélecteur de densité (500/1500/2500) relié à options.length,
-   Palette 12 couleurs horizontale (thème global), 66 livres + 28 rubriques.
+/* app.js — Densité (500/1500/2500), Palette 12 couleurs, 66 livres + 28 rubriques,
+   Boutons: ChatGPT, Dernière étude (mémoire last+prev), Reset (diodes orange + champs neutres).
 */
 (function () {
   const $  = (s)=>document.querySelector(s);
@@ -9,11 +9,14 @@
   }[c]));
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
-  const STORAGE_LAST='lastStudy', STORAGE_DENS='density8', STORAGE_THEME='theme8';
+  const STORAGE_LAST='lastStudy';       // {book,chapter,verse,version,density}
+  const STORAGE_PREV='prevStudy';       // ancienne étude (persistante)
+  const STORAGE_DENS='density8';
+  const STORAGE_THEME='theme8';
+
   const TITLE0='Rubrique 0 — Panorama des versets du chapitre';
   const DENSITY_CHOICES=[500,1500,2500];
 
-  // 12 thèmes
   const THEMES=['cyan','violet','vert','rouge','mauve','indigo','ambre','slate','rose','bleu','lime','teal'];
   const THEME_VARS = {
     cyan:   { bg:'#f0f9ff', text:'#0c4a6e', primary:'#06b6d4', border:'#e2e8f0' },
@@ -52,6 +55,7 @@
   const prevBtn=$('#prev'), nextBtn=$('#next');
   const noteArea=$('#noteArea');
   const themeBar=$('#themeBar');
+  const chatgptBtn=$('#chatgptBtn'), lastBtn=$('#lastBtn'), resetBtn=$('#resetBtn');
 
   document.addEventListener('DOMContentLoaded', init);
 
@@ -78,7 +82,7 @@
     initThemeBar();
   }
 
-  /* ---------- Thème global ---------- */
+  /* ---------- Thème ---------- */
   function setTheme(theme){
     const v = THEME_VARS[theme] || THEME_VARS.cyan;
     applyVars(document.documentElement, v);
@@ -97,7 +101,6 @@
   }
   function getTheme(){ try{ return localStorage.getItem(STORAGE_THEME)||'cyan'; }catch{ return 'cyan'; } }
   function restoreTheme(){ setTheme(getTheme()); }
-
   function initThemeBar(){
     if (!themeBar) return;
     themeBar.innerHTML='';
@@ -140,9 +143,12 @@
 
   /* ---------- Événements ---------- */
   function wireEvents(){
+    // recherche & selects
     applyBtn && applyBtn.addEventListener('click', applySearch);
     searchRef && searchRef.addEventListener('keydown', e=>{ if(e.key==='Enter') applySearch(); });
     bookSelect && bookSelect.addEventListener('change', ()=>{
+      // Mémorise l'ancienne étude avant de changer
+      rememberAsPrevious();
       state.book=bookSelect.value||'';
       if(state.book){ state.chapter=1; state.verse=1; fillChapters(); fillVerses(); }
       else { clearChaptersAndVerses(); }
@@ -164,14 +170,38 @@
       saveLast();
     });
 
+    // boutons
     readBtn && readBtn.addEventListener('click', ()=>{
       if(!state.book) return;
       window.open(youVersionURL(state.book,state.chapter||1,state.verse||1,state.version),'_blank','noopener,noreferrer');
     });
     generateBtn && generateBtn.addEventListener('click', onGenerate);
-
     prevBtn && prevBtn.addEventListener('click', ()=>goTo(state.currentIdx-1));
     nextBtn && nextBtn.addEventListener('click', ()=>goTo(state.currentIdx+1));
+
+    chatgptBtn && chatgptBtn.addEventListener('click', ()=>{ window.open('https://chatgpt.com/','_blank','noopener,noreferrer'); });
+
+    lastBtn && lastBtn.addEventListener('click', ()=>{
+      const last = loadJSON(STORAGE_LAST);
+      if (last && last.book && CHAPTERS_66[last.book]) {
+        state.book=last.book;
+        state.chapter=clamp(parseInt(last.chapter,10)||1,1,CHAPTERS_66[last.book]);
+        state.verse=parseInt(last.verse,10)||1;
+        state.version=last.version||'LSG';
+        state.density = DENSITY_CHOICES.includes(Number(last.density)) ? Number(last.density) : state.density;
+        // UI
+        fillBooks(); fillChapters(); fillVerses();
+        bookSelect && (bookSelect.value=state.book);
+        chapterSelect && (chapterSelect.value=String(state.chapter));
+        verseSelect && (verseSelect.value=String(state.verse));
+        densitySelect && (densitySelect.value=String(state.density));
+        rerender();
+      } else {
+        alert('Aucune “dernière étude” sauvegardée.');
+      }
+    });
+
+    resetBtn && resetBtn.addEventListener('click', onResetTotal);
   }
 
   /* ---------- Recherche / sélecteurs ---------- */
@@ -237,6 +267,7 @@
     const raw=(searchRef.value||'').trim(); if(!raw) return;
     const m=/^([\p{L}\d\s]+?)\s+(\d+)(?::(\d+(?:-\d+)?))?$/u.exec(raw);
     if (m){
+      rememberAsPrevious();
       const bookName=normalize(m[1]), chap=parseInt(m[2],10), vers=m[3]||null;
       const found=findBook(bookName);
       if (found){
@@ -252,6 +283,7 @@
     }
     const bn=normalize(raw), fb=findBook(bn);
     if (fb){
+      rememberAsPrevious();
       state.book=fb; state.chapter=1; state.verse=1;
       fillBooks(); bookSelect&&(bookSelect.value=fb);
       fillChapters(); fillVerses();
@@ -331,19 +363,29 @@ Clique sur **Générer** pour charger chaque verset avec explications.`;
       if (!r.ok) throw new Error('HTTP '+r.status);
       const j = await r.json();
       const sections = j.study?.sections || j.sections || [];
+
+      // Nettoyage + marquage diodes au VERT pour chaque section reçue
       const t={}, d={};
       for (const s of sections){
-        const id=Number(s.id ?? s.n); if(!Number.isFinite(id)) continue;
+        const id=Number(s.id ?? s.n);
+        if(!Number.isFinite(id)) continue;
         const title=String((s.title ?? s.titre ?? '')).trim();
         const desc =String((s.description ?? s.desc ?? '')).trim();
         const content=String(s.content||'').trim();
+
         if (title) t[id]=title;
         if (desc)  d[id]=desc;
-        if (content){ state.sectionsByN.set(id, content); state.leds.set(id,'ok'); }
+        if (content){
+          state.sectionsByN.set(id, content);
+          state.leds.set(id,'ok');           // <- diode verte
+        }
       }
       if (Object.keys(t).length) state.titles={...state.titles, ...t};
       if (Object.keys(d).length) state.descs ={...state.descs , ...d};
-      renderPointsList(); renderSection(state.currentIdx); saveLast();
+
+      renderPointsList();                   // re-construit les pastilles avec classe .ok
+      renderSection(state.currentIdx);
+      saveLast();
     }catch(err){
       console.warn('Erreur génération:', err);
       alert('La génération a échoué. Un gabarit a été inséré.');
@@ -364,19 +406,59 @@ Cliquer sur **Lire** puis **Générer** quand l’API sera dispo.`);
 *Référence :* ${ref}
 
 Contenu provisoire (gabarit).`);
-      state.leds.set(i,'warn');
+      state.leds.set(i,'warn'); // orange
     }
   }
 
+  /* ---------- Reset total ---------- */
+  function onResetTotal(){
+    if (!confirm('Tout vider ? (rubriques → orange, recherche vidée, sélecteurs à "—", mémoire des études conservée)')) return;
+
+    // 1) vider contenus & leds → ORANGE
+    state.sectionsByN.clear();
+    for (let i=0;i<=28;i++) state.leds.set(i,'warn');
+
+    // 2) vider la recherche
+    if (searchRef) searchRef.value='';
+
+    // 3) remettre les sélecteurs en neutre "—"
+    state.book=''; state.chapter=null; state.verse=null;
+    fillBooks(true);
+    clearChaptersAndVerses();
+    if (bookSelect)   bookSelect.value='';
+    if (chapterSelect)chapterSelect.value='';
+    if (verseSelect)  verseSelect.value='';
+
+    // 4) ne pas toucher à STORAGE_LAST / STORAGE_PREV
+    state.currentIdx=0;
+    renderPointsList(); renderSection(0); updateHeader();
+  }
+
   /* ---------- Persistance ---------- */
-  function ensureListScroll(){ const pl=$('#pointsList'); if(!pl) return; pl.style.overflowY='auto'; if(!pl.style.maxHeight) pl.style.maxHeight='calc(100vh - 220px)'; }
-  function saveLast(){ try{ localStorage.setItem(STORAGE_LAST, JSON.stringify({ book:state.book||'', chapter:state.chapter||'', verse:state.verse||'', version:state.version||'LSG', density:state.density })); }catch{} }
+  function loadJSON(key){ try{ const r=localStorage.getItem(key); return r?JSON.parse(r):null; }catch{return null;} }
+  function saveLast(){
+    // Sauvegarde “last” en conservant “prev” si last change
+    try{
+      const prev = loadJSON(STORAGE_LAST);
+      const next = { book:state.book||'', chapter:state.chapter||'', verse:state.verse||'', version:state.version||'LSG', density:state.density };
+      if (prev && (prev.book!==next.book || String(prev.chapter)!==String(next.chapter))) {
+        localStorage.setItem(STORAGE_PREV, JSON.stringify(prev));
+      }
+      localStorage.setItem(STORAGE_LAST, JSON.stringify(next));
+    }catch{}
+  }
+  function rememberAsPrevious(){
+    try{
+      const cur = loadJSON(STORAGE_LAST);
+      if (cur) localStorage.setItem(STORAGE_PREV, JSON.stringify(cur));
+    }catch{}
+  }
   function restoreLast(){
     try{
-      const raw=localStorage.getItem(STORAGE_LAST); if(!raw) return;
-      const j=JSON.parse(raw);
+      const j=loadJSON(STORAGE_LAST);
       if (j && CHAPTERS_66[j.book]){
-        state.book=j.book; state.chapter=clamp(parseInt(j.chapter,10)||1,1,CHAPTERS_66[j.book]); state.verse=parseInt(j.verse,10)||1; state.version=j.version||'LSG';
+        state.book=j.book; state.chapter=clamp(parseInt(j.chapter,10)||1,1,CHAPTERS_66[j.book]);
+        state.verse=parseInt(j.verse,10)||1; state.version=j.version||'LSG';
         if (DENSITY_CHOICES.includes(Number(j.density))) state.density=Number(j.density);
       } else { state.book=''; state.chapter=null; state.verse=null; }
     }catch{}
