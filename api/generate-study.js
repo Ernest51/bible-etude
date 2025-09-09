@@ -1,8 +1,7 @@
 // api/generate-study.js
 // ESM — Vercel Functions (Node 20)
-// But :
-// - GET  => ping/infos
-// - POST => renvoie squelette 28 rubriques (noms fixes) ou echo
+// GET  => infos
+// POST => squelette étude avec 28 rubriques personnelles (ou echo)
 
 export default function handler(req, res) {
   const allowed = ["GET", "POST"];
@@ -21,7 +20,6 @@ export default function handler(req, res) {
     });
   }
 
-  // POST
   try {
     const body = req.body ?? {};
     const {
@@ -40,43 +38,42 @@ export default function handler(req, res) {
       });
     }
 
-    // Tableau fixe des 28 rubriques
+    // === Trame personnelle 28 rubriques ===
     const rubriqueTitles = [
-      "1. Titre du passage",
-      "2. Texte biblique",
+      "1. Lecture du passage",
+      "2. Contexte biblique",
       "3. Contexte historique",
       "4. Contexte culturel",
-      "5. Contexte littéraire",
-      "6. Contexte théologique",
-      "7. Personnages principaux",
-      "8. Mots-clés et termes importants",
-      "9. Structure du passage",
-      "10. Observations générales",
-      "11. Questions de compréhension",
-      "12. Doctrine et enseignement",
-      "13. Promesses de Dieu",
-      "14. Commandements de Dieu",
-      "15. Exemples à suivre",
-      "16. Exemples à éviter",
-      "17. Application personnelle",
-      "18. Application communautaire",
-      "19. Application universelle",
-      "20. Comparaisons avec autres passages",
-      "21. Prophéties et accomplissements",
-      "22. Typologie et symboles",
-      "23. Lien avec Christ",
-      "24. Lien avec l’Évangile",
-      "25. Vérités éternelles",
-      "26. Principes pratiques",
-      "27. Commentaires de théologiens",
-      "28. Prière finale"
+      "5. Contexte géographique",
+      "6. Contexte littéraire",
+      "7. Auteur et destinataires",
+      "8. Structure du texte",
+      "9. Thème principal",
+      "10. Thèmes secondaires",
+      "11. Mots-clés",
+      "12. Difficultés du texte",
+      "13. Observations générales",
+      "14. Doctrine enseignée",
+      "15. Promesses de Dieu",
+      "16. Commandements de Dieu",
+      "17. Péchés à éviter",
+      "18. Exemples à suivre",
+      "19. Exemples à ne pas suivre",
+      "20. Leçons spirituelles",
+      "21. Vérités éternelles",
+      "22. Application personnelle",
+      "23. Application pour l’Église",
+      "24. Application pour le monde",
+      "25. Lien avec Christ",
+      "26. Lien avec l’Évangile",
+      "27. Prière en rapport avec le texte",
+      "28. Résumé et conclusion"
     ];
 
-    // Génère la structure
     const sections = rubriqueTitles.map((title, i) => ({
       id: i + 1,
       title,
-      content: "", // à remplir plus tard par l’IA
+      content: "", // vide pour IA ou remplissage ultérieur
     }));
 
     const payload = {
