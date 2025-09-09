@@ -50,6 +50,11 @@
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
     .ed-title{font-weight:800;flex:1}.ed-body{padding:12px}
     textarea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;white-space:pre-wrap}
+    /* zone d’affichage enrichi */
+    #noteView{display:none;min-height:460px;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;background:#fff}
+    #noteView h1,#noteView h2,#noteView h3{margin:16px 0 8px}
+    #noteView p{margin:8px 0}
+
     .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
     .mini{width:8px;height:8px;border-radius:999px;background:#d97706}.mini.ok{background:#16a34a}.mini.ko{background:#dc2626}
     .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
@@ -114,7 +119,11 @@
         </div>
 
         <div class="ed-body">
+          <!-- zone d’édition -->
           <textarea id="noteArea" placeholder="Écris ici…"></textarea>
+          <!-- zone d’affichage enrichi (utilisée quand Mode enrichi est coché) -->
+          <div id="noteView"></div>
+
           <div id="linksPanel" class="links-panel empty">
             <b>Liens détectés :</b>
             <div id="linksList"></div>
@@ -140,136 +149,43 @@
     <div id="debugPanel">[init]</div>
   </footer>
 
-  <!-- Front existant (inchangé) -->
+  <!-- Front existant -->
   <script src="/app.js?v=2025-09-02-2" defer></script>
-
-  <!-- Ouvre BibleGateway pour Lire la Bible / Valider (si présent côté site) -->
   <script src="/bible-open.js" defer></script>
 
-  <!-- Progress Générer + Nettoyage balises + Thème + Correctif "dot ok" (robuste) -->
+  <!-- Progress / thème / robustesse input -->
   <script>
     (function () {
       const bar   = document.getElementById('progressBar');
       const note  = document.getElementById('noteArea');
+      const view  = document.getElementById('noteView');
       const genBtn= document.getElementById('generateBtn');
       const yearEl= document.getElementById('y');
       const themeSelect = document.getElementById('themeSelect');
-      const pointsList  = document.getElementById('pointsList');
-      const edTitle     = document.getElementById('edTitle');
+      const enrich = document.getElementById('enrichToggle');
 
       if (yearEl) yearEl.textContent = new Date().getFullYear();
 
-      /* -------- Barre de progression (Générer) -------- */
-      let ticking = false, iv = null, safetyTimer = null, startLen = 0;
+      // Progress (cosmétique pendant Générer)
+      let ticking = false, iv = null, safetyTimer = null;
       function setWidth(p){ if (bar) bar.style.width = Math.max(0, Math.min(100, p)) + '%'; }
       function startProgress(){
         if (!bar || ticking) return;
-        ticking = true; startLen = (note.value || '').length; setWidth(5);
+        ticking = true; setWidth(5);
         let w = 5;
         iv = setInterval(()=>{ w = Math.min(90, w + Math.max(0.4, (90 - w) * 0.03)); setWidth(w); }, 180);
         safetyTimer = setTimeout(()=>finish(false), 45000);
       }
       function finish(ok){
         if (!ticking) return;
-        ticking = false;
-        clearInterval(iv); iv = null;
-        clearTimeout(safetyTimer); safetyTimer = null;
+        ticking = false; clearInterval(iv); iv = null; clearTimeout(safetyTimer); safetyTimer = null;
         if (ok){ setWidth(100); setTimeout(()=>setWidth(0), 600); }
-        else {
-          let w = parseFloat(bar.style.width) || 0;
-          const step = ()=>{ w = w - Math.max(2, w * 0.12); if (w <= 0){ setWidth(0); return; } setWidth(w); requestAnimationFrame(step); };
-          requestAnimationFrame(step);
-        }
+        else setWidth(0);
       }
       if (genBtn) genBtn.addEventListener('click', startProgress);
+      if (note) note.addEventListener('input', ()=>finish(true));
 
-      /* -------- HTML -> texte brut (supprime les balises) -------- */
-      function htmlToPlainText(html){
-        if (!html) return "";
-        const container = document.createElement('div');
-        container.innerHTML = html;
-        const blocks = new Set(['P','DIV','SECTION','ARTICLE','HEADER','FOOTER','H1','H2','H3','H4','H5','H6','LI','BR','HR','UL','OL','PRE','BLOCKQUOTE']);
-        let out = "";
-        function walk(node){
-          if (node.nodeType === 3){ out += node.nodeValue; return; }
-          if (node.nodeType !== 1) return;
-          const name = node.nodeName;
-          if (name === 'LI') out += (out.endsWith('\n') || out === '' ? '' : '\n') + '- ';
-          for (let i=0;i<node.childNodes.length;i++) walk(node.childNodes[i]);
-          if (blocks.has(name)){ if (!out.endsWith('\n')) out += '\n'; }
-        }
-        walk(container);
-        out = out.replace(/\r/g,'').replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n').trim();
-        return out;
-      }
-      function plainifyIfNeeded(){
-        const v = note.value || '';
-        if (/[<][^>]+>/.test(v)){
-          const text = htmlToPlainText(v);
-          if (text !== v){
-            const selStart = note.selectionStart, selEnd = note.selectionEnd;
-            note.value = text;
-            const ev = new Event('input', {bubbles:true});
-            note.dispatchEvent(ev);
-            if (typeof selStart === 'number' && typeof selEnd === 'number'){
-              const pos = Math.min(text.length, selStart);
-              note.setSelectionRange(pos, pos);
-            }
-          }
-        }
-      }
-
-      /* -------- MARQUAGE AU VERT (robuste) -------- */
-      function markActivePointOk() {
-        if (!pointsList) return;
-
-        // 1) Essai direct : l'élément actif
-        let dot = pointsList.querySelector('.item.active .dot');
-
-        // 2) Si pas trouvé, on identifie par titre (texte de la colonne droite)
-        if (!dot && edTitle) {
-          const title = (edTitle.textContent || '').trim().toLowerCase();
-          if (title) {
-            const items = pointsList.querySelectorAll('.item');
-            for (const it of items) {
-              const text = (it.textContent || '').trim().toLowerCase();
-              // tolérant : on cherche le titre au début ou inclus (certains items ont une description sous le titre)
-              if (text.startsWith(title) || text.includes('\n'+title) || text.includes(title)) {
-                dot = it.querySelector('.dot');
-                if (dot) break;
-              }
-            }
-          }
-        }
-
-        if (dot) {
-          dot.classList.add('ok');      // -> vert
-          dot.classList.remove('warn'); // au cas où
-        }
-      }
-
-      note.addEventListener('input', () => {
-        const grew = (note.value || '').length > startLen;
-        plainifyIfNeeded();
-        if ((note.value || '').trim().length > 0) markActivePointOk();
-        if (grew) finish(true);
-      });
-
-      // Si app.js injecte sans event, on surveille et on marque aussi
-      let lastHash = '';
-      setInterval(()=>{
-        const v = note.value || '';
-        const h = v.length + ':' + v.slice(0,64);
-        if (h !== lastHash){
-          lastHash = h;
-          const before = note.value;
-          plainifyIfNeeded();
-          if ((note.value || '').trim().length > 0) markActivePointOk();
-          if ((note.value || '').length > startLen) finish(true);
-        }
-      }, 350);
-
-      /* -------- Gestion du thème (avec indigo + mémoire locale) -------- */
+      // Thème
       function applyTheme(value){
         if (!value) return;
         document.body.setAttribute('data-theme', value);
@@ -282,7 +198,21 @@
           if (opt) { themeSelect.value = saved; applyTheme(saved); }
         }
       } catch(e){}
-      if (themeSelect) themeSelect.addEventListener('change', function(){ applyTheme(this.value); });
+      themeSelect && themeSelect.addEventListener('change', function(){ applyTheme(this.value); });
+
+      // Mode enrichi : montré/caché côté HTML si jamais app.js ne l’a pas encore basculé
+      function syncView(){
+        if (!note || !view || !enrich) return;
+        if (enrich.checked){
+          view.style.display = 'block';
+          note.style.display = 'none';
+        } else {
+          view.style.display = 'none';
+          note.style.display = 'block';
+        }
+      }
+      enrich && enrich.addEventListener('change', syncView);
+      syncView();
     })();
   </script>
 </body>
