@@ -1,6 +1,5 @@
-/* app.js — Thème GLOBAL via variables CSS (+ exclure boutons),
-   Reset total (recherche vide + selects neutres) mais conserve "Dernière",
-   66 livres + chapitres bornés, 28 rubriques, densité 500/1500/2500, API prête.
+/* app.js — Densité (500/1500/2500), palette 12 couleurs horizontale, thème global,
+   reset total conservant “Dernière”, 66 livres + chapitres bornés, 28 rubriques, API prête.
 */
 
 (function () {
@@ -15,8 +14,8 @@
   const TITLE0='Rubrique 0 — Panorama des versets du chapitre';
   const DENSITY_CHOICES=[500,1500,2500];
 
-  // Thèmes → variables CSS (couleurs de base). Boutons fixés séparément.
-  const THEMES=['cyan','violet','vert','rouge','mauve','indigo','ambre','slate'];
+  // 12 thèmes (palette horizontale)
+  const THEMES=['cyan','violet','vert','rouge','mauve','indigo','ambre','slate','rose','bleu','lime','teal'];
   const THEME_VARS = {
     cyan:   { bg:'#f0f9ff', text:'#0c4a6e', primary:'#06b6d4', border:'#e2e8f0' },
     violet: { bg:'#f5f3ff', text:'#4c1d95', primary:'#8b5cf6', border:'#e2e8f0' },
@@ -26,6 +25,10 @@
     indigo: { bg:'#eef2ff', text:'#312e81', primary:'#6366f1', border:'#e2e8f0' },
     ambre:  { bg:'#fffbeb', text:'#78350f', primary:'#f59e0b', border:'#e2e8f0' },
     slate:  { bg:'#f8fafc', text:'#0f172a', primary:'#475569', border:'#e2e8f0' },
+    rose:   { bg:'#fff1f2', text:'#831843', primary:'#f472b6', border:'#e2e8f0' },
+    bleu:   { bg:'#eff6ff', text:'#1e3a8a', primary:'#3b82f6', border:'#e2e8f0' },
+    lime:   { bg:'#f7fee7', text:'#365314', primary:'#84cc16', border:'#e2e8f0' },
+    teal:   { bg:'#f0fdfa', text:'#115e59', primary:'#14b8a6', border:'#e2e8f0' },
   };
 
   const CHAPTERS_66 = {"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
@@ -44,55 +47,63 @@
   for(let i=0;i<=28;i++) state.leds.set(i,'warn');
 
   // ---------- Éléments ----------
-  const pointsList   = $('#pointsList');
-  const edTitle      = $('#edTitle');
-  const metaInfo     = $('#metaInfo');
+  const pointsList    = $('#pointsList');
+  const edTitle       = $('#edTitle');
+  const metaInfo      = $('#metaInfo');
 
-  const searchRef    = $('#searchRef');
-  const applyBtn     = $('#applySearchBtn') || $('#validate'); // aligné avec index.html
-  const bookSelect   = $('#bookSelect');
-  const chapterSelect= $('#chapterSelect');
-  const verseSelect  = $('#verseSelect');
-  const versionSelect= $('#versionSelect');
+  const searchRef     = $('#searchRef');
+  const applyBtn      = $('#applySearchBtn') || $('#validate');
+  const bookSelect    = $('#bookSelect');
+  const chapterSelect = $('#chapterSelect');
+  const verseSelect   = $('#verseSelect');
+  const versionSelect = $('#versionSelect');
 
-  const readBtn      = $('#readBtn');
-  const generateBtn  = $('#generateBtn');
-  const resetBtn     = $('#resetBtn'); // peut être absent (ok)
-  const prevBtn      = $('#prev');
-  const nextBtn      = $('#next');
+  const densitySelect = $('#densitySelect');   // nouveau
+  const readBtn       = $('#readBtn');
+  const generateBtn   = $('#generateBtn');
+  const resetBtn      = $('#resetBtn');        // peut être absent
+  const prevBtn       = $('#prev');
+  const nextBtn       = $('#next');
 
-  const noteArea     = $('#noteArea'); // Cœur de l’édition (textarea)
+  const noteArea      = $('#noteArea');
 
-  // Éléments éventuels (absents dans index → safe)
-  const lastBadge    = $('#lastBadge');
-  const themeBar     = $('#themeBar');
-  const themeThumb   = $('#themeThumb');
+  // Palette horizontale
+  const themeBar      = $('#themeBar');
+  const themeThumb    = $('#themeThumb'); // indicateur facultatif
+  const lastBadge     = $('#lastBadge');  // peut être absent
 
   // ---------- Boot ----------
   document.addEventListener('DOMContentLoaded', init);
 
   function init(){
-    injectFixedButtonStyles();   // boutons NON thémés
+    injectFixedButtonStyles();
     injectDescStyle();
     ensureListScroll();
-    injectDensitySelector();     // no-op si pas de contrôles de densité
-    ensureSelectPlaceholders();  // options "—" neutres
+    setupDensitySelector();      // densité 500/1500/2500
+    ensureSelectPlaceholders();
 
     restoreTheme();              // applique thème GLOBAL via variables
     restoreLast(); refreshLastBadge();
 
     wireEvents();
-    if (state.book) {            // si on a un livre, on remplit
+    if (state.book) {
       fillBooks(); fillChapters(); fillVerses();
       bookSelect && (bookSelect.value = state.book);
       chapterSelect && (chapterSelect.value = String(state.chapter));
       verseSelect && (verseSelect.value = String(state.verse));
-    } else {                     // sinon on laisse les placeholders
-      fillBooks(true);           // true => ne sélectionne pas le livre
+    } else {
+      fillBooks(true);
     }
     versionSelect && (versionSelect.value = state.version || 'LSG');
 
+    // init densité UI selon state
+    if (densitySelect) {
+      const val = DENSITY_CHOICES.includes(state.density) ? state.density : 1500;
+      densitySelect.value = String(val);
+    }
+
     renderPointsList(); updateHeader(); renderSection(0);
+    initThemeBar(); // rend cliquable la palette
   }
 
   // ---------- Styles ----------
@@ -101,7 +112,6 @@
     st.textContent=`#pointsList .txt .desc{display:block;margin-top:4px;font-size:12.5px;line-height:1.3;color:#64748b;white-space:normal}`;
     document.head.appendChild(st);
   }
-  // Boutons fixes (non dépendants du thème)
   function injectFixedButtonStyles(){
     const st=document.createElement('style');
     st.textContent = `
@@ -124,6 +134,7 @@
     document.body.classList.add('theme-'+theme);
     try{ localStorage.setItem(STORAGE_THEME, theme); }catch{}
     placeThumbForTheme(theme);
+    // broadcast éventuel
     window.dispatchEvent(new CustomEvent('themechange',{ detail:{ theme, vars } }));
   }
   function applyThemeVars(el, vars){
@@ -133,38 +144,79 @@
     el.style.setProperty('--border', vars.border);
     el.style.setProperty('--chip', vars.bg);
     el.style.setProperty('--muted', '#64748b');
+    // couleurs dérivées utiles au site
+    el.style.setProperty('--accent', vars.primary);
+    el.style.setProperty('--accent-soft', mix(vars.primary, '#ffffff', 0.85));
+    el.style.setProperty('--panel', '#ffffff');
+  }
+  function mix(c1, c2, p){ // mélange simple hex -> hex
+    try{
+      const a = hexToRgb(c1), b = hexToRgb(c2);
+      const r = Math.round(a.r*(1-p)+b.r*p);
+      const g = Math.round(a.g*(1-p)+b.g*p);
+      const b2= Math.round(a.b*(1-p)+b.b*p);
+      return `rgb(${r}, ${g}, ${b2})`;
+    }catch{return c1;}
+  }
+  function hexToRgb(hex){
+    const h = hex.replace('#','');
+    const v = h.length===3 ? h.split('').map(x=>x+x).join('') : h;
+    const n = parseInt(v,16);
+    return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
   }
   function getTheme(){ try{ return localStorage.getItem(STORAGE_THEME) || 'cyan'; }catch{ return 'cyan'; } }
   function restoreTheme(){ setTheme(getTheme()); }
-  function onThemePointer(ev){
-    if (!themeBar) return;
-    themeBar.setPointerCapture?.(ev.pointerId);
-    const rect=themeBar.getBoundingClientRect();
-    const move=(e)=>{
-      const clientX=(e.touches?e.touches[0].clientX:e.clientX);
-      const x=Math.max(0,Math.min(rect.width, clientX-rect.left));
-      const pct=x/rect.width;
-      themeThumb && (themeThumb.style.left=(pct*100)+'%');
-      const idx=Math.min(THEMES.length-1, Math.floor(pct*THEMES.length));
-      setTheme(THEMES[idx]);
-    };
-    const up=()=>{
-      window.removeEventListener('pointermove',move);
-      window.removeEventListener('pointerup',up);
-      window.removeEventListener('touchmove',move);
-      window.removeEventListener('touchend',up);
-    };
-    window.addEventListener('pointermove',move);
-    window.addEventListener('pointerup',up);
-    window.addEventListener('touchmove',move,{passive:false});
-    window.addEventListener('touchend',up);
-    move(ev);
-  }
   function placeThumbForTheme(theme){
-    if (!themeThumb) return;
+    if (!themeBar || !themeThumb) return;
     const idx=Math.max(0, THEMES.indexOf(theme));
     const pct=(idx+0.5)/THEMES.length;
     themeThumb.style.left=(pct*100)+'%';
+  }
+
+  function initThemeBar(){
+    if (!themeBar) return;
+    // crée les pastilles si absentes
+    if (!themeBar.querySelector('[data-role="swatch"]')){
+      THEMES.forEach(name=>{
+        const btn=document.createElement('button');
+        btn.type='button';
+        btn.setAttribute('data-role','swatch');
+        btn.setAttribute('data-theme',name);
+        btn.title = name;
+        btn.style.background = THEME_VARS[name].primary;
+        btn.addEventListener('click', ()=> setTheme(name));
+        themeBar.appendChild(btn);
+      });
+    }
+    // positionne le thumb
+    placeThumbForTheme(getTheme());
+  }
+
+  // ---------- Densité ----------
+  function setupDensitySelector(){
+    if (!densitySelect) return;
+    // Remplissage (au cas où HTML ne contient pas encore les options)
+    if (!densitySelect.options.length){
+      DENSITY_CHOICES.forEach(v=>{
+        const o=document.createElement('option');
+        o.value=String(v); o.textContent=`${v} caractères`;
+        densitySelect.appendChild(o);
+      });
+    }
+    // Valeur initiale depuis localStorage si dispo
+    const raw = localStorage.getItem(STORAGE_DENS);
+    const init = raw ? parseInt(raw,10) : 1500;
+    if (DENSITY_CHOICES.includes(init)) {
+      state.density = init;
+      densitySelect.value = String(init);
+    }
+    densitySelect.addEventListener('change', ()=>{
+      const v = parseInt(densitySelect.value,10);
+      if (DENSITY_CHOICES.includes(v)){
+        state.density = v;
+        try{ localStorage.setItem(STORAGE_DENS, String(v)); }catch{}
+      }
+    });
   }
 
   // ---------- Événements ----------
@@ -210,8 +262,6 @@
 
     prevBtn && prevBtn.addEventListener('click', ()=>goTo(state.currentIdx-1));
     nextBtn && nextBtn.addEventListener('click', ()=>goTo(state.currentIdx+1));
-
-    if (themeBar) themeBar.addEventListener('pointerdown', onThemePointer);
   }
 
   // ---------- Placeholders & sélecteurs ----------
@@ -322,7 +372,6 @@
   function highlightActive(){ $$('#pointsList .item').forEach(el=>el.classList.toggle('active', Number(el.dataset.idx)===state.currentIdx)); }
   function goTo(idx){ if(idx<0) idx=0; if(idx>28) idx=28; state.currentIdx=idx; updateHeader(); renderSection(idx); highlightActive(); }
   function updateHeader(){ if (!edTitle || !metaInfo) return; edTitle.textContent = state.currentIdx===0?TITLE0:getTitle(state.currentIdx); metaInfo.textContent=`Point ${state.currentIdx} / 28`; }
-
   function rerender(){ renderPointsList(); renderSection(state.currentIdx); updateHeader(); }
 
   // ---------- Rendu section ----------
@@ -330,7 +379,6 @@
     if (!noteArea) return;
     const txt = state.sectionsByN.get(n) || defaultContent(n);
     noteArea.value = txt;
-    // Simule une frappe pour que le script de progress/verdissage réagisse
     noteArea.dispatchEvent(new Event('input', {bubbles:true}));
   }
   function defaultContent(n){
@@ -436,9 +484,6 @@ Contenu provisoire (gabarit).`);
     if (!pointsList.style.maxHeight) pointsList.style.maxHeight='calc(100vh - 220px)';
   }
 
-  // Ancienne fonction de rendu HTML → ici on renvoie le texte tel quel (textarea)
-  function mdToHtml(md){ return String(md || ''); }
-
   function refreshLastBadge(){ if (!lastBadge) return; const b=localStorage.getItem(STORAGE_LAST); if(!b){ lastBadge.textContent='Dernière : —'; return; } try{ const j=JSON.parse(b)||{}; const label = j.book ? `${j.book} ${j.chapter || ''}${j.verse?':'+j.verse:''}`.trim() : '—'; lastBadge.textContent='Dernière : '+label; }catch{ lastBadge.textContent='Dernière : —'; } }
   function saveLast(){ try{ localStorage.setItem(STORAGE_LAST, JSON.stringify({ book:state.book||'', chapter:state.chapter||'', verse:state.verse||'', version:state.version||'LSG', density:state.density })); }catch{} }
 
@@ -457,8 +502,4 @@ Contenu provisoire (gabarit).`);
       }
     }catch{}
   }
-
-  // Densité : no-op si pas d’UI
-  function injectDensitySelector(){ /* Optionnel : UI absente → rien à faire */ }
-
 })();
