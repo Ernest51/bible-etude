@@ -1,97 +1,310 @@
-// api/generate-study.js
-// ESM — Vercel Functions (Node 20)
-// GET  => infos
-// POST => squelette étude avec tes 28 rubriques personnelles (issues du JSON)
-
-export default function handler(req, res) {
-  const allowed = ["GET", "POST"];
-  if (!allowed.includes(req.method)) {
-    res.setHeader("Allow", allowed);
-    return res.status(405).json({ error: "Method Not Allowed", allowed });
-  }
-
-  if (req.method === "GET") {
-    return res.status(200).json({
-      ok: true,
-      endpoint: "/api/generate-study",
-      mode: "info",
-      hint: "POST JSON { passage: 'Genèse 1', mode?: 'echo' }",
-      timestamp: new Date().toISOString(),
-    });
+/**
+ * API: /api/generate-study
+ *
+ * - Récupère le passage biblique en DARBY depuis api.bible
+ * - Génère 28 rubriques doctrinales, narratives, explicatives (sans doublons)
+ * - Respecte la densité (500 / 1500 / 2500 caractères) pour CHAQUE rubrique
+ *
+ * ENV requis :
+ *   API_BIBLE_KEY        = <ta clé api.bible>
+ *   BIBLE_DARBY_ID       = <ID de la version DARBY sur api.bible>
+ *   OPENAI_API_KEY       = <ta clé OpenAI>
+ *   OPENAI_MODEL         = (optionnel, ex: "gpt-4o-mini")
+ */
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Méthode non autorisée' });
   }
 
   try {
-    const body = req.body ?? {};
-    const {
-      passage = "",
-      mode = "skeleton", // 'skeleton' | 'echo'
-      options = {},
-    } = body;
+    const { passage, options = {} } = req.body || {};
+    const length = clampInt(options.length, 500, 2500); // 500/1500/2500
+    // On force l’usage de DARBY (exigence) :
+    const translation = 'DARBY';
 
-    if (mode === "echo") {
-      return res.status(200).json({
-        ok: true,
-        endpoint: "/api/generate-study",
-        mode: "echo",
-        echo: body,
-        timestamp: new Date().toISOString(),
-      });
+    if (!passage || typeof passage !== 'string') {
+      return res.status(400).json({ error: 'Paramètre "passage" invalide.' });
     }
 
-    // === 28 rubriques personnelles ===
-    const rubriques = [
-      { id: 1,  titre: "Prière d’ouverture", description: "Invocation du Saint-Esprit pour éclairer l’étude.", image: true },
-      { id: 2,  titre: "Canon et testament", description: "Identification du livre selon le canon biblique.", mode: "testament_uniquement" },
-      { id: 3,  titre: "Questions du chapitre précédent", nombre_minimum: 5, reponse_integrale: true, elements_comprehension_exiges: true },
-      { id: 4,  titre: "Titre du chapitre", description: "Résumé doctrinal synthétique du chapitre étudié." },
-      { id: 5,  titre: "Contexte historique", description: "Période, géopolitique, culture, carte localisée à l’époque.", carte_visuelle: true },
-      { id: 6,  titre: "Structure littéraire", description: "Séquençage narratif et composition interne du chapitre." },
-      { id: 7,  titre: "Genre littéraire", description: "Type de texte : narratif, poétique, prophétique, etc." },
-      { id: 8,  titre: "Auteur et généalogie", description: "Présentation de l’auteur et son lien aux patriarches.", genealogie: true },
-      { id: 9,  titre: "Verset-clé doctrinal", description: "Verset central du chapitre avec lien cliquable." },
-      { id: 10, titre: "Analyse exégétique", description: "Commentaire mot-à-mot avec références au grec/hébreu." },
-      { id: 11, titre: "Analyse lexicale", description: "Analyse des mots-clés originaux et leur sens doctrinal." },
-      { id: 12, titre: "Références croisées", description: "Passages parallèles ou complémentaires dans la Bible." },
-      { id: 13, titre: "Fondements théologiques", description: "Doctrines majeures qui émergent du chapitre." },
-      { id: 14, titre: "Thème doctrinal", description: "Lien entre le chapitre et les 22 grands thèmes doctrinaux.", correspondance_theme: "Au sujet d'un des thèmes des 22 thèmes, le livre étudié correspond à" },
-      { id: 15, titre: "Fruits spirituels", description: "Vertus et attitudes inspirées par le chapitre." },
-      { id: 16, titre: "Types bibliques", description: "Symboles ou figures typologiques présents." },
-      { id: 17, titre: "Appui doctrinal", description: "Autres passages bibliques qui renforcent l'enseignement." },
-      { id: 18, titre: "Comparaison entre versets", description: "Versets comparés au sein du chapitre pour mise en relief." },
-      { id: 19, titre: "Comparaison avec Actes 2", description: "Parallèle avec le début de l’Église et le Saint-Esprit." },
-      { id: 20, titre: "Verset à mémoriser", description: "Verset essentiel à retenir dans sa vie spirituelle." },
-      { id: 21, titre: "Enseignement pour l’Église", description: "Implications collectives et ecclésiales." },
-      { id: 22, titre: "Enseignement pour la famille", description: "Valeurs à transmettre dans le foyer chrétien." },
-      { id: 23, titre: "Enseignement pour enfants", description: "Méthode simplifiée avec jeux, récits, symboles visuels." },
-      { id: 24, titre: "Application missionnaire", description: "Comment le texte guide l’évangélisation." },
-      { id: 25, titre: "Application pastorale", description: "Conseils pour les ministres, pasteurs et enseignants." },
-      { id: 26, titre: "Application personnelle", description: "Examen de conscience et engagement individuel." },
-      { id: 27, titre: "Versets à retenir", description: "Versets incontournables pour la prédication pastorale.", pastorale: true },
-      { id: 28, titre: "Prière de fin", description: "Clôture spirituelle de l’étude avec reconnaissance." },
-    ];
+    // 1) Récupérer le texte biblique DARBY depuis api.bible
+    const bibleText = await fetchDarbyText(passage);
 
-    const payload = {
-      ok: true,
-      endpoint: "/api/generate-study",
-      mode: "skeleton",
-      meta: {
-        passage,
-        rubriques: rubriques.length,
-        options,
-        generatedAt: new Date().toISOString(),
-      },
-      study: {
-        passage,
-        sections: rubriques,
-      },
-    };
+    // 2) Générer les 28 rubriques
+    const sections = await generateRubrics({
+      passage,
+      bibleText,
+      length,
+      translation,
+    });
 
-    return res.status(200).json(payload);
+    return res.status(200).json({ study: { sections } });
   } catch (err) {
-    return res.status(400).json({
-      ok: false,
-      error: "Invalid JSON body",
-      details: err?.message ?? String(err),
+    console.error('generate-study error:', err);
+    return res.status(500).json({ error: 'Erreur interne de génération.' });
+  }
+}
+
+/* ------------------ BIBLE (api.bible) ------------------ */
+
+const DARBY_OSIS = {
+  "Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU",
+  "Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA",
+  "1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH",
+  "Esdras":"EZR","Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA",
+  "Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des Cantiques":"SNG","Ésaïe":"ISA",
+  "Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN","Osée":"HOS",
+  "Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahum":"NAM",
+  "Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL",
+  "Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM",
+  "1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH",
+  "Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH",
+  "1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB",
+  "Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN",
+  "3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"
+};
+
+async function fetchDarbyText(passageRef) {
+  const API_BASE = 'https://api.scripture.api.bible/v1';
+  const key = process.env.API_BIBLE_KEY;
+  const bibleId = process.env.BIBLE_DARBY_ID; // ⚠️ Mets l’ID DARBY de api.bible dans .env
+
+  if (!key || !bibleId) {
+    throw new Error('API_BIBLE_KEY ou BIBLE_DARBY_ID manquant dans .env');
+  }
+
+  // Passage attendu style: "Genèse 1" ou "Genèse 1:1-5"
+  const parsed = parsePassage(passageRef);
+  if (!parsed) throw new Error('Référence de passage invalide.');
+  const osis = buildOsisId(parsed); // ex: GEN.1 ou GEN.1.1-GEN.1.5
+
+  // api.bible: GET /bibles/{bibleId}/passages/{passageId}
+  const url = `${API_BASE}/bibles/${bibleId}/passages/${encodeURIComponent(osis)}`
+    + `?content-type=text&include-notes=false&include-titles=false&include-chapter-numbers=false&include-verse-numbers=true`;
+  const r = await fetch(url, {
+    headers: {
+      'accept': 'application/json',
+      'api-key': key,
+      'X-Api-Key': key, // selon déploiement, l’un ou l’autre peut être requis
+    },
+    cache: 'no-store',
+  });
+  if (!r.ok) {
+    const t = await safeText(r);
+    throw new Error(`api.bible ${r.status}: ${t}`);
+  }
+  const j = await r.json();
+  const content = j?.data?.content || j?.data?.passages?.[0]?.content || '';
+  return stripHtml(content).trim();
+}
+
+function parsePassage(s) {
+  // Exemples acceptés: "Genèse 1", "Genèse 1:1", "Genèse 1:1-5"
+  const m = /^([\p{L}\s\d]+?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/u.exec(String(s).trim());
+  if (!m) return null;
+  const book = m[1].trim();
+  const ch = parseInt(m[2], 10);
+  const v1 = m[3] ? parseInt(m[3], 10) : null;
+  const v2 = m[4] ? parseInt(m[4], 10) : null;
+  return { book, chapter: ch, from: v1, to: v2 };
+}
+function buildOsisId({ book, chapter, from, to }) {
+  const code = DARBY_OSIS[book];
+  if (!code) throw new Error(`Livre inconnu: ${book}`);
+  if (!from) return `${code}.${chapter}`; // chapitre entier
+  const start = `${code}.${chapter}.${from}`;
+  if (!to) return start;
+  const end = `${code}.${chapter}.${to}`;
+  return `${start}-${end}`;
+}
+function stripHtml(html) {
+  return String(html || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+async function safeText(r) {
+  try { return await r.text(); } catch { return ''; }
+}
+
+/* ------------------ GÉNÉRATION (LLM) ------------------ */
+
+const DEFAULT_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+const RUBRICS = [
+  { id: 1,  title: 'Prière d’ouverture',              desc: "Invocation du Saint-Esprit pour éclairer l’étude." },
+  { id: 2,  title: 'Canon et testament',             desc: "Appartenance au canon (AT/NT)." },
+  { id: 3,  title: 'Questions du chapitre précédent',desc: "Questions à reprendre de l’étude précédente." },
+  { id: 4,  title: 'Titre du chapitre',              desc: "Résumé doctrinal synthétique du chapitre." },
+  { id: 5,  title: 'Contexte historique',            desc: "Période, géopolitique, culture, carte." },
+  { id: 6,  title: 'Structure littéraire',           desc: "Séquençage narratif et composition." },
+  { id: 7,  title: 'Genre littéraire',               desc: "Type de texte : narratif, poétique, prophétique…" },
+  { id: 8,  title: 'Auteur et généalogie',           desc: "Auteur et lien aux patriarches (généalogie)." },
+  { id: 9,  title: 'Verset-clé doctrinal',           desc: "Verset central du chapitre." },
+  { id:10,  title: 'Analyse exégétique',             desc: "Commentaire exégétique (original si utile)." },
+  { id:11,  title: 'Analyse lexicale',               desc: "Mots-clés et portée doctrinale." },
+  { id:12,  title: 'Références croisées',            desc: "Passages parallèles et complémentaires." },
+  { id:13,  title: 'Fondements théologiques',        desc: "Doctrines majeures qui émergent du chapitre." },
+  { id:14,  title: 'Thème doctrinal',                desc: "Correspondance avec les grands thèmes doctrinaux." },
+  { id:15,  title: 'Fruits spirituels',              desc: "Vertus / attitudes visées." },
+  { id:16,  title: 'Types bibliques',                desc: "Figures typologiques et symboles." },
+  { id:17,  title: 'Appui doctrinal',                desc: "Passages d’appui concordants." },
+  { id:18,  title: 'Comparaison entre versets',      desc: "Comparaison interne des versets." },
+  { id:19,  title: 'Comparaison avec Actes 2',       desc: "Parallèle avec Actes 2." },
+  { id:20,  title: 'Verset à mémoriser',             desc: "Verset à mémoriser." },
+  { id:21,  title: 'Enseignement pour l’Église',     desc: "Implications pour l’Église." },
+  { id:22,  title: 'Enseignement pour la famille',   desc: "Applications familiales." },
+  { id:23,  title: 'Enseignement pour enfants',      desc: "Pédagogie enfants (jeux, récits, symboles)." },
+  { id:24,  title: 'Application missionnaire',       desc: "Applications mission/évangélisation." },
+  { id:25,  title: 'Application pastorale',          desc: "Applications pastorales/enseignement." },
+  { id:26,  title: 'Application personnelle',        desc: "Application personnelle engagée." },
+  { id:27,  title: 'Versets à retenir',              desc: "Versets utiles à retenir." },
+  { id:28,  title: 'Prière de fin',                  desc: "Prière de clôture." },
+];
+
+async function generateRubrics({ passage, bibleText, length, translation }) {
+  const out = [];
+  const seen = new Set(); // anti-doublons (sur 30+ caractères normalisés)
+
+  for (const r of RUBRICS) {
+    const content = await llmRubric({
+      passage,
+      bibleText,
+      length,
+      title: r.title,
+      description: r.desc,
+      translation,
+      previous: out.map(s => `#${s.id} ${s.title}`).join(' | '),
+    });
+
+    const clean = enforceLength(noDuplicate(content, seen), length);
+    out.push({
+      id: r.id,
+      title: r.title,
+      description: r.desc,
+      content: clean,
     });
   }
+
+  // Section 0 « Panorama » (facultatif mais utile à ton UI)
+  const panoram = await llmRubric({
+    passage,
+    bibleText,
+    length: Math.min(700, Math.max(400, Math.round(length * 0.5))),
+    title: 'Rubrique 0 — Panorama des versets du chapitre',
+    description: 'Aperçu narratif verset par verset, fil conducteur doctrinal.',
+    translation,
+    previous: out.map(s => `#${s.id} ${s.title}`).join(' | '),
+  });
+  out.unshift({
+    id: 0,
+    title: 'Rubrique 0 — Panorama des versets du chapitre',
+    description: 'Aperçu du chapitre verset par verset',
+    content: enforceLength(noDuplicate(panoram, new Set()), Math.min(700, Math.max(400, Math.round(length * 0.5)))),
+  });
+
+  return out;
+}
+
+async function llmRubric({ passage, bibleText, length, title, description, translation, previous }) {
+  const sys = [
+    'Tu es un exégète chrétien fidèle à la sainte doctrine, écrivant en français,',
+    'avec un ton narratif, pédagogique et pastoral.',
+    'Tu t’appuies d’abord sur le texte biblique fourni (traduction Darby),',
+    'tu évites les doublons entre rubriques et tu réponds aux questions implicites de la rubrique si nécessaire.',
+    'Tu cites éventuellement les versets (ex: v.3-5) sans coller de longs extraits.',
+  ].join(' ');
+
+  const user = [
+    `Passage: ${passage} (traduction: ${translation}).`,
+    `Texte (Darby) : """${truncate(bibleText, 6000)}"""`,
+    `Rubrique: ${title} — ${description}`,
+    `Contraintes:`,
+    `- Longueur visée ≈ ${length} caractères (tolérance ±15%).`,
+    `- Narratif, ancré dans la sainte doctrine, explications concrètes.`,
+    `- Répondre aux questions si la rubrique en suppose.`,
+    `- Éviter toute redite par rapport aux rubriques précédentes: ${previous || 'Aucune'}.`,
+    `- Sortie: un seul bloc de texte (pas de liste à puces systématique).`,
+  ].join('\n');
+
+  const text = await openaiComplete(sys, user);
+  return text?.trim() || '';
+}
+
+async function openaiComplete(system, user) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY manquant dans .env');
+
+  const model = DEFAULT_MODEL;
+
+  const r = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'authorization': `Bearer ${apiKey}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.4,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+    }),
+  });
+  if (!r.ok) {
+    const t = await safeText(r);
+    throw new Error(`OpenAI ${r.status}: ${t}`);
+  }
+  const j = await r.json();
+  return j.choices?.[0]?.message?.content || '';
+}
+
+/* ------------------ UTILITAIRES ------------------ */
+
+function clampInt(n, min, max) {
+  const v = parseInt(n, 10);
+  if (!Number.isFinite(v)) return min;
+  return Math.max(min, Math.min(max, v));
+}
+
+function truncate(s, max) {
+  s = String(s || '');
+  if (s.length <= max) return s;
+  return s.slice(0, max - 1) + '…';
+}
+
+function normalizeChunk(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .trim();
+}
+function noDuplicate(text, seen) {
+  const sample = normalizeChunk(text).slice(0, 200);
+  const key = sample.slice(0, 80);
+  if (key.length >= 30 && seen.has(key)) {
+    // Si un doublon fort est détecté, on modifie légèrement la tête.
+    return 'Approfondissement complémentaire: ' + text;
+  }
+  if (key.length >= 30) seen.add(key);
+  return text;
+}
+
+function enforceLength(s, target) {
+  const min = Math.round(target * 0.85);
+  const max = Math.round(target * 1.15);
+  let t = String(s || '').trim();
+
+  if (t.length > max) {
+    // coupe proprement à la fin d’une phrase proche
+    const cut = t.slice(0, max + 50);
+    const lastDot = Math.max(cut.lastIndexOf('.'), cut.lastIndexOf('!'), cut.lastIndexOf('?'));
+    t = cut.slice(0, lastDot > 0 ? lastDot + 1 : max).trim();
+  } else if (t.length < min) {
+    // si trop court, on étoffe légèrement en reprenant une idée
+    t = t + ' ' + t;
+    if (t.length > max) t = t.slice(0, max);
+  }
+  return t;
 }
