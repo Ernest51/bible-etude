@@ -9,12 +9,11 @@
   }[c]));
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
-  // --- Constantes / thèmes ---
   const STORAGE_LAST='lastStudy', STORAGE_DENS='density8', STORAGE_THEME='theme8';
   const TITLE0='Rubrique 0 — Panorama des versets du chapitre';
   const DENSITY_CHOICES=[500,1500,2500];
 
-  // 12 thèmes (gauche → droite)
+  // 12 thèmes
   const THEMES=['cyan','violet','vert','rouge','mauve','indigo','ambre','slate','rose','bleu','lime','teal'];
   const THEME_VARS = {
     cyan:   { bg:'#f0f9ff', text:'#0c4a6e', primary:'#06b6d4', border:'#e2e8f0' },
@@ -34,10 +33,9 @@
   const CHAPTERS_66 = {"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
   const ORDER_66 = Object.keys(CHAPTERS_66);
 
-  const TITLES_DEFAULT={1:"Prière d’ouverture",2:"Canon et testament",3:"Questions du chapitre précédent",4:"Titre du chapitre",5:"Contexte historique",6:"Structure littéraire",7:"Genre littéraire",8:"Auteur et généalogie",9:"Verset-clé doctrinal",10:"Analyse exégétique",11:"Analyse lexicale",12:"Références croisées",13:"Fondements théologiques",14:"Thème doctrinal",15:"Fruits spirituels",16:"Types bibliques",17:"Appui doctrinal",18:"Parallèle avec Actes 2",19:"Parallèle avec Actes 2",20:"Verset à mémoriser",21:"Enseignement pour l’Église",22:"Enseignement pour la famille",23:"Enseignement pour enfants",24:"Application missionnaire",25:"Application pastorale",26:"Application personnelle",27:"Versets à retenir",28:"Prière de fin"};
+  const TITLES_DEFAULT={1:"Prière d’ouverture",2:"Canon et testament",3:"Questions du chapitre précédent",4:"Titre du chapitre",5:"Contexte historique",6:"Structure littéraire",7:"Genre littéraire",8:"Auteur et généalogie",9:"Verset-clé doctrinal",10:"Analyse exégétique",11:"Analyse lexicale",12:"Références croisées",13:"Fondements théologiques",14:"Thème doctrinal",15:"Fruits spirituels",16:"Types bibliques",17:"Appui doctrinal",18:"Comparaison entre versets",19:"Comparaison avec Actes 2",20:"Verset à mémoriser",21:"Enseignement pour l’Église",22:"Enseignement pour la famille",23:"Enseignement pour enfants",24:"Application missionnaire",25:"Application pastorale",26:"Application personnelle",27:"Versets à retenir",28:"Prière de fin"};
   const DESCS_DEFAULT={1:"Invocation du Saint-Esprit pour éclairer l’étude.",2:"Appartenance au canon (AT/NT).",3:"Questions à reprendre de l’étude précédente.",4:"Résumé doctrinal synthétique du chapitre.",5:"Période, géopolitique, culture, carte.",6:"Séquençage narratif et composition.",7:"Type de texte : narratif, poétique, prophétique…",8:"Auteur et lien aux patriarches (généalogie).",9:"Verset central du chapitre.",10:"Commentaire exégétique (original si utile).",11:"Mots-clés et portée doctrinale.",12:"Passages parallèles et complémentaires.",13:"Doctrines majeures qui émergent du chapitre.",14:"Correspondance avec les grands thèmes doctrinaux.",15:"Vertus / attitudes visées.",16:"Figures typologiques et symboles.",17:"Passages d’appui concordants.",18:"Comparaison interne des versets.",19:"Parallèle avec Actes 2.",20:"Verset à mémoriser.",21:"Implications pour l’Église.",22:"Applications familiales.",23:"Pédagogie enfants (jeux, récits, symboles).",24:"Applications mission/évangélisation.",25:"Applications pastorales/enseignement.",26:"Application personnelle engagée.",27:"Versets utiles à retenir.",28:"Prière de clôture."};
 
-  // --- État ---
   const state = {
     book:'Genèse', chapter:1, verse:1, version:'LSG',
     density:1500, currentIdx:0,
@@ -46,7 +44,6 @@
   };
   for(let i=0;i<=28;i++) state.leds.set(i,'warn');
 
-  // --- Éléments ---
   const pointsList=$('#pointsList'), edTitle=$('#edTitle'), metaInfo=$('#metaInfo');
   const searchRef=$('#searchRef'), applyBtn=$('#applySearchBtn')||$('#validate');
   const bookSelect=$('#bookSelect'), chapterSelect=$('#chapterSelect'), verseSelect=$('#verseSelect'), versionSelect=$('#versionSelect');
@@ -81,7 +78,7 @@
     initThemeBar();
   }
 
-  // --- Thème global ---
+  /* ---------- Thème global ---------- */
   function setTheme(theme){
     const v = THEME_VARS[theme] || THEME_VARS.cyan;
     applyVars(document.documentElement, v);
@@ -116,7 +113,7 @@
     });
   }
 
-  // --- Densité ---
+  /* ---------- Densité ---------- */
   function setupDensitySelector(){
     if (!densitySelect) return;
     if (!densitySelect.options.length){
@@ -141,7 +138,7 @@
     });
   }
 
-  // --- Événements ---
+  /* ---------- Événements ---------- */
   function wireEvents(){
     applyBtn && applyBtn.addEventListener('click', applySearch);
     searchRef && searchRef.addEventListener('keydown', e=>{ if(e.key==='Enter') applySearch(); });
@@ -177,7 +174,7 @@
     nextBtn && nextBtn.addEventListener('click', ()=>goTo(state.currentIdx+1));
   }
 
-  // --- Recherche / sélecteurs ---
+  /* ---------- Recherche / sélecteurs ---------- */
   function ensureSelectPlaceholders(){
     [bookSelect,chapterSelect,verseSelect].forEach(sel=>{
       if(!sel) return;
@@ -264,7 +261,7 @@
   const normalize=(s)=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
   function findBook(norm){ for(const b of ORDER_66){ const n=normalize(b); if(n===norm||n.startsWith(norm)||norm.startsWith(n)) return b; } return null; }
 
-  // --- Liste 0..28 ---
+  /* ---------- Liste 0..28 ---------- */
   function getTitle(n){ return state.titles[n] || TITLES_DEFAULT[n] || `Point ${n}`; }
   function getDesc(n){ return state.descs[n]  || DESCS_DEFAULT[n]  || ''; }
 
@@ -290,7 +287,7 @@
   function updateHeader(){ if(!edTitle||!metaInfo) return; edTitle.textContent=state.currentIdx===0?TITLE0:getTitle(state.currentIdx); metaInfo.textContent=`Point ${state.currentIdx} / 28`; }
   function rerender(){ renderPointsList(); renderSection(state.currentIdx); updateHeader(); }
 
-  // --- Rendu section (textarea) ---
+  /* ---------- Rendu section ---------- */
   function renderSection(n){
     if (!noteArea) return;
     const txt=state.sectionsByN.get(n)||defaultContent(n);
@@ -311,17 +308,25 @@ Clique sur **Générer** pour charger chaque verset avec explications.`;
 À générer…`;
   }
 
-  // --- Génération (API) ---
+  /* ---------- Génération (API) ---------- */
   async function onGenerate(){
     if (!generateBtn) return;
     if (!state.book){ alert('Choisis un livre (et chapitre) avant de générer.'); return; }
     const old=generateBtn.textContent; generateBtn.disabled=true; generateBtn.textContent='Génération…';
     try{
       const passage = `${state.book} ${state.chapter||1}`;
-      // DENSITÉ TRANSMISE ICI → options.length = 500 | 1500 | 2500
       const r = await fetch('/api/generate-study', {
-        method:'POST', headers:{'Content-Type':'application/json'}, cache:'no-store',
-        body: JSON.stringify({ passage, options:{ length: state.density } })
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        cache:'no-store',
+        body: JSON.stringify({
+          passage,
+          options: {
+            length: state.density,
+            translation: 'DARBY',
+            rubrics: Array.from({length:28}, (_,i)=>i+1)
+          }
+        })
       });
       if (!r.ok) throw new Error('HTTP '+r.status);
       const j = await r.json();
@@ -363,7 +368,7 @@ Contenu provisoire (gabarit).`);
     }
   }
 
-  // --- Divers / persistance ---
+  /* ---------- Persistance ---------- */
   function ensureListScroll(){ const pl=$('#pointsList'); if(!pl) return; pl.style.overflowY='auto'; if(!pl.style.maxHeight) pl.style.maxHeight='calc(100vh - 220px)'; }
   function saveLast(){ try{ localStorage.setItem(STORAGE_LAST, JSON.stringify({ book:state.book||'', chapter:state.chapter||'', verse:state.verse||'', version:state.version||'LSG', density:state.density })); }catch{} }
   function restoreLast(){
@@ -377,7 +382,7 @@ Contenu provisoire (gabarit).`);
     }catch{}
   }
 
-  // --- YouVersion ---
+  /* ---------- YouVersion ---------- */
   const YV_BOOK={"Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des Cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN","Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL","Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"};
   const YV_VERSION_ID={ 'LSG':'93' };
   function youVersionURL(book,chapter,verse,version){
