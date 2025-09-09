@@ -46,12 +46,10 @@
   // ---------- Éléments ----------
   const pointsList   = $('#pointsList');
   const edTitle      = $('#edTitle');
-  const noteView     = $('#noteView');
   const metaInfo     = $('#metaInfo');
-  const lastBadge    = $('#lastBadge');
 
   const searchRef    = $('#searchRef');
-  const applyBtn     = $('#applySearchBtn');
+  const applyBtn     = $('#applySearchBtn') || $('#validate'); // aligné avec index.html
   const bookSelect   = $('#bookSelect');
   const chapterSelect= $('#chapterSelect');
   const verseSelect  = $('#verseSelect');
@@ -59,10 +57,14 @@
 
   const readBtn      = $('#readBtn');
   const generateBtn  = $('#generateBtn');
-  const resetBtn     = $('#resetBtn');
+  const resetBtn     = $('#resetBtn'); // peut être absent (ok)
   const prevBtn      = $('#prev');
   const nextBtn      = $('#next');
 
+  const noteArea     = $('#noteArea'); // Cœur de l’édition (textarea)
+
+  // Éléments éventuels (absents dans index → safe)
+  const lastBadge    = $('#lastBadge');
   const themeBar     = $('#themeBar');
   const themeThumb   = $('#themeThumb');
 
@@ -73,7 +75,7 @@
     injectFixedButtonStyles();   // boutons NON thémés
     injectDescStyle();
     ensureListScroll();
-    injectDensitySelector();
+    injectDensitySelector();     // no-op si pas de contrôles de densité
     ensureSelectPlaceholders();  // options "—" neutres
 
     restoreTheme();              // applique thème GLOBAL via variables
@@ -114,18 +116,14 @@
   // ---------- Thème GLOBAL ----------
   function setTheme(theme){
     const vars = THEME_VARS[theme] || THEME_VARS.cyan;
-    // Met les variables sur :root ET body
     applyThemeVars(document.documentElement, vars);
     applyThemeVars(document.body, vars);
-    // attributs / classes (si ton CSS les utilise)
     document.documentElement.setAttribute('data-theme', theme);
     document.body.setAttribute('data-theme', theme);
     THEMES.forEach(t=>document.body.classList.remove('theme-'+t));
     document.body.classList.add('theme-'+theme);
-    localStorage.setItem(STORAGE_THEME, theme);
-    // Positionne le pouce
+    try{ localStorage.setItem(STORAGE_THEME, theme); }catch{}
     placeThumbForTheme(theme);
-    // Event global si tu écoutes 'themechange'
     window.dispatchEvent(new CustomEvent('themechange',{ detail:{ theme, vars } }));
   }
   function applyThemeVars(el, vars){
@@ -133,11 +131,10 @@
     el.style.setProperty('--text', vars.text);
     el.style.setProperty('--primary', vars.primary);
     el.style.setProperty('--border', vars.border);
-    // Optionnel : éléments courants
     el.style.setProperty('--chip', vars.bg);
     el.style.setProperty('--muted', '#64748b');
   }
-  function getTheme(){ return localStorage.getItem(STORAGE_THEME) || 'cyan'; }
+  function getTheme(){ try{ return localStorage.getItem(STORAGE_THEME) || 'cyan'; }catch{ return 'cyan'; } }
   function restoreTheme(){ setTheme(getTheme()); }
   function onThemePointer(ev){
     if (!themeBar) return;
@@ -148,8 +145,8 @@
       const x=Math.max(0,Math.min(rect.width, clientX-rect.left));
       const pct=x/rect.width;
       themeThumb && (themeThumb.style.left=(pct*100)+'%');
-      const idx=Math.min(THEMES.length-1, Math.max(0, Math.floor(pct*THEMES.length)));
-      setTheme(THEMES[idx]); // applique partout
+      const idx=Math.min(THEMES.length-1, Math.floor(pct*THEMES.length));
+      setTheme(THEMES[idx]);
     };
     const up=()=>{
       window.removeEventListener('pointermove',move);
@@ -181,29 +178,27 @@
         state.chapter=1; state.verse=1;
         fillChapters(); fillVerses();
       } else {
-        // si on repasse sur — (neutre)
         clearChaptersAndVerses();
       }
-      saveLast(); refreshLastBadge();
+      saveLast(); refreshLastBadge(); rerender();
     });
 
     chapterSelect && chapterSelect.addEventListener('change', ()=>{
       const max = CHAPTERS_66[state.book] || 1;
       const next = parseInt(chapterSelect.value,10);
       if (Number.isFinite(next)) { state.chapter = clamp(next,1,max); chapterSelect.value=String(state.chapter); }
-      fillVerses(); saveLast(); refreshLastBadge();
+      fillVerses(); saveLast(); refreshLastBadge(); rerender();
     });
 
     verseSelect && verseSelect.addEventListener('change', ()=>{
       const v = parseInt(verseSelect.value,10);
       state.verse = Number.isFinite(v) ? v : 1;
-      saveLast(); refreshLastBadge();
+      saveLast(); refreshLastBadge(); rerender();
     });
 
-    versionSelect && versionSelect.addEventListener('change', ()=>{ state.version=versionSelect.value||'LSG'; });
+    versionSelect && versionSelect.addEventListener('change', ()=>{ state.version=versionSelect.value||'LSG'; saveLast(); });
 
     readBtn && readBtn.addEventListener('click', ()=>{
-      // YouVersion : ouvre uniquement si un livre est sélectionné
       if (!state.book) return;
       const url = youVersionURL(state.book, state.chapter || 1, state.verse || 1, state.version);
       window.open(url, '_blank', 'noopener,noreferrer');
@@ -211,7 +206,6 @@
 
     generateBtn && generateBtn.addEventListener('click', onGenerate);
 
-    // RESET total (réinit recherche + selects en neutre, diodes jaune, conserve "Dernière")
     resetBtn && resetBtn.addEventListener('click', onResetTotal);
 
     prevBtn && prevBtn.addEventListener('click', ()=>goTo(state.currentIdx-1));
@@ -222,7 +216,6 @@
 
   // ---------- Placeholders & sélecteurs ----------
   function ensureSelectPlaceholders(){
-    // Ajoute une option neutre "—" en tête si absente
     [bookSelect, chapterSelect, verseSelect].forEach(sel=>{
       if (!sel) return;
       if (!sel.querySelector('option[value=""]')){
@@ -247,11 +240,8 @@
 
   function fillBooks(keepNeutral=false){
     if (!bookSelect) return;
-    const current = bookSelect.value;
     bookSelect.innerHTML='';
-    // placeholder
     const opt0=document.createElement('option'); opt0.value=''; opt0.textContent='—'; bookSelect.appendChild(opt0);
-    // books
     ORDER_66.forEach(b=>{
       const o=document.createElement('option'); o.value=b; o.textContent=b; bookSelect.appendChild(o);
     });
@@ -262,7 +252,6 @@
     if (!chapterSelect) return;
     const max = CHAPTERS_66[state.book]||0;
     chapterSelect.innerHTML='';
-    // placeholder
     const opt0=document.createElement('option'); opt0.value=''; opt0.textContent='—'; chapterSelect.appendChild(opt0);
     for(let i=1;i<=max;i++){
       const o=document.createElement('option'); o.value=String(i); o.textContent=String(i); chapterSelect.appendChild(o);
@@ -295,7 +284,7 @@
         fillBooks(); bookSelect && (bookSelect.value=state.book);
         fillChapters(); chapterSelect && (chapterSelect.value=String(state.chapter));
         fillVerses(); verseSelect && (verseSelect.value=String(state.verse));
-        saveLast(); refreshLastBadge(); return;
+        saveLast(); refreshLastBadge(); rerender(); return;
       }
     }
     const bn=normalizeBook(raw); const fb=findBook(bn);
@@ -303,7 +292,7 @@
       state.book=fb; state.chapter=1; state.verse=1;
       fillBooks(); bookSelect&&(bookSelect.value=fb);
       fillChapters(); fillVerses();
-      saveLast(); refreshLastBadge();
+      saveLast(); refreshLastBadge(); rerender();
     }
   }
   function normalizeBook(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase(); }
@@ -334,11 +323,15 @@
   function goTo(idx){ if(idx<0) idx=0; if(idx>28) idx=28; state.currentIdx=idx; updateHeader(); renderSection(idx); highlightActive(); }
   function updateHeader(){ if (!edTitle || !metaInfo) return; edTitle.textContent = state.currentIdx===0?TITLE0:getTitle(state.currentIdx); metaInfo.textContent=`Point ${state.currentIdx} / 28`; }
 
+  function rerender(){ renderPointsList(); renderSection(state.currentIdx); updateHeader(); }
+
   // ---------- Rendu section ----------
   function renderSection(n){
-    if (!noteView) return;
-    const md = state.sectionsByN.get(n) || defaultContent(n);
-    noteView.innerHTML = mdToHtml(md);
+    if (!noteArea) return;
+    const txt = state.sectionsByN.get(n) || defaultContent(n);
+    noteArea.value = txt;
+    // Simule une frappe pour que le script de progress/verdissage réagisse
+    noteArea.dispatchEvent(new Event('input', {bubbles:true}));
   }
   function defaultContent(n){
     const ref = state.book ? `${state.book} ${state.chapter||''}`.trim() : '—';
@@ -405,26 +398,22 @@ Contenu provisoire (gabarit).`);
     }
   }
 
-  // ---------- RESET total (recherche & selects → neutre, diodes → jaune, conserve "Dernière") ----------
+  // ---------- RESET total ----------
   function onResetTotal(){
     if (!confirm('Tout vider (recherche et sélecteurs à —), conserver “Dernière”, et repasser les voyants en jaune ?')) return;
 
-    // 1) vider contenus & leds
     state.sectionsByN.clear();
-    for (let i=0;i<=28;i++) state.leds.set(i,'warn'); // jaune
+    for (let i=0;i<=28;i++) state.leds.set(i,'warn');
 
-    // 2) vider champs de recherche
     if (searchRef) searchRef.value='';
 
-    // 3) remettre les sélecteurs en état neutre "—"
     state.book=''; state.chapter=null; state.verse=null;
-    fillBooks(true);               // keepNeutral=true → ne sélectionne pas
+    fillBooks(true);
     clearChaptersAndVerses();
     if (bookSelect)   bookSelect.value='';
     if (chapterSelect)chapterSelect.value='';
     if (verseSelect)  verseSelect.value='';
 
-    // 4) ne pas toucher au localStorage "lastStudy" → “Dernière” conservée
     renderPointsList(); renderSection(0); updateHeader();
   }
 
@@ -436,7 +425,6 @@ Contenu provisoire (gabarit).`);
     const code = YV_BOOK[book] || 'GEN';
     const verId = YV_VERSION_ID[version || 'LSG'] || '93';
     const vtag  = (version || 'LSG').toUpperCase();
-    // format /fr/bible/{verId}/{BOOK}.{chap}.{VERSION}
     const u = new URL(`https://www.bible.com/fr/bible/${verId}/${code}.${chapter||1}.${vtag}`);
     return u.toString();
   }
@@ -448,19 +436,12 @@ Contenu provisoire (gabarit).`);
     if (!pointsList.style.maxHeight) pointsList.style.maxHeight='calc(100vh - 220px)';
   }
 
-  function mdToHtml(md){
-    let h=String(md||'');
-    h=h.replace(/^### (.*)$/gm,'<h3>$1</h3>').replace(/^## (.*)$/gm,'<h2>$1</h2>').replace(/^# (.*)$/gm,'<h1>$1</h1>');
-    h=h.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
-    h=h.replace(/^\s*-\s+(.*)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>)(?!\s*<li>)/gs,'<ul>$1</ul>');
-    h=h.split(/\n{2,}/).map(b=>/^<h\d|^<ul|^<li|^<p|^<blockquote/.test(b.trim())?b:`<p>${b.replace(/\n/g,'<br/>')}</p>`).join('\n');
-    return h;
-  }
+  // Ancienne fonction de rendu HTML → ici on renvoie le texte tel quel (textarea)
+  function mdToHtml(md){ return String(md || ''); }
 
   function refreshLastBadge(){ if (!lastBadge) return; const b=localStorage.getItem(STORAGE_LAST); if(!b){ lastBadge.textContent='Dernière : —'; return; } try{ const j=JSON.parse(b)||{}; const label = j.book ? `${j.book} ${j.chapter || ''}${j.verse?':'+j.verse:''}`.trim() : '—'; lastBadge.textContent='Dernière : '+label; }catch{ lastBadge.textContent='Dernière : —'; } }
-  function saveLast(){ localStorage.setItem(STORAGE_LAST, JSON.stringify({ book:state.book||'', chapter:state.chapter||'', verse:state.verse||'', version:state.version||'LSG', density:state.density })); }
+  function saveLast(){ try{ localStorage.setItem(STORAGE_LAST, JSON.stringify({ book:state.book||'', chapter:state.chapter||'', verse:state.verse||'', version:state.version||'LSG', density:state.density })); }catch{} }
 
-  // on ne force pas un livre si on est en mode neutre
   function restoreLast(){
     try{
       const raw=localStorage.getItem(STORAGE_LAST); if(!raw) return;
@@ -472,9 +453,12 @@ Contenu provisoire (gabarit).`);
         state.version=j.version||'LSG';
         if (DENSITY_CHOICES.includes(Number(j.density))) state.density=Number(j.density);
       } else {
-        // rester neutre
         state.book=''; state.chapter=null; state.verse=null;
       }
     }catch{}
   }
+
+  // Densité : no-op si pas d’UI
+  function injectDensitySelector(){ /* Optionnel : UI absente → rien à faire */ }
+
 })();
