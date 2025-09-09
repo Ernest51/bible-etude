@@ -28,7 +28,7 @@
     #themeBar button[data-role="swatch"]{width:100%;height:26px;border-radius:999px;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.08);cursor:pointer}
 
     /* Barre de contrôles */
-    .controls{display:grid;grid-template-columns:1.3fr .9fr .6fr .6fr .8fr .8fr auto auto;gap:10px;margin:12px 0}
+    .controls{display:grid;grid-template-columns:1.3fr .9fr .6fr .6fr .8fr .8fr auto auto auto auto;gap:10px;margin:12px 0}
     @media (max-width:1100px){
       .controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}
       .controls .wide{grid-column:1/-1}
@@ -37,6 +37,7 @@
     .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
     .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
     .btn.warn{background:var(--accent)}
+    .btn.link{background:#fff;color:#0f172a;border:1px solid var(--border)}
 
     /* Layout */
     .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
@@ -47,7 +48,7 @@
     .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
     .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
     .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
-    .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+    .desc{display:block;font-size:12px;color:#64748b;margin-top:2px}
     .dot{width:8px;height:8px;border-radius:999px;background:#eab308;margin-left:auto}
     .dot.ok{background:var(--ok)}
 
@@ -70,10 +71,10 @@
   <div class="progress-wrap"><div class="progress"><div id="progressBar" class="bar"></div></div></div>
   <header><h1>Méditation</h1></header>
 
-  <!-- Palette 12 couleurs (horizontale, gauche → droite) -->
+  <!-- Palette 12 couleurs -->
   <div class="theme-rail">
     <b>Couleur :</b>
-    <div id="themeBar" aria-label="Palette de thèmes"><!-- pastilles injectées via JS --></div>
+    <div id="themeBar" aria-label="Palette de thèmes"></div>
   </div>
 
   <main>
@@ -88,13 +89,16 @@
         <option value="S21">Segond 21 (S21)</option>
         <option value="BFC">Français Courant (BFC)</option>
       </select>
-
-      <!-- Sélecteur de densité (pilote options.length de l'appel API) -->
       <select id="densitySelect" title="Densité">
         <option value="500">500 caractères</option>
         <option value="1500" selected>1500 caractères</option>
         <option value="2500">2500 caractères</option>
       </select>
+
+      <!-- Nouveaux boutons -->
+      <button id="chatgptBtn" class="btn link" type="button">ChatGPT</button>
+      <button id="lastBtn" class="btn secondary" type="button">Dernière étude</button>
+      <button id="resetBtn" class="btn secondary" type="button">Reset</button>
 
       <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
       <button id="validate" class="btn" type="button">Valider</button>
@@ -137,7 +141,7 @@
     <div id="debugPanel">[init]</div>
   </footer>
 
-  <script src="/app.js?v=2025-09-02-5" defer></script>
+  <script src="/app.js?v=2025-09-02-7" defer></script>
   <script src="/bible-open.js" defer></script>
 
   <!-- Progress + nettoyeur HTML minimal -->
