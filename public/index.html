@@ -1,157 +1,301 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Méditation</title>
-  <meta name="description" content="Étude biblique — 28 rubriques, une zone de saisie, liens cliquables automatiques." />
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
-  <style>
-    :root{
-      --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b;
-      --accent:#0891b2; --accent-soft:#e0f2fe;
+/* app.js — Sélecteur de densité (500/1500/2500) relié à options.length,
+   Palette 12 couleurs horizontale (thème global), 66 livres + 28 rubriques.
+*/
+(function () {
+  const $  = (s)=>document.querySelector(s);
+  const $$ = (s)=>Array.from(document.querySelectorAll(s));
+  const esc = (s)=>String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+  // --- Constantes / thèmes ---
+  const STORAGE_LAST='lastStudy', STORAGE_DENS='density8', STORAGE_THEME='theme8';
+  const TITLE0='Rubrique 0 — Panorama des versets du chapitre';
+  const DENSITY_CHOICES=[500,1500,2500];
+
+  // 12 thèmes (gauche → droite)
+  const THEMES=['cyan','violet','vert','rouge','mauve','indigo','ambre','slate','rose','bleu','lime','teal'];
+  const THEME_VARS = {
+    cyan:   { bg:'#f0f9ff', text:'#0c4a6e', primary:'#06b6d4', border:'#e2e8f0' },
+    violet: { bg:'#f5f3ff', text:'#4c1d95', primary:'#8b5cf6', border:'#e2e8f0' },
+    vert:   { bg:'#f0fdf4', text:'#064e3b', primary:'#22c55e', border:'#e2e8f0' },
+    rouge:  { bg:'#fef2f2', text:'#7f1d1d', primary:'#ef4444', border:'#e2e8f0' },
+    mauve:  { bg:'#fdf4ff', text:'#581c87', primary:'#a855f7', border:'#e2e8f0' },
+    indigo: { bg:'#eef2ff', text:'#312e81', primary:'#6366f1', border:'#e2e8f0' },
+    ambre:  { bg:'#fffbeb', text:'#78350f', primary:'#f59e0b', border:'#e2e8f0' },
+    slate:  { bg:'#f8fafc', text:'#0f172a', primary:'#475569', border:'#e2e8f0' },
+    rose:   { bg:'#fff1f2', text:'#831843', primary:'#f472b6', border:'#e2e8f0' },
+    bleu:   { bg:'#eff6ff', text:'#1e3a8a', primary:'#3b82f6', border:'#e2e8f0' },
+    lime:   { bg:'#f7fee7', text:'#365314', primary:'#84cc16', border:'#e2e8f0' },
+    teal:   { bg:'#f0fdfa', text:'#115e59', primary:'#14b8a6', border:'#e2e8f0' },
+  };
+
+  const CHAPTERS_66 = {"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
+  const ORDER_66 = Object.keys(CHAPTERS_66);
+
+  const TITLES_DEFAULT={1:"Prière d’ouverture",2:"Canon et testament",3:"Questions du chapitre précédent",4:"Titre du chapitre",5:"Contexte historique",6:"Structure littéraire",7:"Genre littéraire",8:"Auteur et généalogie",9:"Verset-clé doctrinal",10:"Analyse exégétique",11:"Analyse lexicale",12:"Références croisées",13:"Fondements théologiques",14:"Thème doctrinal",15:"Fruits spirituels",16:"Types bibliques",17:"Appui doctrinal",18:"Comparaison entre versets",19:"Parallèle avec Actes 2",20:"Verset à mémoriser",21:"Enseignement pour l’Église",22:"Enseignement pour la famille",23:"Enseignement pour enfants",24:"Application missionnaire",25:"Application pastorale",26:"Application personnelle",27:"Versets à retenir",28:"Prière de fin"};
+  const DESCS_DEFAULT={1:"Invocation du Saint-Esprit pour éclairer l’étude.",2:"Appartenance au canon (AT/NT).",3:"Questions à reprendre de l’étude précédente.",4:"Résumé doctrinal synthétique du chapitre.",5:"Période, géopolitique, culture, carte.",6:"Séquençage narratif et composition.",7:"Type de texte : narratif, poétique, prophétique…",8:"Auteur et lien aux patriarches (généalogie).",9:"Verset central du chapitre.",10:"Commentaire exégétique (original si utile).",11:"Mots-clés et portée doctrinale.",12:"Passages parallèles et complémentaires.",13:"Doctrines majeures qui émergent du chapitre.",14:"Correspondance avec les grands thèmes doctrinaux.",15:"Vertus / attitudes visées.",16:"Figures typologiques et symboles.",17:"Passages d’appui concordants.",18:"Comparaison interne des versets.",19:"Parallèle avec Actes 2.",20:"Verset à mémoriser.",21:"Implications pour l’Église.",22:"Applications familiales.",23:"Pédagogie enfants (jeux, récits, symboles).",24:"Applications mission/évangélisation.",25:"Applications pastorales/enseignement.",26:"Application personnelle engagée.",27:"Versets utiles à retenir.",28:"Prière de clôture."};
+
+  // --- État ---
+  const state = {
+    book:'Genèse', chapter:1, verse:1, version:'LSG',
+    density:1500, currentIdx:0,
+    titles:{...TITLES_DEFAULT}, descs:{...DESCS_DEFAULT},
+    sectionsByN:new Map(), leds:new Map()
+  };
+  for(let i=0;i<=28;i++) state.leds.set(i,'warn');
+
+  // --- Éléments ---
+  const pointsList=$('#pointsList'), edTitle=$('#edTitle'), metaInfo=$('#metaInfo');
+  const searchRef=$('#searchRef'), applyBtn=$('#applySearchBtn')||$('#validate');
+  const bookSelect=$('#bookSelect'), chapterSelect=$('#chapterSelect'), verseSelect=$('#verseSelect'), versionSelect=$('#versionSelect');
+  const densitySelect=$('#densitySelect');
+  const readBtn=$('#readBtn'), generateBtn=$('#generateBtn'), resetBtn=$('#resetBtn');
+  const prevBtn=$('#prev'), nextBtn=$('#next');
+  const noteArea=$('#noteArea');
+
+  const themeBar=$('#themeBar');
+
+  document.addEventListener('DOMContentLoaded', init);
+
+  function init(){
+    ensureListScroll();
+    ensureSelectPlaceholders();
+    setupDensitySelector();
+    restoreTheme();
+    restoreLast();
+
+    wireEvents();
+    if (state.book){ fillBooks(); fillChapters(); fillVerses(); bookSelect&&(bookSelect.value=state.book); chapterSelect&&(chapterSelect.value=String(state.chapter)); verseSelect&&(verseSelect.value=String(state.verse)); }
+    else { fillBooks(true); }
+    versionSelect && (versionSelect.value=state.version||'LSG');
+    densitySelect && (densitySelect.value=String(state.density||1500));
+
+    renderPointsList(); updateHeader(); renderSection(0);
+    initThemeBar();
+  }
+
+  // --- Thème global ---
+  function setTheme(theme){
+    const v = THEME_VARS[theme] || THEME_VARS.cyan;
+    applyVars(document.documentElement, v);
+    applyVars(document.body, v);
+    document.documentElement.setAttribute('data-theme', theme);
+    document.body.setAttribute('data-theme', theme);
+    try{ localStorage.setItem(STORAGE_THEME, theme); }catch{}
+  }
+  function applyVars(el, v){
+    el.style.setProperty('--bg', v.bg);
+    el.style.setProperty('--panel', '#ffffff');
+    el.style.setProperty('--text', v.text);
+    el.style.setProperty('--border', v.border);
+    el.style.setProperty('--accent', v.primary);
+    el.style.setProperty('--accent-soft', 'rgba(0,0,0,.04)');
+  }
+  function getTheme(){ try{ return localStorage.getItem(STORAGE_THEME)||'cyan'; }catch{ return 'cyan'; } }
+  function restoreTheme(){ setTheme(getTheme()); }
+
+  function initThemeBar(){
+    if (!themeBar) return;
+    themeBar.innerHTML='';
+    THEMES.forEach(name=>{
+      const b=document.createElement('button');
+      b.type='button'; b.setAttribute('data-role','swatch'); b.setAttribute('data-theme',name);
+      b.style.background=THEME_VARS[name].primary;
+      b.title=name;
+      b.addEventListener('click',()=>setTheme(name));
+      themeBar.appendChild(b);
+    });
+  }
+
+  // --- Densité ---
+  function setupDensitySelector(){
+    if (!densitySelect) return;
+    if (!densitySelect.options.length){
+      DENSITY_CHOICES.forEach(v=>{
+        const o=document.createElement('option');
+        o.value=String(v); o.textContent=`${v} caractères`; densitySelect.appendChild(o);
+      });
     }
-    /* Thèmes (accent + fond adouci) */
-    [data-theme="cyan"]  { --accent:#0891b2; --accent-soft:#e0f2fe; --bg:#f4f9fb; --panel:#ffffff; }
-    [data-theme="violet"]{ --accent:#7c3aed; --accent-soft:#ede9fe; --bg:#f7f3fe; --panel:#ffffff; }
-    [data-theme="vert"]  { --accent:#059669; --accent-soft:#dcfce7; --bg:#f3fbf6; --panel:#ffffff; }
-    [data-theme="rouge"] { --accent:#dc2626; --accent-soft:#fee2e2; --bg:#fef6f6; --panel:#ffffff; }
-    [data-theme="mauve"] { --accent:#a855f7; --accent-soft:#f3e8ff; --bg:#faf5ff; --panel:#ffffff; }
-    [data-theme="indigo"]{ --accent:#4f46e5; --accent-soft:#e0e7ff; --bg:#f6f7ff; --panel:#ffffff; }
+    try{
+      const raw=localStorage.getItem(STORAGE_DENS);
+      const val=raw?parseInt(raw,10):1500;
+      if (DENSITY_CHOICES.includes(val)) state.density=val;
+    }catch{}
+    densitySelect.addEventListener('change', ()=>{
+      const v=parseInt(densitySelect.value,10);
+      if (DENSITY_CHOICES.includes(v)){
+        state.density=v;
+        try{ localStorage.setItem(STORAGE_DENS,String(v)); }catch{}
+      }
+    });
+  }
 
-    *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    .progress-wrap{position:sticky;top:0;z-index:20}
-    .progress{height:4px;background:#e5e7eb}
-    .progress>.bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#16a34a);transition:width .2s}
-    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:14px 18px;position:sticky;top:4px;z-index:10}
-    h1{margin:0;font-size:28px;font-weight:800;letter-spacing:.2px;text-align:center}
-    main{max-width:1200px;margin:14px auto;padding:0 12px}
-    .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .9fr .9fr auto auto auto;gap:10px;margin:12px 0}
-    @media (max-width:1100px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}.controls .wide{grid-column:1/-1}}
-    input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%}
-    .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
-    .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
-    .btn.warn{background:var(--accent)}
-    .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
-    @media (max-width:1000px){.layout{grid-template-columns:1fr}}
-    .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700}
-    .list{max-height:70vh;overflow:auto}
-    .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
-    .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
-    .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
-    .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
-    .dot{width:8px;height:8px;border-radius:999px;background:#eab308;margin-left:auto}
-    .dot.ok{background:var(--ok)}
+  // --- Événements ---
+  function wireEvents(){
+    applyBtn && applyBtn.addEventListener('click', applySearch);
+    searchRef && searchRef.addEventListener('keydown', e=>{ if(e.key==='Enter') applySearch(); });
+    bookSelect && bookSelect.addEventListener('change', ()=>{ state.book=bookSelect.value||''; if(state.book){ state.chapter=1; state.verse=1; fillChapters(); fillVerses(); } else { clearChaptersAndVerses(); } saveLast(); rerender(); });
+    chapterSelect && chapterSelect.addEventListener('change', ()=>{ const max=CHAPTERS_66[state.book]||1; const n=parseInt(chapterSelect.value,10); if(Number.isFinite(n)){ state.chapter=clamp(n,1,max); chapterSelect.value=String(state.chapter);} fillVerses(); saveLast(); rerender(); });
+    verseSelect && verseSelect.addEventListener('change', ()=>{ const v=parseInt(verseSelect.value,10); state.verse=Number.isFinite(v)?v:1; saveLast(); });
+    versionSelect && versionSelect.addEventListener('change', ()=>{ state.version=versionSelect.value||'LSG'; saveLast(); });
 
-    .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
-    .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
-    .ed-title{font-weight:800;flex:1}.ed-body{padding:12px}
-    textarea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;white-space:pre-wrap}
-    .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
-    .mini{width:8px;height:8px;border-radius:999px;background:#d97706}.mini.ok{background:#16a34a}.mini.ko{background:#dc2626}
-    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
-    .links-panel{background:#fafafa;border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
-    .links-panel b{color:var(--accent)} .links-panel a{color:var(--accent);text-decoration:underline}
-    .links-panel.empty{display:none}
-    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:#64748b;font-size:14px}
-    #debugBtn{margin-left:6px;background:var(--dark);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
-    #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;font-size:12px}
-    @media print{.progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row,#debugPanel{display:none!important} textarea{min-height:unset}}
-  </style>
-</head>
-<body data-theme="cyan">
-  <div class="progress-wrap"><div class="progress"><div id="progressBar" class="bar"></div></div></div>
-  <header><h1>Méditation</h1></header>
+    readBtn && readBtn.addEventListener('click', ()=>{ if(!state.book) return; window.open(youVersionURL(state.book,state.chapter||1,state.verse||1,state.version),'_blank','noopener,noreferrer'); });
+    generateBtn && generateBtn.addEventListener('click', onGenerate);
+    prevBtn && prevBtn.addEventListener('click', ()=>goTo(state.currentIdx-1));
+    nextBtn && nextBtn.addEventListener('click', ()=>goTo(state.currentIdx+1));
+  }
 
-  <main>
-    <div class="controls">
-      <input id="searchRef" class="wide" type="text" placeholder="Rechercher (ex : Marc 5:1, 1 Jean 2, Genèse 1:1-5)" />
-      <select id="bookSelect" title="Livre"></select>
-      <select id="chapterSelect" title="Chapitre"></select>
-      <select id="verseSelect" title="Verset"></select>
-      <select id="versionSelect" title="Version">
-        <option value="LSG" selected>Louis Segond 1910 (LSG)</option>
-        <option value="PDV">Parole de Vie (PDV)</option>
-        <option value="S21">Segond 21 (S21)</option>
-        <option value="BFC">Français Courant (BFC)</option>
-      </select>
-      <select id="themeSelect" title="Thème">
-        <option value="cyan" selected>Thème : Cyan</option>
-        <option value="violet">Thème : Violet</option>
-        <option value="vert">Thème : Vert</option>
-        <option value="rouge">Thème : Rouge</option>
-        <option value="mauve">Thème : Mauve</option>
-        <option value="indigo">Thème : Indigo</option>
-      </select>
-      <label style="display:flex;align-items:center;gap:8px;">
-        <input id="enrichToggle" type="checkbox" checked />
-        <span>Mode enrichi</span>
-      </label>
+  // --- Recherche / sélecteurs ---
+  function ensureSelectPlaceholders(){ [bookSelect,chapterSelect,verseSelect].forEach(sel=>{ if(!sel) return; if(!sel.querySelector('option[value=""]')){ const o=document.createElement('option'); o.value=''; o.textContent='—'; sel.insertBefore(o, sel.firstChild); } }); }
+  function clearChaptersAndVerses(){ if(chapterSelect){ chapterSelect.innerHTML='<option value="">—</option>'; chapterSelect.value=''; } if(verseSelect){ verseSelect.innerHTML='<option value="">—</option>'; verseSelect.value=''; } }
+  function fillBooks(keepNeutral=false){ if(!bookSelect) return; bookSelect.innerHTML='<option value="">—</option>'; ORDER_66.forEach(b=>{ const o=document.createElement('option'); o.value=b; o.textContent=b; bookSelect.appendChild(o); }); bookSelect.value=(!keepNeutral&&state.book)?state.book:''; }
+  function fillChapters(){ if(!chapterSelect) return; const max=CHAPTERS_66[state.book]||0; chapterSelect.innerHTML='<option value="">—</option>'; for(let i=1;i<=max;i++){ const o=document.createElement('option'); o.value=String(i); o.textContent=String(i); chapterSelect.appendChild(o);} chapterSelect.value=state.chapter?String(clamp(state.chapter,1,max)):''; }
+  function fillVerses(){ if(!verseSelect) return; verseSelect.innerHTML='<option value="">—</option>'; for(let i=1;i<=150;i++){ const o=document.createElement('option'); o.value=String(i); o.textContent=String(i); verseSelect.appendChild(o);} verseSelect.value=state.verse?String(state.verse):''; }
 
-      <!-- Ordre : Lire la Bible (gauche) + Valider + Générer -->
-      <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
-      <button id="validate" class="btn" type="button">Valider</button>
-      <button id="generateBtn" class="btn warn" type="button">Générer</button>
+  function applySearch(){
+    if (!searchRef) return;
+    const raw=(searchRef.value||'').trim(); if(!raw) return;
+    const m=/^([\p{L}\d\s]+?)\s+(\d+)(?::(\d+(?:-\d+)?))?$/u.exec(raw);
+    if (m){
+      const bookName=normalize(m[1]), chap=parseInt(m[2],10), vers=m[3]||null;
+      const found=findBook(bookName);
+      if (found){
+        state.book=found;
+        const max=CHAPTERS_66[found]||1;
+        state.chapter=clamp(chap,1,max);
+        state.verse=vers?parseInt(vers.split('-')[0],10):1;
+        fillBooks(); bookSelect&&(bookSelect.value=state.book);
+        fillChapters(); chapterSelect&&(chapterSelect.value=String(state.chapter));
+        fillVerses(); verseSelect&&(verseSelect.value=String(state.verse));
+        saveLast(); rerender(); return;
+      }
+    }
+    const bn=normalize(raw), fb=findBook(bn);
+    if (fb){ state.book=fb; state.chapter=1; state.verse=1; fillBooks(); bookSelect&&(bookSelect.value=fb); fillChapters(); fillVerses(); saveLast(); rerender(); }
+  }
+  const normalize=(s)=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+  function findBook(norm){ for(const b of ORDER_66){ const n=normalize(b); if(n===norm||n.startsWith(norm)||norm.startsWith(n)) return b; } return null; }
 
-      <!-- Compat éventuelle -->
-      <a id="readLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Lire</a>
-    </div>
+  // --- Liste 0..28 ---
+  function getTitle(n){ return state.titles[n] || TITLES_DEFAULT[n] || `Point ${n}`; }
+  function getDesc(n){ return state.descs[n]  || DESCS_DEFAULT[n]  || ''; }
 
-    <div class="layout">
-      <aside class="sidebar">
-        <div class="side-head">Rubriques (28)</div>
-        <div id="pointsList" class="list"></div>
-      </aside>
+  function renderPointsList(){
+    if (!pointsList) return;
+    pointsList.innerHTML='';
+    pointsList.appendChild(renderItem({idx:0,title:TITLE0,desc:'Aperçu du chapitre verset par verset'}));
+    for(let i=1;i<=28;i++) pointsList.appendChild(renderItem({idx:i,title:getTitle(i),desc:getDesc(i)}));
+    highlightActive();
+  }
+  function renderItem({idx,title,desc}){
+    const li=document.createElement('div'); li.className='item'; li.dataset.idx=String(idx);
+    const idxEl=document.createElement('div'); idxEl.className='idx'; idxEl.textContent=String(idx);
+    const txt=document.createElement('div'); txt.className='txt';
+    txt.innerHTML=`<div>${esc(title)}</div>${desc?`<span class="desc">${esc(desc)}</span>`:''}`;
+    const dot=document.createElement('div'); dot.className='dot '+(state.leds.get(idx)==='ok'?'ok':'');
+    li.appendChild(idxEl); li.appendChild(txt); li.appendChild(dot);
+    li.addEventListener('click', ()=>goTo(idx));
+    return li;
+  }
+  function highlightActive(){ $$('#pointsList .item').forEach(el=>el.classList.toggle('active', Number(el.dataset.idx)===state.currentIdx)); }
+  function goTo(idx){ if(idx<0) idx=0; if(idx>28) idx=28; state.currentIdx=idx; updateHeader(); renderSection(idx); highlightActive(); }
+  function updateHeader(){ if(!edTitle||!metaInfo) return; edTitle.textContent=state.currentIdx===0?TITLE0:getTitle(state.currentIdx); metaInfo.textContent=`Point ${state.currentIdx} / 28`; }
+  function rerender(){ renderPointsList(); renderSection(state.currentIdx); updateHeader(); }
 
-      <section class="editor">
-        <div class="ed-head">
-          <div class="ed-title" id="edTitle">—</div>
-          <button id="prev" class="btn secondary" type="button">◀ Précédent</button>
-          <button id="next" class="btn secondary" type="button">Suivant ▶</button>
-        </div>
+  // --- Rendu section (textarea) ---
+  function renderSection(n){
+    if (!noteArea) return;
+    const txt=state.sectionsByN.get(n)||defaultContent(n);
+    noteArea.value=txt;
+    noteArea.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+  function defaultContent(n){
+    const ref = state.book ? `${state.book} ${state.chapter||''}`.trim() : '—';
+    if (n===0) return `### ${TITLE0}
 
-        <div class="ed-body">
-          <textarea id="noteArea" placeholder="Écris ici…"></textarea>
-          <div id="linksPanel" class="links-panel empty">
-            <b>Liens détectés :</b>
-            <div id="linksList"></div>
-          </div>
-        </div>
+*Référence :* ${ref}
 
-        <div class="ed-foot">
-          <span class="small" id="metaInfo">Point — / 28</span>
-          <span class="small">Sauvegarde auto (2s) après saisie.</span>
-        </div>
-      </section>
-    </div>
-  </main>
+Clique sur **Générer** pour charger chaque verset avec explications.`;
+    return `### ${getTitle(n)}
 
-  <footer>
-    © <span id="y"></span> — Méditation
-    <div class="status-row" style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-      <span class="badge"><span id="dot-health" class="mini"></span> health</span>
-      <span class="badge"><span id="dot-chat" class="mini"></span> chat(POST)</span>
-      <span class="badge"><span id="dot-ping" class="mini"></span> ping</span>
-      <button id="debugBtn" type="button">Debug</button>
-    </div>
-    <div id="debugPanel">[init]</div>
-  </footer>
+*Référence :* ${ref}
 
-  <!-- Front existant (inchangé) -->
-  <script src="/app.js?v=2025-09-02-3" defer></script>
+À générer…`;
+  }
 
-  <!-- Ouvre BibleGateway pour Lire la Bible / Valider (si présent côté site) -->
-  <script src="/bible-open.js" defer></script>
+  // --- Génération (API) ---
+  async function onGenerate(){
+    if (!generateBtn) return;
+    if (!state.book){ alert('Choisis un livre (et chapitre) avant de générer.'); return; }
+    const old=generateBtn.textContent; generateBtn.disabled=true; generateBtn.textContent='Génération…';
+    try{
+      const passage = `${state.book} ${state.chapter||1}`;
+      // DENSITÉ TRANSMISE ICI → options.length = 500 | 1500 | 2500
+      const r = await fetch('/api/generate-study', {
+        method:'POST', headers:{'Content-Type':'application/json'}, cache:'no-store',
+        body: JSON.stringify({ passage, options:{ length: state.density } })
+      });
+      if (!r.ok) throw new Error('HTTP '+r.status);
+      const j = await r.json();
+      const sections = j.study?.sections || j.sections || [];
+      const t={}, d={};
+      for (const s of sections){
+        const id=Number(s.id ?? s.n); if(!Number.isFinite(id)) continue;
+        const title=String((s.title ?? s.titre ?? '')).trim();
+        const desc =String((s.description ?? s.desc ?? '')).trim();
+        const content=String(s.content||'').trim();
+        if (title) t[id]=title;
+        if (desc)  d[id]=desc;
+        if (content){ state.sectionsByN.set(id, content); state.leds.set(id,'ok'); }
+      }
+      if (Object.keys(t).length) state.titles={...state.titles, ...t};
+      if (Object.keys(d).length) state.descs ={...state.descs , ...d};
+      renderPointsList(); renderSection(state.currentIdx); saveLast();
+    }catch(err){
+      console.warn('Erreur génération:', err);
+      alert('La génération a échoué. Un gabarit a été inséré.');
+      insertSkeleton(); renderPointsList(); renderSection(state.currentIdx);
+    }finally{
+      generateBtn.disabled=false; generateBtn.textContent=old;
+    }
+  }
 
-  <!-- Progress Générer + Nettoyage balises + Thème + Correctif "dot ok" (robuste) -->
-  <script>
-    (function () {
-      const bar   = document.getElementById('progressBar');
-      const note  = document.getElementById('noteArea');
-      const genBtn= document.getElementById('generateBtn');
-      const yearEl= document.getElementById('y');
-      const themeSelect = document.getElementById('themeSelect');
-      const pointsList  = document.getElementBy
+  function insertSkeleton(){
+    const ref = state.book ? `${state.book} ${state.chapter||''}`.trim() : '—';
+    state.sectionsByN.set(0, `### ${TITLE0}
+*Référence :* ${ref}
+
+Cliquer sur **Lire** puis **Générer** quand l’API sera dispo.`);
+    for(let i=1;i<=28;i++){
+      state.sectionsByN.set(i, `### ${getTitle(i)}
+*Référence :* ${ref}
+
+Contenu provisoire (gabarit).`);
+      state.leds.set(i,'warn');
+    }
+  }
+
+  // --- Divers / persistance ---
+  function ensureListScroll(){ const pl=$('#pointsList'); if(!pl) return; pl.style.overflowY='auto'; if(!pl.style.maxHeight) pl.style.maxHeight='calc(100vh - 220px)'; }
+  function saveLast(){ try{ localStorage.setItem(STORAGE_LAST, JSON.stringify({ book:state.book||'', chapter:state.chapter||'', verse:state.verse||'', version:state.version||'LSG', density:state.density })); }catch{} }
+  function restoreLast(){
+    try{
+      const raw=localStorage.getItem(STORAGE_LAST); if(!raw) return;
+      const j=JSON.parse(raw);
+      if (j && CHAPTERS_66[j.book]){
+        state.book=j.book; state.chapter=clamp(parseInt(j.chapter,10)||1,1,CHAPTERS_66[j.book]); state.verse=parseInt(j.verse,10)||1; state.version=j.version||'LSG';
+        if (DENSITY_CHOICES.includes(Number(j.density))) state.density=Number(j.density);
+      } else { state.book=''; state.chapter=null; state.verse=null; }
+    }catch{}
+  }
+
+  // --- YouVersion ---
+  const YV_BOOK={"Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des Cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN","Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL","Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"};
+  const YV_VERSION_ID={ 'LSG':'93' };
+  function youVersionURL(book,chapter,verse,version){
+    const code=YV_BOOK[book]||'GEN';
+    const verId=YV_VERSION_ID[version||'LSG']||'93';
+    const vtag=(version||'LSG').toUpperCase();
+    return `https://www.bible.com/fr/bible/${verId}/${code}.${chapter||1}.${vtag}`;
+  }
+})();
