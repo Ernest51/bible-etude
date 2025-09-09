@@ -6,6 +6,6 @@
     }
   },
   "routes": [
-    { "src": "/api/generate-study", "dest": "/api/generate-study.js" }
+    { "src": "^/api/(.*)$", "dest": "/api/$1.js" }
   ]
 }
