@@ -1,151 +1,28 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Diagnostic API — Bible Étude</title>
-  <style>
-    :root { --bg:#0b1220; --card:#121a2b; --txt:#eaf0ff; --muted:#9fb0d7; --ok:#24d37b; --ko:#ff6b6b; }
-    body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell}
-    .wrap{max-width:920px;margin:40px auto;padding:0 16px}
-    h1{font-size:20px;margin:0 0 16px}
-    .card{background:var(--card);border:1px solid #202e4a;border-radius:12px;padding:16px;margin:12px 0}
-    label{display:block;font-weight:600;margin:6px 0 4px;color:var(--muted)}
-    input,select{width:100%;background:#0d162a;border:1px solid #233352;color:var(--txt);border-radius:8px;padding:10px}
-    .row{display:grid;grid-template-columns:1fr 120px 180px;gap:12px}
-    .btns{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
-    button{background:#1b2b4a;border:1px solid #2a3d63;color:var(--txt);padding:10px 14px;border-radius:8px;cursor:pointer}
-    button:hover{filter:brightness(1.1)}
-    .pill{display:inline-block;padding:.25rem .6rem;border-radius:999px;font-weight:700}
-    .ok{background:rgba(36,211,123,.15);color:var(--ok);border:1px solid rgba(36,211,123,.35)}
-    .ko{background:rgba(255,107,107,.12);color:var(--ko);border:1px solid rgba(255,107,107,.35)}
-    pre{background:#0a1222;border:1px solid #1c2a4a;border-radius:10px;padding:12px;overflow:auto;white-space:pre-wrap;word-break:break-word}
-    small{color:var(--muted)}
-  </style>
+  <meta charset="UTF-8">
+  <title>Test API Next.js</title>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Diagnostic API — Bible Étude</h1>
+  <h1>Test API /api/generate-study</h1>
+  <button id="btn">Tester l'API</button>
+  <pre id="out"></pre>
 
-    <div class="card">
-      <div id="healthStatus" class="pill" style="display:none"></div>
-      <div class="btns">
-        <button id="btnHealth">Tester /api/health</button>
-        <button id="btnHealthOpen">Ouvrir /api/health dans un onglet</button>
-      </div>
-      <pre id="healthOut">En attente…</pre>
-      <small>Le test doit retourner <code>{"ok": true}</code> et <code>hasOpenAIKey: true</code>.</small>
-    </div>
-
-    <div class="card">
-      <div class="row">
-        <div>
-          <label>Livre</label>
-          <input id="book" value="Genèse" />
-        </div>
-        <div>
-          <label>Chapitre</label>
-          <input id="chapter" type="number" min="1" step="1" value="1" />
-        </div>
-        <div>
-          <label>Version</label>
-          <select id="version">
-            <option value="LSG" selected>Louis Segond 1910 (LSG)</option>
-            <option value="PDV">Parole de Vie (PDV)</option>
-            <option value="BDS">BDS</option>
-          </select>
-        </div>
-      </div>
-      <div class="btns">
-        <button id="btnChat">Tester /api/chat (POST)</button>
-        <button id="btnFill">Remplir 28 rubriques locales avec la réponse</button>
-      </div>
-      <pre id="chatOut">En attente…</pre>
-      <small>Le test doit retourner <code>sections: 28</code>. Le champ <code>source</code> peut être <em>openai</em> ou <em>canonical</em>.</small>
-    </div>
-  </div>
-
-<script>
-  const $ = (id)=>document.getElementById(id);
-  const outHealth = $("healthOut"), pill = $("healthStatus");
-  const outChat = $("chatOut");
-
-  function setPill(ok, msg){
-    pill.style.display = "inline-block";
-    pill.className = "pill " + (ok?"ok":"ko");
-    pill.textContent = msg || (ok?"OK":"Erreur");
-  }
-
-  function pretty(x){ try{return JSON.stringify(x,null,2)}catch{ return String(x) } }
-
-  $("btnHealth").onclick = async ()=>{
-    outHealth.textContent = "…";
-    setPill(false, "En cours");
-    try{
-      const r = await fetch("/api/health", { cache:"no-store" });
-      const j = await r.json();
-      outHealth.textContent = pretty(j);
-      setPill(!!j.ok, j.ok ? "API OK" : "API KO");
-    }catch(e){
-      outHealth.textContent = "ERREUR: " + (e && e.message || e);
-      setPill(false, "Erreur");
-    }
-  };
-  $("btnHealthOpen").onclick = ()=> window.open("/api/health","_blank","noopener");
-
-  $("btnChat").onclick = async ()=>{
-    outChat.textContent = "…";
-    const payload = {
-      book: $("book").value || "Genèse",
-      chapter: Number($("chapter").value || 1),
-      version: $("version").value || "LSG"
-    };
-    try{
-      const r = await fetch("/api/chat", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        cache:"no-store",
-        body: JSON.stringify(payload)
-      });
-      const ct = r.headers.get("Content-Type") || "";
-      if (!r.ok) {
-        const txt = await r.text().catch(()=> "");
-        throw new Error(txt || `HTTP ${r.status}`);
+  <script>
+    document.getElementById("btn").addEventListener("click", async () => {
+      try {
+        const r = await fetch("/api/generate-study", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ passage: "Genèse 1", options: { length: 500 } })
+        });
+        const j = await r.json();
+        document.getElementById("out").textContent = JSON.stringify(j, null, 2);
+      } catch (e) {
+        document.getElementById("out").textContent = "Erreur: " + e;
       }
-      const data = /application\/json/i.test(ct) ? await r.json() : await r.text();
-      outChat.textContent = pretty(data);
-      if (data && data.ok && data.data && Array.isArray(data.data.sections)) {
-        setPill(true, `chat OK (${data.data.sections.length} sections, source=${data.source||"?"})`);
-      } else {
-        setPill(false, "chat: format inattendu");
-      }
-      // garder pour usage front
-      window.__lastChat = data;
-    }catch(e){
-      outChat.textContent = "ERREUR: " + (e && e.message || e);
-      setPill(false, "Erreur");
-    }
-  };
-
-  // Optionnel: injecte la réponse dans le localStorage utilisé par l'app principale
-  $("btnFill").onclick = ()=>{
-    try{
-      const data = window.__lastChat && window.__lastChat.data;
-      if (!data || !Array.isArray(data.sections)) {
-        alert("Pas de réponse valide à injecter. Lance d'abord 'Tester /api/chat'.");
-        return;
-      }
-      const notes = {};
-      data.sections.forEach(s=>{
-        const i = (s.id|0)-1;
-        if (i>=0) notes[i] = String(s.content||"").trim();
-      });
-      localStorage.setItem("be_notes", JSON.stringify(notes));
-      alert("✅  Notes locales remplies à partir de la réponse (be_notes). Ouvre l’app et clique sur Générer.");
-    }catch(e){
-      alert("Erreur d’injection: "+(e && e.message || e));
-    }
-  };
-</script>
+    });
+  </script>
 </body>
 </html>
