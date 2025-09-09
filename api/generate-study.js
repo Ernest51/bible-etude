@@ -1,50 +1,14 @@
 /**
- * API: /api/generate-study
- *
- * - Récupère le passage biblique en DARBY depuis api.bible
- * - Génère 28 rubriques doctrinales, narratives, explicatives (sans doublons)
- * - Respecte la densité (500 / 1500 / 2500 caractères) pour CHAQUE rubrique
+ * Vercel Serverless: /api/generate-study
  *
  * ENV requis :
- *   API_BIBLE_KEY        = <ta clé api.bible>
- *   BIBLE_DARBY_ID       = <ID de la version DARBY sur api.bible>
- *   OPENAI_API_KEY       = <ta clé OpenAI>
- *   OPENAI_MODEL         = (optionnel, ex: "gpt-4o-mini")
+ *   API_BIBLE_KEY   = <ta clé api.bible>
+ *   BIBLE_DARBY_ID  = <ID de la version DARBY sur api.bible>
+ *   OPENAI_API_KEY  = <ta clé OpenAI>
+ *   OPENAI_MODEL    = (optionnel, ex: gpt-4o-mini)
  */
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Méthode non autorisée' });
-  }
 
-  try {
-    const { passage, options = {} } = req.body || {};
-    const length = clampInt(options.length, 500, 2500); // 500/1500/2500
-    // On force l’usage de DARBY (exigence) :
-    const translation = 'DARBY';
-
-    if (!passage || typeof passage !== 'string') {
-      return res.status(400).json({ error: 'Paramètre "passage" invalide.' });
-    }
-
-    // 1) Récupérer le texte biblique DARBY depuis api.bible
-    const bibleText = await fetchDarbyText(passage);
-
-    // 2) Générer les 28 rubriques
-    const sections = await generateRubrics({
-      passage,
-      bibleText,
-      length,
-      translation,
-    });
-
-    return res.status(200).json({ study: { sections } });
-  } catch (err) {
-    console.error('generate-study error:', err);
-    return res.status(500).json({ error: 'Erreur interne de génération.' });
-  }
-}
-
-/* ------------------ BIBLE (api.bible) ------------------ */
+const DEFAULT_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
 const DARBY_OSIS = {
   "Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU",
@@ -62,73 +26,6 @@ const DARBY_OSIS = {
   "Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN",
   "3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"
 };
-
-async function fetchDarbyText(passageRef) {
-  const API_BASE = 'https://api.scripture.api.bible/v1';
-  const key = process.env.API_BIBLE_KEY;
-  const bibleId = process.env.BIBLE_DARBY_ID; // ⚠️ Mets l’ID DARBY de api.bible dans .env
-
-  if (!key || !bibleId) {
-    throw new Error('API_BIBLE_KEY ou BIBLE_DARBY_ID manquant dans .env');
-  }
-
-  // Passage attendu style: "Genèse 1" ou "Genèse 1:1-5"
-  const parsed = parsePassage(passageRef);
-  if (!parsed) throw new Error('Référence de passage invalide.');
-  const osis = buildOsisId(parsed); // ex: GEN.1 ou GEN.1.1-GEN.1.5
-
-  // api.bible: GET /bibles/{bibleId}/passages/{passageId}
-  const url = `${API_BASE}/bibles/${bibleId}/passages/${encodeURIComponent(osis)}`
-    + `?content-type=text&include-notes=false&include-titles=false&include-chapter-numbers=false&include-verse-numbers=true`;
-  const r = await fetch(url, {
-    headers: {
-      'accept': 'application/json',
-      'api-key': key,
-      'X-Api-Key': key, // selon déploiement, l’un ou l’autre peut être requis
-    },
-    cache: 'no-store',
-  });
-  if (!r.ok) {
-    const t = await safeText(r);
-    throw new Error(`api.bible ${r.status}: ${t}`);
-  }
-  const j = await r.json();
-  const content = j?.data?.content || j?.data?.passages?.[0]?.content || '';
-  return stripHtml(content).trim();
-}
-
-function parsePassage(s) {
-  // Exemples acceptés: "Genèse 1", "Genèse 1:1", "Genèse 1:1-5"
-  const m = /^([\p{L}\s\d]+?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/u.exec(String(s).trim());
-  if (!m) return null;
-  const book = m[1].trim();
-  const ch = parseInt(m[2], 10);
-  const v1 = m[3] ? parseInt(m[3], 10) : null;
-  const v2 = m[4] ? parseInt(m[4], 10) : null;
-  return { book, chapter: ch, from: v1, to: v2 };
-}
-function buildOsisId({ book, chapter, from, to }) {
-  const code = DARBY_OSIS[book];
-  if (!code) throw new Error(`Livre inconnu: ${book}`);
-  if (!from) return `${code}.${chapter}`; // chapitre entier
-  const start = `${code}.${chapter}.${from}`;
-  if (!to) return start;
-  const end = `${code}.${chapter}.${to}`;
-  return `${start}-${end}`;
-}
-function stripHtml(html) {
-  return String(html || '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-async function safeText(r) {
-  try { return await r.text(); } catch { return ''; }
-}
-
-/* ------------------ GÉNÉRATION (LLM) ------------------ */
-
-const DEFAULT_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
 const RUBRICS = [
   { id: 1,  title: 'Prière d’ouverture',              desc: "Invocation du Saint-Esprit pour éclairer l’étude." },
@@ -161,39 +58,113 @@ const RUBRICS = [
   { id:28,  title: 'Prière de fin',                  desc: "Prière de clôture." },
 ];
 
-async function generateRubrics({ passage, bibleText, length, translation }) {
-  const out = [];
-  const seen = new Set(); // anti-doublons (sur 30+ caractères normalisés)
+module.exports = async function handler(req, res) {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ error: 'Méthode non autorisée' });
+  }
 
-  for (const r of RUBRICS) {
-    const content = await llmRubric({
+  try {
+    const { passage, options = {} } = req.body || {};
+    const length = clampInt(options.length, 500, 2500);
+    const translation = 'DARBY'; // imposé
+
+    if (!passage || typeof passage !== 'string') {
+      return res.status(400).json({ error: 'Paramètre "passage" invalide.' });
+    }
+
+    const bibleText = await fetchDarbyText(passage);
+
+    const sections = await generateRubrics({
       passage,
       bibleText,
       length,
-      title: r.title,
-      description: r.desc,
+      translation,
+    });
+
+    return res.status(200).json({ study: { sections } });
+  } catch (err) {
+    console.error('generate-study error:', err);
+    return res.status(500).json({ error: 'Erreur interne de génération.' });
+  }
+};
+
+/* ------------------ BIBLE (api.bible) ------------------ */
+
+async function fetchDarbyText(passageRef) {
+  const API_BASE = 'https://api.scripture.api.bible/v1';
+  const key = process.env.API_BIBLE_KEY;
+  const bibleId = process.env.BIBLE_DARBY_ID;
+
+  if (!key || !bibleId) throw new Error('API_BIBLE_KEY ou BIBLE_DARBY_ID manquant dans .env');
+
+  const parsed = parsePassage(passageRef);
+  if (!parsed) throw new Error('Référence de passage invalide.');
+  const osis = buildOsisId(parsed);
+
+  const url = `${API_BASE}/bibles/${bibleId}/passages/${encodeURIComponent(osis)}`
+            + `?content-type=text&include-notes=false&include-titles=false&include-chapter-numbers=false&include-verse-numbers=true`;
+
+  const r = await fetch(url, {
+    headers: { 'accept':'application/json', 'api-key': key, 'X-Api-Key': key },
+    cache: 'no-store',
+  });
+  if (!r.ok) {
+    const t = await safeText(r);
+    throw new Error(`api.bible ${r.status}: ${t}`);
+  }
+  const j = await r.json();
+  const content = j?.data?.content || j?.data?.passages?.[0]?.content || '';
+  return stripHtml(content).trim();
+}
+
+function parsePassage(s) {
+  const m = /^([\p{L}\s\d]+?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/u.exec(String(s).trim());
+  if (!m) return null;
+  const book = m[1].trim();
+  const ch = parseInt(m[2], 10);
+  const v1 = m[3] ? parseInt(m[3], 10) : null;
+  const v2 = m[4] ? parseInt(m[4], 10) : null;
+  return { book, chapter: ch, from: v1, to: v2 };
+}
+function buildOsisId({ book, chapter, from, to }) {
+  const code = DARBY_OSIS[book];
+  if (!code) throw new Error(`Livre inconnu: ${book}`);
+  if (!from) return `${code}.${chapter}`;
+  const start = `${code}.${chapter}.${from}`;
+  if (!to) return start;
+  const end = `${code}.${chapter}.${to}`;
+  return `${start}-${end}`;
+}
+function stripHtml(html) {
+  return String(html || '').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+}
+async function safeText(r){ try{return await r.text();}catch{return '';} }
+
+/* ------------------ GÉNÉRATION (LLM) ------------------ */
+
+async function generateRubrics({ passage, bibleText, length, translation }) {
+  const out = [];
+  const seen = new Set();
+
+  for (const r of RUBRICS) {
+    const content = await llmRubric({
+      passage, bibleText, length,
+      title: r.title, description: r.desc,
       translation,
       previous: out.map(s => `#${s.id} ${s.title}`).join(' | '),
     });
-
     const clean = enforceLength(noDuplicate(content, seen), length);
-    out.push({
-      id: r.id,
-      title: r.title,
-      description: r.desc,
-      content: clean,
-    });
+    out.push({ id: r.id, title: r.title, description: r.desc, content: clean });
   }
 
-  // Section 0 « Panorama » (facultatif mais utile à ton UI)
+  // Panorama (id 0)
   const panoram = await llmRubric({
-    passage,
-    bibleText,
+    passage, bibleText,
     length: Math.min(700, Math.max(400, Math.round(length * 0.5))),
     title: 'Rubrique 0 — Panorama des versets du chapitre',
     description: 'Aperçu narratif verset par verset, fil conducteur doctrinal.',
-    translation,
-    previous: out.map(s => `#${s.id} ${s.title}`).join(' | '),
+    translation, previous: out.map(s=>`#${s.id} ${s.title}`).join(' | '),
   });
   out.unshift({
     id: 0,
@@ -206,44 +177,39 @@ async function generateRubrics({ passage, bibleText, length, translation }) {
 }
 
 async function llmRubric({ passage, bibleText, length, title, description, translation, previous }) {
-  const sys = [
+  const system = [
     'Tu es un exégète chrétien fidèle à la sainte doctrine, écrivant en français,',
-    'avec un ton narratif, pédagogique et pastoral.',
-    'Tu t’appuies d’abord sur le texte biblique fourni (traduction Darby),',
-    'tu évites les doublons entre rubriques et tu réponds aux questions implicites de la rubrique si nécessaire.',
-    'Tu cites éventuellement les versets (ex: v.3-5) sans coller de longs extraits.',
+    'avec un ton narratif, pastoral et explicatif.',
+    'Tu t’appuies d’abord sur le texte biblique fourni (traduction Darby).',
+    'Tu évites les doublons entre rubriques et tu réponds aux questions implicites de la rubrique.',
+    'Tu cites éventuellement les versets (ex: v.3-5) sans longs copiés/collés.',
   ].join(' ');
 
   const user = [
     `Passage: ${passage} (traduction: ${translation}).`,
-    `Texte (Darby) : """${truncate(bibleText, 6000)}"""`,
+    `Texte (Darby): """${truncate(bibleText, 6000)}"""`,
     `Rubrique: ${title} — ${description}`,
     `Contraintes:`,
-    `- Longueur visée ≈ ${length} caractères (tolérance ±15%).`,
+    `- Longueur visée ≈ ${length} caractères (±15%).`,
     `- Narratif, ancré dans la sainte doctrine, explications concrètes.`,
     `- Répondre aux questions si la rubrique en suppose.`,
     `- Éviter toute redite par rapport aux rubriques précédentes: ${previous || 'Aucune'}.`,
-    `- Sortie: un seul bloc de texte (pas de liste à puces systématique).`,
+    `- Sortie: un seul bloc de texte, sans puces systématiques.`,
   ].join('\n');
 
-  const text = await openaiComplete(sys, user);
-  return text?.trim() || '';
+  const txt = await openaiChat(system, user);
+  return (txt || '').trim();
 }
 
-async function openaiComplete(system, user) {
+async function openaiChat(system, user) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY manquant dans .env');
 
-  const model = DEFAULT_MODEL;
-
   const r = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
-    headers: {
-      'authorization': `Bearer ${apiKey}`,
-      'content-type': 'application/json',
-    },
+    headers: { 'authorization': `Bearer ${apiKey}`, 'content-type': 'application/json' },
     body: JSON.stringify({
-      model,
+      model: DEFAULT_MODEL,
       temperature: 0.4,
       messages: [
         { role: 'system', content: system },
@@ -266,45 +232,32 @@ function clampInt(n, min, max) {
   if (!Number.isFinite(v)) return min;
   return Math.max(min, Math.min(max, v));
 }
+function truncate(s, max){ s=String(s||''); return s.length<=max?s:s.slice(0,max-1)+'…'; }
 
-function truncate(s, max) {
-  s = String(s || '');
-  if (s.length <= max) return s;
-  return s.slice(0, max - 1) + '…';
+function normalizeChunk(s){
+  return String(s||'').toLowerCase().replace(/\s+/g,' ').replace(/[^\p{L}\p{N}\s]/gu,'').trim();
 }
-
-function normalizeChunk(s) {
-  return String(s || '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .replace(/[^\p{L}\p{N}\s]/gu, '')
-    .trim();
-}
-function noDuplicate(text, seen) {
+function noDuplicate(text, seen){
   const sample = normalizeChunk(text).slice(0, 200);
   const key = sample.slice(0, 80);
   if (key.length >= 30 && seen.has(key)) {
-    // Si un doublon fort est détecté, on modifie légèrement la tête.
     return 'Approfondissement complémentaire: ' + text;
   }
   if (key.length >= 30) seen.add(key);
   return text;
 }
 
-function enforceLength(s, target) {
+function enforceLength(s, target){
   const min = Math.round(target * 0.85);
   const max = Math.round(target * 1.15);
-  let t = String(s || '').trim();
+  let t = String(s||'').trim();
 
   if (t.length > max) {
-    // coupe proprement à la fin d’une phrase proche
     const cut = t.slice(0, max + 50);
     const lastDot = Math.max(cut.lastIndexOf('.'), cut.lastIndexOf('!'), cut.lastIndexOf('?'));
     t = cut.slice(0, lastDot > 0 ? lastDot + 1 : max).trim();
   } else if (t.length < min) {
-    // si trop court, on étoffe légèrement en reprenant une idée
-    t = t + ' ' + t;
-    if (t.length > max) t = t.slice(0, max);
+    t = (t + ' ' + t).slice(0, max).trim();
   }
   return t;
 }
