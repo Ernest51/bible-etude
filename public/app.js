@@ -1,4 +1,4 @@
-/* app.js — Synchro titres API (title|titre) + palette + mock + densité */
+/* app.js — Titres par défaut = TRAME 28 PERSO + synchro API (title|titre) + palette + mock + densité + fix scroll */
 
 (function () {
   const $ = (s) => document.querySelector(s);
@@ -50,16 +50,49 @@
 
   const TITLE0 = 'Rubrique 0 — Panorama des versets du chapitre';
 
-  // Titres par défaut si l’API est KO (fallback visuel)
+  // ✅ TRAME PAR DÉFAUT = TA LISTE OFFICIELLE (28)
   const TITLES_DEFAULT = {
-    1:'Prière d’ouverture',2:'Contexte et fil narratif',3:'Questions du chapitre précédent',4:'Canonicité et cohérence',
-    5:'Ancien/Nouveau Testament',6:'Promesses',7:'Péché et grâce',8:'Christologie',9:'Esprit Saint',
-    10:'Alliance',11:'Église',12:'Discipulat',13:'Éthique',14:'Prière',15:'Mission',16:'Espérance',17:'Exhortation',
-    18:'Application personnelle',19:'Application communautaire',20:'Liturgie',21:'Méditation',22:'Verset-clé',
-    23:'Typologie',24:'Théologie systématique',25:'Histoire du salut',26:'Thèmes secondaires',27:'Doutes/objections',28:'Synthèse & plan de lecture'
+    1: "Prière d’ouverture",
+    2: "Canon et testament",
+    3: "Questions du chapitre précédent",
+    4: "Titre du chapitre",
+    5: "Contexte historique",
+    6: "Structure littéraire",
+    7: "Genre littéraire",
+    8: "Auteur et généalogie",
+    9: "Verset-clé doctrinal",
+    10: "Analyse exégétique",
+    11: "Analyse lexicale",
+    12: "Références croisées",
+    13: "Fondements théologiques",
+    14: "Thème doctrinal",
+    15: "Fruits spirituels",
+    16: "Types bibliques",
+    17: "Appui doctrinal",
+    18: "Comparaison entre versets",
+    19: "Comparaison avec Actes 2",
+    20: "Verset à mémoriser",
+    21: "Enseignement pour l’Église",
+    22: "Enseignement pour la famille",
+    23: "Enseignement pour enfants",
+    24: "Application missionnaire",
+    25: "Application pastorale",
+    26: "Application personnelle",
+    27: "Versets à retenir",
+    28: "Prière de fin"
   };
 
-  const CHAPTERS_66 = {"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
+  const CHAPTERS_66 = {
+    "Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,
+    "1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,
+    "Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,
+    "Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,
+    "Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,
+    "Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,
+    "Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,
+    "2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,
+    "2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22
+  };
   const ORDER_66 = Object.keys(CHAPTERS_66);
   const BG_VERSION = { 'LSG':'LSG','PDV':'PDV-FR','S21':'SG21','BFC':'BFC' };
 
@@ -70,7 +103,7 @@
     sectionsByN:new Map(),   // n -> markdown
     leds:new Map(),          // n -> 'ok' | 'warn'
     density:1500,
-    titles:{...TITLES_DEFAULT} // remplacé par l’API
+    titles:{...TITLES_DEFAULT} // remplacé si l’API renvoie ses propres libellés
   };
 
   init();
@@ -79,6 +112,14 @@
     const yEl = $('#y'); if (yEl) yEl.textContent = String(new Date().getFullYear());
     restoreTheme();
     fillBooks(); fillChapters(); fillVerses();
+
+    // 🔧 Forçage scroll (si le conteneur liste ne scrolle pas correctement)
+    if (pointsList) {
+      pointsList.style.overflowY = 'auto';
+      if (!pointsList.style.maxHeight) {
+        pointsList.style.maxHeight = 'calc(100vh - 220px)';
+      }
+    }
 
     $('#debugBtn')?.addEventListener('click', ()=>{ const d=$('#debugPanel'); if(d) d.style.display=(d.style.display==='none'?'block':'none'); });
     readBtn?.addEventListener('click', openBibleGatewayFromSelectors);
@@ -140,7 +181,7 @@
     const t = {};
     for (const s of sections){
       const id = Number(s.id ?? s.n);
-      // ✅ accepte 'title' OU 'titre'
+      // accepte 'title' OU 'titre'
       const title = String((s.title ?? s.titre ?? '')).trim();
       if (id>=1 && id<=28 && title) t[id] = title;
     }
@@ -215,7 +256,6 @@
         }
       }
 
-      // voyants OK pour tous les titres reçus
       for (let i=1;i<=28;i++){
         if (state.titles[i]) state.leds.set(i,'ok');
       }
@@ -289,7 +329,7 @@ Clique sur **Générer** pour charger chaque verset avec explications.`;
   /* ---------- Recherche intelligente ---------- */
   function applySearch(){
     const raw=(searchRef.value||'').trim(); if(!raw) return;
-    const m = /^([\p{L}\d\s]+?)\s+(\d+)(?::(\d+(?:-\d+)?))?$/u.exec(raw);
+    const m = /^([\p{L}\d\s]+?)\s+(\d+)(?::(\\d+(?:-\\d+)?))?$/u.exec(raw);
     if (m){
       const bookName=normalizeBook(m[1]); const chap=parseInt(m[2],10); const vers=m[3]||null;
       const found=findBook(bookName);
