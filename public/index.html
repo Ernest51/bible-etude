@@ -1,169 +1,124 @@
-<!DOCTYPE html>
-<html lang="fr">
+<!doctype html>
+<html lang="fr" data-theme="cyan">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Méditation</title>
-  <meta name="description" content="Étude biblique — Rubrique 0 + 28 rubriques, recherches intelligentes, liens cliquables vers BibleGateway." />
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   <style>
     :root{
-      --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b;
-      --accent:#0891b2; --accent-soft:#e0f2fe;
+      --bg:#f8fafc; --text:#0f172a; --primary:#06b6d4; --border:#e2e8f0;
+      --chip:#f8fafc; --muted:#64748b;
     }
-    [data-theme="cyan"]  { --accent:#0891b2; --accent-soft:#e0f2fe; }
-    [data-theme="violet"]{ --accent:#7c3aed; --accent-soft:#ede9fe; }
-    [data-theme="vert"]  { --accent:#059669; --accent-soft:#dcfce7; }
-    [data-theme="rouge"] { --accent:#dc2626; --accent-soft:#fee2e2; }
-    [data-theme="mauve"] { --accent:#a855f7; --accent-soft:#f3e8ff; }
-    [data-theme="indigo"]{ --accent:#4f46e5; --accent-soft:#e0e7ff; }
-    [data-theme="ambre"] { --accent:#d97706; --accent-soft:#fff7ed; }
-    [data-theme="slate"] { --accent:#334155; --accent-soft:#e2e8f0; }
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial,sans-serif;
+    }
+    .wrap{max-width:1280px;margin:0 auto;padding:16px}
+    h1{margin:0 0 12px; text-align:center}
+    .controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px}
+    .controls input,.controls select{
+      border:1px solid var(--border); border-radius:10px; padding:10px 12px; min-height:42px; background:white; color:inherit;
+    }
+    .controls button{
+      border-radius:12px; padding:10px 16px; min-height:42px; cursor:pointer; border:1px solid var(--border);
+      background:var(--primary); color:white; font-weight:600;
+    }
+    /* si tu veux des boutons non-thémés ajoute la classe .btn-fixed (notre app.js sait les traiter) */
+    .btn-fixed{ background:#111827 !important; border-color:#111827 !important }
 
-    *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    .progress-wrap{position:sticky;top:0;z-index:20}
-    .progress{height:4px;background:#e5e7eb}
-    .progress>.bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#16a34a);transition:width .2s}
-    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:14px 18px;position:sticky;top:4px;z-index:10}
-    h1{margin:0;font-size:30px;font-weight:800;letter-spacing:.2px;text-align:center}
+    /* Barre de thème */
+    .themeRow{display:flex; align-items:center; gap:10px; margin-top:8px}
+    #themeBar{position:relative; height:8px; border-radius:4px; background:linear-gradient(90deg,#06b6d4,#8b5cf6,#22c55e,#ef4444,#a855f7,#6366f1,#f59e0b,#475569)}
+    #themeThumb{position:absolute; top:-4px; width:10px; height:16px; border-radius:3px; background:#0f172a}
 
-    main{max-width:1200px;margin:14px auto;padding:0 12px}
-    .controls{display:grid;grid-template-columns:1.2fr .9fr .6fr .6fr .9fr auto auto auto auto;gap:10px;margin:12px 0;align-items:center}
-    @media (max-width:1100px){.controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}.controls .wide{grid-column:1/-1}}
-    input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%}
-    .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
-    .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
-    .btn.warn{background:var(--accent)}
-    .btn.ghost{background:#fff;color:#111;border:1px dashed var(--border)}
-    .btn.link{background:#fff;color:var(--accent);border:1px solid var(--border)}
+    /* Grille */
+    .grid{display:grid; grid-template-columns:320px 1fr; gap:16px; margin-top:12px}
+    .card{background:white;border:1px solid var(--border);border-radius:12px}
+    .card .hd{padding:12px 14px;border-bottom:1px solid var(--border);font-weight:700}
+    .card .bd{padding:12px 14px}
 
-    .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
-    @media (max-width:1000px){.layout{grid-template-columns:1fr}}
+    /* Liste rubriques */
+    #pointsList{max-height:calc(100vh - 220px); overflow:auto}
+    #pointsList .item{display:flex; align-items:center; gap:10px; padding:10px 12px; cursor:pointer; border-bottom:1px solid var(--border)}
+    #pointsList .item.active{background:var(--chip)}
+    #pointsList .idx{width:22px; height:22px; border-radius:999px; background:var(--chip); display:flex; align-items:center; justify-content:center; font-size:12px; border:1px solid var(--border)}
+    #pointsList .txt{flex:1}
+    #pointsList .txt>div{font-weight:600}
+    #pointsList .txt .desc{display:block;margin-top:4px;font-size:12.5px;line-height:1.3;color:var(--muted)}
+    #pointsList .dot{width:8px;height:8px;border-radius:999px;background:#f59e0b} /* jaune par défaut */
+    #pointsList .dot.ok{background:#22c55e}
 
-    .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700;text-align:center}
-    .list{max-height:70vh;overflow:auto}
-    .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
-    .item:last-child{border-bottom:0}
-    .item:hover{background:#f8fafc}
-    .item.active{background:var(--accent-soft)}
-    .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
-    .txt{flex:1;text-align:center}  /* <-- titres centrés */
-    .desc{display:block;font-size:12px;color:var(--muted);margin-top:2px}
-    .dot{width:8px;height:8px;border-radius:999px;background:#f59e0b;margin-left:auto}
-    .dot.ok{background:var(--ok)}
+    /* Note */
+    #edTitle{font-weight:800; font-size:18px}
+    #metaInfo{color:var(--muted); font-size:12px}
+    #noteView h1,#noteView h2,#noteView h3{margin:16px 0 8px}
+    #noteView p{margin:8px 0; line-height:1.5}
 
-    .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
-    .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-    .ed-title{font-weight:800;flex:1}
-    .ed-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 10px;font-size:12px;color:#111}
-    .ed-body{padding:12px}
-    #noteView{display:block;width:100%;min-height:460px;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;background:#fff;outline:none}
-    #noteView p{margin:0 0 .75rem 0}
-    #noteView a{color:var(--accent);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
-    #noteView strong{font-weight:700} #noteView em{font-style:italic}
-    #noteView ul, #noteView ol{padding-left:1.25rem}
-    #noteView h3{margin:1rem 0 .5rem 0}
-    .links-panel{background:#fafafa;border:1px dashed var(--border);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:14px}
-    .links-panel b{color:var(--accent)}
-    .links-panel a{color:var(--accent);text-decoration:underline}
-    .links-panel.empty{display:none}
-    .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
-    .mini{width:8px;height:8px;border-radius:999px;background:#d97706}.mini.ok{background:#16a34a}.mini.ko{background:#dc2626}
-    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:#64748b;font-size:14px}
-    #debugBtn{margin-left:6px;background:var(--dark);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
-    #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;font-size:12px}
-    @media print{.progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row,#debugPanel{display:none!important}}
-
-    /* Palette (fine + glissable) */
-    .theme-wrap{grid-column:1/-1;display:flex;align-items:center;gap:10px}
-    #themeBar{position:relative;height:10px;border-radius:999px;background:linear-gradient(90deg,#06b6d4,#7c3aed,#059669,#dc2626,#a855f7,#4f46e5,#d97706,#334155);cursor:pointer;flex:1;border:1px solid var(--border);touch-action:none}
-    #themeThumb{position:absolute;top:50%;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:999px;background:#fff;border:2px solid var(--border);box-shadow:0 1px 2px rgba(0,0,0,.12)}
-    .mobile-only{display:none}
-    @media (max-width:640px){.mobile-only{display:inline-flex}}
+    .footer{display:flex; align-items:center; gap:12px; color:var(--muted); padding:12px 0}
+    .spacer{flex:1}
   </style>
 </head>
-<body data-theme="cyan">
-  <div class="progress-wrap"><div class="progress"><div id="progressBar" class="bar"></div></div></div>
-  <header><h1>Méditation</h1></header>
+<body>
+  <div class="wrap">
+    <h1>Méditation</h1>
 
-  <main>
+    <!-- Bandeau commandes -->
     <div class="controls">
-      <input id="searchRef" class="wide" type="text" placeholder="Rechercher (ex : Marc 5:1, 1 Jean 2, Genèse 1:1-5)" />
-      <button id="applySearchBtn" class="btn secondary mobile-only" type="button">Valider</button>
-
-      <select id="bookSelect" title="Livre"></select>
-      <select id="chapterSelect" title="Chapitre"></select>
-      <select id="verseSelect" title="Verset"></select>
-      <select id="versionSelect" title="Version">
-        <option value="LSG" selected>Louis Segond 1910 (LSG)</option>
-        <option value="PDV">Parole de Vie (PDV)</option>
-        <option value="S21">Segond 21 (S21)</option>
-        <option value="BFC">Français Courant (BFC)</option>
+      <input id="searchRef" placeholder="Rechercher (ex : Marc 5:1, 1 Jean 2)" />
+      <select id="bookSelect"></select>
+      <select id="chapterSelect"></select>
+      <select id="verseSelect"></select>
+      <select id="versionSelect">
+        <option value="LSG">Louis Segond 1910</option>
       </select>
+      <button id="readBtn" class="btn-fixed">Lire la Bible</button>
+      <button id="generateBtn">Générer</button>
+      <button id="resetBtn" class="btn-fixed">Reset</button>
+      <button id="pdfBtn" class="btn-fixed">PDF (28)</button>
+      <a id="applySearchBtn" class="btn-fixed" style="text-decoration:none;padding:10px 14px;border-radius:10px;border:1px solid var(--border)">Valider</a>
+    </div>
 
-      <!-- plus de case "Mode enrichi" -->
+    <!-- Palette -->
+    <div class="themeRow">
+      <div>Thème</div>
+      <div id="themeBar"><div id="themeThumb"></div></div>
+    </div>
 
-      <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
-      <button id="generateBtn" class="btn warn" type="button">Générer</button>
-      <button id="resetBtn" class="btn ghost" type="button">Reset</button>
-      <button id="pdfBtn" class="btn link" type="button">PDF (28)</button>
-      <a class="btn link" href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a>
+    <!-- Grille -->
+    <div class="grid">
+      <!-- Colonne de gauche -->
+      <div class="card">
+        <div class="hd">Rubriques</div>
+        <div class="bd" id="pointsList"></div>
+      </div>
 
-      <div class="theme-wrap">
-        <span style="font-size:13px;color:#64748b;">Thème</span>
-        <div id="themeBar"><div id="themeThumb"></div></div>
+      <!-- Colonne de droite -->
+      <div class="card">
+        <div class="hd" style="display:flex; align-items:center; gap:8px">
+          <div id="edTitle">—</div>
+          <div class="spacer"></div>
+          <div id="metaInfo"></div>
+          <div style="display:flex; gap:8px; margin-left:12px">
+            <button id="prev" class="btn-fixed">◀ Précédent</button>
+            <button id="next" class="btn-fixed">Suivant ▶</button>
+          </div>
+        </div>
+        <div class="bd">
+          <div id="noteView"></div>
+        </div>
       </div>
     </div>
 
-    <div class="layout">
-      <aside class="sidebar">
-        <div class="side-head">Rubriques</div>
-        <div id="pointsList" class="list"></div>
-      </aside>
-
-      <section class="editor">
-        <div class="ed-head">
-          <div class="ed-title" id="edTitle">—</div>
-          <div class="ed-tools">
-            <span class="badge" id="lastBadge" title="Dernière étude">Dernière : —</span>
-          </div>
-          <button id="prev" class="btn secondary" type="button">◀ Précédent</button>
-          <button id="next" class="btn secondary" type="button">Suivant ▶</button>
-        </div>
-
-        <div class="ed-body">
-          <div id="noteView" contenteditable="false" spellcheck="false" aria-label="Contenu enrichi"></div>
-
-          <div id="linksPanel" class="links-panel empty">
-            <b>Liens détectés :</b>
-            <div id="linksList"></div>
-          </div>
-        </div>
-
-        <div class="ed-foot">
-          <span class="small" id="metaInfo">Point — / 28</span>
-          <span class="small">Sauvegarde auto (local)</span>
-        </div>
-      </section>
+    <!-- Bas de page -->
+    <div class="footer">
+      <div id="lastBadge">Dernière : —</div>
+      <div class="spacer"></div>
+      <small id="debugMini" style="display:none"></small>
     </div>
-  </main>
+  </div>
 
-  <footer>
-    © <span id="y"></span> — Méditation
-    <div class="status-row" style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-      <span class="badge"><span id="dot-health" class="mini"></span> health</span>
-      <span class="badge"><span id="dot-chat" class="mini"></span> chat(POST)</span>
-      <span class="badge"><span id="dot-ping" class="mini"></span> ping</span>
-      <button id="debugBtn" type="button">Debug</button>
-    </div>
-    <div id="debugPanel">[init]</div>
-  </footer>
-
-  <!-- Bump version pour forcer le cache -->
-  <script src="/app.js?v=2025-09-08-ia-fix" defer></script>
+  <!-- Charge ton app JS (déjà prêt) -->
+  <script src="/app.js" defer></script>
 </body>
 </html>
