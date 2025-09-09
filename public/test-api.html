@@ -1,27 +1,31 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <title>Test API Next.js</title>
-</head>
+<head><meta charset="UTF-8"><title>Test API Routing</title></head>
 <body>
-  <h1>Test API /api/generate-study</h1>
-  <button id="btn">Tester l'API</button>
-  <pre id="out"></pre>
-
+  <h1>Test API Routing</h1>
+  <div>
+    <button id="b1">GET /api/_whoami</button>
+    <button id="b2">GET /api/generate-study</button>
+    <button id="b3">POST /api/generate-study</button>
+  </div>
+  <pre id="out" style="white-space:pre-wrap;background:#f6f6f6;border:1px solid #ddd;padding:10px;margin-top:10px"></pre>
   <script>
-    document.getElementById("btn").addEventListener("click", async () => {
-      try {
-        const r = await fetch("/api/generate-study", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ passage: "Genèse 1", options: { length: 500 } })
-        });
-        const j = await r.json();
-        document.getElementById("out").textContent = JSON.stringify(j, null, 2);
-      } catch (e) {
-        document.getElementById("out").textContent = "Erreur: " + e;
-      }
+    const out = document.getElementById('out');
+    async function go(info, url, init){
+      try{
+        const r = await fetch(url + (url.includes('?')?'&':'?') + '_=' + Date.now(), init);
+        const text = await r.text();
+        out.textContent =
+          `TEST: ${info}\nURL finale: ${r.url}\nStatus: ${r.status}\n` +
+          `Headers:\n${Array.from(r.headers.entries()).map(([k,v])=>k+': '+v).join('\n')}\n\n` +
+          `Body:\n${text}`;
+      }catch(e){ out.textContent = `TEST: ${info}\nERREUR: ${e}`; }
+    }
+    b1.onclick = () => go('GET /api/_whoami', '/api/_whoami');
+    b2.onclick = () => go('GET /api/generate-study', '/api/generate-study');
+    b3.onclick = () => go('POST /api/generate-study', '/api/generate-study', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ passage:'Genèse 1', options:{ length:500 } })
     });
   </script>
 </body>
