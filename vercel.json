@@ -1,11 +1,6 @@
 {
   "version": 2,
-  "functions": {
-    "api/*.js": {
-      "runtime": "nodejs20.x"
-    }
-  },
   "routes": [
-    { "src": "^/api/(.*)$", "dest": "/api/$1.js" }
+    { "src": "^/api/generate-study$", "dest": "/api/ping.js" }
   ]
 }
