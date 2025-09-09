@@ -1,124 +1,396 @@
-<!doctype html>
-<html lang="fr" data-theme="cyan">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Méditation</title>
-  <style>
-    :root{
-      --bg:#f8fafc; --text:#0f172a; --primary:#06b6d4; --border:#e2e8f0;
-      --chip:#f8fafc; --muted:#64748b;
+/* app.js — adapté à "index (5).html"
+   - Palette via #themeSelect (thème appliqué à :root + body)
+   - 66 livres + chapitres bornés
+   - YouVersion pour "Lire la Bible"
+   - Bouton "Valider" (#validate) pour la recherche
+   - 28 rubriques + descriptions
+   - Densité 500/1500/2500 injectée dans .controls
+   - Mode enrichi (textarea <-> div#noteView) via #enrichToggle
+   - Génération via /api/generate-study (POST)
+*/
+
+(function () {
+  // ---------- Helpers ----------
+  const $  = (s)=>document.querySelector(s);
+  const $$ = (s)=>Array.from(document.querySelectorAll(s));
+  const esc = (s)=>String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+  // ---------- Constantes ----------
+  const STORAGE_LAST='lastStudy', STORAGE_DENS='density8', STORAGE_THEME='theme8';
+  const DENSITY_CHOICES=[500,1500,2500];
+  const TITLE0='Rubrique 0 — Panorama des versets du chapitre';
+
+  const THEMES=['cyan','violet','vert','rouge','mauve','indigo'];
+  const THEME_VARS = {
+    cyan:   { bg:'#f4f6f8', text:'#0f172a', primary:'#0891b2', border:'#e5e7eb' },
+    violet: { bg:'#f4f6f8', text:'#0f172a', primary:'#7c3aed', border:'#e5e7eb' },
+    vert:   { bg:'#f4f6f8', text:'#0f172a', primary:'#059669', border:'#e5e7eb' },
+    rouge:  { bg:'#f4f6f8', text:'#0f172a', primary:'#dc2626', border:'#e5e7eb' },
+    mauve:  { bg:'#f4f6f8', text:'#0f172a', primary:'#a855f7', border:'#e5e7eb' },
+    indigo: { bg:'#f4f6f8', text:'#0f172a', primary:'#4f46e5', border:'#e5e7eb' },
+  };
+
+  const CHAPTERS_66 = {"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
+  const ORDER_66 = Object.keys(CHAPTERS_66);
+
+  const TITLES_DEFAULT={1:"Prière d’ouverture",2:"Canon et testament",3:"Questions du chapitre précédent",4:"Titre du chapitre",5:"Contexte historique",6:"Structure littéraire",7:"Genre littéraire",8:"Auteur et généalogie",9:"Verset-clé doctrinal",10:"Analyse exégétique",11:"Analyse lexicale",12:"Références croisées",13:"Fondements théologiques",14:"Thème doctrinal",15:"Fruits spirituels",16:"Types bibliques",17:"Appui doctrinal",18:"Comparaison entre versets",19:"Comparaison avec Actes 2",20:"Verset à mémoriser",21:"Enseignement pour l’Église",22:"Enseignement pour la famille",23:"Enseignement pour enfants",24:"Application missionnaire",25:"Application pastorale",26:"Application personnelle",27:"Versets à retenir",28:"Prière de fin"};
+  const DESCS_DEFAULT={1:"Invocation du Saint-Esprit pour éclairer l’étude.",2:"Appartenance au canon (AT/NT).",3:"Questions à reprendre de l’étude précédente.",4:"Résumé doctrinal synthétique du chapitre.",5:"Période, géopolitique, culture, carte.",6:"Séquençage narratif et composition.",7:"Type de texte : narratif, poétique, prophétique…",8:"Auteur et lien aux patriarches.",9:"Verset central du chapitre.",10:"Commentaire exégétique.",11:"Mots-clés et portée doctrinale.",12:"Passages parallèles.",13:"Doctrines majeures.",14:"Thème doctrinal relié.",15:"Vertus / attitudes visées.",16:"Figures typologiques et symboles.",17:"Passages d’appui.",18:"Comparaison interne.",19:"Parallèle avec Actes 2.",20:"Verset à mémoriser.",21:"Implications pour l’Église.",22:"Applications familiales.",23:"Pédagogie enfants.",24:"Applications mission.",25:"Applications pastorales.",26:"Application personnelle.",27:"Versets utiles.",28:"Prière de clôture."};
+
+  // YouVersion
+  const YV_BOOK = {"Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des Cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN","Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL","Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"};
+  const YV_VERSION_ID = { 'LSG':'93','PDV':'201','S21':'162','BFC':'75' };
+
+  // ---------- État ----------
+  const state = {
+    book:'', chapter:null, verse:null, version:'LSG',
+    density:1500, currentIdx:0,
+    titles:{...TITLES_DEFAULT}, descs:{...DESCS_DEFAULT},
+    sectionsByN:new Map(), leds:new Map()
+  };
+  for(let i=0;i<=28;i++) state.leds.set(i,'warn');
+
+  // ---------- Elts DOM (selon ton index) ----------
+  const progressBar   = $('#progressBar');
+  const pointsList    = $('#pointsList');
+  const edTitle       = $('#edTitle');
+  const noteArea      = $('#noteArea');
+  const noteView      = $('#noteView');
+  const metaInfo      = $('#metaInfo');
+
+  const searchRef     = $('#searchRef');
+  const validateBtn   = $('#validate');
+  const bookSelect    = $('#bookSelect');
+  const chapterSelect = $('#chapterSelect');
+  const verseSelect   = $('#verseSelect');
+  const versionSelect = $('#versionSelect');
+  const themeSelect   = $('#themeSelect');
+  const enrichToggle  = $('#enrichToggle');
+
+  const readBtn       = $('#readBtn');
+  const generateBtn   = $('#generateBtn');
+  const prevBtn       = $('#prev');
+  const nextBtn       = $('#next');
+
+  // ---------- Boot ----------
+  document.addEventListener('DOMContentLoaded', init);
+
+  function init(){
+    const y=$('#y'); if(y) y.textContent=String(new Date().getFullYear());
+    injectDensitySelector();
+    ensurePlaceholders();
+    restoreTheme();            // palette
+    restoreLast(); refreshLastBadge();
+
+    wireEvents();
+
+    // init selects
+    fillBooks(true); // keepNeutral
+    if (state.book){
+      bookSelect.value=state.book; fillChapters(); chapterSelect.value=String(state.chapter); fillVerses(); verseSelect.value=String(state.verse||1);
     }
-    html,body{height:100%}
-    body{
-      margin:0; background:var(--bg); color:var(--text);
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial,sans-serif;
+    versionSelect && (versionSelect.value = state.version || 'LSG');
+
+    renderPointsList(); updateHeader(); renderSection(0);
+    applyModeView(); // noteArea/noteView visibilité
+  }
+
+  // ---------- Events ----------
+  function wireEvents(){
+    validateBtn && validateBtn.addEventListener('click', applySearch);
+    searchRef && searchRef.addEventListener('keydown', e=>{ if(e.key==='Enter') applySearch(); });
+
+    bookSelect && bookSelect.addEventListener('change', ()=>{
+      const v=bookSelect.value;
+      if (!v){ state.book=''; state.chapter=null; state.verse=null; clearChaptersAndVerses(); saveLast(); refreshLastBadge(); return; }
+      state.book=v; state.chapter=1; state.verse=1;
+      fillChapters(); fillVerses(); saveLast(); refreshLastBadge();
+    });
+
+    chapterSelect && chapterSelect.addEventListener('change', ()=>{
+      const max = CHAPTERS_66[state.book]||1;
+      const next=parseInt(chapterSelect.value,10);
+      if (Number.isFinite(next)) { state.chapter=clamp(next,1,max); chapterSelect.value=String(state.chapter); }
+      fillVerses(); saveLast(); refreshLastBadge();
+    });
+
+    verseSelect && verseSelect.addEventListener('change', ()=>{
+      const v=parseInt(verseSelect.value,10);
+      state.verse=Number.isFinite(v)?v:1; saveLast(); refreshLastBadge();
+    });
+
+    versionSelect && versionSelect.addEventListener('change', ()=>{ state.version=versionSelect.value||'LSG'; });
+
+    themeSelect && themeSelect.addEventListener('change', ()=> setTheme(themeSelect.value));
+
+    enrichToggle && enrichToggle.addEventListener('change', applyModeView);
+
+    readBtn && readBtn.addEventListener('click', ()=>{
+      if (!state.book) return;
+      const url = youVersionURL(state.book, state.chapter||1, state.verse||1, state.version);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    });
+
+    prevBtn && prevBtn.addEventListener('click', ()=>goTo(state.currentIdx-1));
+    nextBtn && nextBtn.addEventListener('click', ()=>goTo(state.currentIdx+1));
+
+    generateBtn && generateBtn.addEventListener('click', onGenerate);
+
+    // autosave textarea → local (facultatif: petite progression)
+    let tId=null;
+    noteArea && noteArea.addEventListener('input', ()=>{
+      if (progressBar) progressBar.style.width='40%';
+      clearTimeout(tId);
+      tId=setTimeout(()=>{ progressBar&&(progressBar.style.width='100%'); setTimeout(()=>progressBar&&(progressBar.style.width='0'),300); }, 600);
+    });
+  }
+
+  // ---------- Densité ----------
+  function injectDensitySelector(){
+    const controls = document.querySelector('.controls'); if (!controls || $('#densitySelect')) return;
+    const sel=document.createElement('select'); sel.id='densitySelect'; sel.title='Densité';
+    sel.innerHTML=DENSITY_CHOICES.map(v=>`<option value="${v}">${v}</option>`).join('');
+    const saved=localStorage.getItem(STORAGE_DENS);
+    sel.value = DENSITY_CHOICES.includes(Number(saved)) ? String(saved) : String(state.density);
+    state.density=parseInt(sel.value,10);
+    sel.addEventListener('change', ()=>{ state.density=Number(sel.value); localStorage.setItem(STORAGE_DENS, sel.value); });
+    controls.insertBefore(sel, $('#readBtn')); // juste avant "Lire la Bible"
+  }
+
+  // ---------- Selects ----------
+  function ensurePlaceholders(){
+    [bookSelect,chapterSelect,verseSelect].forEach(sel=>{
+      if (!sel) return;
+      if (!sel.querySelector('option[value=""]')){
+        const o=document.createElement('option'); o.value=''; o.textContent='—'; sel.appendChild(o);
+      }
+      sel.value='';
+    });
+  }
+
+  function fillBooks(keepNeutral=false){
+    if (!bookSelect) return;
+    const cur=bookSelect.value;
+    bookSelect.innerHTML='';
+    const opt0=document.createElement('option'); opt0.value=''; opt0.textContent='—'; bookSelect.appendChild(opt0);
+    ORDER_66.forEach(b=>{ const o=document.createElement('option'); o.value=b; o.textContent=b; bookSelect.appendChild(o); });
+    if (!keepNeutral && state.book) bookSelect.value=state.book; else bookSelect.value='';
+  }
+  function fillChapters(){
+    if (!chapterSelect) return;
+    const max=CHAPTERS_66[state.book]||0;
+    chapterSelect.innerHTML='';
+    const opt0=document.createElement('option'); opt0.value=''; opt0.textContent='—'; chapterSelect.appendChild(opt0);
+    for(let i=1;i<=max;i++){ const o=document.createElement('option'); o.value=String(i); o.textContent=String(i); chapterSelect.appendChild(o); }
+    chapterSelect.value = state.chapter? String(clamp(state.chapter,1,max)) : '';
+  }
+  function clearChaptersAndVerses(){
+    if (chapterSelect){ chapterSelect.innerHTML=''; const o=document.createElement('option'); o.value=''; o.textContent='—'; chapterSelect.appendChild(o); chapterSelect.value=''; }
+    if (verseSelect){ verseSelect.innerHTML=''; const o=document.createElement('option'); o.value=''; o.textContent='—'; verseSelect.appendChild(o); verseSelect.value=''; }
+  }
+  function fillVerses(){
+    if (!verseSelect) return;
+    verseSelect.innerHTML='';
+    const opt0=document.createElement('option'); opt0.value=''; opt0.textContent='—'; verseSelect.appendChild(opt0);
+    for(let i=1;i<=150;i++){ const o=document.createElement('option'); o.value=String(i); o.textContent=String(i); verseSelect.appendChild(o); }
+    verseSelect.value = state.verse? String(state.verse) : '';
+  }
+
+  // ---------- Recherche ----------
+  function applySearch(){
+    const raw=(searchRef?.value||'').trim(); if(!raw) return;
+    const m = /^([\p{L}\d\s]+?)\s+(\d+)(?::(\d+(?:-\d+)?))?$/u.exec(raw);
+    if (m){
+      const bookName=normalizeBook(m[1]); const chap=parseInt(m[2],10); const vers=m[3]||null;
+      const found=findBook(bookName);
+      if (found){
+        state.book=found; const max=CHAPTERS_66[found]||1;
+        state.chapter=clamp(chap,1,max); state.verse=vers?parseInt(vers.split('-')[0],10):1;
+        fillBooks(); bookSelect.value=state.book; fillChapters(); chapterSelect.value=String(state.chapter); fillVerses(); if (state.verse) verseSelect.value=String(state.verse);
+        saveLast(); refreshLastBadge(); return;
+      }
     }
-    .wrap{max-width:1280px;margin:0 auto;padding:16px}
-    h1{margin:0 0 12px; text-align:center}
-    .controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px}
-    .controls input,.controls select{
-      border:1px solid var(--border); border-radius:10px; padding:10px 12px; min-height:42px; background:white; color:inherit;
+    const bn=normalizeBook(raw); const fb=findBook(bn);
+    if (fb){ state.book=fb; state.chapter=1; state.verse=1; fillBooks(); bookSelect.value=fb; fillChapters(); fillVerses(); saveLast(); refreshLastBadge(); }
+  }
+  function normalizeBook(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase(); }
+  function findBook(norm){ for(const b of ORDER_66){ const n=normalizeBook(b); if(n===norm||n.startsWith(norm)||norm.startsWith(n)) return b; } return null; }
+
+  // ---------- Palette ----------
+  function setTheme(theme){
+    const vars = THEME_VARS[theme] || THEME_VARS.cyan;
+    const root=document.documentElement, body=document.body;
+    [root,body].forEach(el=>{
+      el.style.setProperty('--bg',vars.bg);
+      el.style.setProperty('--text',vars.text);
+      el.style.setProperty('--border',vars.border);
+      el.style.setProperty('--accent',vars.primary);
+      // Accent-soft dérivée simple
+      el.style.setProperty('--accent-soft', theme==='cyan'? '#e0f2fe' :
+        theme==='violet'? '#ede9fe' : theme==='vert'? '#dcfce7' :
+        theme==='rouge'? '#fee2e2' : theme==='mauve'? '#f3e8ff' : '#e0e7ff');
+      el.setAttribute('data-theme', theme);
+    });
+    localStorage.setItem(STORAGE_THEME, theme);
+    if (themeSelect) themeSelect.value=theme;
+  }
+  function getTheme(){ return localStorage.getItem(STORAGE_THEME) || 'cyan'; }
+  function restoreTheme(){ setTheme(getTheme()); }
+
+  // ---------- Liste 0..28 ----------
+  function getTitle(n){ return state.titles[n] || TITLES_DEFAULT[n] || `Point ${n}`; }
+  function getDesc (n){ return state.descs [n] || DESCS_DEFAULT [n] || ''; }
+
+  function renderPointsList(){
+    if (!pointsList) return;
+    pointsList.innerHTML='';
+    pointsList.appendChild(renderItem({ idx:0, title:TITLE0, desc:'Aperçu du chapitre verset par verset' }));
+    for(let i=1;i<=28;i++) pointsList.appendChild(renderItem({ idx:i, title:getTitle(i), desc:getDesc(i) }));
+    highlightActive();
+  }
+  function renderItem({ idx, title, desc }){
+    const li=document.createElement('div'); li.className='item'; li.dataset.idx=String(idx);
+    const idxEl=document.createElement('div'); idxEl.className='idx'; idxEl.textContent=String(idx);
+    const txt=document.createElement('div'); txt.className='txt';
+    txt.innerHTML=`<div>${esc(title)}</div>${desc?`<span class="desc">${esc(desc)}</span>`:''}`;
+    const dot=document.createElement('div'); dot.className='dot '+(state.leds.get(idx)==='ok'?'ok':'');
+    li.appendChild(idxEl); li.appendChild(txt); li.appendChild(dot);
+    li.addEventListener('click', ()=>goTo(idx));
+    return li;
+  }
+  function highlightActive(){ $$('#pointsList .item').forEach(el=>el.classList.toggle('active', Number(el.dataset.idx)===state.currentIdx)); }
+  function goTo(idx){ if(idx<0) idx=0; if(idx>28) idx=28; state.currentIdx=idx; updateHeader(); renderSection(idx); highlightActive(); }
+  function updateHeader(){ if (!edTitle || !metaInfo) return; edTitle.textContent = state.currentIdx===0?TITLE0:getTitle(state.currentIdx); metaInfo.textContent=`Point ${state.currentIdx} / 28`; }
+
+  // ---------- Rendu section ----------
+  function renderSection(n){
+    const ref = state.book ? `${state.book} ${state.chapter||''}`.trim() : '—';
+    const md = state.sectionsByN.get(n) || defaultContent(n, ref);
+    const html = mdToHtml(md);
+    if (noteArea && noteView){
+      if (enrichToggle?.checked){
+        noteView.innerHTML = linkifyScripture(html, state.version);
+      } else {
+        noteArea.value = md;
+      }
     }
-    .controls button{
-      border-radius:12px; padding:10px 16px; min-height:42px; cursor:pointer; border:1px solid var(--border);
-      background:var(--primary); color:white; font-weight:600;
+  }
+  function defaultContent(n, ref){
+    if (n===0) return `### ${TITLE0}
+
+*Référence :* ${ref}
+
+Clique sur **Générer** pour charger chaque verset avec explications.`;
+    return `### ${getTitle(n)}
+
+*Référence :* ${ref}
+
+À générer…`;
+  }
+
+  // ---------- Mode enrichi ----------
+  function applyModeView(){
+    if (!noteArea || !noteView) return;
+    const enriched = !!(enrichToggle?.checked);
+    noteView.style.display = enriched ? 'block' : 'none';
+    noteArea.style.display  = enriched ? 'none'  : 'block';
+  }
+
+  // ---------- Génération API ----------
+  async function onGenerate(){
+    if (!generateBtn) return;
+    if (!state.book){ alert('Choisis un livre (et chapitre) avant de générer.'); return; }
+    const old=generateBtn.textContent; generateBtn.disabled=true; generateBtn.textContent='Génération…';
+    try{
+      const passage = `${state.book} ${state.chapter||1}`;
+      const r = await fetch('/api/generate-study', {
+        method:'POST', headers:{'Content-Type':'application/json'}, cache:'no-store',
+        body: JSON.stringify({ passage, options:{ length: state.density } })
+      });
+      if (!r.ok) throw new Error('HTTP '+r.status);
+      const j = await r.json();
+      const sections = j.study?.sections || j.sections || [];
+      const t={}, d={};
+      for (const s of sections){
+        const id=Number(s.id ?? s.n); if(!Number.isFinite(id)) continue;
+        const title=String((s.title ?? s.titre ?? '')).trim();
+        const desc =String((s.description ?? s.desc ?? '')).trim();
+        const content=String(s.content||'').trim();
+        if (title) t[id]=title;
+        if (desc)  d[id]=desc;
+        if (content){ state.sectionsByN.set(id, content); state.leds.set(id,'ok'); }
+      }
+      if (Object.keys(t).length) state.titles={...state.titles, ...t};
+      if (Object.keys(d).length) state.descs ={...state.descs , ...d};
+      renderPointsList(); renderSection(state.currentIdx); saveLast(); refreshLastBadge();
+    }catch(err){
+      console.warn('Erreur génération:', err);
+      alert('La génération a échoué. Un gabarit a été inséré.');
+      insertSkeleton(); renderPointsList(); renderSection(state.currentIdx);
+    }finally{
+      generateBtn.disabled=false; generateBtn.textContent=old;
     }
-    /* si tu veux des boutons non-thémés ajoute la classe .btn-fixed (notre app.js sait les traiter) */
-    .btn-fixed{ background:#111827 !important; border-color:#111827 !important }
+  }
 
-    /* Barre de thème */
-    .themeRow{display:flex; align-items:center; gap:10px; margin-top:8px}
-    #themeBar{position:relative; height:8px; border-radius:4px; background:linear-gradient(90deg,#06b6d4,#8b5cf6,#22c55e,#ef4444,#a855f7,#6366f1,#f59e0b,#475569)}
-    #themeThumb{position:absolute; top:-4px; width:10px; height:16px; border-radius:3px; background:#0f172a}
+  function insertSkeleton(){
+    const ref = state.book ? `${state.book} ${state.chapter||''}`.trim() : '—';
+    state.sectionsByN.set(0, `### ${TITLE0}
+*Référence :* ${ref}
 
-    /* Grille */
-    .grid{display:grid; grid-template-columns:320px 1fr; gap:16px; margin-top:12px}
-    .card{background:white;border:1px solid var(--border);border-radius:12px}
-    .card .hd{padding:12px 14px;border-bottom:1px solid var(--border);font-weight:700}
-    .card .bd{padding:12px 14px}
+Cliquer sur **Lire** puis **Générer** quand l’API sera dispo.`);
+    for(let i=1;i<=28;i++){
+      state.sectionsByN.set(i, `### ${getTitle(i)}
+*Référence :* ${ref}
 
-    /* Liste rubriques */
-    #pointsList{max-height:calc(100vh - 220px); overflow:auto}
-    #pointsList .item{display:flex; align-items:center; gap:10px; padding:10px 12px; cursor:pointer; border-bottom:1px solid var(--border)}
-    #pointsList .item.active{background:var(--chip)}
-    #pointsList .idx{width:22px; height:22px; border-radius:999px; background:var(--chip); display:flex; align-items:center; justify-content:center; font-size:12px; border:1px solid var(--border)}
-    #pointsList .txt{flex:1}
-    #pointsList .txt>div{font-weight:600}
-    #pointsList .txt .desc{display:block;margin-top:4px;font-size:12.5px;line-height:1.3;color:var(--muted)}
-    #pointsList .dot{width:8px;height:8px;border-radius:999px;background:#f59e0b} /* jaune par défaut */
-    #pointsList .dot.ok{background:#22c55e}
+Contenu provisoire (gabarit).`);
+      state.leds.set(i,'warn');
+    }
+  }
 
-    /* Note */
-    #edTitle{font-weight:800; font-size:18px}
-    #metaInfo{color:var(--muted); font-size:12px}
-    #noteView h1,#noteView h2,#noteView h3{margin:16px 0 8px}
-    #noteView p{margin:8px 0; line-height:1.5}
+  // ---------- YouVersion ----------
+  function youVersionURL(book, chapter, verse, version){
+    const code = YV_BOOK[book] || 'GEN';
+    const verId = YV_VERSION_ID[version || 'LSG'] || '93';
+    const vtag  = (version || 'LSG').toUpperCase();
+    return `https://www.bible.com/fr/bible/${verId}/${code}.${chapter||1}.${vtag}`;
+  }
 
-    .footer{display:flex; align-items:center; gap:12px; color:var(--muted); padding:12px 0}
-    .spacer{flex:1}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <h1>Méditation</h1>
+  // ---------- Utils rendu ----------
+  function mdToHtml(md){
+    let h=String(md||'');
+    h=h.replace(/^### (.*)$/gm,'<h3>$1</h3>').replace(/^## (.*)$/gm,'<h2>$1</h2>').replace(/^# (.*)$/gm,'<h1>$1</h1>');
+    h=h.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+    h=h.replace(/^\s*-\s+(.*)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>)(?!\s*<li>)/gs,'<ul>$1</ul>');
+    h=h.split(/\n{2,}/).map(b=>/^<h\d|^<ul|^<li|^<p|^<blockquote/.test(b.trim())?b:`<p>${b.replace(/\n/g,'<br/>')}</p>`).join('\n');
+    return h;
+  }
+  function linkifyScripture(html,version){
+    const booksRe = ORDER_66.slice().sort((a,b)=>b.length-a.length).map(s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
+    const re = new RegExp(`\\b(${booksRe})\\s+(\\d+)(?::(\\d+(?:-\\d+)?))?\\b`,'g');
+    return html.replace(re,(m,b,c,v)=>{
+      const url=youVersionURL(b, c, v||null, version);
+      const label=v?`${b} ${c}:${v}`:`${b} ${c}`;
+      return `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
+    });
+  }
 
-    <!-- Bandeau commandes -->
-    <div class="controls">
-      <input id="searchRef" placeholder="Rechercher (ex : Marc 5:1, 1 Jean 2)" />
-      <select id="bookSelect"></select>
-      <select id="chapterSelect"></select>
-      <select id="verseSelect"></select>
-      <select id="versionSelect">
-        <option value="LSG">Louis Segond 1910</option>
-      </select>
-      <button id="readBtn" class="btn-fixed">Lire la Bible</button>
-      <button id="generateBtn">Générer</button>
-      <button id="resetBtn" class="btn-fixed">Reset</button>
-      <button id="pdfBtn" class="btn-fixed">PDF (28)</button>
-      <a id="applySearchBtn" class="btn-fixed" style="text-decoration:none;padding:10px 14px;border-radius:10px;border:1px solid var(--border)">Valider</a>
-    </div>
-
-    <!-- Palette -->
-    <div class="themeRow">
-      <div>Thème</div>
-      <div id="themeBar"><div id="themeThumb"></div></div>
-    </div>
-
-    <!-- Grille -->
-    <div class="grid">
-      <!-- Colonne de gauche -->
-      <div class="card">
-        <div class="hd">Rubriques</div>
-        <div class="bd" id="pointsList"></div>
-      </div>
-
-      <!-- Colonne de droite -->
-      <div class="card">
-        <div class="hd" style="display:flex; align-items:center; gap:8px">
-          <div id="edTitle">—</div>
-          <div class="spacer"></div>
-          <div id="metaInfo"></div>
-          <div style="display:flex; gap:8px; margin-left:12px">
-            <button id="prev" class="btn-fixed">◀ Précédent</button>
-            <button id="next" class="btn-fixed">Suivant ▶</button>
-          </div>
-        </div>
-        <div class="bd">
-          <div id="noteView"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Bas de page -->
-    <div class="footer">
-      <div id="lastBadge">Dernière : —</div>
-      <div class="spacer"></div>
-      <small id="debugMini" style="display:none"></small>
-    </div>
-  </div>
-
-  <!-- Charge ton app JS (déjà prêt) -->
-  <script src="/app.js" defer></script>
-</body>
-</html>
+  // ---------- Badges ----------
+  function refreshLastBadge(){
+    const el = $('#dot-ping')?.parentElement?.nextElementSibling; // on ne change pas tes badges, on met juste "Dernière" dans footer si besoin
+    const badge = $('#debugPanel'); // pas d’élément dédié "Dernière" dans ton index, donc on laisse la gestion au bandeau meta
+  }
+  function saveLast(){ localStorage.setItem(STORAGE_LAST, JSON.stringify({ book:state.book||'', chapter:state.chapter||'', verse:state.verse||'', version:state.version||'LSG', density:state.density })); }
+  function restoreLast(){
+    try{
+      const raw=localStorage.getItem(STORAGE_LAST); if(!raw) return;
+      const j=JSON.parse(raw);
+      if (j && CHAPTERS_66[j.book]){
+        state.book=j.book;
+        state.chapter=clamp(parseInt(j.chapter,10)||1, 1, CHAPTERS_66[j.book]);
+        state.verse=parseInt(j.verse,10)||1;
+        state.version=j.version||'LSG';
+        if (DENSITY_CHOICES.includes(Number(j.density))) state.density=Number(j.density);
+      }
+    }catch{}
+  }
+})();
