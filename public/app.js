@@ -1,11 +1,11 @@
-/* app.js — Fix palette + Dernière étude + Générer avec fallback + titres centrés + mobile Valider + MOCK PUBLIC */
+/* app.js — Synchro titres avec l’API (28 points perso) + palette + mock + densité */
 
 (function () {
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
   const log = (...a) => { try{ const d=$('#debugPanel'); if(d){ d.textContent+='\n'+a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ');} }catch{} };
 
-  // --- MODE MOCK PUBLIC (nouveau) ---
+  // --- MODE MOCK PUBLIC ---
   const urlParams = new URLSearchParams(location.search);
   const MOCK_PUBLIC = urlParams.get('mock') === '1' || localStorage.getItem('mockPublic') === '1';
   function normMock(s){
@@ -49,7 +49,9 @@
   const STORAGE_THEME  = 'theme8';
 
   const TITLE0 = 'Rubrique 0 — Panorama des versets du chapitre';
-  const TITLES = {
+
+  // Titres par défaut (fallback visuel si l’API est KO)
+  const TITLES_DEFAULT = {
     1: 'Prière d’ouverture',
     2: 'Contexte et fil narratif',
     3: 'Questions du chapitre précédent',
@@ -101,9 +103,10 @@
     verse: 1,
     version: 'LSG',
     currentIdx: 0,
-    sectionsByN: new Map(),
-    leds: new Map(),
+    sectionsByN: new Map(),   // n -> markdown
+    leds: new Map(),          // n -> 'ok' | 'warn'
     density: 1500,
+    titles: {...TITLES_DEFAULT} // sera remplacé par les titres venant de l’API
   };
 
   init();
@@ -156,9 +159,9 @@
     const sel = document.createElement('select');
     sel.id='densitySelect'; sel.title='Densité par rubrique';
     sel.style.border='1px solid var(--border)'; sel.style.borderRadius='10px'; sel.style.padding='10px 12px'; sel.style.minHeight='42px';
-    sel.innerHTML = `<option value="500">500</option><option value="1500">1500</option><option value="2500">2500</option>`;
+    sel.innerHTML = `<option value="500">500</option><option value="1500" selected>1500</option><option value="2500">2500</option>`;
     const saved = localStorage.getItem(STORAGE_DENS);
-    sel.value = (saved && ['500','1500','2500'].includes(saved)) ? saved : String(state.density);
+    sel.value = (saved && ['500','1500','2500'].includes(saved)) ? saved : '1500';
     state.density = parseInt(sel.value,10);
     sel.addEventListener('change', ()=>{ state.density=parseInt(sel.value,10); localStorage.setItem(STORAGE_DENS, String(state.density)); });
     const anchor = readBtn || controls.lastChild;
@@ -166,12 +169,26 @@
     wrap.appendChild(label); wrap.appendChild(sel);
   }
 
+  /* ---------- Titre helpers ---------- */
+  function getTitle(n){ return state.titles[n] || TITLES_DEFAULT[n] || `Point ${n}`; }
+  function setTitlesFromAPI(sections){
+    if (!Array.isArray(sections)) return;
+    const t = {};
+    for (const s of sections){
+      const id = Number(s.id ?? s.n);
+      const title = String(s.title || '').trim();
+      if (id>=1 && id<=28 && title) t[id] = title;
+    }
+    // si on a bien quelques titres, on remplace le mapping
+    if (Object.keys(t).length) state.titles = { ...TITLES_DEFAULT, ...t };
+  }
+
   /* ---------- Liste Rubrique 0 + 28 ---------- */
   function renderPointsList(){
     pointsList.innerHTML='';
     pointsList.appendChild(renderItem({ idx:0, title:TITLE0, desc:'Aperçu du chapitre verset par verset' }));
     for (let i=1;i<=28;i++){
-      pointsList.appendChild(renderItem({ idx:i, title:TITLES[i]||`Point ${i}`, desc:'' }));
+      pointsList.appendChild(renderItem({ idx:i, title:getTitle(i), desc:'' }));
     }
     highlightActive();
   }
@@ -187,44 +204,73 @@
   }
   function highlightActive(){ $$('#pointsList .item').forEach(d=>d.classList.toggle('active', Number(d.dataset.idx)===state.currentIdx)); }
   function goTo(idx){ if(idx<0) idx=0; if(idx>28) idx=28; state.currentIdx=idx; updateHeader(); renderSection(idx); highlightActive(); }
-  function updateHeader(){ const t = state.currentIdx===0?TITLE0:(TITLES[state.currentIdx]||`Point ${state.currentIdx}`); edTitle.textContent=t; metaInfo.textContent=`Point ${state.currentIdx} / 28`; }
+  function updateHeader(){ const t = state.currentIdx===0?TITLE0:getTitle(state.currentIdx); edTitle.textContent=t; metaInfo.textContent=`Point ${state.currentIdx} / 28`; }
 
-  /* ---------- Génération API + mock public + fallback ---------- */
+  /* ---------- Génération API + mock + fallback ---------- */
   async function onGenerate(){
     const old=generateBtn.textContent; generateBtn.disabled=true; generateBtn.textContent='Génération…';
     try{
+      // params communs
+      const passage = `${state.book} ${state.chapter}`;
       const q = new URLSearchParams({ book: state.book, chapter: String(state.chapter), length: String(state.density) }).toString();
 
-      // URL par défaut = API
-      let url = `/api/generate-study?${q}`;
+      let fetchOpts = { cache:'no-store' };
+      let url = `/api/generate-study`;
 
-      // En mode MOCK PUBLIC, on va lire un JSON statique
       if (MOCK_PUBLIC) {
+        // mode mock : on lit un JSON statique
         const key = `${normMock(state.book).replace(/\s+/g,'-')}-${state.chapter}`; // ex: jeremie-1
         let testUrl = `/tests/generate-study.${key}.json`;
         let r = await fetch(testUrl, { cache:'no-store' });
         if (!r.ok) {
-          // fallback fourni (Jérémie 1)
           testUrl = `/tests/generate-study.jeremie-1.json`;
           r = await fetch(testUrl, { cache:'no-store' });
           if (!r.ok) throw new Error('Mock introuvable');
         }
-        url = testUrl;
+        const j = await r.json();
+        // support des deux formats possibles
+        const sections = j.study?.sections || j.sections || [];
+        setTitlesFromAPI(sections);
+        state.sectionsByN.clear();
+        // si le mock a du contenu par section
+        for (const s of sections){
+          const n = Number(s.id ?? s.n);
+          if (!Number.isFinite(n)) continue;
+          const content = String(s.content || '').trim();
+          if (content) state.sectionsByN.set(n, content);
+        }
+      } else {
+        // mode API réel : POST JSON vers notre endpoint
+        fetchOpts = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
+          body: JSON.stringify({ passage, options: { length: state.density } })
+        };
+        const r = await fetch(url, fetchOpts);
+        if (!r.ok) throw new Error('HTTP '+r.status);
+        const j = await r.json();
+
+        const sections = j.study?.sections || j.sections || [];
+        setTitlesFromAPI(sections);
+
+        // Remplit la map de contenus (vide pour l’instant, mais prêt pour l’IA)
+        state.sectionsByN.clear();
+        for (const s of sections){
+          const n = Number(s.id ?? s.n);
+          if (!Number.isFinite(n)) continue;
+          const content = String(s.content || '').trim();
+          if (content) state.sectionsByN.set(n, content);
+        }
       }
 
-      const r = await fetch(url, { cache:'no-store' });
-      if (!r.ok) throw new Error('HTTP '+r.status);
-      const j = await r.json();
-
-      state.sectionsByN.clear();
-      if (Array.isArray(j.sections)) for (const s of j.sections) state.sectionsByN.set(Number(s.n), String(s.content||'').trim());
-      for (const n of state.sectionsByN.keys()) state.leds.set(n,'ok');
+      // voyants OK pour les rubriques reçues
+      for (let i=1;i<=28;i++){
+        if (state.titles[i]) state.leds.set(i,'ok');
+      }
 
       renderPointsList(); renderSection(state.currentIdx);
       saveLastStudy(); refreshLastBadge();
-
-      // Indication visible en mock
-      if (MOCK_PUBLIC) { log('MOCK PUBLIC actif →', url); }
     }catch(err){
       log('generate error', String(err));
       alert('La génération a échoué. Un gabarit a été inséré.');
@@ -241,7 +287,7 @@
 
 Cliquer sur **Lire la Bible** pour lire le texte source, puis utiliser **Générer** quand l’API sera disponible.`);
     for (let i=1;i<=28;i++){
-      const t=TITLES[i]||`Point ${i}`;
+      const t=getTitle(i);
       state.sectionsByN.set(i, `### ${t}
 *Référence :* ${state.book} ${state.chapter}
 
@@ -255,6 +301,7 @@ Contenu provisoire (gabarit). Réessaie la génération plus tard.`);
     if (!confirm('Vider l’étude en cours et repasser les voyants en orange ?')) return;
     state.sectionsByN.clear();
     for (let i=0;i<=28;i++) state.leds.set(i,'warn');
+    state.titles = {...TITLES_DEFAULT};
     renderPointsList(); renderSection(state.currentIdx);
   }
 
@@ -280,7 +327,7 @@ Contenu provisoire (gabarit). Réessaie la génération plus tard.`);
 *Référence :* ${state.book} ${state.chapter}
 
 Clique sur **Générer** pour charger chaque verset avec explications.`;
-    const t=TITLES[n]||`Point ${n}`; 
+    const t=getTitle(n); 
     return `### ${t}
 
 *Référence :* ${state.book} ${state.chapter}
