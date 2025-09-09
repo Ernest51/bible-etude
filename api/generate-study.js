@@ -1,7 +1,7 @@
-// api/generate_study.js
-// ESM — Vercel Functions (Node 20)
+// api/generate-study.js
+// CommonJS variant (forces Vercel to pick up the route)
 
-export default async function handler(req, res) {
+module.exports = async function (req, res) {
   const allowed = ["GET", "POST"];
   if (!allowed.includes(req.method)) {
     res.setHeader("Allow", allowed);
@@ -11,8 +11,8 @@ export default async function handler(req, res) {
   if (req.method === "GET") {
     return res.status(200).json({
       ok: true,
-      endpoint: "/api/generate_study",
-      mode: "echo-minimal",
+      endpoint: "/api/generate-study",
+      mode: "echo-minimal (cjs)",
       hint: "POST JSON to echo it back",
       timestamp: new Date().toISOString(),
     });
@@ -27,8 +27,8 @@ export default async function handler(req, res) {
 
   return res.status(200).json({
     ok: true,
-    endpoint: "/api/generate_study",
+    endpoint: "/api/generate-study",
     echo: body,
     timestamp: new Date().toISOString(),
   });
-}
+};
