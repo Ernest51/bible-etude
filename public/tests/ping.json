@@ -1,0 +1,5 @@
+{
+  "ok": true,
+  "route": "/public/tests/ping.json",
+  "note": "Ping statique côté public (pour vérifier que le chargement fonctionne)."
+}
