@@ -1,9 +1,21 @@
-/* app.js — Fix palette + Dernière étude + Générer avec fallback + titres centrés + mobile Valider */
+/* app.js — Fix palette + Dernière étude + Générer avec fallback + titres centrés + mobile Valider + MOCK PUBLIC */
 
 (function () {
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
   const log = (...a) => { try{ const d=$('#debugPanel'); if(d){ d.textContent+='\n'+a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ');} }catch{} };
+
+  // --- MODE MOCK PUBLIC (nouveau) ---
+  const urlParams = new URLSearchParams(location.search);
+  const MOCK_PUBLIC = urlParams.get('mock') === '1' || localStorage.getItem('mockPublic') === '1';
+  function normMock(s){
+    return String(s||'')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/[’']/g,"'")
+      .replace(/\s+/g,' ')
+      .trim()
+      .toLowerCase();
+  }
 
   // Eléments
   const pointsList = $('#pointsList');
@@ -88,10 +100,10 @@
     chapter: 1,
     verse: 1,
     version: 'LSG',
-    currentIdx: 0,         // 0 = Rubrique 0
-    sectionsByN: new Map(),// n -> content
-    leds: new Map(),       // n -> 'ok'|'warn'
-    density: 1500,         // 500|1500|2500
+    currentIdx: 0,
+    sectionsByN: new Map(),
+    leds: new Map(),
+    density: 1500,
   };
 
   init();
@@ -99,11 +111,8 @@
   function init(){
     const yEl = $('#y'); if (yEl) yEl.textContent = String(new Date().getFullYear());
     restoreTheme();
-
-    // Remplir sélecteurs
     fillBooks(); fillChapters(); fillVerses();
 
-    // Events UI
     $('#debugBtn')?.addEventListener('click', ()=>{ const d=$('#debugPanel'); if(d) d.style.display=(d.style.display==='none'?'block':'none'); });
     readBtn?.addEventListener('click', openBibleGatewayFromSelectors);
     generateBtn?.addEventListener('click', onGenerate);
@@ -112,34 +121,25 @@
     prevBtn?.addEventListener('click', ()=>goTo(state.currentIdx-1));
     nextBtn?.addEventListener('click', ()=>goTo(state.currentIdx+1));
 
-    // Recherche
     applySearchBtn?.addEventListener('click', applySearch);
     searchRef?.addEventListener('keydown', (e)=>{ if(e.key==='Enter') applySearch(); });
 
-    // Sélecteurs
     bookSelect?.addEventListener('change', ()=>{ state.book=bookSelect.value; state.chapter=1; fillChapters(); fillVerses(); saveLastStudy(); refreshLastBadge(); });
     chapterSelect?.addEventListener('change', ()=>{ state.chapter=parseInt(chapterSelect.value,10)||1; fillVerses(); saveLastStudy(); refreshLastBadge(); });
     verseSelect?.addEventListener('change', ()=>{ state.verse=parseInt(verseSelect.value,10)||1; saveLastStudy(); refreshLastBadge(); });
     versionSelect?.addEventListener('change', ()=>{ state.version=versionSelect.value; });
 
-    // Palette
     if (themeBar) {
       themeBar.addEventListener('pointerdown', onThemePointer);
-      // position initiale du pouce selon theme
       placeThumbForTheme(document.body.getAttribute('data-theme')||'cyan');
     }
 
-    // Densité (persistée)
     injectDensitySelector();
-
-    // Restaurer dernière étude
     restoreLastStudy();
     refreshLastBadge();
 
-    // Leds par défaut orange
     for (let i=0;i<=28;i++) state.leds.set(i,'warn');
 
-    // Liste et affichage initial
     renderPointsList();
     updateHeader();
     renderSection(0);
@@ -161,7 +161,6 @@
     sel.value = (saved && ['500','1500','2500'].includes(saved)) ? saved : String(state.density);
     state.density = parseInt(sel.value,10);
     sel.addEventListener('change', ()=>{ state.density=parseInt(sel.value,10); localStorage.setItem(STORAGE_DENS, String(state.density)); });
-    // insérer juste avant "Lire la Bible"
     const anchor = readBtn || controls.lastChild;
     controls.insertBefore(wrap, anchor);
     wrap.appendChild(label); wrap.appendChild(sel);
@@ -190,22 +189,46 @@
   function goTo(idx){ if(idx<0) idx=0; if(idx>28) idx=28; state.currentIdx=idx; updateHeader(); renderSection(idx); highlightActive(); }
   function updateHeader(){ const t = state.currentIdx===0?TITLE0:(TITLES[state.currentIdx]||`Point ${state.currentIdx}`); edTitle.textContent=t; metaInfo.textContent=`Point ${state.currentIdx} / 28`; }
 
-  /* ---------- Génération API + fallback ---------- */
+  /* ---------- Génération API + mock public + fallback ---------- */
   async function onGenerate(){
     const old=generateBtn.textContent; generateBtn.disabled=true; generateBtn.textContent='Génération…';
     try{
       const q = new URLSearchParams({ book: state.book, chapter: String(state.chapter), length: String(state.density) }).toString();
-      const r = await fetch(`/api/generate-study?${q}`);
+
+      // URL par défaut = API
+      let url = `/api/generate-study?${q}`;
+
+      // En mode MOCK PUBLIC, on va lire un JSON statique
+      if (MOCK_PUBLIC) {
+        const key = `${normMock(state.book).replace(/\s+/g,'-')}-${state.chapter}`; // ex: jeremie-1
+        let testUrl = `/tests/generate-study.${key}.json`;
+        let r = await fetch(testUrl, { cache:'no-store' });
+        if (!r.ok) {
+          // fallback fourni (Jérémie 1)
+          testUrl = `/tests/generate-study.jeremie-1.json`;
+          r = await fetch(testUrl, { cache:'no-store' });
+          if (!r.ok) throw new Error('Mock introuvable');
+        }
+        url = testUrl;
+      }
+
+      const r = await fetch(url, { cache:'no-store' });
       if (!r.ok) throw new Error('HTTP '+r.status);
       const j = await r.json();
+
       state.sectionsByN.clear();
       if (Array.isArray(j.sections)) for (const s of j.sections) state.sectionsByN.set(Number(s.n), String(s.content||'').trim());
-      for (const n of state.sectionsByN.keys()) state.leds.set(n,'ok'); // LEDs vertes
-      renderPointsList(); renderSection(state.currentIdx); saveLastStudy(); refreshLastBadge();
+      for (const n of state.sectionsByN.keys()) state.leds.set(n,'ok');
+
+      renderPointsList(); renderSection(state.currentIdx);
+      saveLastStudy(); refreshLastBadge();
+
+      // Indication visible en mock
+      if (MOCK_PUBLIC) { log('MOCK PUBLIC actif →', url); }
     }catch(err){
       log('generate error', String(err));
       alert('La génération a échoué. Un gabarit a été inséré.');
-      insertSkeleton();                 // <-- gabarit de secours
+      insertSkeleton();
       renderPointsList(); renderSection(state.currentIdx);
     } finally {
       generateBtn.disabled=false; generateBtn.textContent=old;
@@ -213,12 +236,10 @@
   }
 
   function insertSkeleton(){
-    // 0
     state.sectionsByN.set(0, `### Rubrique 0 — Panorama des versets du chapitre
 *Référence :* ${state.book} ${state.chapter}
 
 Cliquer sur **Lire la Bible** pour lire le texte source, puis utiliser **Générer** quand l’API sera disponible.`);
-    // 1..28
     for (let i=1;i<=28;i++){
       const t=TITLES[i]||`Point ${i}`;
       state.sectionsByN.set(i, `### ${t}
@@ -267,7 +288,7 @@ Clique sur **Générer** pour charger chaque verset avec explications.`;
 À générer…`;
   }
 
-  /* ---------- Recherche intelligente (garde le bouton Valider sur mobile) ---------- */
+  /* ---------- Recherche intelligente ---------- */
   function applySearch(){
     const raw=(searchRef.value||'').trim(); if(!raw) return;
     const m = /^([\p{L}\d\s]+?)\s+(\d+)(?::(\d+(?:-\d+)?))?$/u.exec(raw);
@@ -291,7 +312,7 @@ Clique sur **Générer** pour charger chaque verset avec explications.`;
   function fillChapters(){ const max=CHAPTERS_66[state.book]||1; chapterSelect.innerHTML=''; for(let i=1;i<=max;i++){ const o=document.createElement('option'); o.value=String(i); o.textContent=String(i); chapterSelect.appendChild(o);} if(state.chapter>max) state.chapter=max; chapterSelect.value=String(state.chapter); }
   function fillVerses(){ verseSelect.innerHTML=''; for(let i=1;i<=150;i++){ const o=document.createElement('option'); o.value=String(i); o.textContent=String(i); verseSelect.appendChild(o);} verseSelect.value=String(state.verse); }
 
-  /* ---------- Palette thème (fiable) ---------- */
+  /* ---------- Palette thème ---------- */
   function onThemePointer(ev){
     themeBar.setPointerCapture?.(ev.pointerId);
     const rect=themeBar.getBoundingClientRect();
