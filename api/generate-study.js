@@ -1,5 +1,5 @@
-// api/generateStudy.js
-// ESM — même format que /api/ping (Next/Vercel Functions)
+// api/generate-study.js
+// ESM — Vercel Functions (Node 20)
 
 export default function handler(req, res) {
   const allowed = ["GET", "POST"];
@@ -11,7 +11,7 @@ export default function handler(req, res) {
   if (req.method === "GET") {
     return res.status(200).json({
       ok: true,
-      endpoint: "/api/generateStudy",
+      endpoint: "/api/generate-study",
       mode: "echo-minimal",
       hint: "POST JSON to echo it back",
       timestamp: new Date().toISOString(),
@@ -22,7 +22,7 @@ export default function handler(req, res) {
   const body = req.body ?? {};
   return res.status(200).json({
     ok: true,
-    endpoint: "/api/generateStudy",
+    endpoint: "/api/generate-study",
     echo: body,
     timestamp: new Date().toISOString(),
   });
