@@ -1,6 +1,8 @@
-// api/generate-study.js (ESM)
-// Handler pour Vercel Serverless Functions (export default).
-// Génère les rubriques 0..28 (0 = placeholder). Aucun appel externe.
+// api/generate-study.js
+// Handler CommonJS pour Vercel Serverless Functions (dossier /api à la racine).
+// -> AUCUN import/export ESM, pas d'appel externe, jamais d'exception non gérée.
+// -> Génère les rubriques 0..28 (0 = placeholder). L’intégration api.bible pour la Rubrique 0
+//    sera branchée après validation. Ici on stabilise 1–28 sans régression.
 
 const CHAPTERS_66 = {
   "Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,
@@ -16,14 +18,38 @@ const CHAPTERS_66 = {
 
 // ---------- utils ----------
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+/**
+ * Gonflage “propre” : ajoute des compléments doctrinaux variés (non répétitifs),
+ * puis coupe proprement en fin de phrase si on dépasse la cible.
+ * Remplace l’ancien padTo répétitif.
+ */
 function padTo(txt, target){
   if (!target) return txt;
-  if (txt.length >= target) return txt;
-  const filler = " La Parole de Dieu demeure la lumière de nos pas, appelant à la foi et à l'obéissance. ";
-  let out = txt;
-  while (out.length < target) out += filler;
+  let out = String(txt || '').trim();
+
+  const addenda = [
+    " Cette lecture s’inscrit dans l’unité du canon : promesse et accomplissement se répondent, et la grâce précède toute obéissance.",
+    " La Parole reçue devient prière, la prière façonne l’obéissance, et l’obéissance rend témoignage dans la vie ordinaire.",
+    " L’Esprit éclaire l’intelligence et affermit le cœur : vérité, repentance, confiance, charité concrète.",
+    " L’alliance éclaire l’histoire : Dieu demeure fidèle, corrige et console, afin de former un peuple qui marche humblement avec lui."
+  ];
+
+  let i = 0;
+  while (out.length < target && i < addenda.length) {
+    out += addenda[i++];
+  }
+  // Si c’est encore court, on réutilise le dernier addendum mais on tronque proprement ensuite
+  while (out.length < target) out += addenda[addenda.length - 1];
+
+  if (out.length > target) {
+    const cut = out.slice(0, target + 60);
+    const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+    out = cut.slice(0, end > 0 ? end + 1 : target).trim();
+  }
   return out;
 }
+
 function norm(s){
   return String(s||"")
     .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
@@ -125,8 +151,8 @@ Lecture du chapitre. Utilise **Lire la Bible** pour lire l’intégralité du te
   return out;
 }
 
-// ---------- handler ESM ----------
-export default async function handler(req, res) {
+// ---------- handler CJS ----------
+module.exports = async function (req, res) {
   try {
     const q = req.query || {};
     const rawBook   = q.book || "Genèse";
@@ -152,4 +178,4 @@ export default async function handler(req, res) {
       ], warning:"hard-fallback" });
     }
   }
-}
+};
