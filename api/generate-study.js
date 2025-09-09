@@ -1,7 +1,6 @@
-// api/generate-study.js
-// Handler CommonJS pour Vercel Serverless Functions (dossier /api à la racine).
-// -> AUCUN import/export ESM, pas d'appel externe, jamais d'exception non gérée.
-// -> Génère les rubriques 0..28 (0 = placeholder). On rebranchera l'API Bible plus tard.
+// api/generate-study.js (ESM)
+// Handler pour Vercel Serverless Functions (export default).
+// Génère les rubriques 0..28 (0 = placeholder). Aucun appel externe.
 
 const CHAPTERS_66 = {
   "Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,
@@ -126,8 +125,8 @@ Lecture du chapitre. Utilise **Lire la Bible** pour lire l’intégralité du te
   return out;
 }
 
-// ---------- handler CJS ----------
-module.exports = async function (req, res) {
+// ---------- handler ESM ----------
+export default async function handler(req, res) {
   try {
     const q = req.query || {};
     const rawBook   = q.book || "Genèse";
@@ -137,7 +136,8 @@ module.exports = async function (req, res) {
     const bookCanon = resolveBookName(rawBook) || "Genèse";
     const maxChap   = CHAPTERS_66[bookCanon] || 1;
     const chap      = clamp(parseInt(rawChap,10)||1, 1, maxChap);
-    const dens      = [500,1500,2500].includes(parseInt(rawLength,10)) ? parseInt(rawLength,10) : 1500;
+    const densNum   = parseInt(rawLength,10);
+    const dens      = [500,1500,2500].includes(densNum) ? densNum : 1500;
 
     const sections = buildAllSections(bookCanon, chap, dens);
     res.status(200).json({ ok:true, book:bookCanon, chapter:chap, sections });
@@ -152,4 +152,4 @@ module.exports = async function (req, res) {
       ], warning:"hard-fallback" });
     }
   }
-};
+}
