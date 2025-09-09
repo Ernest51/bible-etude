@@ -1,5 +1,6 @@
 // /api/generate-study — Echo minimal (ESM) pour valider le routing
-// Option A (package.json contient "type":"module")
+// Projet Vercel "statique" avec fonctions serverless dans /api
+// package.json doit contenir: { "type": "module" }
 
 export default function handler(req, res) {
   try {
@@ -14,6 +15,7 @@ export default function handler(req, res) {
       now: new Date().toISOString()
     });
   } catch (e) {
+    // Toujours répondre 200 pour éviter les 500 pendant le diag
     res.status(200).json({ ok: false, error: String(e?.message || e) });
   }
 }
