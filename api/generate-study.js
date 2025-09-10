@@ -1,5 +1,4 @@
-// /api/generate-study.cjs — Génération narrative propre (sans doublons, sans titres)
-// - CommonJS (compatible Vercel Node 22)
+// /api/generate-study.js — ESM, robuste, sans doublons, 28 rubriques
 // - GET  : smoke test
 // - POST : { passage, options:{ length: 500|1500|2500 } } -> { study:{ sections:[{id,title,description,content}] } }
 
@@ -34,8 +33,7 @@ const RUBRICS = {
   28:{title:"Prière de fin",desc:"Prière de clôture."},
 };
 
-// Petits “granulés” doctrinaux pour allonger intelligemment sans répéter.
-// On n’insère jamais deux fois la même ligne dans un même contenu.
+// Petits blocs doctrinaux pour allonger sans répétition
 const EXPANSIONS = {
   common: [
     "Dieu se révèle en parlant, et sa Parole crée, ordonne et bénit.",
@@ -43,70 +41,61 @@ const EXPANSIONS = {
     "La lecture canonique éclaire l’unité de la foi, de la Loi aux Prophètes jusqu’au Christ.",
     "La vérité biblique appelle l’obéissance confiante, personnelle et communautaire.",
     "La théologie naît de l’Écriture, sert l’Église et façonne la vie chrétienne.",
-    "Le salut s’enracine dans la grâce de Dieu et se manifeste dans la sanctification.",
+    "Le salut s’enracine dans la grâce de Dieu et se manifeste dans la sanctification."
   ],
   prayer: [
     "Nous confessons que sans Toi nous ne comprenons pas tes voies.",
     "Purifie nos intentions, mets dans nos cœurs la joie d’obéir.",
-    "Que ta lumière dirige nos pas et apaise nos doutes.",
+    "Que ta lumière dirige nos pas et apaise nos doutes."
   ],
   history: [
     "Le contexte ancien proche-oriental aide à situer les pratiques et les symboles.",
     "Les repères temporels servent la lecture, sans enfermer le texte dans l’époque.",
-    "L’économie de l’alliance explique la pédagogie progressive de Dieu.",
+    "L’économie de l’alliance explique la pédagogie progressive de Dieu."
   ],
   structure: [
     "Les répétitions rythment et mémorisent l’essentiel.",
     "Les mouvements ouverture-développement-accomplissement structurent la pensée.",
-    "Les inclusions et parallélismes mettent en relief les centres doctrinaux.",
+    "Les inclusions et parallélismes mettent en relief les centres doctrinaux."
   ],
   lexic: [
     "Les mots récurrents orientent l’interprétation vers le dessein de Dieu.",
     "Le champ sémantique éclaire la nuance de chaque occurrence.",
-    "Comparer versions et traductions évite les contresens.",
+    "Comparer versions et traductions évite les contresens."
   ],
   church: [
     "La communauté est édifiée par l’écoute et la mise en pratique.",
     "Les ministères servent l’unité dans la diversité des dons.",
-    "La mission jaillit de l’adoration et de la compassion.",
+    "La mission jaillit de l’adoration et de la compassion."
   ],
   family: [
     "La transmission se vit par le récit, la prière et l’exemple.",
     "Un temps biblique régulier nourrit les liens et la foi.",
-    "La douceur et la vérité marchent ensemble pour corriger et encourager.",
+    "La douceur et la vérité marchent ensemble pour corriger et encourager."
   ],
   kids: [
     "Raconter simplement, mimer et illustrer les images clés.",
     "Faire reformuler l’idée centrale et prier avec des mots d’enfant.",
-    "Associer une action concrète pour retenir le message.",
+    "Associer une action concrète pour retenir le message."
   ],
   personal: [
     "Nommer une application mesurable pour la semaine.",
     "Chercher un compagnon de prière pour rendre des comptes.",
-    "Remercier Dieu pour un signe de sa fidélité.",
+    "Remercier Dieu pour un signe de sa fidélité."
   ],
 };
 
-// Fabrique un paragraphe à partir de phrases uniques (pas de doublon)
-function uniqueParagraph(seedList, maxSentences) {
-  const out = [];
-  for (let i = 0; i < seedList.length && out.length < maxSentences; i++) {
-    out.push(seedList[i]);
-  }
-  return out.join(" ");
-}
+function clamp(n,a,b){ return Math.max(a,Math.min(b,n)); }
 
-// Alonge proprement vers la longueur cible en ajoutant des expansions non répétées
+// Ajoute des phrases uniques jusqu’à atteindre (approcher) la longueur cible
 function extendContent(base, target, pools) {
   const used = new Set(
-    base
-      .replace(/\n+/g, " ")
-      .split(/[.!?]\s+/)
-      .map(s => s.trim())
-      .filter(Boolean)
+    base.replace(/\n+/g, " ")
+        .split(/[.!?]\s+/)
+        .map(s => s.trim())
+        .filter(Boolean)
   );
-
-  function takeFrom(list) {
+  function take(list) {
     for (const s of list) {
       if (!used.has(s)) {
         used.add(s);
@@ -116,16 +105,12 @@ function extendContent(base, target, pools) {
     }
     return false;
   }
-
-  // ordre de priorité : spécifique -> commun
-  for (const p of pools) {
-    if (takeFrom(p)) return base;
-  }
-  takeFrom(EXPANSIONS.common);
+  for (const p of pools) { if (take(p)) return base; }
+  take(EXPANSIONS.common);
   return base;
 }
 
-// Génération narrative par rubrique (sans titres, le front gère le H3)
+// Corps narratif par rubrique (⚠️ sans "### Titre" — le front affiche déjà le H3)
 function buildBody(id, passage, len) {
   switch (id) {
     case 1: {
@@ -245,18 +230,15 @@ function buildBody(id, passage, len) {
   }
 }
 
-function clamp(n,a,b){ return Math.max(a,Math.min(b,n)); }
-
 function makeSections(passage, per) {
   const sections = [];
   for (let i = 1; i <= 28; i++) {
     const meta = RUBRICS[i];
-    const content = buildBody(i, passage, per);
     sections.push({
       id: i,
       title: meta.title,
       description: meta.desc,
-      content // IMPORTANT : pas de "### Titre" ici (le front l’ajoute déjà)
+      content: buildBody(i, passage, per) // pas de "### ..."
     });
   }
   return sections;
@@ -269,33 +251,41 @@ function send(res, status, obj){
   res.end(JSON.stringify(obj));
 }
 
-module.exports = async (req, res) => {
+// Parse body robuste : objet déjà parsé, string JSON, ou vide
+function parseBody(req){
   try{
-    const method = req.method || "GET";
+    if (req.body == null) return {};
+    if (typeof req.body === "string" && req.body.trim().length) {
+      return JSON.parse(req.body);
+    }
+    if (typeof req.body === "object") return req.body;
+  }catch(_){}
+  return {};
+}
+
+export default async function handler(req, res) {
+  try{
+    const method = (req.method || "GET").toUpperCase();
 
     if (method === "GET") {
-      return send(res, 200, { 
-        ok:true, 
-        route:"/api/generate-study", 
-        method:"GET", 
-        hint:"POST { passage, options:{ length: 500|1500|2500 } }" 
+      return send(res, 200, {
+        ok: true,
+        route: "/api/generate-study",
+        method: "GET",
+        hint: "POST { passage, options:{ length: 500|1500|2500 } }"
       });
     }
 
     if (method !== "POST") {
-      return send(res, 405, { error:"Method not allowed" });
+      return send(res, 405, { error: "Method not allowed" });
     }
 
-    let passage = "Genèse 1";
+    const body = parseBody(req);
+    let passage = typeof body.passage === "string" && body.passage.trim() ? body.passage.trim() : "Genèse 1";
     let per = 1500;
-
-    try {
-      if (req.body && typeof req.body === "object") {
-        const b = req.body;
-        if (b.passage) passage = String(b.passage);
-        if (b.options && b.options.length) per = clamp(Number(b.options.length), 300, 5000);
-      }
-    } catch (_) { /* ignore */ }
+    if (body.options && body.options.length) {
+      per = clamp(Number(body.options.length), 300, 5000);
+    }
 
     const sections = makeSections(passage, per);
     return send(res, 200, { study: { sections } });
@@ -304,4 +294,4 @@ module.exports = async (req, res) => {
     const sections = makeSections("Genèse 1", 1500);
     return send(res, 200, { study: { sections }, info:{ emergency:true, err: String(e && e.message || e) } });
   }
-};
+}
