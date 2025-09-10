@@ -1,5 +1,5 @@
 // /api/generate-study.js
-// API robuste (Node & Edge) + génération doctrinale non-duplicative avec versets cliquables YouVersion.
+// Génération d'étude 28 rubriques : doctrinale, narrative, sans doublons, avec liens vers YouVersion.
 
 function sendJSON(ctx, status, data) {
   if (ctx.res) { ctx.res.status(status).json(data); return; }
@@ -12,25 +12,20 @@ function sendError(ctx, status, message, info={}) {
   return sendJSON(ctx, status, { ok:false, error:message, ...info });
 }
 async function readBody(ctx) {
-  // Edge (Request)
-  if (ctx.req && typeof ctx.req.json === 'function') return await ctx.req.json();
-
-  // Node (req,res)
+  if (ctx.req && typeof ctx.req.json === "function") return await ctx.req.json();
   const req = ctx.req;
-  if (req && typeof req.body === 'object' && req.body) return req.body;
-
+  if (req && typeof req.body === "object" && req.body) return req.body;
   const chunks = [];
   await new Promise((resolve, reject) => {
-    req.on('data', (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
-    req.on('end', resolve);
-    req.on('error', reject);
+    req.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+    req.on("end", resolve);
+    req.on("error", reject);
   });
-  const raw = Buffer.concat(chunks).toString('utf8') || '';
-  if (!raw.trim()) return {};
-  try { return JSON.parse(raw); } catch { return {}; }
+  const raw = Buffer.concat(chunks).toString("utf8") || "";
+  try { return raw ? JSON.parse(raw) : {}; } catch { return {}; }
 }
 
-/* --- YouVersion helpers --- */
+/* ---------- YouVersion ---------- */
 const YV_BOOK = {
   "Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT",
   "1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST",
@@ -39,393 +34,505 @@ const YV_BOOK = {
   "Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"
 };
 const YV_VERSION_ID = { "LSG":"93", "PDV":"201", "S21":"377", "BFC":"75" };
-function linkRef(book, chapter, verse, version="LSG") {
+function linkRef(book, chapter, verseOrRange, version="LSG") {
   const code = YV_BOOK[book] || "GEN";
-  const ver = (version || "LSG").toUpperCase();
-  const verId = YV_VERSION_ID[ver] || "93";
-  const label = verse ? `${book} ${chapter}:${verse}` : `${book} ${chapter}`;
-  const url   = verse
-    ? `https://www.bible.com/fr/bible/${verId}/${code}.${chapter}.${ver}`
-    : `https://www.bible.com/fr/bible/${verId}/${code}.${chapter}.${ver}`;
-  // Markdown : le front peut rendre tel quel ou le transformer (tu avais demandé bleu + souligné côté UI).
+  const ver  = (version || "LSG").toUpperCase();
+  const verId= YV_VERSION_ID[ver] || "93";
+  const label= verseOrRange ? `${book} ${chapter}:${verseOrRange}` : `${book} ${chapter}`;
+  const url  = `https://www.bible.com/fr/bible/${verId}/${code}.${chapter}.${ver}`;
   return `[${label}](${url})`;
 }
 
-/* --- Génération doctrinale (sans doublons) --- */
-function padToLength(text, perRubricLen) {
-  // allonge intelligemment (phrases complémentaires) jusqu’à atteindre ~perRubricLen caractères
-  const fillers = [
-    " Cette lecture reste fidèle au texte original et à l’économie biblique.",
-    " L’initiative de Dieu et la réponse de la foi structurent l’ensemble.",
-    " L’exégèse s’articule avec la théologie biblique et l’édification de l’Église.",
-    " Le lien au canon entier garantit l’interprétation la plus sûre.",
-    " Le récit porte un dynamisme vers l’adoration et l’obéissance."
-  ];
-  let out = text.trim();
-  while (out.length < perRubricLen) {
-    out += fillers[out.length % fillers.length];
+/* ---------- Aide : extension sans doublon ---------- */
+// On étend un texte de base avec des fragments uniques (phrases ou puces).
+// Jamais la même phrase deux fois. S’arrête quand on approche la cible.
+function expandUnique(base, pool, targetLen) {
+  const used = new Set();
+  let out = base.trim();
+  for (const sentence of pool) {
+    const s = sentence.trim();
+    if (!s || used.has(s)) continue;
+    if (!out.endsWith("\n")) out += "\n";
+    out += s + (s.endsWith(".") ? "" : ".");
+    used.add(s);
+    if (out.length >= targetLen) break;
+  }
+  // si encore court, on ajoute des puces synthétiques différentes
+  if (out.length < targetLen) {
+    let i = 1;
+    for (const s of pool) {
+      if (used.has(s)) continue;
+      out += `\n- ${s}`;
+      used.add(s);
+      i++;
+      if (out.length >= targetLen) break;
+    }
   }
   return out;
 }
 
-function studyForGenesis1(version, perRubricLen) {
-  const b = "Genèse", c = 1;
-  const v11   = linkRef(b, c, "1", version);
-  const v12_5 = linkRef(b, c, "2", version)    // on affiche « 1:2 » et la page de chap.
-  const v126  = linkRef(b, c, "26-27", version);
-  const v131  = linkRef(b, c, "31", version);
-  const jn1   = linkRef("Jean", 1, "1-3", version);
-  const ps33  = linkRef("Psaumes", 33, "6", version);
-  const he11  = linkRef("Hébreux", 11, "3", version);
-  const col1  = linkRef("Colossiens", 1, "16-17", version);
+/* ---------- Contenu spécifique : Genèse 1 ---------- */
+function studyForGenesis1(version, perLen) {
+  const b="Genèse", c=1;
+  const v11   = linkRef(b,c,"1",version);
+  const v12_5 = linkRef(b,c,"2–5",version);
+  const v126  = linkRef(b,c,"26–27",version);
+  const v131  = linkRef(b,c,"31",version);
+  const jn1   = linkRef("Jean",1,"1–3",version);
+  const ps33  = linkRef("Psaumes",33,"6",version);
+  const he11  = linkRef("Hébreux",11,"3",version);
+  const col1  = linkRef("Colossiens",1,"16–17",version);
 
   const sections = [];
-
-  const push = (id, title, base) => {
-    sections.push({ id, title, description: "", content: padToLength(base, perRubricLen) });
+  const add = (id, title, base, pool=[]) => {
+    sections.push({ id, title, description: "", content: expandUnique(base, pool, perLen) });
   };
 
-  push(1, "Prière d’ouverture",
+  add(1,"Prière d’ouverture",
 `### Prière d’ouverture
 
 *Référence :* ${b} ${c}
 
-Père, nous venons écouter ta Parole. Comme au commencement, que ta lumière chasse nos ténèbres et que ton Esprit plane sur nos pensées (cf. ${v12_5}). Donne-nous une lecture humble et obéissante, afin que la connaissance de ta gloire nous conduise à l’adoration et au service.`);
+Père, nous venons écouter ta Parole. Comme au commencement, que ta lumière disperse nos ténèbres et que ton Esprit plane sur nos pensées (cf. ${v12_5}). Donne-nous une lecture humble et obéissante, pour que ta gloire nous conduise à l’adoration et au service.`,
+[
+  "Nous nous déposons devant toi pour recevoir ce que tu dis",
+  "Éloigne de nous les lectures arbitraires et donne l’intelligence spirituelle",
+  "Que la foi naisse et grandisse à l’écoute de ta Parole vivante",
+  "Conduis-nous de la compréhension à l’obéissance"
+  ]);
 
-  push(2, "Canon et testament",
+  add(2,"Canon et testament",
 `### Canon et testament
 
 *Référence :* ${b} ${c}
 
-${b} ${c} ouvre l’Écriture. Le même Dieu créateur s’y révèle que celui proclamé dans le Nouveau Testament (${jn1}; ${he11}). Ainsi, la révélation progresse sans se contredire : tout est créé par la Parole (${ps33}) et subsiste en Christ (${col1}).`);
+${b} ${c} ouvre l’Écriture et révèle le même Dieu créateur que le Nouveau Testament (${jn1}; ${he11}). La révélation progresse sans se contredire : tout est créé par la Parole (${ps33}) et subsiste en Christ (${col1}).`,
+[
+  "Le canon donne l’horizon d’interprétation et évite l’isolement des textes",
+  "Le Christ est la clé qui récapitule la création et la rédemption",
+  "L’autorité de l’Écriture vient de Dieu qui s’y fait connaître"
+  ]);
 
-  push(3, "Questions du chapitre précédent",
+  add(3,"Questions du chapitre précédent",
 `### Questions du chapitre précédent
 
 *Référence :* ${b} ${c}
 
-Nous nous demandons : que signifie « Dieu dit » dans un monde marqué par le chaos ? Comment la Parole ordonne-t-elle et borne-t-elle ? Comment l’homme, créé à l’image, reçoit-il vocation et limites (${v126}) ?`);
+Qu’implique l’expression « Dieu dit » dans un monde confus ? Comment la Parole distingue, borne et met en ordre ? Quelle vocation reçoit l’humain créé à l’image (${v126}) ?`,
+[
+  "Quel rapport entre Parole de Dieu et existence du temps mesuré ?",
+  "Pourquoi la création est-elle qualifiée de « bonne » puis « très bonne » (${v131}) ?",
+  "Quelles limites protègent la vie humaine et la création ?"
+  ]);
 
-  push(4, "Titre du chapitre",
+  add(4,"Titre du chapitre",
 `### Titre du chapitre
 
 *Référence :* ${b} ${c}
 
-« Le Dieu vivant ordonne le chaos et confie sa création à l’humain à son image ». Ce titre résume le mouvement : parole efficace (${v11}), mise en ordre (${v12_5}), dignité humaine (${v126}), et bonté conclue (${v131}).`);
+« Le Dieu vivant ordonne le chaos et confie sa création à l’humain à son image ». Le mouvement va de la Parole efficace (${v11}) à la vocation humaine (${v126}), puis à la bénédiction finale (${v131}).`,
+[
+  "La lumière inaugurale annonce la révélation",
+  "L’ordre reçu devient rythme de vie et d’adoration",
+  "Le commandement crée la liberté véritable"
+  ]);
 
-  push(5, "Contexte historique",
+  add(5,"Contexte historique",
 `### Contexte historique
 
 *Référence :* ${b} ${c}
 
-Le texte s’adresse à un peuple entouré de mythes cosmogoniques violents. Ici, point de panthéon : un seul Dieu, transcendant et bon. La création n’est ni une guerre divine ni un accident, mais un acte libre et ordonné de Dieu (${v11}).`);
+Face aux mythes environnants, le texte confesse un seul Dieu, bon et libre. La création n’est ni guerre divine ni hasard : elle est don ordonné (${v11}).`,
+[
+  "L’auteur instruit un peuple appelé à vivre saintement au milieu des nations",
+  "La foi biblique refuse la divinisation du monde et des astres",
+  "L’éthique de la création découle du Dieu bon qui agit"
+  ]);
 
-  push(6, "Structure littéraire",
+  add(6,"Structure littéraire",
 `### Structure littéraire
 
 *Référence :* ${b} ${c}
 
-Le chapitre progresse par séries : « Dieu dit… il y eut un soir, il y eut un matin ». Les jours 1-3 forment des cadres (lumière, cieux/mer, terre), les jours 4-6 les remplissent (astres, oiseaux/poissons, animaux/humains), puis le repos parachève.`);
+Rythme solennel : « Dieu dit… il y eut un soir, il y eut un matin ». Jours 1–3 : cadres (lumière; cieux/mer; terre). Jours 4–6 : remplissages (astres; oiseaux/poissons; animaux/humains). Le repos parachève.`,
+[
+  "Le refrain pédagogique sert la mémorisation et la liturgie",
+  "Le parallèle 1↔4, 2↔5, 3↔6 montre ordre et plénitude",
+  "Le sabbat fonde un temps consacré à Dieu et à la créature"
+  ]);
 
-  push(7, "Genre littéraire",
+  add(7,"Genre littéraire",
 `### Genre littéraire
 
 *Référence :* ${b} ${c}
 
-Récit solennel, rythmé, théologique. Le style est hautement structuré pour enseigner qui est Dieu et quelle est la place de l’homme. L’intention n’est pas d’abord technique, mais confessionnelle : affirmer la souveraineté du Créateur (${ps33}).`);
+Récit théologique, structuré pour enseigner qui est Dieu et qui est l’homme. L’intention première est confessionnelle : proclamer la souveraineté du Créateur (${ps33}).`,
+[
+  "Le style élève l’esprit vers l’adoration plutôt qu’une curiosité technique",
+  "Le langage symbolique sert la vérité théologique",
+  "Le récit fonde une vision du monde cohérente"
+  ]);
 
-  push(8, "Auteur et généalogie",
+  add(8,"Auteur et généalogie",
 `### Auteur et généalogie
 
 *Référence :* ${b} ${c}
 
-La tradition mosaïque situe cette Torah dans la conduite de Dieu auprès d’Israël. Le prologue de la Bible prépare les généalogies ultérieures : de la création jusqu’à Abraham, la bénédiction de Dieu traverse l’histoire.`);
+La Torah transmise à Israël situe l’origine et prépare l’histoire d’Abraham. Les généalogies s’enracinent dans ce prologue pour relier création et promesse.`,
+[
+  "La mémoire du peuple est façonnée par la Parole",
+  "Dieu lie l’universel (création) au particulier (alliance)",
+  "La bénédiction se transmet de génération en génération"
+  ]);
 
-  push(9, "Verset-clé doctrinal",
+  add(9,"Verset-clé doctrinal",
 `### Verset-clé doctrinal
 
 *Référence :* ${b} ${c}
 
-« Au commencement, Dieu créa les cieux et la terre » (${v11}). Tout procède de Dieu, rien n’existe sans lui (${jn1}). Ce verset fonde la doctrine de la création ex nihilo (${he11}).`);
+« Au commencement, Dieu créa les cieux et la terre » (${v11}). Tout procède de Dieu, rien n’existe sans lui (${jn1}). Ce verset fonde la création ex nihilo (${he11}).`,
+[
+  "Dieu est la source, la mesure et la fin de toute chose",
+  "La dépendance de la créature devient motif d’adoration",
+  "La providence garde la création dans l’être"
+  ]);
 
-  push(10, "Analyse exégétique",
+  add(10,"Analyse exégétique",
 `### Analyse exégétique
 
 *Référence :* ${b} ${c}
 
-Le verbe « créer » (bara’) est réservé à Dieu. L’expression « tohu-bohu » décrit l’informe initial, que la Parole ordonne (${v12_5}). L’alternance soir/matin marque un temps mesuré, reçu, structurant la vie cultuelle.`);
+Le verbe « créer » (bara’) est réservé à Dieu. « Tohu-bohu » désigne l’informe que la Parole ordonne (${v12_5}). L’alternance soir/matin marque un temps reçu, structurant la vie cultuelle.`,
+[
+  "La séquence « Dieu dit… et ce fut ainsi » souligne l’efficacité du Verbe",
+  "La bénédiction n’est pas un sentiment mais un acte divin",
+  "La création devient habitable par distinction et nomination"
+  ]);
 
-  push(11, "Analyse lexicale",
+  add(11,"Analyse lexicale",
 `### Analyse lexicale
 
 *Référence :* ${b} ${c}
 
-« Image » (tselem) et « ressemblance » (demut) indiquent représentation et vocation : refléter Dieu, gouverner en gardiens (${v126}). « Bon » revient comme refrain jusqu’à « très bon » (${v131}), signature éthique de l’œuvre divine.`);
+« Image » (tselem) et « ressemblance » (demut) indiquent représentation et vocation : refléter Dieu, garder et cultiver (${v126}). « Bon » culmine en « très bon » (${v131}), sceau éthique de l’œuvre.`,
+[
+  "La parole créatrice structure aussi le langage humain",
+  "Nommer n’est pas dominer arbitrairement mais servir l’ordre voulu",
+  "La bénédiction établit la fécondité et la limite"
+  ]);
 
-  push(12, "Références croisées",
+  add(12,"Références croisées",
 `### Références croisées
 
 *Référence :* ${b} ${c}
 
-Le Prologue de Jean (${jn1}) relit la création à la lumière du Logos. ${ps33} affirme la création par la Parole. ${he11} explicite la foi en l’invisible. ${col1} situe Christ comme médiateur et fin de la création.`);
+Le Prologue de Jean (${jn1}) relit la création à la lumière du Logos ; ${ps33} affirme la Parole créatrice ; ${he11} situe la connaissance dans la foi ; ${col1} présente le Christ comme médiateur et fin de la création.`,
+[
+  "La Bible s’explique par la Bible : l’Écriture interprète l’Écriture",
+  "Les parallèles gardent l’unité du message du salut",
+  "La christologie éclaire la cosmologie biblique"
+  ]);
 
-  push(13, "Fondements théologiques",
+  add(13,"Fondements théologiques",
 `### Fondements théologiques
 
 *Référence :* ${b} ${c}
 
-Dieu est unique, transcendant, libre. Le monde est contingent, bon, ordonné. L’homme est image, non rival de Dieu. La Parole est efficace : ce que Dieu dit advient (${v11}).`);
+Dieu est unique, libre, bon ; le monde est contingent, ordonné, bon ; l’homme est image, responsable ; la Parole est efficace (${v11}).`,
+[
+  "La création n’est pas divine mais don sacré",
+  "La bonté originelle fonde la valeur de la matière et du corps",
+  "La seigneurie de Dieu exclut l’idolâtrie"
+  ]);
 
-  push(14, "Thème doctrinal",
+  add(14,"Thème doctrinal",
 `### Thème doctrinal
 
 *Référence :* ${b} ${c}
 
-Doctrine de Dieu créateur, de la providence (ordre et limites), de l’anthropologie (image, mandat culturel), et de l’éthique de la bonté : la création appelle reconnaissance et service (${v131}).`);
+Théologie de la création, providence (ordre et limites), anthropologie (image, mandat), éthique de la bonté (${v131}).`,
+[
+  "La vocation humaine s’exerce sous Parole",
+  "L’écologie chrétienne naît de la louange du Créateur",
+  "Le mandat culturel sert la vie du prochain"
+  ]);
 
-  push(15, "Fruits spirituels",
+  add(15,"Fruits spirituels",
 `### Fruits spirituels
 
 *Référence :* ${b} ${c}
 
-Adoration du Créateur, humilité devant sa Parole, joie du sabbat, responsabilité envers la création et le prochain. La dignité reçue (${v126}) devient vocation à la justice.`);
+Adoration du Créateur, humilité devant sa Parole, joie du sabbat, responsabilité envers la création et le prochain. La dignité reçue (${v126}) devient vocation à la justice.`,
+[
+  "Gratitude quotidienne pour le monde reçu",
+  "Sobriété et service comme style de vie",
+  "Espérance active : Dieu n’a pas abandonné son œuvre"
+  ]);
 
-  push(16, "Types bibliques",
+  add(16,"Types bibliques",
 `### Types bibliques
 
 *Référence :* ${b} ${c}
 
-La lumière première anticipe la révélation ; Adam figure l’humanité et prépare le Christ, « image de Dieu » parfaite (${col1}). Le sabbat préfigure le repos promis.`);
+La lumière première préfigure la révélation ; Adam figure l’humanité et prépare le Christ, « image de Dieu » parfaite (${col1}); le sabbat annonce le repos promis.`,
+[
+  "Les types orientent vers l’accomplissement en Christ",
+  "La création anticipe la nouvelle création",
+  "Les symboles servent la catéchèse"
+  ]);
 
-  push(17, "Appui doctrinal",
+  add(17,"Appui doctrinal",
 `### Appui doctrinal
 
 *Référence :* ${b} ${c}
 
-${jn1} relie création et Christ. ${he11} fonde la connaissance sur la foi reçue de la Parole. ${ps33} rappelle la puissance créatrice du Verbe. Ces textes confirment la lecture de ${b} ${c}.`);
+${jn1} relie création et Christ ; ${he11} établit la foi ; ${ps33} souligne la Parole ; ${col1} montre la cohésion de l’univers en Christ.`,
+[
+  "L’harmonie des témoins bibliques fonde la certitude",
+  "La doctrine émerge de l’Écriture, non de la spéculation",
+  "L’Église confesse ce dépôt reçu"
+  ]);
 
-  push(18, "Comparaison entre versets",
+  add(18,"Comparaison entre versets",
 `### Comparaison entre versets
 
 *Référence :* ${b} ${c}
 
-Compare ${v11} (début) et ${v131} (conclusion) : de l’initiative divine à l’évaluation « très bon ». L’oscillation « Dieu dit… et ce fut ainsi » rythme le chapitre et conduit à l’ordre habitable (${v12_5}).`);
+De ${v11} à ${v131} : initiative divine jusqu’à l’évaluation « très bon ». La formule répétée « Dieu dit… et ce fut ainsi » structure l’ensemble (${v12_5}).`,
+[
+  "Les étapes marquent un ordre progressif et finalisé",
+  "Le rythme soir/matin impose une limite au travail",
+  "La bonté évaluée protège la créature"
+  ]);
 
-  push(19, "Parallèle avec Actes 2",
+  add(19,"Parallèle avec Actes 2",
 `### Parallèle avec Actes 2
 
 *Référence :* ${b} ${c}
 
-Comme l’Esprit plane au commencement (${v12_5}), il vient sur l’Église à la Pentecôte pour créer un peuple nouveau. La Parole produit un ordre de vie et une mission.`);
+L’Esprit plane au commencement (${v12_5}) et vient sur l’Église à la Pentecôte : Parole et Esprit créent un peuple nouveau, ordonné pour la mission.`,
+[
+  "La création et la nouvelle création partagent le même Auteur",
+  "La Parole forme la communauté comme elle forma le monde",
+  "Le témoignage naît d’une mise en ordre du cœur"
+  ]);
 
-  push(20, "Verset à mémoriser",
+  add(20,"Verset à mémoriser",
 `### Verset à mémoriser
 
 *Référence :* ${b} ${c}
 
-${v11} — « Au commencement, Dieu créa les cieux et la terre ». Ce verset fonde l’adoration et la confiance.`);
+${v11} — « Au commencement, Dieu créa les cieux et la terre ».`,
+[
+  "Le mémoriser en fait un socle pour prier et adorer",
+  "Le verset corrige le fatalisme et nourrit la confiance",
+  "Il ouvre toute lecture biblique"
+  ]);
 
-  push(21, "Enseignement pour l’Église",
+  add(21,"Enseignement pour l’Église",
 `### Enseignement pour l’Église
 
 *Référence :* ${b} ${c}
 
-La liturgie confesse le Créateur ; la mission proclame la Parole efficace ; la diaconie respecte la création. L’Église vit du rythme Parole-travail-repos.`);
+La liturgie confesse le Créateur ; la mission proclame la Parole ; la diaconie respecte la création. L’Église vit du rythme Parole–travail–repos.`,
+[
+  "Le culte commence par l’écoute de Dieu qui parle",
+  "La prédication montre l’unité de l’Écriture",
+  "Le service du prochain incarne la bénédiction"
+  ]);
 
-  push(22, "Enseignement pour la famille",
+  add(22,"Enseignement pour la famille",
 `### Enseignement pour la famille
 
 *Référence :* ${b} ${c}
 
-Apprendre aux enfants la bonté de la création (${v131}), la dignité reçue (${v126}), la valeur du repos et de la gratitude.`);
+Transmettre la bonté de la création (${v131}), la dignité de l’image (${v126}), et la valeur du repos. Bénir la vie quotidienne comme don.`,
+[
+  "Raconter les six jours avec simplicité et vérité",
+  "Sanctifier le temps, apprendre la gratitude",
+  "Encourager la responsabilité partagée"
+  ]);
 
-  push(23, "Enseignement pour enfants",
+  add(23,"Enseignement pour enfants",
 `### Enseignement pour enfants
 
 *Référence :* ${b} ${c}
 
-Raconter les six jours avec images et gestes, souligner que Dieu parle et que la lumière paraît (${v12_5}). Inviter à dire « merci » pour le monde.`);
+Mettre en scène la lumière qui paraît (${v12_5}), nommer les créatures, dire merci pour chaque don. Faire goûter la joie du sabbat.`,
+[
+  "Utiliser images, gestes, chansons",
+  "Relier création et prière du soir",
+  "Inviter à respecter animaux et nature"
+  ]);
 
-  push(24, "Application missionnaire",
+  add(24,"Application missionnaire",
 `### Application missionnaire
 
 *Référence :* ${b} ${c}
 
-Annoncer le Dieu unique, bon, créateur ; défaire les idoles du hasard ou de la fatalité. Honorer la dignité humaine en Christ (${col1}).`);
+Annoncer le Dieu unique, bon, créateur ; réfuter hasard et fatalisme. Honorer la dignité humaine enracinée en Christ (${col1}).`,
+[
+  "La bonne nouvelle inclut la restauration de la création",
+  "Le témoignage lie vérité et douceur",
+  "La foi décentre de soi vers le prochain"
+  ]);
 
-  push(25, "Application pastorale",
+  add(25,"Application pastorale",
 `### Application pastorale
 
 *Référence :* ${b} ${c}
 
-Consoler : le monde n’est pas livré au chaos, Dieu parle encore. Avertir : la Parole borne le mal. Conseiller : recevoir le temps comme don (soir/matin).`);
+Consoler : le monde n’est pas livré au chaos ; Dieu parle encore. Avertir : la Parole borne le mal. Conseiller : recevoir le temps comme don.`,
+[
+  "Accompagner vers le repos hebdomadaire",
+  "Encourager une vie ordonnée par la Parole",
+  "Soigner la relation au travail et à la création"
+  ]);
 
-  push(26, "Application personnelle",
+  add(26,"Application personnelle",
 `### Application personnelle
 
 *Référence :* ${b} ${c}
 
-Recevoir ta journée comme vocation : écouter, travailler, puis entrer dans le repos. Cultiver l’adoration devant Dieu créateur (${v11}).`);
+Recevoir ta journée comme vocation : écouter, travailler, et entrer dans le repos. Vivre dans la gratitude devant Dieu créateur (${v11}).`,
+[
+  "Exercer la maîtrise de soi sous la Parole",
+  "Chercher la justice dans les petites choses",
+  "Prier avant d’agir, rendre grâce après"
+  ]);
 
-  push(27, "Versets à retenir",
+  add(27,"Versets à retenir",
 `### Versets à retenir
 
 *Référence :* ${b} ${c}
 
-${v11}; ${v12_5}; ${v126}; ${v131}; ${jn1}; ${ps33}.`);
+${v11}; ${v12_5}; ${v126}; ${v131}; ${jn1}; ${ps33}.`,
+[
+  "Les relire à voix haute en famille ou en groupe",
+  "Les écrire pour la méditation de la semaine",
+  "Les utiliser comme trame de prière"
+  ]);
 
-  push(28, "Prière de fin",
+  add(28,"Prière de fin",
 `### Prière de fin
 
 *Référence :* ${b} ${c}
 
-Dieu créateur, nous confessons ta Parole efficace et ta bonté. Renouvelle en nous ton image par Jésus-Christ ; donne-nous sagesse et repos dans ton Esprit. Amen.`);
+Dieu créateur, nous confessons ta Parole efficace et ta bonté. Renouvelle en nous ton image par Jésus-Christ ; accorde sagesse et repos dans ton Esprit. Amen.`,
+[
+  "Que nos vies deviennent louange",
+  "Garde-nous dans la vérité et la charité",
+  "Envoie-nous comme témoins humbles et fidèles"
+  ]);
 
-  // descriptions rapides (outil : app les affiche sous les titres)
-  const descs = {
+  // descriptions courtes pour la colonne de gauche
+  const desc = {
     1:"Invocation du Saint-Esprit pour éclairer l’étude.",
     2:"Place dans le canon (AT/NT) et continuité biblique.",
     3:"Points à reprendre et tensions ouvertes.",
     4:"Formulation doctrinale synthétique.",
-    5:"Cadre temporel et culturel.",
+    5:"Cadre historique et culturel.",
     6:"Découpage et progression.",
     7:"Incidences herméneutiques.",
-    8:"Auteur humain et inspiration divine.",
+    8:"Auteur et inspiration.",
     9:"Pivot théologique du chapitre.",
-    10:"Grammaire/syntaxe/contexte.",
-    11:"Termes clés et portée doctrinale.",
+    10:"Grammaire, syntaxe, contexte.",
+    11:"Termes clés et portée.",
     12:"Passages parallèles.",
-    13:"Attributs de Dieu, création, alliance…",
-    14:"Rattachement aux thèmes systématiques.",
-    15:"Vertus et attitudes produites.",
+    13:"Attributs de Dieu, création…",
+    14:"Rattachement systématique.",
+    15:"Vertus produites par la doctrine.",
     16:"Typologie et symboles.",
     17:"Textes d’appui concordants.",
     18:"Harmonisation interne.",
     19:"Continuité dans l’Église.",
-    20:"Brève formulation à retenir.",
+    20:"Formulation à mémoriser.",
     21:"Gouvernance, culte, mission.",
     22:"Transmission et consolation.",
-    23:"Pédagogie et récits.",
+    23:"Pédagogie adaptée.",
     24:"Annonce et contextualisation.",
-    25:"Conseil, avertissement, consolation.",
-    26:"Repentance, foi, obéissance, prière.",
-    27:"Sélection à mémoriser.",
+    25:"Conseil et consolation.",
+    26:"Repentance, foi, obéissance.",
+    27:"Sélection utile à retenir.",
     28:"Action de grâces et bénédiction."
   };
-
-  // injecte les descriptions
-  for (const s of sections) s.description = descs[s.id] || "";
-
+  for (const s of sections) s.description = desc[s.id] || "";
   return sections;
 }
 
-function buildStudy(passage, length, version="LSG") {
-  // longueur par RUBRIQUE (tu le voulais ainsi)
-  const allowed = [500,1500,2500];
-  const perRubricLen = allowed.includes(Number(length)) ? Number(length) : 1500;
+/* ---------- Fallback générique (autres chapitres) ---------- */
+function genericStudy(book, chap, version, perLen) {
+  const titles = {
+    1:"Prière d’ouverture",2:"Canon et testament",3:"Questions du chapitre précédent",4:"Titre du chapitre",
+    5:"Contexte historique",6:"Structure littéraire",7:"Genre littéraire",8:"Auteur et généalogie",
+    9:"Verset-clé doctrinal",10:"Analyse exégétique",11:"Analyse lexicale",12:"Références croisées",
+    13:"Fondements théologiques",14:"Thème doctrinal",15:"Fruits spirituels",16:"Types bibliques",
+    17:"Appui doctrinal",18:"Comparaison interne",19:"Parallèle ecclésial",20:"Verset à mémoriser",
+    21:"Enseignement pour l’Église",22:"Enseignement pour la famille",23:"Enseignement enfants",
+    24:"Application missionnaire",25:"Application pastorale",26:"Application personnelle",
+    27:"Versets à retenir",28:"Prière de fin"
+  };
+  const poolCommon = [
+    "La Bible s’explique par la Bible et garde l’unité de la foi",
+    "Le Christ accomplit la promesse et oriente l’interprétation",
+    "La Parole édifie l’Église et forme la vie quotidienne",
+    "La doctrine naît du texte reçu, non de la spéculation",
+    "La prière accompagne l’étude et ouvre à l’obéissance"
+  ];
+  const linkChap = linkRef(book, chap, "", version);
+  const sections = [];
+  for (let i=1;i<=28;i++) {
+    const base = `### ${titles[i]}\n\n*Référence :* ${book} ${chap}\n\nLecture de ${linkChap} avec accent ${titles[i].toLowerCase()}.`;
+    sections.push({ id:i, title:titles[i], description:"", content: expandUnique(base, poolCommon, perLen) });
+  }
+  return sections;
+}
 
-  // Parse très simple : "Livre chap"
+/* ---------- Construction ---------- */
+function buildStudy(passage, length, version="LSG") {
+  const allowed = [500,1500,2500];
+  const perLen = allowed.includes(Number(length)) ? Number(length) : 1500;
   const m = /^(.+?)\s+(\d+)(?:\s*.*)?$/.exec(String(passage||"").trim());
   const book = m ? m[1].trim() : "Genèse";
   const chap = m ? parseInt(m[2],10) : 1;
 
   let sections;
-
-  // Cas soigné : Genèse 1 (ton usage actuel)
   if (book === "Genèse" && chap === 1) {
-    sections = studyForGenesis1(version, perRubricLen);
+    sections = studyForGenesis1(version, perLen);
   } else {
-    // Fallback générique (structure non-duplicative + liens chapitre)
-    const linkChap = linkRef(book, chap, "", version);
-    const titles = {
-      1:"Prière d’ouverture",2:"Canon et testament",3:"Questions du chapitre précédent",4:"Titre du chapitre",
-      5:"Contexte historique",6:"Structure littéraire",7:"Genre littéraire",8:"Auteur et généalogie",
-      9:"Verset-clé doctrinal",10:"Analyse exégétique",11:"Analyse lexicale",12:"Références croisées",
-      13:"Fondements théologiques",14:"Thème doctrinal",15:"Fruits spirituels",16:"Types bibliques",
-      17:"Appui doctrinal",18:"Comparaison interne",19:"Parallèle ecclésial",20:"Verset à mémoriser",
-      21:"Enseignement pour l’Église",22:"Enseignement pour la famille",23:"Enseignement enfants",
-      24:"Application missionnaire",25:"Application pastorale",26:"Application personnelle",
-      27:"Versets à retenir",28:"Prière de fin"
-    };
-    const baseTexts = {
-      1:`### Prière d’ouverture\n\n*Référence :* ${book} ${chap}\n\nPère, éclaire-nous par ton Esprit afin de recevoir fidèlement ce chapitre (${linkChap}).`,
-      2:`### Canon et testament\n\n*Référence :* ${book} ${chap}\n\nLecture dans l’unité du canon : l’Ancien et le Nouveau se répondent.`,
-      3:`### Questions du chapitre précédent\n\n*Référence :* ${book} ${chap}\n\nQuelles tensions le contexte ouvre-t-il ? Comment ce chapitre y répond-il ?`,
-      4:`### Titre du chapitre\n\n*Référence :* ${book} ${chap}\n\nProposition de titre théologique pour guider l’étude.`,
-      5:`### Contexte historique\n\n*Référence :* ${book} ${chap}\n\nCadre historique/culturel et destinataires probables.`,
-      6:`### Structure littéraire\n\n*Référence :* ${book} ${chap}\n\nDécoupage et progression interne.`,
-      7:`### Genre littéraire\n\n*Référence :* ${book} ${chap}\n\nGenre du passage et incidences herméneutiques.`,
-      8:`### Auteur et généalogie\n\n*Référence :* ${book} ${chap}\n\nAuteur humain, inspiration divine, place dans l’histoire du salut.`,
-      9:`### Verset-clé doctrinal\n\n*Référence :* ${book} ${chap}\n\nSélection d’un pivot doctrinal représentatif.`,
-      10:`### Analyse exégétique\n\n*Référence :* ${book} ${chap}\n\nContexte immédiat, grammaire et syntaxe.`,
-      11:`### Analyse lexicale\n\n*Référence :* ${book} ${chap}\n\nTermes clés et champ sémantique.`,
-      12:`### Références croisées\n\n*Référence :* ${book} ${chap}\n\nPassages parallèles/complémentaires dans l’Écriture.`,
-      13:`### Fondements théologiques\n\n*Référence :* ${book} ${chap}\n\nAttributs de Dieu, alliance, salut, éthique.`,
-      14:`### Thème doctrinal\n\n*Référence :* ${book} ${chap}\n\nRattachement aux grands thèmes systématiques.`,
-      15:`### Fruits spirituels\n\n*Référence :* ${book} ${chap}\n\nVertus et attitudes produites par la doctrine.`,
-      16:`### Types bibliques\n\n*Référence :* ${book} ${chap}\n\nTypologie, symboles, figures.`,
-      17:`### Appui doctrinal\n\n*Référence :* ${book} ${chap}\n\nTextes d’appui confirmant l’interprétation.`,
-      18:`### Comparaison interne\n\n*Référence :* ${book} ${chap}\n\nHarmonisation entre les versets du chapitre.`,
-      19:`### Parallèle ecclésial\n\n*Référence :* ${book} ${chap}\n\nContinuité de la révélation et vie de l’Église.`,
-      20:`### Verset à mémoriser\n\n*Référence :* ${book} ${chap}\n\nFormulation brève et structurante.`,
-      21:`### Enseignement pour l’Église\n\n*Référence :* ${book} ${chap}\n\nGouvernance, culte, mission, édification.`,
-      22:`### Enseignement pour la famille\n\n*Référence :* ${book} ${chap}\n\nTransmission, sainteté, consolation.`,
-      23:`### Enseignement enfants\n\n*Référence :* ${book} ${chap}\n\nPédagogie, récits, symboles.`,
-      24:`### Application missionnaire\n\n*Référence :* ${book} ${chap}\n\nAnnonce, contextualisation fidèle, espérance.`,
-      25:`### Application pastorale\n\n*Référence :* ${book} ${chap}\n\nConseil, avertissement, consolation.`,
-      26:`### Application personnelle\n\n*Référence :* ${book} ${chap}\n\nRepentance, foi, obéissance, prière.`,
-      27:`### Versets à retenir\n\n*Référence :* ${book} ${chap}\n\nSélection utile pour la méditation et le témoignage.`,
-      28:`### Prière de fin\n\n*Référence :* ${book} ${chap}\n\nAction de grâces et demande de bénédiction.`
-    };
-    sections = [];
-    for (let i=1;i<=28;i++) {
-      sections.push({
-        id: i,
-        title: titles[i],
-        description: "",
-        content: padToLength(baseTexts[i], perRubricLen)
-      });
-    }
+    sections = genericStudy(book, chap, version, perLen);
   }
-
-  return { study: { sections }, requestedLength: perRubricLen };
+  return { study: { sections }, requestedLength: perLen };
 }
 
-/* --- route --- */
+/* ---------- Route ---------- */
 async function core(ctx) {
-  const method = ctx.req?.method || 'GET';
-
-  if (method === 'GET') {
+  const method = ctx.req?.method || "GET";
+  if (method === "GET") {
     return sendJSON(ctx, 200, {
-      ok: true,
-      route: '/api/generate-study',
-      method: 'GET',
-      hint: 'POST { passage, options:{ length: 500|1500|2500, translation?: "LSG|PDV|S21|BFC" } }'
+      ok:true,
+      route:"/api/generate-study",
+      method:"GET",
+      hint:'POST { passage, options:{ length: 500|1500|2500, translation?: "LSG|PDV|S21|BFC" } }'
     });
   }
-
-  if (method !== 'POST') {
-    return sendError(ctx, 405, 'Méthode non autorisée', { allow: ['GET','POST'] });
-  }
+  if (method !== "POST") return sendError(ctx, 405, "Méthode non autorisée", { allow:["GET","POST"] });
 
   const body = await readBody(ctx);
-  const passage = (body?.passage || '').toString().trim();
+  const passage = (body?.passage || "").toString().trim();
   const length  = Number(body?.options?.length);
-  const version = (body?.options?.translation || 'LSG').toUpperCase();
-
+  const version = (body?.options?.translation || "LSG").toUpperCase();
   if (!passage) return sendError(ctx, 400, 'Champ "passage" manquant (ex: "Genèse 1").');
 
   try {
     const result = buildStudy(passage, length, version);
     return sendJSON(ctx, 200, { ok:true, ...result });
   } catch (e) {
-    return sendError(ctx, 200, 'GENERATION_FAILED', { message: String(e && e.message || e) });
+    return sendError(ctx, 200, "GENERATION_FAILED", { message: String(e?.message || e) });
   }
 }
 
 export default async function handler(req, res) {
-  if (res && typeof res.status === 'function') {
-    return core({ req, res });
-  }
-  return await core({ req });
+  if (res && typeof res.status === "function") return core({ req, res });
+  return core({ req });
 }
