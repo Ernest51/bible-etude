@@ -1,33 +1,19 @@
-/* app.js — Restauration stable (fix DOM-ready + fallbacks)
+/* app.js — UI stable + améliorations visuelles
    - Palette 12 couleurs (thème global)
    - Densité 500/1500/2500 liée à options.length (API)
    - 66 livres + chapitres, 28 rubriques, diodes ok/orange
    - Boutons: ChatGPT, Dernière étude (last+prev), Reset (orange + champs neutres)
-   - Correctifs MAJEURS: 
-       (1) Sélecteurs DOM faits APRÈS DOMContentLoaded
-       (2) Fallbacks d’IDs (ex: #generateBtn || #generate)
+   - Correctifs: placeholders <option>, try/catch + debug panel
+   - VISUEL+: Police "Inter", titres centrés/gras, cartes arrondies,
+              prévisualisation riche avec versets cliquables (YouVersion)
 */
-
 (function () {
   // -------- Utils
+  const $  = (s)=>document.querySelector(s);
+  const $$ = (s)=>Array.from(document.querySelectorAll(s));
   const esc=(s)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-
-  // récupère le 1er élément qui existe parmi une liste de sélecteurs
-  const pick = (...selectors) => {
-    for (const sel of selectors) {
-      const el = document.querySelector(sel);
-      if (el) return el;
-    }
-    return null;
-  };
-
-  const debug=(m)=>{
-    const p=pick('#debugPanel','.debug-panel');
-    if(!p) return;
-    p.style.display='block';
-    p.textContent+=`\n${m}`;
-  };
+  const debug=(m)=>{ const p=$('#debugPanel'); if(!p) return; p.style.display='block'; p.textContent+=`\n${m}`; };
 
   // -------- Constantes
   const STORAGE_LAST='lastStudy', STORAGE_PREV='prevStudy', STORAGE_DENS='density8', STORAGE_THEME='theme8';
@@ -65,59 +51,36 @@
   };
   for(let i=0;i<=28;i++) state.leds.set(i,'warn');
 
-  // -------- Références DOM (assignées dans init())
-  let pointsList, edTitle, metaInfo;
-  let searchRef, applyBtn;
-  let bookSelect, chapterSelect, verseSelect, versionSelect;
-  let densitySelect;
-  let readBtn, generateBtn;
-  let prevBtn, nextBtn;
-  let noteArea;
-  let themeBar;
-  let chatgptBtn, lastBtn, resetBtn;
+  // -------- Éléments
+  const pointsList=$('#pointsList'), edTitle=$('#edTitle'), metaInfo=$('#metaInfo');
+  const searchRef=$('#searchRef'), applyBtn=$('#applySearchBtn')||$('#validate');
+  const bookSelect=$('#bookSelect'), chapterSelect=$('#chapterSelect'), verseSelect=$('#verseSelect'), versionSelect=$('#versionSelect');
+  const densitySelect=$('#densitySelect');
+  const readBtn=$('#readBtn'), generateBtn=$('#generateBtn');
+  const prevBtn=$('#prev'), nextBtn=$('#next');
+  const noteArea=$('#noteArea');
+  const themeBar=$('#themeBar');
+  const chatgptBtn=$('#chatgptBtn'), lastBtn=$('#lastBtn'), resetBtn=$('#resetBtn');
+
+  // --- Prévisualisation riche (ajoutée dynamiquement)
+  let previewArea = null;
 
   document.addEventListener('DOMContentLoaded', ()=>{
-    try{ init(); }catch(e){ debug('INIT ERROR: '+(e?.stack||e)); }
+    try{
+      injectFontsAndStyle();
+      init();
+    }catch(e){ debug('INIT ERROR: '+(e?.stack||e)); }
   });
 
   function init(){
-    // --- Requêtes DOM APRÈS que le DOM existe (avec fallbacks)
-    pointsList   = pick('#pointsList','#rubricsList','#items','#list');
-    edTitle      = pick('#edTitle','#title','#rubricTitle');
-    metaInfo     = pick('#metaInfo','#meta','#counter');
-
-    searchRef    = pick('#searchRef','#search','#query','.search-input');
-    applyBtn     = pick('#applySearchBtn','#validate','#btn-validate','.btn-validate');
-
-    bookSelect   = pick('#bookSelect','#book','#livre');
-    chapterSelect= pick('#chapterSelect','#chapter','#chapitre');
-    verseSelect  = pick('#verseSelect','#verse','#verset');
-    versionSelect= pick('#versionSelect','#version','#bibleVersion');
-
-    densitySelect= pick('#densitySelect','#density','#length','#chars');
-
-    readBtn      = pick('#readBtn','#read','#btn-read','#lire');
-    generateBtn  = pick('#generateBtn','#generate','#btn-generate');
-
-    prevBtn      = pick('#prev','#prevBtn','#previous');
-    nextBtn      = pick('#next','#nextBtn','#suivant');
-
-    noteArea     = pick('#noteArea','#editor','#content','textarea');
-
-    themeBar     = pick('#themeBar','#themes','#couleurs');
-
-    chatgptBtn   = pick('#chatgptBtn','#btnChatgpt','#chatgpt');
-    lastBtn      = pick('#lastBtn','#last','#dernier','#btn-last');
-    resetBtn     = pick('#resetBtn','#reset','#btn-reset');
-
     ensureListScroll();
     ensureSelectPlaceholders();
     setupDensitySelector();
     restoreTheme();
     restoreLast();
+    createPreviewPane(); // <= nouveauté
 
     wireEvents();
-
     if (state.book){
       fillBooks(); fillChapters(); fillVerses();
       if (bookSelect)   bookSelect.value=state.book;
@@ -135,20 +98,14 @@
 
   // -------- Thème
   function setTheme(name){
-    const v = THEME_VARS[name] || THEME_VARS.cyan;
-    const apply = (el) => {
-      if(!el) return;
-      el.style.setProperty('--bg', v.bg);
-      el.style.setProperty('--panel', '#fff');
-      el.style.setProperty('--text', v.text);
-      el.style.setProperty('--border', v.border);
-      el.style.setProperty('--accent', v.primary);
-      el.style.setProperty('--accent-soft', 'rgba(0,0,0,.04)');
-      el.setAttribute('data-theme', name);
-    };
-    apply(document.documentElement);
-    apply(document.body);
-    try { localStorage.setItem(STORAGE_THEME, name); } catch {}
+    const v=THEME_VARS[name]||THEME_VARS.cyan;
+    ['documentElement','body'].forEach(k=>{
+      const el=document[k];
+      el.style.setProperty('--bg',v.bg); el.style.setProperty('--panel','#fff'); el.style.setProperty('--text',v.text);
+      el.style.setProperty('--border',v.border); el.style.setProperty('--accent',v.primary); el.style.setProperty('--accent-soft','rgba(0,0,0,.04)');
+      el.setAttribute('data-theme',name);
+    });
+    try{ localStorage.setItem(STORAGE_THEME,name); }catch{}
   }
   function restoreTheme(){ try{ setTheme(localStorage.getItem(STORAGE_THEME)||'cyan'); }catch{ setTheme('cyan'); } }
   function initThemeBar(){
@@ -190,7 +147,6 @@
   function wireEvents(){
     applyBtn && applyBtn.addEventListener('click', applySearch);
     searchRef && searchRef.addEventListener('keydown', e=>{ if(e.key==='Enter') applySearch(); });
-
     bookSelect && bookSelect.addEventListener('change', ()=>{
       rememberAsPrevious();
       state.book=bookSelect.value||'';
@@ -198,19 +154,16 @@
       else { clearChaptersAndVerses(); }
       saveLast(); rerender();
     });
-
     chapterSelect && chapterSelect.addEventListener('change', ()=>{
       const max=CHAPTERS_66[state.book]||1;
       const n=parseInt(chapterSelect.value,10);
       if (Number.isFinite(n)){ state.chapter=clamp(n,1,max); chapterSelect.value=String(state.chapter); }
       fillVerses(); saveLast(); rerender();
     });
-
     verseSelect && verseSelect.addEventListener('change', ()=>{
       const v=parseInt(verseSelect.value,10);
       state.verse=Number.isFinite(v)?v:1; saveLast();
     });
-
     versionSelect && versionSelect.addEventListener('change', ()=>{
       state.version=versionSelect.value||'LSG'; saveLast();
     });
@@ -219,7 +172,6 @@
       if(!state.book) return;
       window.open(youVersionURL(state.book,state.chapter||1,state.verse||1,state.version),'_blank','noopener,noreferrer');
     });
-
     generateBtn && generateBtn.addEventListener('click', onGenerate);
 
     prevBtn && prevBtn.addEventListener('click', ()=>goTo(state.currentIdx-1));
@@ -228,6 +180,11 @@
     chatgptBtn && chatgptBtn.addEventListener('click', ()=>window.open('https://chatgpt.com/','_blank','noopener,noreferrer'));
     lastBtn && lastBtn.addEventListener('click', loadLastStudy);
     resetBtn && resetBtn.addEventListener('click', onResetTotal);
+
+    // Prévisualisation live
+    noteArea && noteArea.addEventListener('input', ()=>{
+      if (previewArea) renderPreview(noteArea.value||'');
+    });
   }
 
   // -------- Sélecteurs / Recherche
@@ -316,29 +273,28 @@
     highlightActive();
   }
   function renderItem({idx,title,desc}){
-    const li=document.createElement('div'); li.className='item'; li.dataset.idx=String(idx);
+    const li=document.createElement('div'); li.className='item card'; li.dataset.idx=String(idx);
     const idxEl=document.createElement('div'); idxEl.className='idx'; idxEl.textContent=String(idx);
     const txt=document.createElement('div'); txt.className='txt';
-    txt.innerHTML=`<div>${esc(title)}</div>${desc?`<span class="desc">${esc(desc)}</span>`:''}`;
+    txt.innerHTML=`<div class="ttl">${esc(title)}</div>${desc?`<span class="desc">${esc(desc)}</span>`:''}`;
     const dot=document.createElement('div'); dot.className='dot '+(state.leds.get(idx)==='ok'?'ok':'');
     li.appendChild(idxEl); li.appendChild(txt); li.appendChild(dot);
     li.addEventListener('click', ()=>goTo(idx));
     return li;
   }
-  function highlightActive(){
-    const list = document.querySelectorAll('#pointsList .item, #rubricsList .item, #items .item, #list .item');
-    list.forEach(el=>el.classList.toggle('active', Number(el.dataset.idx)===state.currentIdx));
-  }
+  function highlightActive(){ $$('#pointsList .item').forEach(el=>el.classList.toggle('active', Number(el.dataset.idx)===state.currentIdx)); }
   function goTo(idx){ if(idx<0) idx=0; if(idx>28) idx=28; state.currentIdx=idx; updateHeader(); renderSection(idx); highlightActive(); }
   function updateHeader(){ if(!edTitle||!metaInfo) return; edTitle.textContent=state.currentIdx===0?TITLE0:getTitle(state.currentIdx); metaInfo.textContent=`Point ${state.currentIdx} / 28`; }
   function rerender(){ renderPointsList(); renderSection(state.currentIdx); updateHeader(); }
-  function ensureListScroll(){ const pl=pointsList||pick('#pointsList','#rubricsList'); if(!pl) return; pl.style.overflowY='auto'; if(!pl.style.maxHeight) pl.style.maxHeight='calc(100vh - 220px)'; }
+  function ensureListScroll(){ const pl=$('#pointsList'); if(!pl) return; pl.style.overflowY='auto'; if(!pl.style.maxHeight) pl.style.maxHeight='calc(100vh - 220px)'; }
 
-  // -------- Rendu section (textarea)
+  // -------- Rendu section (textarea + prévisualisation)
   function renderSection(n){
     if (!noteArea) return;
     const txt=state.sectionsByN.get(n)||defaultContent(n);
     noteArea.value=txt;
+    // maj preview
+    if (previewArea) renderPreview(txt);
     noteArea.dispatchEvent(new Event('input',{bubbles:true}));
   }
   function defaultContent(n){
@@ -358,8 +314,6 @@ Clique sur **Générer** pour charger chaque verset avec explications.`;
   // -------- Génération
   async function onGenerate(){
     if (!state.book){ alert('Choisis un livre (et chapitre) avant de générer.'); return; }
-    if (!generateBtn) { console.warn('generateBtn manquant'); return; }
-
     const btn=generateBtn, old=btn.textContent; btn.disabled=true; btn.textContent='Génération…';
     try{
       const passage=`${state.book} ${state.chapter||1}`;
@@ -377,12 +331,7 @@ Clique sur **Générer** pour charger chaque verset avec explications.`;
         const content=String(s.content||'').trim();
         if(title) t[id]=title;
         if(desc)  d[id]=desc;
-        if(content){
-          state.sectionsByN.set(id,content);
-          state.leds.set(id,'ok');     // ✅ diode verte
-        } else {
-          state.leds.set(id,'warn');   // 🟠 si contenu vide
-        }
+        if(content){ state.sectionsByN.set(id,content); state.leds.set(id,'ok'); }
       }
       if(Object.keys(t).length) state.titles={...state.titles,...t};
       if(Object.keys(d).length) state.descs ={...state.descs ,...d};
@@ -415,15 +364,13 @@ Contenu provisoire (gabarit).`);
   function onResetTotal(){
     if(!confirm('Tout vider ? (rubriques → orange, recherche vidée, sélecteurs à "—", mémoire des études conservée)')) return;
     state.sectionsByN.clear();
-    for(let i=0;i<=28;i++) state.leds.set(i,'warn'); // orange
-
+    for(let i=0;i<=28;i++) state.leds.set(i,'warn');
     if (searchRef) searchRef.value='';
     state.book=''; state.chapter=null; state.verse=null;
     fillBooks(true); clearChaptersAndVerses();
     if (bookSelect)   bookSelect.value='';
     if (chapterSelect)chapterSelect.value='';
     if (verseSelect)  verseSelect.value='';
-
     state.currentIdx=0;
     renderPointsList(); renderSection(0); updateHeader();
   }
@@ -472,11 +419,5 @@ Contenu provisoire (gabarit).`);
     }
   }
 
-  // -------- YouVersion
-  const YV_BOOK={"Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des Cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN","Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL","Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"};
-  const YV_VERSION_ID={ 'LSG':'93' };
-  function youVersionURL(book,chapter,verse,version){
-    const code=YV_BOOK[book]||'GEN'; const verId=YV_VERSION_ID[version||'LSG']||'93'; const vtag=(version||'LSG').toUpperCase();
-    return `https://www.bible.com/fr/bible/${verId}/${code}.${chapter||1}.${vtag}`;
-  }
-})();
+  // -------- YouVersion (codes + URL)
+  const YV_BOOK={"Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","
