@@ -1,80 +1,181 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <title>Tests API generate-study</title>
+  <meta charset="UTF-8" />
+  <title>Tests API /api/generate-study</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 2rem;
-      background: #f9fafb;
-      color: #111;
+    :root{
+      --bg:#f6f7fb; --panel:#fff; --text:#111827; --muted:#6b7280; --ok:#16a34a; --warn:#f59e0b; --err:#dc2626; --border:#e5e7eb;
     }
-    h1 { font-size: 1.5rem; margin-bottom: 1rem; }
-    button {
-      margin: 0.25rem;
-      padding: 0.5rem 1rem;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-    pre {
-      background: #111;
-      color: #0f0;
-      padding: 1rem;
-      max-height: 400px;
-      overflow: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
+    *{box-sizing:border-box}
+    body{margin:24px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; background:var(--bg); color:var(--text)}
+    h1{margin:0 0 10px; font-size:22px}
+    .card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:16px}
+    label{display:inline-flex; align-items:center; gap:8px}
+    input[type="text"]{padding:8px 10px; border:1px solid var(--border); border-radius:8px; width:260px}
+    .btn{padding:8px 12px; border:1px solid var(--border); border-radius:8px; background:#111827; color:#fff; cursor:pointer; font-weight:600}
+    .btn.secondary{background:#fff; color:#111827}
+    .btn + .btn{margin-left:6px}
+    .row{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+    .badges{display:flex; gap:8px; flex-wrap:wrap}
+    .badge{display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border:1px solid var(--border); border-radius:999px; background:#fff; font-size:12px}
+    .dot{width:8px; height:8px; border-radius:50%}
+    .dot.ok{background:var(--ok)}
+    .dot.warn{background:var(--warn)}
+    .dot.err{background:var(--err)}
+    table{width:100%; border-collapse:collapse; margin-top:8px; font-size:14px}
+    th,td{border-bottom:1px solid var(--border); padding:8px 6px; text-align:left}
+    th{background:#f9fafb}
+    pre{background:#0b1020; color:#a5f3fc; border-radius:8px; padding:12px; max-height:420px; overflow:auto; font-size:12px}
+    @media (max-width:700px){ input[type="text"]{width:100%} }
   </style>
 </head>
 <body>
-  <h1>Tests API /api/generate-study</h1>
+  <h1>Tests API <code>/api/generate-study</code></h1>
 
-  <p><b>Passage :</b> <input id="passage" value="Genèse 1" size="20"></p>
+  <div class="card">
+    <div class="row" style="margin-bottom:10px">
+      <label><b>Passage :</b> <input id="passage" type="text" value="Genèse 1" /></label>
+      <button class="btn secondary" onclick="doGET()">GET</button>
+      <button class="btn" onclick="doPOST(500)">POST 500</button>
+      <button class="btn" onclick="doPOST(1500)">POST 1500</button>
+      <button class="btn" onclick="doPOST(2500)">POST 2500</button>
+      <button class="btn secondary" onclick="clearAll()">Effacer</button>
+    </div>
 
-  <div>
-    <button onclick="testAPI(500)">POST 500 caractères</button>
-    <button onclick="testAPI(1500)">POST 1500 caractères</button>
-    <button onclick="testAPI(2500)">POST 2500 caractères</button>
-    <button onclick="testGET()">GET simple</button>
+    <div class="badges">
+      <span class="badge"><span id="dotStatus" class="dot warn"></span> <span id="statusText">En attente…</span></span>
+      <span class="badge">Sections: <b id="count">0</b></span>
+      <span class="badge">Longueur demandée: <b id="asked">—</b></span>
+      <span class="badge">1ère rubrique (car.): <b id="lenFirst">—</b></span>
+      <span class="badge">Total (approx.): <b id="lenTotal">—</b></span>
+    </div>
   </div>
 
-  <h2>Résultat</h2>
-  <pre id="output">Clique sur un bouton pour tester…</pre>
+  <div class="card">
+    <b>Longueur par rubrique</b>
+    <table id="lenTable" style="display:none">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Titre</th>
+          <th>Caractères</th>
+        </tr>
+      </thead>
+      <tbody id="lenBody"></tbody>
+    </table>
+    <div id="noData" style="color:var(--muted)">Lance un test pour remplir ce tableau…</div>
+  </div>
+
+  <div class="card">
+    <b>Réponse brute</b>
+    <pre id="output">Clique sur un bouton pour tester…</pre>
+  </div>
 
   <script>
     const API = "/api/generate-study";
+    const outEl   = document.getElementById('output');
+    const askedEl = document.getElementById('asked');
+    const cntEl   = document.getElementById('count');
+    const firstEl = document.getElementById('lenFirst');
+    const totalEl = document.getElementById('lenTotal');
+    const dotEl   = document.getElementById('dotStatus');
+    const statusEl= document.getElementById('statusText');
+    const table   = document.getElementById('lenTable');
+    const tbody   = document.getElementById('lenBody');
+    const noData  = document.getElementById('noData');
 
-    async function testGET() {
-      document.getElementById("output").textContent = "Chargement...";
-      try {
-        const r = await fetch(API);
-        const j = await r.json();
-        document.getElementById("output").textContent = JSON.stringify(j, null, 2);
-      } catch (e) {
-        document.getElementById("output").textContent = "ERREUR: " + e;
+    function setStatus(ok, text){
+      statusEl.textContent = text;
+      dotEl.className = 'dot ' + (ok ? 'ok' : 'err');
+    }
+    function waitStatus(text){
+      statusEl.textContent = text;
+      dotEl.className = 'dot warn';
+    }
+    function clearAll(){
+      outEl.textContent = 'Clique sur un bouton pour tester…';
+      askedEl.textContent='—';
+      cntEl.textContent='0';
+      firstEl.textContent='—';
+      totalEl.textContent='—';
+      tbody.innerHTML='';
+      table.style.display='none';
+      noData.style.display='block';
+      waitStatus('En attente…');
+    }
+
+    async function doGET(){
+      clearAll();
+      waitStatus('GET en cours…');
+      try{
+        const r = await fetch(API, { method:'GET' });
+        const status = r.status;
+        const j = await r.json().catch(()=> ({}));
+        outEl.textContent = JSON.stringify(j, null, 2);
+        setStatus(status>=200 && status<300, 'GET ' + status);
+        askedEl.textContent = '—';
+        cntEl.textContent = Array.isArray(j?.study?.sections) ? j.study.sections.length : 0;
+      }catch(e){
+        outEl.textContent = 'ERREUR GET: ' + e;
+        setStatus(false, 'GET erreur');
       }
     }
 
-    async function testAPI(len) {
-      document.getElementById("output").textContent = "Chargement...";
-      try {
-        const passage = document.getElementById("passage").value || "Genèse 1";
+    async function doPOST(len){
+      clearAll();
+      askedEl.textContent = String(len);
+      waitStatus('POST en cours…');
+      try{
+        const passage = document.getElementById('passage').value || 'Genèse 1';
         const r = await fetch(API, {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
           body: JSON.stringify({ passage, options:{ length: len } })
         });
+        const status = r.status;
         const j = await r.json();
-        document.getElementById("output").textContent =
-          "sections: " + (j.study?.sections?.length || 0) +
-          " | longueur demandée: " + len + "\n\n" +
-          JSON.stringify(j, null, 2);
-      } catch (e) {
-        document.getElementById("output").textContent = "ERREUR: " + e;
+        outEl.textContent = JSON.stringify(j, null, 2);
+
+        const arr = Array.isArray(j?.study?.sections) ? j.study.sections : [];
+        cntEl.textContent = arr.length;
+
+        // Remplir le tableau des longueurs
+        tbody.innerHTML = '';
+        let total = 0;
+        arr.forEach((s, idx)=>{
+          const L = (s?.content || '').length;
+          total += L;
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${idx+1}</td>
+            <td>${escapeHtml(s?.title || '')}</td>
+            <td>${L}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+        if (arr.length){
+          firstEl.textContent = (arr[0].content || '').length;
+          totalEl.textContent = total;
+          table.style.display = 'table';
+          noData.style.display = 'none';
+        } else {
+          table.style.display = 'none';
+          noData.style.display = 'block';
+        }
+
+        setStatus(status>=200 && status<300, 'POST ' + status);
+      }catch(e){
+        outEl.textContent = 'ERREUR POST: ' + e;
+        setStatus(false, 'POST erreur');
       }
+    }
+
+    function escapeHtml(s){
+      return String(s||'').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
     }
   </script>
 </body>
