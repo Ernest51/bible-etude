@@ -37,7 +37,7 @@
   const CHAPTERS_66={"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
   const ORDER_66=Object.keys(CHAPTERS_66);
 
-  const TITLES_DEFAULT={1:"Prière d’ouverture",2:"Canon et testament",3:"Questions du chapitre précédent",4:"Titre du chapitre",5:"Contexte historique",6:"Structure littéraire",7:"Genre littéraire",8:"Auteur et généalogie",9:"Verset-clé doctrinal",10:"Analyse exégétique",11:"Analyse lexicale",12:"Références croisées",13:"Fondements théologiques",14:"Thème doctrinal",15:"Fruits spirituels",16:"Types bibliques",17:"Appui doctrinal",18:"Comparaison entre versets",19:"Parallèle avec Actes 2",20:"Verset à mémoriser",21:"Enseignement pour l’Église",22:"Enseignement pour la famille",23:"Enseignement pour enfants",24:"Application missionnaire",25:"Application pastorale",26:"Application personnelle",27:"Versets à retenir",28:"Prière de fin"};
+  const TITLES_DEFAULT={1:"Prière d’ouverture",2:"Canon et testament",3:"Questions du chapitre précédent",4:"Titre du chapitre",5:"Contexte historique",6:"Structure littéraire",7:"Genre littéraire",8:"Auteur et généalogie",9:"Verset-clé doctrinal",10:"Analyse exégétique",11:"Analyse lexicale",12:"Références croisées",13:"Fondements théologiques",14:"Thème doctrinal",15:"Fruits spirituels",16:"Types bibliques",17:"Appui doctrinal",18:"Comparaison entre versets",19:"Parallèle avec Actes 2",20:"Verset à mémoriser",21:"Enseignement pour l’Église",22:"Enseignement pour la famille",23:"Enseignement pour enfants",24:"Application missionnaire",25:"Application pastorale",26:"Application personnelle",27:"Versets utiles à retenir",28:"Prière de fin"};
   const DESCS_DEFAULT={1:"Invocation du Saint-Esprit pour éclairer l’étude.",2:"Appartenance au canon (AT/NT).",3:"Questions à reprendre de l’étude précédente.",4:"Résumé doctrinal synthétique du chapitre.",5:"Période, géopolitique, culture, carte.",6:"Séquençage narratif et composition.",7:"Type de texte : narratif, poétique, prophétique…",8:"Auteur et lien aux patriarches (généalogie).",9:"Verset central du chapitre.",10:"Commentaire exégétique (original si utile).",11:"Mots-clés et portée doctrinale.",12:"Passages parallèles et complémentaires.",13:"Doctrines majeures qui émergent du chapitre.",14:"Correspondance avec les grands thèmes doctrinaux.",15:"Vertus / attitudes visées.",16:"Figures typologiques et symboles.",17:"Passages d’appui concordants.",18:"Comparaison interne des versets.",19:"Parallèle avec Actes 2.",20:"Verset à mémoriser.",21:"Implications pour l’Église.",22:"Applications familiales.",23:"Pédagogie enfants (jeux, récits, symboles).",24:"Applications mission/évangélisation.",25:"Applications pastorales/enseignement.",26:"Application personnelle engagée.",27:"Versets utiles à retenir.",28:"Prière de clôture."};
 
   // -------- État
@@ -58,7 +58,7 @@
   const prevBtn=$('#prev'), nextBtn=$('#next');
   const noteArea=$('#noteArea');
   const themeBar=$('#themeBar');
-  const chatgptBtn=$('#chatgptBtn'), lastBtn=$('#lastBtn'), resetBtn=$('#resetBtn');
+  const chatgptBtn=$('#chatgptBtn'), lastBtn=$('#lastBtn'), resetBtn=$('#resetBtn']);
 
   document.addEventListener('DOMContentLoaded', ()=>{
     try{ init(); }catch(e){ debug('INIT ERROR: '+(e?.stack||e)); }
@@ -87,16 +87,24 @@
     initThemeBar();
   }
 
-  // -------- Thème
+  // -------- Thème (micro-patch robuste)
   function setTheme(name){
-    const v=THEME_VARS[name]||THEME_VARS.cyan;
-    ['documentElement','body'].forEach(k=>{
-      const el=document[k];
-      el.style.setProperty('--bg',v.bg); el.style.setProperty('--panel','#fff'); el.style.setProperty('--text',v.text);
-      el.style.setProperty('--border',v.border); el.style.setProperty('--accent',v.primary); el.style.setProperty('--accent-soft','rgba(0,0,0,.04)');
-      el.setAttribute('data-theme',name);
-    });
-    try{ localStorage.setItem(STORAGE_THEME,name); }catch{}
+    const v = THEME_VARS[name] || THEME_VARS.cyan;
+
+    const apply = (el) => {
+      el.style.setProperty('--bg', v.bg);
+      el.style.setProperty('--panel', '#fff');
+      el.style.setProperty('--text', v.text);
+      el.style.setProperty('--border', v.border);
+      el.style.setProperty('--accent', v.primary);
+      el.style.setProperty('--accent-soft', 'rgba(0,0,0,.04)');
+      el.setAttribute('data-theme', name);
+    };
+
+    apply(document.documentElement);
+    apply(document.body);
+
+    try { localStorage.setItem(STORAGE_THEME, name); } catch {}
   }
   function restoreTheme(){ try{ setTheme(localStorage.getItem(STORAGE_THEME)||'cyan'); }catch{ setTheme('cyan'); } }
   function initThemeBar(){
@@ -295,9 +303,11 @@ Clique sur **Générer** pour charger chaque verset avec explications.`;
 À générer…`;
   }
 
-  // -------- Génération
+  // -------- Génération (micro-patch garde-fou sur bouton)
   async function onGenerate(){
     if (!state.book){ alert('Choisis un livre (et chapitre) avant de générer.'); return; }
+    if (!generateBtn) { console.warn('generateBtn manquant'); return; }
+
     const btn=generateBtn, old=btn.textContent; btn.disabled=true; btn.textContent='Génération…';
     try{
       const passage=`${state.book} ${state.chapter||1}`;
@@ -315,7 +325,12 @@ Clique sur **Générer** pour charger chaque verset avec explications.`;
         const content=String(s.content||'').trim();
         if(title) t[id]=title;
         if(desc)  d[id]=desc;
-        if(content){ state.sectionsByN.set(id,content); state.leds.set(id,'ok'); }
+        if(content){
+          state.sectionsByN.set(id,content);
+          state.leds.set(id,'ok');     // ✅ diode verte
+        } else {
+          state.leds.set(id,'warn');   // 🟠 si contenu vide
+        }
       }
       if(Object.keys(t).length) state.titles={...state.titles,...t};
       if(Object.keys(d).length) state.descs ={...state.descs ,...d};
