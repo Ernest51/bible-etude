@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests API generate-study</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+      background: #f9fafb;
+      color: #111;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+    button {
+      margin: 0.25rem;
+      padding: 0.5rem 1rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    pre {
+      background: #111;
+      color: #0f0;
+      padding: 1rem;
+      max-height: 400px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <h1>Tests API /api/generate-study</h1>
+
+  <p><b>Passage :</b> <input id="passage" value="Genèse 1" size="20"></p>
+
+  <div>
+    <button onclick="testAPI(500)">POST 500 caractères</button>
+    <button onclick="testAPI(1500)">POST 1500 caractères</button>
+    <button onclick="testAPI(2500)">POST 2500 caractères</button>
+    <button onclick="testGET()">GET simple</button>
+  </div>
+
+  <h2>Résultat</h2>
+  <pre id="output">Clique sur un bouton pour tester…</pre>
+
+  <script>
+    const API = "/api/generate-study";
+
+    async function testGET() {
+      document.getElementById("output").textContent = "Chargement...";
+      try {
+        const r = await fetch(API);
+        const j = await r.json();
+        document.getElementById("output").textContent = JSON.stringify(j, null, 2);
+      } catch (e) {
+        document.getElementById("output").textContent = "ERREUR: " + e;
+      }
+    }
+
+    async function testAPI(len) {
+      document.getElementById("output").textContent = "Chargement...";
+      try {
+        const passage = document.getElementById("passage").value || "Genèse 1";
+        const r = await fetch(API, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ passage, options:{ length: len } })
+        });
+        const j = await r.json();
+        document.getElementById("output").textContent =
+          "sections: " + (j.study?.sections?.length || 0) +
+          " | longueur demandée: " + len + "\n\n" +
+          JSON.stringify(j, null, 2);
+      } catch (e) {
+        document.getElementById("output").textContent = "ERREUR: " + e;
+      }
+    }
+  </script>
+</body>
+</html>
