@@ -1,0 +1,58 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Test POST /api/generate-study</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;max-width:860px;margin:24px auto;padding:0 12px}
+  h1{margin:0 0 12px} .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  input,button{padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px}
+  button{background:#111827;color:#fff;cursor:pointer}
+  pre{background:#0b1020;color:#e2e8f0;padding:12px;border-radius:8px;overflow:auto;max-height:60vh}
+  .ok{color:#16a34a;font-weight:700} .bad{color:#dc2626;font-weight:700}
+</style>
+<h1>Test <code>POST /api/generate-study</code></h1>
+
+<div class="row">
+  <label>Passage :
+    <input id="p" value="Genèse 1" size="24" />
+  </label>
+  <button onclick="run(500)">POST 500</button>
+  <button onclick="run(1500)">POST 1500</button>
+  <button onclick="run(2500)">POST 2500</button>
+</div>
+
+<div class="row" id="status">Prêt.</div>
+<pre id="out">—</pre>
+
+<script>
+async function run(len){
+  const passage = document.getElementById('p').value || 'Genèse 1';
+  const statusEl = document.getElementById('status');
+  const out = document.getElementById('out');
+  statusEl.textContent = 'Appel en cours…';
+  out.textContent = '…';
+  try{
+    const r = await fetch('/api/generate-study', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ passage, options:{ length: len } })
+    });
+    const text = await r.text();
+    let json = {};
+    try { json = JSON.parse(text); } catch { /* affiche brut si pas JSON */ }
+    const sections = json?.study?.sections || [];
+    const ok = r.ok && Array.isArray(sections) && sections.length === 28;
+    statusEl.innerHTML = (ok ? '<span class="ok">OK</span>' : '<span class="bad">KO</span>') +
+      ` — HTTP ${r.status} — sections: ${sections.length} — densité demandée: ${len}`;
+    // Affiche un résumé + 2 premières rubriques
+    const preview = sections.slice(0,2).map(s =>
+      ({ id:s.id, title:s.title, contentSample:(s.content||'').slice(0,120)+'…' })
+    );
+    out.textContent = ok
+      ? JSON.stringify({passage, len, sectionsCount: sections.length, preview}, null, 2)
+      : (text || '(réponse vide)');
+  }catch(e){
+    statusEl.innerHTML = '<span class="bad">KO</span> — exception';
+    out.textContent = String(e);
+  }
+}
+</script>
