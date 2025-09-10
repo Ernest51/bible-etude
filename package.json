@@ -1,3 +1,13 @@
-"engines": {
-  "node": "22.x"
+{
+  "name": "bible-etude",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": "22.x" },
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo \"No build step (public + api)\"",
+    "start": "vercel dev"
+  },
+  "dependencies": {}
 }
