@@ -1,11 +1,8 @@
-/* app.js — UI stable + améliorations visuelles
-   - Palette 12 couleurs (thème global)
-   - Densité 500/1500/2500 liée à options.length (API)
-   - 66 livres + chapitres, 28 rubriques, diodes ok/orange
-   - Boutons: ChatGPT, Dernière étude (last+prev), Reset (orange + champs neutres)
-   - Correctifs: placeholders <option>, try/catch + debug panel
+/* app.js — UI stable + améliorations visuelles blindées
+   - Thèmes + densité + 66 livres + 28 rubriques (inchangé)
    - VISUEL+: Police "Inter", titres centrés/gras, cartes arrondies,
-              prévisualisation riche avec versets cliquables (YouVersion)
+              prévisualisation riche, versets cliquables YouVersion
+   - ROBUSTESSE: toutes les touches DOM sont null-safe, aucun crash bloquant
 */
 (function () {
   // -------- Utils
@@ -13,6 +10,7 @@
   const $$ = (s)=>Array.from(document.querySelectorAll(s));
   const esc=(s)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const safe = (fn)=>{ try{ return fn(); }catch(_){ /* no-op */ } };
   const debug=(m)=>{ const p=$('#debugPanel'); if(!p) return; p.style.display='block'; p.textContent+=`\n${m}`; };
 
   // -------- Constantes
@@ -51,63 +49,96 @@
   };
   for(let i=0;i<=28;i++) state.leds.set(i,'warn');
 
-  // -------- Éléments
-  const pointsList=$('#pointsList'), edTitle=$('#edTitle'), metaInfo=$('#metaInfo');
-  const searchRef=$('#searchRef'), applyBtn=$('#applySearchBtn')||$('#validate');
-  const bookSelect=$('#bookSelect'), chapterSelect=$('#chapterSelect'), verseSelect=$('#verseSelect'), versionSelect=$('#versionSelect');
-  const densitySelect=$('#densitySelect');
-  const readBtn=$('#readBtn'), generateBtn=$('#generateBtn');
-  const prevBtn=$('#prev'), nextBtn=$('#next');
-  const noteArea=$('#noteArea');
-  const themeBar=$('#themeBar');
-  const chatgptBtn=$('#chatgptBtn'), lastBtn=$('#lastBtn'), resetBtn=$('#resetBtn');
-
-  // --- Prévisualisation riche (ajoutée dynamiquement)
+  // -------- Éléments (résolus au runtime)
+  let pointsList, edTitle, metaInfo;
+  let searchRef, applyBtn;
+  let bookSelect, chapterSelect, verseSelect, versionSelect;
+  let densitySelect;
+  let readBtn, generateBtn, prevBtn, nextBtn;
+  let noteArea, themeBar, chatgptBtn, lastBtn, resetBtn;
   let previewArea = null;
 
-  document.addEventListener('DOMContentLoaded', ()=>{
-    try{
-      injectFontsAndStyle();
-      init();
-    }catch(e){ debug('INIT ERROR: '+(e?.stack||e)); }
-  });
+  // --- Boot
+  document.addEventListener('DOMContentLoaded', () => safe(() => {
+    injectFontsAndStyle();               // visuel
+    resolveDom();                        // chopper tous les noeuds
+    init();                              // démarrer
+  }));
+
+  function resolveDom(){
+    pointsList   = $('#pointsList');
+    edTitle      = $('#edTitle');
+    metaInfo     = $('#metaInfo');
+    searchRef    = $('#searchRef');
+    applyBtn     = $('#applySearchBtn') || $('#validate');
+    bookSelect   = $('#bookSelect');
+    chapterSelect= $('#chapterSelect');
+    verseSelect  = $('#verseSelect');
+    versionSelect= $('#versionSelect');
+    densitySelect= $('#densitySelect');
+    readBtn      = $('#readBtn');
+    generateBtn  = $('#generateBtn');
+    prevBtn      = $('#prev');
+    nextBtn      = $('#next');
+    noteArea     = $('#noteArea');
+    themeBar     = $('#themeBar');
+    chatgptBtn   = $('#chatgptBtn');
+    lastBtn      = $('#lastBtn');
+    resetBtn     = $('#resetBtn');
+  }
 
   function init(){
-    ensureListScroll();
-    ensureSelectPlaceholders();
-    setupDensitySelector();
-    restoreTheme();
-    restoreLast();
-    createPreviewPane(); // <= nouveauté
+    safe(ensureListScroll);
+    safe(ensureSelectPlaceholders);
+    safe(setupDensitySelector);
+    safe(restoreTheme);
+    safe(restoreLast);
 
-    wireEvents();
+    // Crée la prévisualisation uniquement si le textarea existe
+    if (noteArea && !$('#previewArea')) safe(createPreviewPane);
+
+    safe(wireEvents);
+
+    // Pré-remplissages sélecteurs
     if (state.book){
-      fillBooks(); fillChapters(); fillVerses();
+      safe(fillBooks); safe(fillChapters); safe(fillVerses);
       if (bookSelect)   bookSelect.value=state.book;
       if (chapterSelect)chapterSelect.value=String(state.chapter);
       if (verseSelect)  verseSelect.value=String(state.verse);
     } else {
-      fillBooks(true);
+      safe(()=>fillBooks(true));
     }
     if (versionSelect) versionSelect.value=state.version||'LSG';
     if (densitySelect) densitySelect.value=String(state.density||1500);
 
-    renderPointsList(); updateHeader(); renderSection(0);
-    initThemeBar();
+    // Premier rendu
+    safe(renderPointsList);
+    safe(updateHeader);
+    safe(()=>renderSection(0));
+    safe(initThemeBar);
   }
 
   // -------- Thème
   function setTheme(name){
     const v=THEME_VARS[name]||THEME_VARS.cyan;
-    ['documentElement','body'].forEach(k=>{
-      const el=document[k];
-      el.style.setProperty('--bg',v.bg); el.style.setProperty('--panel','#fff'); el.style.setProperty('--text',v.text);
-      el.style.setProperty('--border',v.border); el.style.setProperty('--accent',v.primary); el.style.setProperty('--accent-soft','rgba(0,0,0,.04)');
-      el.setAttribute('data-theme',name);
-    });
-    try{ localStorage.setItem(STORAGE_THEME,name); }catch{}
+    const html = document.documentElement;
+    const body = document.body;
+    if (html){
+      html.style.setProperty('--bg',v.bg);
+      html.style.setProperty('--panel','#fff');
+      html.style.setProperty('--text',v.text);
+      html.style.setProperty('--border',v.border);
+      html.style.setProperty('--accent',v.primary);
+      html.style.setProperty('--accent-soft','rgba(0,0,0,.04)');
+      html.setAttribute('data-theme',name);
+    }
+    if (body){
+      body.style.setProperty('--bg',v.bg);
+      body.style.setProperty('--text',v.text);
+    }
+    try{ localStorage.setItem(STORAGE_THEME,name); }catch(_){}
   }
-  function restoreTheme(){ try{ setTheme(localStorage.getItem(STORAGE_THEME)||'cyan'); }catch{ setTheme('cyan'); } }
+  function restoreTheme(){ try{ setTheme(localStorage.getItem(STORAGE_THEME)||'cyan'); }catch(_){ setTheme('cyan'); } }
   function initThemeBar(){
     if (!themeBar) return;
     themeBar.innerHTML='';
@@ -133,12 +164,12 @@
       const raw=localStorage.getItem(STORAGE_DENS);
       const val=raw?parseInt(raw,10):1500;
       if (DENSITY_CHOICES.includes(val)) state.density=val;
-    }catch{}
+    }catch(_){}
     densitySelect.addEventListener('change', ()=>{
       const v=parseInt(densitySelect.value,10);
       if (DENSITY_CHOICES.includes(v)){
         state.density=v;
-        try{ localStorage.setItem(STORAGE_DENS,String(v)); }catch{}
+        try{ localStorage.setItem(STORAGE_DENS,String(v)); }catch(_){}
       }
     });
   }
@@ -181,7 +212,7 @@
     lastBtn && lastBtn.addEventListener('click', loadLastStudy);
     resetBtn && resetBtn.addEventListener('click', onResetTotal);
 
-    // Prévisualisation live
+    // Prévisualisation live (si zone présente)
     noteArea && noteArea.addEventListener('input', ()=>{
       if (previewArea) renderPreview(noteArea.value||'');
     });
@@ -286,14 +317,13 @@
   function goTo(idx){ if(idx<0) idx=0; if(idx>28) idx=28; state.currentIdx=idx; updateHeader(); renderSection(idx); highlightActive(); }
   function updateHeader(){ if(!edTitle||!metaInfo) return; edTitle.textContent=state.currentIdx===0?TITLE0:getTitle(state.currentIdx); metaInfo.textContent=`Point ${state.currentIdx} / 28`; }
   function rerender(){ renderPointsList(); renderSection(state.currentIdx); updateHeader(); }
-  function ensureListScroll(){ const pl=$('#pointsList'); if(!pl) return; pl.style.overflowY='auto'; if(!pl.style.maxHeight) pl.style.maxHeight='calc(100vh - 220px)'; }
+  function ensureListScroll(){ const pl=pointsList; if(!pl) return; pl.style.overflowY='auto'; if(!pl.style.maxHeight) pl.style.maxHeight='calc(100vh - 220px)'; }
 
-  // -------- Rendu section (textarea + prévisualisation)
+  // -------- Rendu section (textarea + preview)
   function renderSection(n){
     if (!noteArea) return;
     const txt=state.sectionsByN.get(n)||defaultContent(n);
     noteArea.value=txt;
-    // maj preview
     if (previewArea) renderPreview(txt);
     noteArea.dispatchEvent(new Event('input',{bubbles:true}));
   }
@@ -314,7 +344,7 @@ Clique sur **Générer** pour charger chaque verset avec explications.`;
   // -------- Génération
   async function onGenerate(){
     if (!state.book){ alert('Choisis un livre (et chapitre) avant de générer.'); return; }
-    const btn=generateBtn, old=btn.textContent; btn.disabled=true; btn.textContent='Génération…';
+    const btn=generateBtn, old=btn && btn.textContent; if(btn){ btn.disabled=true; btn.textContent='Génération…'; }
     try{
       const passage=`${state.book} ${state.chapter||1}`;
       const r=await fetch('/api/generate-study',{ method:'POST', headers:{'Content-Type':'application/json'}, cache:'no-store',
@@ -341,7 +371,7 @@ Clique sur **Générer** pour charger chaque verset avec explications.`;
       alert('La génération a échoué. Un gabarit a été inséré.');
       insertSkeleton(); renderPointsList(); renderSection(state.currentIdx);
     }finally{
-      btn.disabled=false; btn.textContent=old;
+      if(btn){ btn.disabled=false; btn.textContent=old; }
     }
   }
 
@@ -360,7 +390,7 @@ Contenu provisoire (gabarit).`);
     }
   }
 
-  // -------- Reset total (ne touche pas last/prev)
+  // -------- Reset total
   function onResetTotal(){
     if(!confirm('Tout vider ? (rubriques → orange, recherche vidée, sélecteurs à "—", mémoire des études conservée)')) return;
     state.sectionsByN.clear();
@@ -376,7 +406,7 @@ Contenu provisoire (gabarit).`);
   }
 
   // -------- Mémoire last/prev
-  function loadJSON(k){ try{ const r=localStorage.getItem(k); return r?JSON.parse(r):null; }catch{return null;} }
+  function loadJSON(k){ try{ const r=localStorage.getItem(k); return r?JSON.parse(r):null; }catch(_){ return null; } }
   function saveLast(){
     try{
       const prev=loadJSON(STORAGE_LAST);
@@ -388,7 +418,7 @@ Contenu provisoire (gabarit).`);
     }catch(e){ debug('SAVE ERROR: '+e); }
   }
   function rememberAsPrevious(){
-    try{ const cur=loadJSON(STORAGE_LAST); if(cur) localStorage.setItem(STORAGE_PREV, JSON.stringify(cur)); }catch{}
+    try{ const cur=loadJSON(STORAGE_LAST); if(cur) localStorage.setItem(STORAGE_PREV, JSON.stringify(cur)); }catch(_){}
   }
   function restoreLast(){
     try{
@@ -419,5 +449,89 @@ Contenu provisoire (gabarit).`);
     }
   }
 
-  // -------- YouVersion (codes + URL)
-  const YV_BOOK={"Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","
+  // -------- YouVersion
+  const YV_BOOK={"Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des Cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN","Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL","Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"};
+  const YV_VERSION_ID={ 'LSG':'93' };
+  function youVersionURL(book,chapter,verse,version){
+    const code=YV_BOOK[book]||'GEN'; const verId=YV_VERSION_ID[version||'LSG']||'93'; const vtag=(version||'LSG').toUpperCase();
+    return `https://www.bible.com/fr/bible/${verId}/${code}.${chapter||1}.${vtag}`;
+  }
+
+  // ================================
+  //       Améliorations VISUELLES
+  // ================================
+  function injectFontsAndStyle(){
+    safe(()=>{ const l=document.createElement('link'); l.rel='stylesheet';
+      l.href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap';
+      document.head && document.head.appendChild(l);
+    });
+    const css = `
+      :root { --radius: 14px; --shadow: 0 6px 16px rgba(0,0,0,.06); }
+      body { font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      #pointsList .item.card{
+        border:1px solid var(--border); background:#fff; border-radius: var(--radius);
+        padding: 10px 12px; margin: 8px 0; box-shadow: var(--shadow); display:flex; align-items:center; gap:10px;
+        transition: transform .08s ease, box-shadow .2s ease;
+      }
+      #pointsList .item.card:hover{ transform: translateY(-1px); box-shadow: 0 8px 22px rgba(0,0,0,.08); }
+      #pointsList .item.card .idx{
+        width:28px; height:28px; border-radius:999px; display:flex; align-items:center; justify-content:center;
+        background: var(--accent-soft); color: var(--text); font-weight:700; flex: 0 0 auto;
+      }
+      #pointsList .item.card .txt .ttl{ font-weight:700; text-align:left; }
+      #pointsList .item.card.active{ outline: 2px solid var(--accent); }
+      #pointsList .dot{ margin-left:auto; width:10px; height:10px; border-radius:999px; background:#f59e0b; }
+      #pointsList .dot.ok{ background:#22c55e; }
+      /* Prévisualisation riche */
+      #previewArea{
+        margin-top:12px; background:#fff; border:1px solid var(--border); border-radius: var(--radius);
+        padding:18px 20px; box-shadow: var(--shadow); min-height:120px; white-space: normal; overflow-wrap: anywhere;
+      }
+      #previewArea h3{ margin:0 0 8px; text-align:center; font-weight:700; color:#111827; }
+      #previewArea p{ margin: 10px 0; line-height:1.6; }
+      #previewArea strong{ font-weight:700; }
+      #previewArea a.linked-verse{ color:#2563eb; text-decoration: underline; font-weight:600; }
+      #previewArea .ref{ font-weight:700; }
+      #noteArea{
+        font-family: 'Inter', ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+        line-height:1.55;
+      }
+    `;
+    safe(()=>{ const style=document.createElement('style'); style.textContent=css;
+      document.head && document.head.appendChild(style);
+    });
+  }
+
+  function createPreviewPane(){
+    if (!noteArea) return;
+    previewArea = document.createElement('div');
+    previewArea.id = 'previewArea';
+    noteArea.insertAdjacentElement('afterend', previewArea);
+  }
+
+  // Mini-Markdown + liens versets
+  function renderPreview(raw){
+    const html = linkifyVerses( miniMarkdown(raw||'') );
+    if (previewArea) previewArea.innerHTML = html;
+  }
+  function miniMarkdown(text){
+    let t = text.replace(/^###\s*(.+)$/gm, (_m, g1)=>`<h3>${esc(g1)}</h3>`);
+    t = t.replace(/\*\*(.+?)\*\*/g, (_m,g)=>`<strong>${esc(g)}</strong>`);
+    t = t.replace(/\*(.+?)\*/g, (_m,g)=>`<em>${esc(g)}</em>`);
+    t = t.replace(/(\*?Référence\s*:?\*?)/gi, `<span class="ref">$1</span>`);
+    t = t.split(/\n{2,}/).map(block=>{
+      if (block.trim().startsWith('<h3')) return block;
+      return `<p>${block.split('\n').map(esc).join('<br>')}</p>`;
+    }).join('');
+    return t;
+  }
+  function linkifyVerses(html){
+    const books = ORDER_66.map(b=>b.replace(/ /g,'\\s+')).join('|');
+    const re = new RegExp(`\\b(${books})\\s+(\\d+)(?::(\\d+(?:-\\d+)?))?\\b`, 'giu');
+    return html.replace(re, (m, book, chap/*, vers*/)=>{
+      const url = youVersionURL(book, Number(chap)||1, 1, state.version||'LSG');
+      return `<a class="linked-verse" href="${url}" target="_blank" rel="noopener noreferrer">${esc(m)}</a>`;
+    });
+  }
+
+})();
