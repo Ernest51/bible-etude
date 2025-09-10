@@ -1,8 +1,4 @@
-// /api/generate-study.cjs — Vercel Serverless (CommonJS, ultra-robuste)
-// - AUCUNE dépendance à ESM/streams.
-// - GET = smoke test
-// - POST = renvoie TOUJOURS 28 rubriques (respecte length si fournie)
-// - Jamais d'erreur non catchée → pas de 500.
+// /api/generate-study.js — renvoie TOUJOURS 28 rubriques (aucune dépendance externe)
 
 const RUBRICS = {
   1:{title:"Prière d’ouverture",desc:"Invocation du Saint-Esprit pour éclairer l’étude."},
@@ -32,7 +28,7 @@ const RUBRICS = {
   25:{title:"Application pastorale",desc:"Applications pastorales/enseignement."},
   26:{title:"Application personnelle",desc:"Application personnelle engagée."},
   27:{title:"Versets à retenir",desc:"Versets utiles à retenir."},
-  28:{title:"Prière de fin",desc:"Prière de clôture."},
+  28:{title:"Prière de fin",desc:"Prière de clôture."}
 };
 
 const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
@@ -67,42 +63,38 @@ id===28?`Seigneur, scelle cette méditation de ${passage}. Fortifie notre foi et
 }
 
 function send(res, status, obj){
-  res.statusCode = status;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.status(status).setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Cache-Control", "no-store");
-  res.end(JSON.stringify(obj));
+  res.json(obj);
 }
 
-module.exports = async (req, res) => {
-  try{
+export default async function handler(req, res) {
+  try {
     const method = req.method || "GET";
 
     if (method === "GET") {
       return send(res, 200, { ok:true, route:"/api/generate-study", method:"GET", hint:"POST pour générer l’étude." });
     }
-
     if (method !== "POST") {
       return send(res, 405, { error:"Method not allowed" });
     }
 
-    // ⚠️ Ne dépend PAS d'un body parser : utilise defaults si body absent
     let passage = "Genèse 1";
     let per = 1500;
 
+    // body peut être JSON ou vide ; on reste tolérant
     try {
       if (req.body && typeof req.body === "object") {
         const b = req.body;
         if (b.passage) passage = String(b.passage);
         if (b.options && b.options.length) per = clamp(Number(b.options.length), 300, 5000);
       }
-    } catch (_) { /* ignore */ }
+    } catch { /* ignore */ }
 
     const sections = buildSections(passage, per);
     return send(res, 200, { study: { sections } });
-
   } catch (e) {
-    // Dernier filet : ne JAMAIS planter
     const sections = buildSections("Genèse 1", 1500);
     return send(res, 200, { study: { sections }, info:{ emergency:true, err: String(e && e.message || e) } });
   }
-};
+}
