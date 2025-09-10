@@ -4,14 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Méditation</title>
-  <meta name="description" content="Étude biblique — 28 rubriques, zone de saisie, liens cliquables automatiques." />
+  <meta name="description" content="Étude biblique — 28 rubriques, rendu élégant, liens vers YouVersion." />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   <style>
     :root{
-      --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b;
-      --accent:#7c3aed; --accent-soft:#f3e8ff;
-      --link:#2563eb;
+      --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827;
+      --accent:#7c3aed; --accent-soft:#f3e8ff; --ok:#16a34a; --warn:#f59e0b; --link:#2563eb;
     }
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
@@ -19,7 +18,7 @@
     h1{margin:0;font-size:28px;font-weight:800;letter-spacing:.2px;text-align:center}
     main{max-width:1200px;margin:14px auto;padding:0 12px}
 
-    /* Boutons & inputs */
+    /* Inputs & boutons */
     input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%}
     .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
     .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
@@ -46,21 +45,31 @@
     .dot{width:8px;height:8px;border-radius:999px;background:#eab308;margin-left:auto}
     .dot.ok{background:var(--ok)}
 
-    /* Éditeur + Aperçu */
+    /* Éditeur : on n’affiche que l’aperçu */
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
     .ed-title{font-weight:800;flex:1}
-    .ed-body{padding:12px;display:grid;grid-template-columns:1fr;gap:12px}
-    textarea{width:100%;min-height:300px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;white-space:pre-wrap}
+    .ed-body{padding:12px}
+    /* on cache totalement la zone haute (textarea) */
+    .visually-hidden{display:none !important}
 
-    .md-view{border:1px dashed var(--border);background:#fafafa;border-radius:10px;padding:16px;font-family:Spectral,Georgia,serif;line-height:1.65}
-    .md-view h2,.md-view h3{margin:.2em 0 .4em;font-weight:800;text-align:center}
-    .md-view h3{font-size:1.2rem}
-    .md-view p{margin:.6em 0}
+    /* Bloc aperçu (style “zone du bas”) */
+    .md-view{
+      border:1px dashed var(--border);
+      background:#faf5ff;              /* proche de l’aperçu mauve doux */
+      border-radius:10px;
+      padding:24px;
+      font-family:Spectral,Georgia,serif;
+      line-height:1.75;
+      color:#3b0764;                   /* texte mauve foncé */
+    }
+    .md-view h2,.md-view h3{margin:.2em 0 .6em;font-weight:800;text-align:center;color:#5b21b6}
+    .md-view h3{font-size:1.25rem}
+    .md-view p{margin:.75em 0}
+    .md-view em{color:#4c1d95}
     .md-view ul{margin:.6em 0 .6em 1.1em}
     .md-view li{margin:.25em 0}
-    .md-view a{color:var(--link);text-decoration:underline}
-
+    .md-view a{color:#2563eb;text-decoration:underline}
     .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
 
     footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:#64748b;font-size:14px}
@@ -111,14 +120,17 @@
           <button id="prev" class="btn secondary" type="button">◀ Précédent</button>
           <button id="next" class="btn secondary" type="button">Suivant ▶</button>
         </div>
+
         <div class="ed-body">
-          <textarea id="noteArea" placeholder="Écris ici…"></textarea>
-          <!-- Aperçu HTML sûr, liens cliquables -->
+          <!-- textarea conservé pour compatibilité mais totalement masqué -->
+          <textarea id="noteArea" class="visually-hidden"></textarea>
+          <!-- zone d’affichage unique (ce que tu veux garder) -->
           <div id="mdView" class="md-view" aria-live="polite"></div>
         </div>
+
         <div class="ed-foot">
           <span class="small" id="metaInfo">Point — / 28</span>
-          <span class="small">Aperçu en dessous — liens YouVersion cliquables.</span>
+          <span class="small">Liens YouVersion cliquables · rendu typographique soigné.</span>
         </div>
       </section>
     </div>
@@ -133,42 +145,33 @@
     </div>
   </footer>
 
-  <!-- Ton JS applicatif -->
+  <!-- Ton JS applicatif (inchangé) -->
   <script src="/app.js?v=restaure" defer></script>
 
-  <!-- RENDERER Markdown sûr + autolink des références bibliques vers YouVersion -->
+  <!-- Renderer Markdown sûr + autolink références vers YouVersion -->
   <script>
     (function(){
       const YV_BOOK = {"Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des Cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN","Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL","Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"};
       const YV_VER = {"LSG":"93","PDV":"201","S21":"377","BFC":"75"};
-
       const $ = (s)=>document.querySelector(s);
-      const note = $('#noteArea');
+      const note = $('#noteArea');      // (caché mais utilisé par app.js)
       const out  = $('#mdView');
       const versionSel = $('#versionSelect');
 
       function esc(s){ return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
-      // Transforme (Markdown limité) -> HTML sûr
+      // Markdown minimal -> HTML sûr
       function renderMD(md){
         if(!md) return "";
-        // On protège d'abord
         md = md.replace(/\r/g,'');
-        // Liens Markdown [texte](url)
-        md = md.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (m,txt,href)=>{
-          return `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(txt)}</a>`;
-        });
-        // Titres ###
+        md = md.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (m,txt,href)=>`<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(txt)}</a>`);
         md = md.replace(/^###\s*(.+)$/gm, '<h3>$1</h3>');
-        // Gras / italique
         md = md.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
         md = md.replace(/\*([^*]+)\*/g,'<em>$1</em>');
-        // Listes simples
         md = md.replace(/^(?:-\s.+(?:\n|$))+?/gm, block=>{
           const items = block.trim().split('\n').map(l=>l.replace(/^-+\s?/, '').trim()).map(t=>`<li>${t}</li>`).join('');
           return `<ul>${items}</ul>`;
         });
-        // Paragraphes (double saut)
         md = md.split(/\n{2,}/).map(p=>{
           if (/^<h3>/.test(p) || /^<ul>/.test(p)) return p;
           return `<p>${p.replace(/\n/g,'<br>')}</p>`;
@@ -176,20 +179,20 @@
         return md;
       }
 
-      // Auto-lien des références "Livre 12:3-5" vers YouVersion, si pas déjà en Markdown
+      // Références “Livre 1:2-5” -> liens YouVersion (si pas déjà Markdown)
       function autolinkBible(md){
         if(!md) return md;
         const ver = (versionSel?.value || 'LSG').toUpperCase();
         const vid = YV_VER[ver] || '93';
-        // évite de toucher aux références déjà Markdown [..](http..)
-        return md.replace(/(?<!\[)(\b(?:[1-3]\s)?[A-Za-zÀ-ÖØ-öø-ÿÉéÈèÂâÎîÔôÛûÇç\-']+(?:\s(?:des|de|du|d’|d'|la|le|les|aux|au|à))?\s)\s*(\d+)\s*:\s*(\d+(?:[-–]\d+)?)(?!\))/g, (m,bookRaw,chap,vrs)=>{
-          const book = bookRaw.trim().replace(/\s+/g,' ');
-          const code = YV_BOOK[book];
-          if(!code) return m; // inconnu : on laisse tel quel
-          const url = `https://www.bible.com/fr/bible/${vid}/${code}.${chap}.${ver}`;
-          const label = `${book} ${chap}:${vrs}`;
-          return `[${label}](${url})`;
-        });
+        return md.replace(/(?<!\[)(\b(?:[1-3]\s)?[A-Za-zÀ-ÖØ-öø-ÿÉéÈèÂâÎîÔôÛûÇç\-']+(?:\s(?:des|de|du|d’|d'|la|le|les|aux|au|à))?\s)\s*(\d+)\s*:\s*(\d+(?:[-–]\d+)?)(?!\))/g,
+          (m,bookRaw,chap,vrs)=>{
+            const book = bookRaw.trim().replace(/\s+/g,' ');
+            const code = YV_BOOK[book];
+            if(!code) return m;
+            const url = `https://www.bible.com/fr/bible/${vid}/${code}.${chap}.${ver}`;
+            const label = `${book} ${chap}:${vrs}`;
+            return `[${label}](${url})`;
+          });
       }
 
       function updatePreview(){
@@ -200,8 +203,10 @@
 
       document.addEventListener('DOMContentLoaded', ()=>{
         const y=document.getElementById('y'); if(y) y.textContent=new Date().getFullYear();
-        if(note){ note.addEventListener('input', updatePreview); }
         if(versionSel){ versionSel.addEventListener('change', updatePreview); }
+        // Quand app.js remplit le textarea, il déclenche déjà un 'input'.
+        // Par sécurité on écoute quand même.
+        if(note){ note.addEventListener('input', updatePreview); }
         updatePreview();
       });
     })();
