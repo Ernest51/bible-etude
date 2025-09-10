@@ -1,17 +1,33 @@
-/* app.js — Restauration stable
+/* app.js — Restauration stable (fix DOM-ready + fallbacks)
    - Palette 12 couleurs (thème global)
    - Densité 500/1500/2500 liée à options.length (API)
    - 66 livres + chapitres, 28 rubriques, diodes ok/orange
    - Boutons: ChatGPT, Dernière étude (last+prev), Reset (orange + champs neutres)
-   - Correctifs: placeholders <option>, try/catch + debug panel
+   - Correctifs MAJEURS: 
+       (1) Sélecteurs DOM faits APRÈS DOMContentLoaded
+       (2) Fallbacks d’IDs (ex: #generateBtn || #generate)
 */
+
 (function () {
   // -------- Utils
-  const $  = (s)=>document.querySelector(s);
-  const $$ = (s)=>Array.from(document.querySelectorAll(s));
   const esc=(s)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  const debug=(m)=>{ const p=$('#debugPanel'); if(!p) return; p.style.display='block'; p.textContent+=`\n${m}`; };
+
+  // récupère le 1er élément qui existe parmi une liste de sélecteurs
+  const pick = (...selectors) => {
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (el) return el;
+    }
+    return null;
+  };
+
+  const debug=(m)=>{
+    const p=pick('#debugPanel','.debug-panel');
+    if(!p) return;
+    p.style.display='block';
+    p.textContent+=`\n${m}`;
+  };
 
   // -------- Constantes
   const STORAGE_LAST='lastStudy', STORAGE_PREV='prevStudy', STORAGE_DENS='density8', STORAGE_THEME='theme8';
@@ -37,7 +53,7 @@
   const CHAPTERS_66={"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
   const ORDER_66=Object.keys(CHAPTERS_66);
 
-  const TITLES_DEFAULT={1:"Prière d’ouverture",2:"Canon et testament",3:"Questions du chapitre précédent",4:"Titre du chapitre",5:"Contexte historique",6:"Structure littéraire",7:"Genre littéraire",8:"Auteur et généalogie",9:"Verset-clé doctrinal",10:"Analyse exégétique",11:"Analyse lexicale",12:"Références croisées",13:"Fondements théologiques",14:"Thème doctrinal",15:"Fruits spirituels",16:"Types bibliques",17:"Appui doctrinal",18:"Comparaison entre versets",19:"Parallèle avec Actes 2",20:"Verset à mémoriser",21:"Enseignement pour l’Église",22:"Enseignement pour la famille",23:"Enseignement pour enfants",24:"Application missionnaire",25:"Application pastorale",26:"Application personnelle",27:"Versets utiles à retenir",28:"Prière de fin"};
+  const TITLES_DEFAULT={1:"Prière d’ouverture",2:"Canon et testament",3:"Questions du chapitre précédent",4:"Titre du chapitre",5:"Contexte historique",6:"Structure littéraire",7:"Genre littéraire",8:"Auteur et généalogie",9:"Verset-clé doctrinal",10:"Analyse exégétique",11:"Analyse lexicale",12:"Références croisées",13:"Fondements théologiques",14:"Thème doctrinal",15:"Fruits spirituels",16:"Types bibliques",17:"Appui doctrinal",18:"Comparaison entre versets",19:"Parallèle avec Actes 2",20:"Verset à mémoriser",21:"Enseignement pour l’Église",22:"Enseignement pour la famille",23:"Enseignement pour enfants",24:"Application missionnaire",25:"Application pastorale",26:"Application personnelle",27:"Versets à retenir",28:"Prière de fin"};
   const DESCS_DEFAULT={1:"Invocation du Saint-Esprit pour éclairer l’étude.",2:"Appartenance au canon (AT/NT).",3:"Questions à reprendre de l’étude précédente.",4:"Résumé doctrinal synthétique du chapitre.",5:"Période, géopolitique, culture, carte.",6:"Séquençage narratif et composition.",7:"Type de texte : narratif, poétique, prophétique…",8:"Auteur et lien aux patriarches (généalogie).",9:"Verset central du chapitre.",10:"Commentaire exégétique (original si utile).",11:"Mots-clés et portée doctrinale.",12:"Passages parallèles et complémentaires.",13:"Doctrines majeures qui émergent du chapitre.",14:"Correspondance avec les grands thèmes doctrinaux.",15:"Vertus / attitudes visées.",16:"Figures typologiques et symboles.",17:"Passages d’appui concordants.",18:"Comparaison interne des versets.",19:"Parallèle avec Actes 2.",20:"Verset à mémoriser.",21:"Implications pour l’Église.",22:"Applications familiales.",23:"Pédagogie enfants (jeux, récits, symboles).",24:"Applications mission/évangélisation.",25:"Applications pastorales/enseignement.",26:"Application personnelle engagée.",27:"Versets utiles à retenir.",28:"Prière de clôture."};
 
   // -------- État
@@ -49,22 +65,51 @@
   };
   for(let i=0;i<=28;i++) state.leds.set(i,'warn');
 
-  // -------- Éléments
-  const pointsList=$('#pointsList'), edTitle=$('#edTitle'), metaInfo=$('#metaInfo');
-  const searchRef=$('#searchRef'), applyBtn=$('#applySearchBtn')||$('#validate');
-  const bookSelect=$('#bookSelect'), chapterSelect=$('#chapterSelect'), verseSelect=$('#verseSelect'), versionSelect=$('#versionSelect');
-  const densitySelect=$('#densitySelect');
-  const readBtn=$('#readBtn'), generateBtn=$('#generateBtn');
-  const prevBtn=$('#prev'), nextBtn=$('#next');
-  const noteArea=$('#noteArea');
-  const themeBar=$('#themeBar');
-  const chatgptBtn=$('#chatgptBtn'), lastBtn=$('#lastBtn'), resetBtn=$('#resetBtn']);
+  // -------- Références DOM (assignées dans init())
+  let pointsList, edTitle, metaInfo;
+  let searchRef, applyBtn;
+  let bookSelect, chapterSelect, verseSelect, versionSelect;
+  let densitySelect;
+  let readBtn, generateBtn;
+  let prevBtn, nextBtn;
+  let noteArea;
+  let themeBar;
+  let chatgptBtn, lastBtn, resetBtn;
 
   document.addEventListener('DOMContentLoaded', ()=>{
     try{ init(); }catch(e){ debug('INIT ERROR: '+(e?.stack||e)); }
   });
 
   function init(){
+    // --- Requêtes DOM APRÈS que le DOM existe (avec fallbacks)
+    pointsList   = pick('#pointsList','#rubricsList','#items','#list');
+    edTitle      = pick('#edTitle','#title','#rubricTitle');
+    metaInfo     = pick('#metaInfo','#meta','#counter');
+
+    searchRef    = pick('#searchRef','#search','#query','.search-input');
+    applyBtn     = pick('#applySearchBtn','#validate','#btn-validate','.btn-validate');
+
+    bookSelect   = pick('#bookSelect','#book','#livre');
+    chapterSelect= pick('#chapterSelect','#chapter','#chapitre');
+    verseSelect  = pick('#verseSelect','#verse','#verset');
+    versionSelect= pick('#versionSelect','#version','#bibleVersion');
+
+    densitySelect= pick('#densitySelect','#density','#length','#chars');
+
+    readBtn      = pick('#readBtn','#read','#btn-read','#lire');
+    generateBtn  = pick('#generateBtn','#generate','#btn-generate');
+
+    prevBtn      = pick('#prev','#prevBtn','#previous');
+    nextBtn      = pick('#next','#nextBtn','#suivant');
+
+    noteArea     = pick('#noteArea','#editor','#content','textarea');
+
+    themeBar     = pick('#themeBar','#themes','#couleurs');
+
+    chatgptBtn   = pick('#chatgptBtn','#btnChatgpt','#chatgpt');
+    lastBtn      = pick('#lastBtn','#last','#dernier','#btn-last');
+    resetBtn     = pick('#resetBtn','#reset','#btn-reset');
+
     ensureListScroll();
     ensureSelectPlaceholders();
     setupDensitySelector();
@@ -72,6 +117,7 @@
     restoreLast();
 
     wireEvents();
+
     if (state.book){
       fillBooks(); fillChapters(); fillVerses();
       if (bookSelect)   bookSelect.value=state.book;
@@ -87,11 +133,11 @@
     initThemeBar();
   }
 
-  // -------- Thème (micro-patch robuste)
+  // -------- Thème
   function setTheme(name){
     const v = THEME_VARS[name] || THEME_VARS.cyan;
-
     const apply = (el) => {
+      if(!el) return;
       el.style.setProperty('--bg', v.bg);
       el.style.setProperty('--panel', '#fff');
       el.style.setProperty('--text', v.text);
@@ -100,10 +146,8 @@
       el.style.setProperty('--accent-soft', 'rgba(0,0,0,.04)');
       el.setAttribute('data-theme', name);
     };
-
     apply(document.documentElement);
     apply(document.body);
-
     try { localStorage.setItem(STORAGE_THEME, name); } catch {}
   }
   function restoreTheme(){ try{ setTheme(localStorage.getItem(STORAGE_THEME)||'cyan'); }catch{ setTheme('cyan'); } }
@@ -146,6 +190,7 @@
   function wireEvents(){
     applyBtn && applyBtn.addEventListener('click', applySearch);
     searchRef && searchRef.addEventListener('keydown', e=>{ if(e.key==='Enter') applySearch(); });
+
     bookSelect && bookSelect.addEventListener('change', ()=>{
       rememberAsPrevious();
       state.book=bookSelect.value||'';
@@ -153,16 +198,19 @@
       else { clearChaptersAndVerses(); }
       saveLast(); rerender();
     });
+
     chapterSelect && chapterSelect.addEventListener('change', ()=>{
       const max=CHAPTERS_66[state.book]||1;
       const n=parseInt(chapterSelect.value,10);
       if (Number.isFinite(n)){ state.chapter=clamp(n,1,max); chapterSelect.value=String(state.chapter); }
       fillVerses(); saveLast(); rerender();
     });
+
     verseSelect && verseSelect.addEventListener('change', ()=>{
       const v=parseInt(verseSelect.value,10);
       state.verse=Number.isFinite(v)?v:1; saveLast();
     });
+
     versionSelect && versionSelect.addEventListener('change', ()=>{
       state.version=versionSelect.value||'LSG'; saveLast();
     });
@@ -171,6 +219,7 @@
       if(!state.book) return;
       window.open(youVersionURL(state.book,state.chapter||1,state.verse||1,state.version),'_blank','noopener,noreferrer');
     });
+
     generateBtn && generateBtn.addEventListener('click', onGenerate);
 
     prevBtn && prevBtn.addEventListener('click', ()=>goTo(state.currentIdx-1));
@@ -181,7 +230,7 @@
     resetBtn && resetBtn.addEventListener('click', onResetTotal);
   }
 
-  // -------- Sélecteurs / Recherche (placeholders corrects)
+  // -------- Sélecteurs / Recherche
   function ensureSelectPlaceholders(){
     [bookSelect,chapterSelect,verseSelect].forEach(sel=>{
       if(!sel) return;
@@ -276,11 +325,14 @@
     li.addEventListener('click', ()=>goTo(idx));
     return li;
   }
-  function highlightActive(){ $$('#pointsList .item').forEach(el=>el.classList.toggle('active', Number(el.dataset.idx)===state.currentIdx)); }
+  function highlightActive(){
+    const list = document.querySelectorAll('#pointsList .item, #rubricsList .item, #items .item, #list .item');
+    list.forEach(el=>el.classList.toggle('active', Number(el.dataset.idx)===state.currentIdx));
+  }
   function goTo(idx){ if(idx<0) idx=0; if(idx>28) idx=28; state.currentIdx=idx; updateHeader(); renderSection(idx); highlightActive(); }
   function updateHeader(){ if(!edTitle||!metaInfo) return; edTitle.textContent=state.currentIdx===0?TITLE0:getTitle(state.currentIdx); metaInfo.textContent=`Point ${state.currentIdx} / 28`; }
   function rerender(){ renderPointsList(); renderSection(state.currentIdx); updateHeader(); }
-  function ensureListScroll(){ const pl=$('#pointsList'); if(!pl) return; pl.style.overflowY='auto'; if(!pl.style.maxHeight) pl.style.maxHeight='calc(100vh - 220px)'; }
+  function ensureListScroll(){ const pl=pointsList||pick('#pointsList','#rubricsList'); if(!pl) return; pl.style.overflowY='auto'; if(!pl.style.maxHeight) pl.style.maxHeight='calc(100vh - 220px)'; }
 
   // -------- Rendu section (textarea)
   function renderSection(n){
@@ -303,7 +355,7 @@ Clique sur **Générer** pour charger chaque verset avec explications.`;
 À générer…`;
   }
 
-  // -------- Génération (micro-patch garde-fou sur bouton)
+  // -------- Génération
   async function onGenerate(){
     if (!state.book){ alert('Choisis un livre (et chapitre) avant de générer.'); return; }
     if (!generateBtn) { console.warn('generateBtn manquant'); return; }
