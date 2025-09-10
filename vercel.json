@@ -1,6 +1,3 @@
 {
-  "version": 2,
-  "routes": [
-    { "src": "^/api/generate-study$", "dest": "/api/ping.js" }
-  ]
+  "version": 2
 }
