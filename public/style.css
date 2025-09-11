@@ -1,0 +1,112 @@
+/* -------------------- Police globale -------------------- */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background: #f9fafb;
+  color: #1f2937;
+  margin: 0;
+  padding: 0;
+}
+
+/* -------------------- Titres principaux -------------------- */
+h1, h2, h3 {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700;
+  text-align: center; /* centrage systématique */
+  margin: 1rem 0;
+  color: #111827;
+}
+
+/* -------------------- Rubriques (liste de gauche) -------------------- */
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 30px; /* bel arrondi */
+  margin: 6px 0;
+  transition: background 0.2s ease;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: #f3f4f6;
+}
+
+.item.active {
+  background: #e0f2fe; /* bleu clair */
+  font-weight: 600;
+}
+
+.item .idx {
+  font-weight: bold;
+  color: #2563eb;
+}
+
+.item .title {
+  font-size: 15px;
+}
+
+.item .subtitle {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* diode (verte/orange) */
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-left: auto;
+  background: orange;
+}
+
+.dot.ok {
+  background: #22c55e; /* vert */
+}
+
+/* -------------------- Éditeur -------------------- */
+#edTitle {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+  margin: 1rem 0;
+  color: #0f172a;
+}
+
+#edMeta {
+  text-align: center;
+  font-size: 14px;
+  color: #64748b;
+  margin-bottom: 1rem;
+}
+
+#preview {
+  background: #fff;
+  padding: 20px;
+  border-radius: 20px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  line-height: 1.6;
+}
+
+/* -------------------- Rubrique 0 (verset par verset) -------------------- */
+.pv-item {
+  background: #fff;
+  border-radius: 20px;
+  padding: 16px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.pv-item .vtitle {
+  font-weight: 600;
+  font-size: 15px;
+  color: #1e40af;
+}
+
+.pv-item .vbody {
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
