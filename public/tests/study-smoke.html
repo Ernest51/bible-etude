@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Test — Étude 1–28</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:18px;line-height:1.6}
+    h1{margin:0 0 10px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0}
+    input,select,button{padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px}
+    button{cursor:pointer}
+    .ok{color:#16a34a;font-weight:700}
+    .ko{color:#b91c1c;font-weight:700}
+    .warn{color:#eab308;font-weight:700}
+    .box{border:1px solid #e2e8f0;border-radius:12px;padding:12px;margin-top:12px;background:#fff}
+    code{background:#f1f5f9;padding:2px 6px;border-radius:6px}
+    .list{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}
+    .item{border:1px solid #e2e8f0;border-radius:10px;padding:10px}
+  </style>
+</head>
+<body>
+  <h1>Test — Étude 1–28</h1>
+  <p>Vérifie <code>/api/generate-study</code> : 28 rubriques, champs attendus (<code>id,title,description,content</code>), et sensibilité à la densité (500/1500/2500).</p>
+
+  <div class="row">
+    <label>Passage : <input id="passage" value="Genèse 1" style="width:160px"></label>
+    <label>Densité :
+      <select id="density">
+        <option value="500">500</option>
+        <option value="1500" selected>1500</option>
+        <option value="2500">2500</option>
+      </select>
+    </label>
+    <button id="run">Lancer le test</button>
+  </div>
+
+  <div id="out" class="box"></div>
+  <div id="list" class="list"></div>
+
+  <script>
+    const out = document.getElementById('out');
+    const list = document.getElementById('list');
+    function setOut(html){ out.innerHTML = html; }
+    function item(html){ const d=document.createElement('div'); d.className='item'; d.innerHTML=html; list.appendChild(d); }
+
+    async function run(){
+      list.innerHTML = '';
+      setOut('<span class="muted">Test en cours…</span>');
+
+      const passage = document.getElementById('passage').value.trim() || 'Genèse 1';
+      const density = parseInt(document.getElementById('density').value, 10) || 1500;
+
+      try{
+        const r = await fetch('/api/generate-study', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ passage, options:{ length: density } })
+        });
+        const ct = (r.headers.get('content-type')||'').toLowerCase();
+        const text = await r.text();
+        if (!ct.includes('application/json')) throw new Error('Réponse non-JSON\n\n' + text.slice(0,300));
+        const data = JSON.parse(text);
+
+        const sections = data?.study?.sections || [];
+        if (!Array.isArray(sections)) {
+          setOut(`<span class="ko">❌ KO — Schéma inattendu</span><br><code>${text.slice(0,600)}</code>`);
+          return;
+        }
+        if (sections.length !== 28) {
+          setOut(`<span class="ko">❌ KO — sections.length = ${sections.length} (au lieu de 28)</span>`);
+          return;
+        }
+
+        // check champs + un peu de contenu
+        const bad = [];
+        sections.forEach((s,i)=>{
+          if (typeof s.id === 'undefined') bad.push(`id manquant (#${i+1})`);
+          if (typeof s.title !== 'string') bad.push(`title invalide (#${i+1})`);
+          if (typeof s.description !== 'string') bad.push(`description invalide (#${i+1})`);
+          if (typeof s.content !== 'string') bad.push(`content invalide (#${i+1})`);
+        });
+        if (bad.length){
+          setOut(`<span class="warn">⚠️ 28 sections mais anomalies de schéma</span><br>${bad.map(x=>`• ${x}`).join('<br>')}`);
+        } else {
+          setOut(`<span class="ok">✅ OK — 28 rubriques générées (passage: ${passage}, densité: ${density})</span>`);
+        }
+
+        // aperçu : 3 premières rubriques
+        sections.slice(0,3).forEach(s => {
+          item(`<div><strong>#${s.id} — ${s.title}</strong></div>
+                <div class="muted">${s.description || '(sans description)'}</div>
+                <div style="white-space:pre-wrap">${s.content.slice(0,300)}${s.content.length>300?'…':''}</div>`);
+        });
+
+        // test densité “grossier” : renvoie combien de caractères total
+        const total = sections.reduce((acc,s)=>acc + (s.content||'').length, 0);
+        item(`<div><strong>Info densité</strong><br>Longueur totale (approx.): <code>${total.toLocaleString('fr-FR')} caractères</code></div>`);
+
+      } catch (e) {
+        setOut(`<span class="ko">❌ Erreur: ${e.message}</span>`);
+      }
+    }
+
+    document.getElementById('run').addEventListener('click', run);
+    run();
+  </script>
+</body>
+</html>
