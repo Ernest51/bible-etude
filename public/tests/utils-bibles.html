@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Test — /api/utils?action=bibles&lang=fra</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:20px;line-height:1.5}
+    button{padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;cursor:pointer}
+    pre{white-space:pre-wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px}
+    .card{border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px 0}
+  </style>
+</head>
+<body>
+  <h1>Test — Bibles (lang=fra)</h1>
+  <p>Liste les Bibles FR depuis api.bible pour choisir un <code>API_BIBLE_ID</code>.</p>
+  <button id="run">Lister</button>
+  <div id="out" style="margin-top:16px"></div>
+
+  <script>
+    async function run(){
+      const out = document.getElementById('out');
+      out.innerHTML = 'Requête…';
+      try{
+        const r = await fetch('/api/utils?action=bibles&lang=fra');
+        const data = await r.json();
+        const arr = data?.data || [];
+        out.innerHTML = arr.map(b => `
+          <div class="card">
+            <strong>${b.nameLong || b.name}</strong><br/>
+            ID: <code>${b.id}</code><br/>
+            Abréviation: ${b.abbreviation || '—'}
+          </div>
+        `).join('') || '<p>Aucune Bible listée (clé absente ?)</p>';
+      }catch(e){
+        out.innerHTML = `<pre>${e.message}</pre>`;
+      }
+    }
+    document.getElementById('run').addEventListener('click', run);
+  </script>
+</body>
+</html>
