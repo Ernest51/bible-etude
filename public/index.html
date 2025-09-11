@@ -66,8 +66,8 @@
 
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center}
-    .ed-title{font-weight:800;flex:1}
-    .ed-meta{color:var(--muted);font-size:12px}
+    .ed-title{display:none} /* masque le titre doublon dans la barre */
+    .ed-meta{color:var(--muted);font-size:12px;margin-left:auto}
     .ed-body{padding:12px}
 
     /* Zone de réponse – UNE SEULE, belle et lisible */
@@ -96,7 +96,7 @@
     .preview a, .verse-link{color:var(--link) !important; text-decoration: underline !important;}
     .preview .label{font-weight:700} /* ex: Référence : */
 
-    /* Rubrique 0 (inchangée) */
+    /* Rubrique 0 (étude verset par verset) */
     .per-verse{display:flex;flex-direction:column;gap:12px}
     .pv-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .pv-grid{display:grid;grid-template-columns:1fr;gap:10px}
