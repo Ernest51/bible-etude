@@ -5,31 +5,43 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bible Étude — Générateur 28 rubriques</title>
   <meta name="description" content="Étude biblique — 28 rubriques, diodes vertes si contenu, Reset remet à orange." />
+  <!-- Polices -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Playfair+Display:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap" rel="stylesheet" />
   <style>
     :root{
-      /* Thème clair par défaut (sera écrasé par la palette via JS) */
+      /* Teinte primaire (modifiée par la palette) */
       --primary-h: 221; --primary-s: 84%; --primary-l: 46%;
-      --bg: hsl(var(--primary-h) 60% 97%);
-      --panel:#ffffff; --panel-2:hsl(var(--primary-h) 55% 96%);
-      --text:#0f172a; --muted:#475569;
-      --border:hsl(var(--primary-h) 30% 86%);
-      --ok:#16a34a; --warn:#eab308;
       --primary: hsl(var(--primary-h) var(--primary-s) var(--primary-l));
+
+      /* Couleurs dérivées (MAJ dynamiquement) */
+      --bg: hsl(var(--primary-h) 60% 97%);
+      --panel: #ffffff;
+      --panel-2: hsl(var(--primary-h) 55% 96%);
+      --text: #0f172a;
+      --muted: #475569;
+      --border: hsl(var(--primary-h) 30% 86%);
+      --ok: #16a34a;
+      --warn: #eab308;
       --active: hsl(var(--primary-h) 100% 90%);
       --hover:  hsl(var(--primary-h) 90% 95%);
     }
     *{box-sizing:border-box}
-    html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    html,body{
+      margin:0;background:var(--bg);color:var(--text);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
     header{position:sticky;top:0;z-index:10;background:#fff;padding:14px 18px;border-bottom:1px solid var(--border)}
     h1{margin:0;font-size:22px;font-weight:800;text-align:center}
     main{max-width:1100px;margin:18px auto;padding:0 12px}
     .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;align-items:center}
     label{display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 10px}
-    select,input,button{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--panel-2);color:var(--text)}
+    select,input,button,.btn{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--panel-2);color:var(--text);text-decoration:none;display:inline-flex;align-items:center;gap:6px}
     input,select{min-width:120px}
     input#search{min-width:260px}
-    button{cursor:pointer;transition:transform .04s ease}
-    .btn{background:var(--primary);color:#fff;border:1px solid var(--primary)}
+    .btn{cursor:pointer;transition:transform .04s ease}
+    .btn.primary{background:var(--primary);color:#fff;border:1px solid var(--primary)}
     .btn.secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--border)}
     .btn:active{transform:translateY(1px)}
     .hint{color:var(--muted);font-size:13px;margin:6px 0}
@@ -37,7 +49,6 @@
     /* Palette de couleurs */
     .palette{display:flex;gap:8px;align-items:center;margin:8px 0 12px 0}
     .swatch{width:22px;height:22px;border-radius:50%;border:1px solid #e2e8f0;cursor:pointer;box-shadow:0 0 0 2px #fff inset}
-    .swatch:focus-visible{outline:2px solid var(--primary)}
     .swatch[data-active="1"]{outline:2px solid var(--primary)}
 
     .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
@@ -60,7 +71,21 @@
     .ed-title{font-weight:800;flex:1}
     .ed-meta{color:var(--muted);font-size:12px}
     .ed-body{padding:12px}
-    textarea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;line-height:1.6;white-space:pre-wrap;background:var(--panel-2);color:var(--text)}
+    /* Titre de rubrique centré + belle police */
+    .section-title{
+      font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+      font-weight:700; text-align:center; margin:4px 0 6px 0; font-size:22px;
+    }
+    .section-desc{
+      text-align:center; color:var(--muted); margin:0 0 10px 0; font-size:14px;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    /* Zone de réponse avec une police élégante et très lisible */
+    textarea{
+      width:100%;min-height:420px;resize:vertical;border:1px solid var(--border);border-radius:10px;
+      padding:14px;line-height:1.7;white-space:pre-wrap;background:var(--panel-2);color:var(--text);
+      font-family: "Source Serif 4", Georgia, "Times New Roman", serif; font-size:16px;
+    }
     code{background:var(--panel-2);border:1px solid var(--border);padding:2px 6px;border-radius:6px}
   </style>
 </head>
@@ -72,7 +97,8 @@
         <input id="search" placeholder="ex: luc  |  marc 3:2  |  1 jean 4" />
       </label>
       <button id="btn-validate" class="btn secondary" type="button" title="Appliquer la recherche">Valider</button>
-      <button id="btn-bible" class="btn secondary" type="button" title="Ouvrir dans YouVersion">Bible</button>
+      <!-- Lien (pas un button) pour éviter les bloqueurs de pop-up -->
+      <a id="btn-bible" class="btn secondary" href="#" target="_blank" rel="noopener" title="Ouvrir dans YouVersion">Bible</a>
       <label>Livre
         <select id="book"></select>
       </label>
@@ -89,12 +115,11 @@
           <option value="2500">2500</option>
         </select>
       </label>
-      <button id="btn-generate" class="btn" type="button">Générer</button>
+      <button id="btn-generate" class="btn primary" type="button">Générer</button>
       <button id="btn-reset" class="btn secondary" type="button">Reset</button>
     </div>
 
     <div class="palette" id="palette" aria-label="Palette de couleurs (12 choix)">
-      <!-- Couleurs couvrant le cercle chromatique -->
       <div class="swatch" data-h="0"   data-s="80%" data-l="45%" style="background:hsl(0 80% 45%)"   title="Rouge"></div>
       <div class="swatch" data-h="20"  data-s="85%" data-l="45%" style="background:hsl(20 85% 45%)"  title="Orange"></div>
       <div class="swatch" data-h="35"  data-s="90%" data-l="45%" style="background:hsl(35 90% 45%)"  title="Or"></div>
@@ -126,6 +151,8 @@
           <div class="ed-meta" id="edMeta">Point — / 28</div>
         </div>
         <div class="ed-body">
+          <h2 id="sectionTitle" class="section-title">—</h2>
+          <p id="sectionDesc" class="section-desc"></p>
           <textarea id="editor" placeholder="Contenu de la rubrique…"></textarea>
         </div>
       </section>
