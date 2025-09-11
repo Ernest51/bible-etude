@@ -1,4 +1,4 @@
-/* app.js — Palette réactive, lien YouVersion fiable, titres centrés+descriptions, polices OK */
+/* app.js — Rubrique 0 (verset par verset) + liens bleus soulignés + YouVersion + palette + typographies */
 (function () {
   /* ====== Livres & YouVersion ====== */
   const CHAPTERS_66 = {
@@ -96,39 +96,40 @@
   const store = { get:k=>{ try{return JSON.parse(localStorage.getItem(k)||'null');}catch{return null;} }, set:(k,v)=>{ try{localStorage.setItem(k,JSON.stringify(v));}catch{} } };
 
   /* ====== State ====== */
+  // id=0 : rubrique spéciale (étude verset par verset)
   const state = {
     book: 'Genèse',
     chapter: 1,
     verse: '',
     density: 1500,
-    sections: Array.from({ length: 28 }, (_, i) => ({ id:i+1, title:`Rubrique ${i+1}`, description:'', content:'' })),
-    current: 1
+    sections: [{ id:0, title:'Rubrique 0', description:'étude verset par verset', content:'' }]
+      .concat(Array.from({ length: 28 }, (_, i) => ({ id:i+1, title:`Rubrique ${i+1}`, description:'', content:'' }))),
+    current: 0
   };
 
   /* ====== DOM ====== */
-  let listEl, edTitle, edMeta, editor, bookEl, chapEl, verseEl, densEl, genBtn, resetBtn, searchEl, validateBtn, bibleLink, paletteEl, sectionTitleEl, sectionDescEl;
+  let listEl, edTitle, edMeta, editor, bookEl, chapEl, verseEl, densEl, genBtn, resetBtn, searchEl, validateBtn, bibleLink, paletteEl, sectionTitleEl, sectionDescEl, previewEl, pvWrap, pvCountEl, pvGrid, pvBtn;
 
   document.addEventListener('DOMContentLoaded', init);
 
   function init(){
     listEl = $('#list'); edTitle=$('#edTitle'); edMeta=$('#edMeta');
-    editor=$('#editor'); sectionTitleEl=$('#sectionTitle'); sectionDescEl=$('#sectionDesc');
+    editor=$('#editor'); sectionTitleEl=$('#sectionTitle'); sectionDescEl=$('#sectionDesc'); previewEl=$('#preview');
     bookEl=$('#book'); chapEl=$('#chapter'); verseEl=$('#verse'); densEl=$('#density');
     genBtn=$('#btn-generate'); resetBtn=$('#btn-reset'); searchEl=$('#search');
     validateBtn=$('#btn-validate'); bibleLink=$('#btn-bible'); paletteEl=$('#palette');
+    pvWrap = $('#pv'); pvCountEl = $('#pv-count'); pvGrid = $('#pv-grid'); pvBtn = $('#pv-generate');
 
     fillBooks(); fillChapters();
 
-    // Palette: restaurer et initialiser
+    // Palette: restaurer/initialiser
     const saved = store.get('palette');
     if (saved && typeof saved.h==='number') {
       applyTheme(saved.h, saved.s||'84%', saved.l||'46%');
-      // marquer active
       paletteEl.querySelectorAll('.swatch').forEach(sw=>{
         if (Number(sw.dataset.h)===saved.h) sw.setAttribute('data-active','1'); else sw.removeAttribute('data-active');
       });
     } else {
-      // appliquer la swatch par défaut (data-active="1")
       const def = paletteEl.querySelector('.swatch[data-active="1"]');
       if (def) applyTheme(Number(def.dataset.h), def.dataset.s, def.dataset.l);
     }
@@ -137,11 +138,7 @@
     searchEl.addEventListener('keydown', (e)=>{ if (e.key==='Enter') { e.preventDefault(); onValidate(); } });
     validateBtn.addEventListener('click', onValidate);
 
-    bibleLink.addEventListener('click', (e)=>{
-      // S'assure que le href est à jour
-      updateBibleHref();
-      // pas d'e.preventDefault → comportement lien normal (ouvre un onglet)
-    });
+    bibleLink.addEventListener('click', ()=> updateBibleHref());
 
     bookEl.addEventListener('change', ()=>{
       state.book = bookEl.value; state.chapter = 1; state.verse = '';
@@ -161,7 +158,7 @@
     resetBtn.addEventListener('click', onReset);
     editor.addEventListener('input', ()=>{
       const s = sectionById(state.current); if (!s) return;
-      s.content = editor.value; updateDot(state.current);
+      s.content = editor.value; updateDot(state.current); renderPreview();
     });
 
     // Palette
@@ -170,10 +167,12 @@
         paletteEl.querySelectorAll('.swatch').forEach(x=>x.removeAttribute('data-active'));
         sw.setAttribute('data-active','1');
         const h = Number(sw.dataset.h), s = sw.dataset.s || '84%', l = sw.dataset.l || '46%';
-        applyTheme(h, s, l);
-        store.set('palette', { h, s, l });
+        applyTheme(h, s, l); store.set('palette', { h, s, l });
       });
     });
+
+    // Rubrique 0
+    pvBtn.addEventListener('click', generatePerVerse);
 
     renderList(); renderEditor(); renderEditorMeta(); updateBibleHref();
   }
@@ -211,18 +210,16 @@
     renderEditorMeta(); updateBibleHref();
   }
 
-  /* ====== YouVersion (lien fiable) ====== */
-  function buildYouVersionHref(){
-    const code = YV_BOOK[state.book] || 'GEN';
+  /* ====== YouVersion (lien) ====== */
+  function buildYouVersionHref(b=state.book, c=state.chapter, v=state.verse){
+    const code = YV_BOOK[b] || 'GEN';
     const verId = YV_VERSION_ID['LSG'] || '93';
-    const chap = state.chapter || 1;
-    const anchor = state.verse ? ('#v'+state.verse) : '';
-    return `https://www.bible.com/fr/bible/${verId}/${code}.${chap}.LSG${anchor}`;
+    const anchor = v ? ('#v'+v) : '';
+    return `https://www.bible.com/fr/bible/${verId}/${code}.${c}.LSG${anchor}`;
   }
   function updateBibleHref(){
-    const href = buildYouVersionHref();
     const a = $('#btn-bible');
-    if (a) a.href = href;
+    if (a) a.href = buildYouVersionHref();
   }
 
   /* ====== Sélecteurs Livre/Chapitre ====== */
@@ -251,9 +248,12 @@
     for (const s of state.sections) {
       const row = document.createElement('div'); row.className='item'; row.dataset.id=s.id;
       const idx = document.createElement('div'); idx.className='idx'; idx.textContent=String(s.id);
-      const title = document.createElement('div'); title.className='title'; title.textContent=s.title || `Rubrique ${s.id}`;
+      const titleWrap = document.createElement('div'); titleWrap.style.display='flex'; titleWrap.style.flexDirection='column'; titleWrap.style.flex='1';
+      const title = document.createElement('div'); title.className='title'; title.textContent=(s.id===0? 'Rubrique 0' : (s.title || `Rubrique ${s.id}`));
+      titleWrap.appendChild(title);
+      if (s.id===0) { const sub=document.createElement('div'); sub.className='subtitle'; sub.textContent='étude verset par verset'; titleWrap.appendChild(sub); }
       const dot = document.createElement('div'); dot.className='dot'+(s.content && s.content.trim() ? ' ok':'');
-      row.appendChild(idx); row.appendChild(title); row.appendChild(dot);
+      row.appendChild(idx); row.appendChild(titleWrap); row.appendChild(dot);
       row.addEventListener('click', ()=>{ state.current=s.id; renderEditor(); highlightActive(); });
       listEl.appendChild(row);
     }
@@ -264,15 +264,38 @@
   }
   function renderEditor(){
     const s = sectionById(state.current);
-    $('#edTitle').textContent = s ? (s.title || `Rubrique ${state.current}`) : '—';
-    // Titre centré + description sous le titre
+    $('#edTitle').textContent = s ? (s.id===0 ? 'Rubrique 0 — Étude verset par verset' : (s.title || `Rubrique ${state.current}`)) : '—';
+
+    // Mode rubrique 0 (affiche le bloc per-verse et masque l’éditeur classique)
+    if (s && s.id===0) {
+      sectionTitleEl.style.display='none';
+      sectionDescEl.style.display='none';
+      editor.style.display='none';
+      previewEl.style.display='none';
+      pvWrap.style.display='flex';
+      // propose par défaut un nombre de versets plausible si vide
+      if (!pvCountEl.value) pvCountEl.value = 31;
+      // si déjà généré, on laisse intact ; sinon on peut auto-générer
+      if (!pvGrid.children.length) generatePerVerse();
+      renderEditorMeta();
+      return;
+    }
+
+    // Mode 1..28
+    pvWrap.style.display='none';
+    sectionTitleEl.style.display='block';
+    sectionDescEl.style.display='block';
+    editor.style.display='block';
+    previewEl.style.display='block';
+
     sectionTitleEl.textContent = s ? (s.title || `Rubrique ${state.current}`) : '—';
     sectionDescEl.textContent  = s ? (s.description || '') : '';
     editor.value = s ? (s.content || '') : '';
+    renderPreview();
     renderEditorMeta();
   }
   function renderEditorMeta(){
-    $('#edMeta').textContent = `Point ${state.current} / 28 — ${state.book} ${state.chapter}${state.verse? ':'+state.verse:''}`;
+    $('#edMeta').textContent = `Point ${state.current} — ${state.book} ${state.chapter}${state.verse? ':'+state.verse:''}`;
   }
   function updateDot(id){
     const row = listEl.querySelector(`.item[data-id="${id}"]`);
@@ -280,6 +303,20 @@
     const dot = row.querySelector('.dot');
     const s = sectionById(id);
     if (s && s.content && s.content.trim()) dot.classList.add('ok'); else dot.classList.remove('ok');
+  }
+
+  /* ====== Preview (liens bleus soulignés) ====== */
+  // Transforme [Texte](https://...) en lien cliquable
+  function linkifyMarkdown(md){
+    if (!md) return '';
+    const safe = (md+'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return safe.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_m, txt, href) =>
+      `<a href="${href}" target="_blank" rel="noopener" class="verse-link">${txt}</a>`
+    ).replace(/\n/g,'<br/>');
+  }
+  function renderPreview(){
+    const s = sectionById(state.current);
+    previewEl.innerHTML = linkifyMarkdown(s?.content || '');
   }
 
   /* ====== API ====== */
@@ -296,13 +333,18 @@
       const data = await r.json();
       const sections = data?.study?.sections;
       if (!Array.isArray(sections) || sections.length !== 28) throw new Error('sections.length != 28');
-      state.sections = sections.map((s,i)=>({
+      // On préserve la rubrique 0 en tête
+      const head = state.sections[0];
+      state.sections = [head].concat(sections.map((s,i)=>({
         id:Number(s.id)||i+1,
         title:s.title||`Rubrique ${i+1}`,
-        description: String(s.description||''),
+        description:String(s.description||''),
         content:String(s.content||'')
-      }));
-      renderList(); renderEditor();
+      })));
+      renderList();
+      // si on n’est pas sur la 0, afficher la rubrique 1
+      if (state.current!==0) state.current = 1;
+      renderEditor();
       try { localStorage.setItem('Dernière étude', JSON.stringify({ passage, density, ts: new Date().toISOString() })); } catch {}
     } catch (e){
       alert('Erreur : ' + e.message);
@@ -313,7 +355,8 @@
 
   function onReset(){
     // diodes → orange, champs remis, “Dernière étude” conservée
-    state.sections = state.sections.map(s=>({ ...s, content:'' }));
+    const head = state.sections[0];
+    state.sections = [head].concat(state.sections.slice(1).map(s=>({ ...s, content:'' })));
     document.querySelectorAll('.dot').forEach(d=>d.classList.remove('ok'));
 
     // Champs
@@ -323,8 +366,38 @@
     verseEl.value=''; state.verse='';
     densEl.value='1500'; state.density=1500;
 
-    state.current=1;
+    // Rubrique 0 nettoyée
+    pvGrid.innerHTML = '';
+    pvCountEl.value = 31;
+
+    state.current=0;
     renderList(); renderEditor(); updateBibleHref();
+  }
+
+  /* ====== Rubrique 0 — Étude verset par verset ====== */
+  function generatePerVerse(){
+    const n = clamp(parseInt(pvCountEl.value,10)||1, 1, 200);
+    pvCountEl.value = String(n);
+    pvGrid.innerHTML = '';
+    for (let v=1; v<=n; v++){
+      const url = buildYouVersionHref(state.book, state.chapter, v);
+      const item = document.createElement('div'); item.className='pv-item';
+      const head = document.createElement('div'); head.className='vhead';
+      const title = document.createElement('div'); title.className='vtitle'; title.textContent = `${state.book} ${state.chapter}:${v}`;
+      const link = document.createElement('a'); link.href=url; link.target='_blank'; link.rel='noopener'; link.className='verse-link'; link.textContent='Ouvrir sur YouVersion';
+      head.appendChild(title); head.appendChild(link);
+      const body = document.createElement('div'); body.className='vbody';
+      // Explication systématique (modèle simple)
+      body.innerHTML = [
+        `<strong>Observation</strong> — Note le mouvement du texte et les mots-clés.`,
+        `<strong>Contexte</strong> — Situe ce verset dans ${state.book} ${state.chapter}.`,
+        `<strong>Doctrine</strong> — Quelle vérité sur Dieu ou l’humain ressort ?`,
+        `<strong>Lien canonique</strong> — Où retrouve-t-on ce thème ailleurs ?`,
+        `<strong>Application</strong> — Une réponse concrète aujourd’hui.`
+      ].join(' ');
+      item.appendChild(head); item.appendChild(body);
+      pvGrid.appendChild(item);
+    }
   }
 
   /* ====== Thème (palette) ====== */
@@ -333,13 +406,12 @@
     root.setProperty('--primary-h', String(h));
     root.setProperty('--primary-s', String(s));
     root.setProperty('--primary-l', String(l));
-    // Met à jour toutes les surfaces liées à la teinte
     root.setProperty('--bg', `hsl(${h} 60% 97%)`);
     root.setProperty('--panel', `#ffffff`);
     root.setProperty('--panel-2', `hsl(${h} 55% 96%)`);
     root.setProperty('--border', `hsl(${h} 30% 86%)`);
     root.setProperty('--active', `hsl(${h} 100% 90%)`);
     root.setProperty('--hover', `hsl(${h} 90% 95%)`);
-    // le bouton .primary dépend de --primary (automatique car basé sur h/s/l)
+    // liens héritent de --link (bleu constant pour cohérence lisibilité)
   }
 })();
