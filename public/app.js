@@ -366,7 +366,7 @@
     }
 
     pvGrid.innerHTML = '';
-    for (const { v, text } of verses.slice(0, nWant)) {
+    for (const { v, text, noteHTML } of verses.slice(0, nWant)) {
       const ref = `${book} ${chapter}:${v}`;
       const url = buildYouVersionHref(book, chapter, v);
 
@@ -381,7 +381,8 @@
       vtext.textContent = (text && text.trim()) ? text.trim() : '— (texte indisponible ici, voir YouVersion)';
 
       const body = document.createElement('div'); body.className='vbody'; body.style.marginTop='6px';
-      body.innerHTML = mkTheologicalNote(text, ref);
+      // Utilise l’explication serveur si présente; sinon fallback local
+      body.innerHTML = noteHTML || mkTheologicalNote(text, ref);
 
       item.appendChild(head);
       item.appendChild(vtext);
