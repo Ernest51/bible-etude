@@ -1,4 +1,4 @@
-/* app.js — Une seule zone (preview) + titres centrés + dédoublonnage titre + liens YouVersion + Rubrique 0 + palette */
+/* app.js — Une seule zone (preview) + titres centrés + suppression du 1er titre (rubriques 2–28) + liens YouVersion + Rubrique 0 + palette */
 (function () {
   /* ====== Livres / YouVersion / Alias ====== */
   const CHAPTERS_66 = {"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
@@ -175,7 +175,7 @@
   }
   function renderEditor(){
     const s = sectionById(state.current);
-    // barre de tête : on masque .ed-title via CSS ; on garde méta
+    // barre de tête : .ed-title est masqué en CSS ; on garde la méta
     $('#edTitle').textContent = s ? (s.id===0 ? 'Rubrique 0 — Étude verset par verset' : (s.title || `Rubrique ${state.current}`)) : '—';
 
     if (s && s.id===0) {
@@ -198,8 +198,11 @@
     sectionTitleEl.textContent = s ? (s.title || `Rubrique ${state.current}`) : '—';
     sectionDescEl.textContent  = s ? (s.description || '') : '';
 
-    // Rendu “beau” + suppression du titre doublon
-    previewEl.innerHTML = beautifyContent(s?.content || '', (s?.title || `Rubrique ${state.current}`));
+    // Supprimer systématiquement la 1ère ligne de titre pour rubriques 2..28
+    const stripHeading = (state.current>=2 && state.current<=28);
+
+    // Rendu “beau” + dédoublonnage titre
+    previewEl.innerHTML = beautifyContent(s?.content || '', (s?.title || `Rubrique ${state.current}`), { stripFirstHeading: stripHeading });
 
     renderEditorMeta();
   }
@@ -214,28 +217,35 @@
     if (s && s.content && s.content.trim()) dot.classList.add('ok'); else dot.classList.remove('ok');
   }
 
-  /* ====== Rendu riche (beau + gras où il faut) + dédoublonnage titre ====== */
-  function beautifyContent(raw, sectionTitle){
+  /* ====== Rendu riche (beau + gras) + suppression du 1er titre ====== */
+  function beautifyContent(raw, sectionTitle, opts={}){
     const norm = (x)=> String(x||'').trim().toLowerCase()
                      .normalize('NFD').replace(/\p{Diacritic}/gu,'')
                      .replace(/\s+/g,' ').replace(/[^\w\s-]/g,'').trim();
 
-    // 1) Supprime un éventuel titre de tête identique au titre centré
     let src = String(raw||'');
-    const m = /^(#{1,6})\s*([^\n]+)\s*\n?/m.exec(src); // ligne 1: '# Titre'
-    if (m && norm(m[2]) === norm(sectionTitle)) {
-      src = src.slice(m[0].length);
+
+    // A) Sur demande (rubriques 2..28) : on supprime la 1ère ligne si c'est un titre Markdown (#, ##, ###)
+    if (opts.stripFirstHeading) {
+      const mm = /^(#{1,6})\s*[^\n]+\s*\n?/m.exec(src);
+      if (mm) src = src.slice(mm[0].length);
     } else {
-      const firstLine = (src.split('\n')[0]||'');
-      if (norm(firstLine) === norm(sectionTitle)) {
-        src = src.slice(firstLine.length).replace(/^\n+/, '');
+      // B) Sinon, on supprime seulement si le 1er titre == titre centré (dédoublonnage)
+      const m = /^(#{1,6})\s*([^\n]+)\s*\n?/m.exec(src);
+      if (m && norm(m[2]) === norm(sectionTitle)) {
+        src = src.slice(m[0].length);
+      } else {
+        const firstLine = (src.split('\n')[0]||'');
+        if (norm(firstLine) === norm(sectionTitle)) {
+          src = src.slice(firstLine.length).replace(/^\n+/, '');
+        }
       }
     }
 
-    // 2) Échappe HTML de base
+    // Échappe HTML de base
     let s = src.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-    // 3) Markdown léger (titres, gras, italique, citations, hr, listes)
+    // Markdown léger
     s = s.replace(/^###\s+(.*)$/gm, '<h3>$1</h3>')
          .replace(/^##\s+(.*)$/gm, '<h2>$1</h2>')
          .replace(/^#\s+(.*)$/gm, '<h1>$1</h1>');
@@ -247,11 +257,11 @@
          .replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>');
     s = s.replace(/(^|\n)\*?Référence\s*:\*/gi, '$1<span class="label">Référence :</span>');
 
-    // 4) Liens markdown → <a>
+    // Liens markdown → <a>
     s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
         (_m, txt, href) => `<a href="${href}" target="_blank" rel="noopener" class="verse-link">${txt}</a>`);
 
-    // 5) Références bibliques détectées → lien YouVersion
+    // Références bibliques → lien YouVersion
     s = s.replace(/\b(Genèse|Exode|Lévitique|Nombres|Deutéronome|Josué|Juges|Ruth|1 Samuel|2 Samuel|1 Rois|2 Rois|1 Chroniques|2 Chroniques|Esdras|Néhémie|Esther|Job|Psaumes|Proverbes|Ecclésiaste|Cantique des Cantiques|Ésaïe|Jérémie|Lamentations|Ézéchiel|Daniel|Osée|Joël|Amos|Abdias|Jonas|Michée|Nahum|Habacuc|Sophonie|Aggée|Zacharie|Malachie|Matthieu|Marc|Luc|Jean|Actes|Romains|1 Corinthiens|2 Corinthiens|Galates|Éphésiens|Philippiens|Colossiens|1 Thessaloniciens|2 Thessaloniciens|1 Timothée|2 Timothée|Tite|Philémon|Hébreux|Jacques|1 Pierre|2 Pierre|1 Jean|2 Jean|3 Jean|Jude|Apocalypse)\s+(\d+)(?::(\d+(?:[–-]\d+)?))?/g,
       (_m, book, chap, vv) => {
         const code = YV_BOOK[book] || 'GEN';
@@ -261,7 +271,7 @@
         return `<a href="${url}" target="_blank" rel="noopener" class="verse-link">${book} ${chap}${vv?':'+vv:''}</a>`;
       });
 
-    // 6) Paragraphes
+    // Paragraphes
     s = s.split(/\n{2,}/).map(p => /<(h\d|ul|blockquote|hr)/.test(p.trim())
            ? p : `<p>${p.replace(/\n/g,'<br/>')}</p>`).join('\n');
 
