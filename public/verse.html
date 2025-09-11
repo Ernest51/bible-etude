@@ -1,78 +1,47 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Étude verset par verset</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bible Étude — Verset par verset (Rubrique 0)</title>
+  <meta name="description" content="Étude biblique — verset par verset avec explications automatiques." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Playfair+Display:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet" />
   <style>
-    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#f6f8fb}
-    main{max-width:900px;margin:20px auto;padding:0 12px}
-    .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;align-items:center}
-    .btn{border:1px solid #d1d5db;border-radius:10px;padding:10px 12px;background:#fff;cursor:pointer}
-    .pv-grid{display:grid;grid-template-columns:1fr;gap:10px}
-    .pv-item{padding:10px;border:1px solid #e5e7eb;border-radius:10px;background:#fff}
+    body{margin:0;background:#f9fafb;color:#0f172a;font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;}
+    header{position:sticky;top:0;background:#fff;padding:14px 18px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
+    h1{margin:0;font-size:22px;font-weight:800;text-align:center;flex:1}
+    header nav a{color:#2563eb;font-size:14px;text-decoration:underline;margin-left:10px}
+    main{max-width:1000px;margin:20px auto;padding:0 14px}
+    .controls{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+    input,button{padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;background:#fff}
+    button{cursor:pointer}
+    .pv-grid{display:grid;grid-template-columns:1fr;gap:14px}
+    .pv-item{padding:14px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}
     .vhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
     .vtitle{font-weight:700}
-    .verse-link{color:#2563eb;text-decoration:underline}
+    .vbody{line-height:1.6;font-family:"Source Serif 4",Georgia,serif}
+    a.verse-link{color:#2563eb;text-decoration:underline}
   </style>
 </head>
 <body>
+  <header>
+    <h1>Étude verset par verset (Rubrique 0)</h1>
+    <nav>
+      <a href="/index.html">← Revenir à l’étude 1–28</a>
+    </nav>
+  </header>
   <main>
-    <h1>Étude verset par verset</h1>
     <div class="controls">
-      <label>Livre <input id="book" value="Genèse"/></label>
-      <label>Chapitre <input id="chapter" value="1" type="number" min="1"/></label>
-      <label>Nombre de versets <input id="count" value="31" type="number" min="1" max="200"/></label>
-      <button id="go" class="btn">Charger</button>
-      <a id="open-yv" class="btn" target="_blank" rel="noopener">Ouvrir YouVersion</a>
+      <label>Livre <input id="book" value="Genèse" style="width:140px"/></label>
+      <label>Chapitre <input id="chapter" value="1" type="number" min="1" style="width:80px"/></label>
+      <label>Nombre de versets <input id="count" value="31" type="number" min="1" max="200" style="width:90px"/></label>
+      <button id="pv-run">Charger</button>
     </div>
     <div id="pv-grid" class="pv-grid"></div>
   </main>
 
-  <script>
-    function buildYVHref(book, c, v){
-      const map={"Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des Cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN","Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL","Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"};
-      const code = map[book] || 'GEN';
-      return `https://www.bible.com/fr/bible/93/${code}.${c}.LSG${v?('#v'+v):''}`;
-    }
-
-    async function loadPV(){
-      const book = document.getElementById('book').value.trim() || 'Genèse';
-      const chapter = parseInt(document.getElementById('chapter').value,10) || 1;
-      const count = Math.max(1, Math.min(parseInt(document.getElementById('count').value,10)||31, 200));
-      document.getElementById('open-yv').href = buildYVHref(book, chapter, '');
-
-      const grid = document.getElementById('pv-grid');
-      grid.innerHTML = '<div class="pv-item">Chargement…</div>';
-
-      try{
-        const r = await fetch(`/api/verses?book=${encodeURIComponent(book)}&chapter=${encodeURIComponent(chapter)}`);
-        const data = await r.json();
-        const verses = Array.isArray(data.verses) ? data.verses : [];
-        grid.innerHTML = '';
-        verses.slice(0, count).forEach(({v,text,noteHTML})=>{
-          const item = document.createElement('div'); item.className='pv-item';
-          item.innerHTML = `
-            <div class="vhead">
-              <div class="vtitle">${book} ${chapter}:${v}</div>
-              <a class="verse-link" href="${buildYVHref(book, chapter, v)}" target="_blank" rel="noopener">YouVersion</a>
-            </div>
-            <div style="font-weight:600">${text || '— (texte indisponible ici, voir YouVersion)'}</div>
-            <div style="margin-top:6px">${noteHTML || '<em style="color:#64748b">noteHTML manquante (fallback côté app principale)</em>'}</div>
-          `;
-          grid.appendChild(item);
-        });
-      }catch(e){
-        grid.innerHTML = `<div class="pv-item" style="color:#dc2626">Erreur: ${e && e.message ? e.message : e}</div>`;
-      }
-    }
-
-    document.getElementById('go').addEventListener('click', loadPV);
-    // auto-load
-    loadPV();
-  </script>
+  <script src="/js/app-verse.js" defer></script>
 </body>
 </html>
