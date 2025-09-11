@@ -37,6 +37,80 @@ const CLEAN = (s) => String(s||'')
   .replace(/\s([;:,.!?…])/g, '$1')
   .trim();
 
+/* ---------- Q/R heuristiques (Qui/Quoi/Où/Quand/Pourquoi/Comment) ---------- */
+function inferQA(text){
+  const t = (text||"").toLowerCase();
+
+  // Qui ?
+  let qui = "Le texte ne précise pas explicitement.";
+  if (/\bdieu|seigneur\b/.test(t)) qui = "Dieu (YHWH) est l’acteur principal.";
+  else if (/\bj[eé]sus|christ\b/.test(t)) qui = "Jésus/Christ est au centre du verset.";
+  else if (/\besprit\b/.test(t)) qui = "L’Esprit de Dieu est en action.";
+  else if (/\bmo[i|ï]se\b/.test(t)) qui = "Moïse.";
+  else if (/\bdavid\b/.test(t)) qui = "David.";
+  else if (/\bproph[eè]te?s?\b/.test(t)) qui = "Un/des prophète(s).";
+  else if (/\bpeuple|isra[eë]l\b/.test(t)) qui = "Le peuple d’Israël.";
+
+  // Quoi ? (verbes clés)
+  let quoi = "Le verset énonce une vérité/une action de Dieu.";
+  if (/\bcr[eé]a\b/.test(t)) quoi = "Dieu crée/établit.";
+  else if (/\bdit\b|\bparla\b/.test(t)) quoi = "Dieu parle/ordonne.";
+  else if (/\bvit\b|\bvois\b/.test(t)) quoi = "Dieu voit/évalue.";
+  else if (/\bappela\b|\bnoma\b/.test(t)) quoi = "Dieu nomme/définit.";
+  else if (/\bfit\b|\bfais(it)?\b/.test(t)) quoi = "Dieu agit/opère.";
+  else if (/\bb[eé]nit\b/.test(t)) quoi = "Dieu bénit.";
+  else if (/\bsanctifia\b|\bconsacra\b/.test(t)) quoi = "Dieu sanctifie/consacre.";
+  else if (/\bcommand(e|a)\b/.test(t)) quoi = "Dieu commande/instruit.";
+
+  // Où ?
+  let ou = "Dans le cadre narratif du passage.";
+  if (/\bcieux?\b/.test(t) && /\bterre\b/.test(t)) ou = "Dans la création (cieux et terre).";
+  else if (/\bd[eé]sert\b/.test(t)) ou = "Au désert.";
+  else if (/\bj[eé]rusalem\b/.test(t)) ou = "À Jérusalem.";
+  else if (/\btemple\b/.test(t)) ou = "Au temple.";
+  else if (/\bmont\b|\bmontagne\b/.test(t)) ou = "Sur une montagne.";
+
+  // Quand ?
+  let quand = "Inscrit dans la séquence du récit.";
+  if (/\bau commencement\b/.test(t)) quand = "Au commencement.";
+  else if (/\bjour\s+\d+\b/.test(t)) quand = "Pendant un des jours du récit.";
+  else if (/\bsabbat\b/.test(t)) quand = "Au sabbat.";
+  else if (/\bapr[eè]s\b/.test(t)) quand = "Après un événement précédent.";
+
+  // Pourquoi ? (marqueurs intention)
+  let pourquoi = "Pour manifester le dessein de Dieu et instruire la foi.";
+  if (/\bafin\b|\bpour que\b/.test(t)) pourquoi = "Finalité exprimée (afin/pour que) : obéissance, bénédiction ou ordre de la création.";
+  else if (/\bpromesse\b/.test(t)) pourquoi = "Pour accomplir/promulguer une promesse.";
+  else if (/\bjug(e|ement)\b/.test(t)) pourquoi = "Pour exercer un jugement et corriger.";
+  else if (/\bgloire\b/.test(t)) pourquoi = "Pour la gloire de Dieu.";
+
+  // Comment ? (moyens)
+  let comment = "Par la puissance souveraine de Dieu.";
+  if (/\bdit\b|\bparla\b|\bparole\b/.test(t)) comment = "Par la Parole efficace de Dieu.";
+  else if (/\besprit\b/.test(t)) comment = "Par l’action de l’Esprit de Dieu.";
+  else if (/\bmain\b|\bbra\b/.test(t)) comment = "Par la main/le bras de l’Éternel.";
+  else if (/\bordre\b|\bcommandement\b/.test(t)) comment = "Par un commandement/ordre divin.";
+
+  return { qui, quoi, ou, quand, pourquoi, comment };
+}
+
+function mkQAHTML(book, chapter, v, text){
+  const { qui, quoi, ou, quand, pourquoi, comment } = inferQA(text);
+  return `
+  <div class="qa" style="margin-top:6px">
+    <strong>Questions – Réponses (${book} ${chapter}:${v})</strong>
+    <ul style="margin:6px 0 0 18px; padding:0">
+      <li><strong>Qui ?</strong> ${qui}</li>
+      <li><strong>Quoi ?</strong> ${quoi}</li>
+      <li><strong>Où ?</strong> ${ou}</li>
+      <li><strong>Quand ?</strong> ${quand}</li>
+      <li><strong>Pourquoi ?</strong> ${pourquoi}</li>
+      <li><strong>Comment ?</strong> ${comment}</li>
+    </ul>
+  </div>`;
+}
+
+/* ---------- Note principale + Q/R ---------- */
 function mkNoteHTML(book, chapter, v, text){
   const ref = `${book} ${chapter}:${v}`;
   const t = (text||"").toLowerCase();
@@ -49,7 +123,7 @@ function mkNoteHTML(book, chapter, v, text){
   if (/\bp[ée]ch[ée]\b/.test(t)) motifs.push(`réalité du <strong>péché</strong> et besoin de rédemption`);
   const axes = motifs.length ? motifs.join('; ') : `théologie de la création, providence et finalité en Dieu`;
 
-  return [
+  const base = [
     `<strong>Analyse littéraire</strong> — Repérer les termes clés, parallélismes et rythmes. Le verset ${ref} s’insère dans l’argument et porte l’accent théologique.`,
     `<strong>Axes théologiques</strong> — ${axes}.`,
     `<strong>Échos canoniques</strong> — Lire “Écriture par l’Écriture” (Torah, Sagesse, Prophètes; puis Évangiles et Épîtres).`,
@@ -57,6 +131,8 @@ function mkNoteHTML(book, chapter, v, text){
     `<strong>Ecclésial & pastoral</strong> — Implications pour l’<strong>Église</strong> (adoration, mission, éthique).`,
     `<strong>Application personnelle</strong> — Prier le texte ; formuler une décision concrète aujourd’hui.`
   ].join(' ');
+
+  return base + `<hr/>` + mkQAHTML(book, chapter, v, text);
 }
 
 async function batched(ids, size, worker){
@@ -157,7 +233,7 @@ export default async function handler(req, res){
     chapUrl.searchParams.set("content-type","text");
     chapUrl.searchParams.set("include-notes","false");
     chapUrl.searchParams.set("include-titles","false");
-    chapUrl.searchParams.set("include-verse-numbers","true"); // aide à repérer les n°
+    chapUrl.searchParams.set("include-verse-numbers","true");
 
     const rChap = await fetch(chapUrl.toString(), { headers });
     const jChap = await rChap.json().catch(()=> ({}));
@@ -165,7 +241,6 @@ export default async function handler(req, res){
 
     let verses = [];
     if (content) {
-      // découpage générique (1. … 2. … ou " 1 " …)
       const arr = [];
       const re = /(?:^|\s)(\d{1,3})[.)]?\s+([^]+?)(?=(?:\s\d{1,3}[.)]?\s)|$)/g;
       let m; while((m=re.exec(content))){ arr.push({ v:+m[1], text:CLEAN(m[2]) }); }
