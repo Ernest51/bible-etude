@@ -8,7 +8,7 @@
   <!-- Polices -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Playfair+Display:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Playfair+Display:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet" />
   <style>
     :root{
       --primary-h: 221; --primary-s: 84%; --primary-l: 46%;
@@ -43,7 +43,7 @@
     .btn:active{transform:translateY(1px)}
     .hint{color:var(--muted);font-size:13px;margin:6px 0}
 
-    /* Palette */
+    /* Palette (couleur du site) */
     .palette{display:flex;gap:8px;align-items:center;margin:8px 0 12px 0}
     .swatch{width:22px;height:22px;border-radius:50%;border:1px solid #e2e8f0;cursor:pointer;box-shadow:0 0 0 2px #fff inset}
     .swatch[data-active="1"]{outline:2px solid var(--primary)}
@@ -70,33 +70,40 @@
     .ed-meta{color:var(--muted);font-size:12px}
     .ed-body{padding:12px}
 
-    /* Titre/desc centrés pour les 28 rubriques */
+    /* Zone de réponse – UNE SEULE, belle et lisible */
     .section-title{
       font-family: "Playfair Display", Georgia, "Times New Roman", serif;
       font-weight:700; text-align:center; margin:4px 0 6px 0; font-size:22px;
     }
     .section-desc{
-      text-align:center; color:var(--muted); margin:0 0 10px 0; font-size:14px;
+      text-align:center; color:var(--muted); margin:0 0 14px 0; font-size:14px;
       font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
-    /* Réponses en très belle police */
-    textarea{
-      width:100%;min-height:360px;resize:vertical;border:1px solid var(--border);border-radius:10px;
-      padding:14px;line-height:1.7;white-space:pre-wrap;background:var(--panel-2);color:var(--text);
-      font-family: "Source Serif 4", Georgia, "Times New Roman", serif; font-size:16px;
+    .preview{
+      border:1px solid var(--border); border-radius:14px; background:#fff;
+      padding:18px; line-height:1.8; font-size:16.5px;
+      font-family:"Source Serif 4", Georgia, "Times New Roman", serif;
+      box-shadow: 0 6px 14px rgba(0,0,0,.04);
     }
-    /* Preview HTML (liens bleus soulignés) */
-    .preview{margin-top:10px;padding:12px;border:1px dashed var(--border);border-radius:10px;background:#fff}
+    .preview h1,.preview h2,.preview h3{font-family:"Playfair Display", Georgia, serif; font-weight:700; margin:0 0 10px}
+    .preview h1{font-size:24px} .preview h2{font-size:21px} .preview h3{font-size:18px}
+    .preview p{margin:10px 0}
+    .preview strong{font-weight:700}
+    .preview em{font-style:italic}
+    .preview blockquote{margin:12px 0;padding:8px 12px;border-left:4px solid var(--primary);background:var(--panel-2);border-radius:8px}
+    .preview hr{border:none;border-top:1px solid var(--border);margin:14px 0}
+    .preview ul{margin:10px 0 10px 22px}
     .preview a, .verse-link{color:var(--link) !important; text-decoration: underline !important;}
+    .preview .label{font-weight:700} /* ex: Référence : */
 
-    /* Bloc Rubrique 0 (étude verset par verset) */
+    /* Rubrique 0 (inchangée) */
     .per-verse{display:flex;flex-direction:column;gap:12px}
     .pv-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .pv-grid{display:grid;grid-template-columns:1fr;gap:10px}
     .pv-item{padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--panel-2)}
     .pv-item .vhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
     .pv-item .vtitle{font-weight:700}
-    .pv-item .vbody{font-family:"Source Serif 4", Georgia, "Times New Roman", serif;line-height:1.7}
+    .pv-item .vbody{font-family:"Source Serif 4", Georgia, serif;line-height:1.7}
   </style>
 </head>
 <body>
@@ -161,13 +168,12 @@
           <div class="ed-meta" id="edMeta">Point —</div>
         </div>
         <div class="ed-body">
-          <!-- zone “Rubrique 1..28” -->
           <h2 id="sectionTitle" class="section-title">—</h2>
           <p id="sectionDesc" class="section-desc"></p>
-          <textarea id="editor" placeholder="Contenu de la rubrique…"></textarea>
+          <!-- UNE SEULE zone de lecture/affichage -->
           <div id="preview" class="preview" aria-live="polite"></div>
 
-          <!-- zone “Rubrique 0” (verset par verset) -->
+          <!-- Rubrique 0 (verset par verset) -->
           <div id="pv" class="per-verse" style="display:none">
             <div class="pv-controls">
               <strong>Étude verset par verset</strong>
