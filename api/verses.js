@@ -1,10 +1,10 @@
-// /api/verses.js — robuste JSON-only + fallback généré avec noteHTML
-// GET /api/verses?book=Genèse&chapter=1&count=31
-// -> { ok:true, source:'api.bible.verses|api.bible.chapter|fallback-generated|fallback',
-//      book, chapter, version:'DARBY|LSG', verses:[{v:1,text:'…',noteHTML:'…'},…] }
+// /api/verses.js
+// GET /api/verses?book=Genèse&chapter=1[&count=31]
+// Réponse: { ok:true, source:'api.bible.verses|api.bible.chapter|fallback-generated', book, chapter, version, verses:[{v,text,noteHTML}] }
 
 export const config = { runtime: "nodejs" };
 
+/* --------------------------- Constantes --------------------------- */
 const USFM = {
   "Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT",
   "1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH",
@@ -18,24 +18,28 @@ const USFM = {
   "1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"
 };
 
+const API_BASE = "https://api.scripture.api.bible/v1";
+
+/* --------------------------- Helpers --------------------------- */
+function send(res, status, data) {
+  res.setHeader("content-type", "application/json; charset=utf-8");
+  res.setHeader("cache-control", "no-store, max-age=0");
+  res.setHeader("access-control-allow-origin", "*");
+  res.setHeader("access-control-allow-methods", "GET,OPTIONS");
+  res.setHeader("access-control-allow-headers", "content-type,accept");
+  res.statusCode = status;
+  res.end(JSON.stringify(data));
+}
+
 const CLEAN = (s) => String(s||'')
   .replace(/<[^>]+>/g, ' ')
   .replace(/\s+/g, ' ')
   .replace(/\s([;:,.!?…])/g, '$1')
   .trim();
 
-const KEY  = process.env.API_BIBLE_KEY || '';
-const BIBLE_ID = process.env.API_BIBLE_ID || process.env.API_BIBLE_BIBLE_ID || '';
-
-// ---------- little helpers ----------
-function json(res, status, payload) {
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-  res.status(status).end(JSON.stringify(payload));
-}
-
-function mkNoteHTML(text, ref){
-  const t = String(text||'').toLowerCase();
+function mkNoteHTML(book, chapter, v, text){
+  const ref = `${book} ${chapter}:${v}`;
+  const t = (text||"").toLowerCase();
   const motifs = [];
   if (/\blumi[eè]re?\b/.test(t)) motifs.push(`théologie de la <strong>lumière</strong> (création, révélation, 2 Co 4:6)`);
   if (/\besprit\b/.test(t)) motifs.push(`œuvre de l’<strong>Esprit</strong> (création, inspiration, nouvelle création)`);
@@ -46,155 +50,134 @@ function mkNoteHTML(text, ref){
   const axes = motifs.length ? motifs.join('; ') : `théologie de la création, providence et finalité en Dieu`;
 
   return [
-    `<strong>Analyse littéraire</strong> — repérer termes clés, parallélismes et rythmes. Le verset ${ref} s’insère dans l’argument et porte l’accent théologique.`,
+    `<strong>Analyse littéraire</strong> — Repérer les termes clés, parallélismes et rythmes. Le verset ${ref} s’insère dans l’argument et porte l’accent théologique.`,
     `<strong>Axes théologiques</strong> — ${axes}.`,
-    `<strong>Échos canoniques</strong> — lire “Écriture par l’Écriture” (Torah, Sagesse, Prophètes; puis Évangiles et Épîtres).`,
-    `<strong>Christologie</strong> — comment ${ref} est récapitulé en <strong>Christ</strong> (Col 1:16-17; Lc 24:27) ?`,
-    `<strong>Ecclésial & pastoral</strong> — implications pour l’<strong>Église</strong> (adoration, mission, éthique).`,
-    `<strong>Application personnelle</strong> — prier le texte et formuler une décision concrète aujourd’hui.`
-  ].join('<br/>');
+    `<strong>Échos canoniques</strong> — Lire “Écriture par l’Écriture” (Torah, Sagesse, Prophètes; puis Évangiles et Épîtres).`,
+    `<strong>Christologie</strong> — Comment ${ref} est récapitulé en <strong>Christ</strong> (Col 1:16-17; Lc 24:27) ?`,
+    `<strong>Ecclésial & pastoral</strong> — Implications pour l’<strong>Église</strong> (adoration, mission, éthique).`,
+    `<strong>Application personnelle</strong> — Prier le texte ; formuler une décision concrète aujourd’hui.`
+  ].join(' ');
 }
 
-function fallbackGenerated(book, chapter, count){
-  const code = USFM[book] || 'GEN';
-  const youversionBase = `https://www.bible.com/fr/bible/93/${code}.${chapter}.LSG`;
-  const verses = Array.from({length: count}, (_,i) => {
-    const v = i+1;
-    const ref = `${book} ${chapter}:${v}`;
-    return {
-      v,
-      text: '',
-      noteHTML: mkNoteHTML('', ref)
-    };
-  });
-  return {
-    ok: true,
-    source: 'fallback-generated',
-    book, chapter, version: 'LSG',
-    youversionBase,
-    verses
-  };
-}
-
-// Fetch helper with timeout
-async function fetchJson(url, headers, timeout = 10000){
-  const ctrl = new AbortController();
-  const to = setTimeout(() => ctrl.abort(), timeout);
-  try{
-    const r = await fetch(url, { headers, signal: ctrl.signal });
-    const text = await r.text();
-    let json;
-    try { json = text ? JSON.parse(text) : {}; } catch { json = { raw: text }; }
-    return { ok: r.ok, status: r.status, json };
-  } finally {
-    clearTimeout(to);
+async function batched(ids, size, worker){
+  const out = [];
+  for (let i = 0; i < ids.length; i += size) {
+    const chunk = ids.slice(i, i + size);
+    const part = await Promise.all(chunk.map(worker));
+    out.push(...part);
   }
+  return out;
 }
 
-// ---------- main handler ----------
+/* --------------------------- Handler --------------------------- */
 export default async function handler(req, res){
+  if (req.method === "OPTIONS") return send(res, 204, {});
+  if (req.method !== "GET")    return send(res, 405, { ok:false, error:"Method Not Allowed" });
+
   try{
-    if (req.method === 'OPTIONS') {
-      res.setHeader('Access-Control-Allow-Origin','*');
-      res.setHeader('Access-Control-Allow-Methods','GET,OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers','content-type,accept');
-      res.status(204).end();
-      return;
-    }
-    if (req.method !== 'GET') {
-      return json(res, 405, { ok:false, error: 'Method Not Allowed' });
+    const book = String(req.query.book || "");
+    const chapter = parseInt(String(req.query.chapter||""), 10);
+    const count = Math.min(Math.max(parseInt(String(req.query.count||"31"),10)||31, 1), 200);
+
+    if (!book || !Number.isFinite(chapter)) {
+      return send(res, 400, { ok:false, error:"Paramètres manquants: book, chapter" });
     }
 
-    const book = String(req.query.book || 'Genèse');
-    const chapter = Math.max(1, parseInt(req.query.chapter,10) || 1);
-    const count = Math.max(1, Math.min(parseInt(req.query.count,10) || 200, 200));
+    const apiKey  = process.env.API_BIBLE_KEY || "";
+    const bibleId = process.env.API_BIBLE_ID || process.env.API_BIBLE_BIBLE_ID || process.env.DARBY_BIBLE_ID || "";
+    const code = USFM[book];
 
-    // No ENV or unknown book -> fallback-generated (toujours JSON, jamais 500)
-    if (!KEY || !BIBLE_ID || !USFM[book]) {
-      const pay = fallbackGenerated(book, chapter, count);
-      return json(res, 200, pay);
+    // Fallback si ENV manquantes ou livre inconnu
+    if (!apiKey || !bibleId || !code) {
+      const verses = Array.from({length: count}, (_,i) => {
+        const v = i+1;
+        return { v, text: "", noteHTML: mkNoteHTML(book, chapter, v, "") };
+      });
+      return send(res, 200, {
+        ok:true, source:"fallback-generated", book, chapter, version:"LSG",
+        youversionBase:`https://www.bible.com/fr/bible/93/${(code||'GEN')}.${chapter}.LSG`,
+        verses
+      });
     }
 
-    const base = 'https://api.scripture.api.bible/v1';
-    const headers = { 'api-key': KEY, 'accept': 'application/json' };
-    const chapterId = `${USFM[book]}.${chapter}`;
+    const headers = { "api-key": apiKey, "accept": "application/json" };
+    const chapterId = `${code}.${chapter}`;
 
-    // A) liste des versets
-    const rList = await fetchJson(`${base}/bibles/${BIBLE_ID}/chapters/${chapterId}/verses`, headers);
-    if (!rList.ok) {
-      // B) Plan B: prendre le chapitre complet et parser
-      const rChap = await fetchJson(`${base}/bibles/${BIBLE_ID}/chapters/${chapterId}?contentType=text`, headers);
-      if (!rChap.ok) {
-        const pay = fallbackGenerated(book, chapter, count);
-        pay.source = 'fallback-generated';
-        return json(res, 200, pay);
-      }
-      const content = CLEAN(rChap.json?.data?.content || '');
-      if (!content) {
-        const pay = fallbackGenerated(book, chapter, count);
-        pay.source = 'fallback';
-        return json(res, 200, pay);
-      }
-      // parse "1 ... 2 ..." etc.
-      let verses = content.split(/\s(?=\d{1,3}\s)/g)
-        .map(s=>s.trim())
-        .map(s=>{ const m=s.match(/^(\d{1,3})\s+(.*)$/); return m?{v:+m[1],text:CLEAN(m[2])}:null; })
-        .filter(Boolean);
-      if (verses.length < 2){
-        const arr = [];
-        const re = /(?:^|\s)(\d{1,3})[.)]?\s+([^]+?)(?=(?:\s\d{1,3}[.)]?\s)|$)/g;
-        let m; while((m=re.exec(content))){ arr.push({ v:+m[1], text:CLEAN(m[2]) }); }
-        if (arr.length) verses = arr;
-      }
-      const withNotes = verses.slice(0, count).map(({v, text}) => ({
-        v, text, noteHTML: mkNoteHTML(text, `${book} ${chapter}:${v}`)
-      }));
-      return json(res, 200, { ok:true, source:'api.bible.chapter', book, chapter, version:'DARBY', verses: withNotes });
-    }
+    // A) liste des IDs de versets
+    const listUrl = `${API_BASE}/bibles/${bibleId}/chapters/${chapterId}/verses`;
+    const rList = await fetch(listUrl, { headers });
+    const jList = await rList.json().catch(()=> ({}));
+    let items = Array.isArray(jList?.data) ? jList.data : [];
 
-    // C) On a la liste → on récupère chaque verset (batched)
-    const items = Array.isArray(rList.json?.data) ? rList.json.data : [];
-    const ids = items.map(it => ({ id: it.id, ref: it.reference || '' })).slice(0, count);
+    // B) si on a des IDs → récupérer chaque verset en texte
+    if (items.length) {
+      const verses = await batched(items.slice(0, count), 12, async (it) => {
+        const vUrl = new URL(`${API_BASE}/bibles/${bibleId}/verses/${it.id}`);
+        vUrl.searchParams.set("content-type","text");
+        vUrl.searchParams.set("include-notes","false");
+        vUrl.searchParams.set("include-titles","false");
+        vUrl.searchParams.set("include-verse-numbers","false");
 
-    // petite batch pour limiter les connexions
-    const batchSize = 10;
-    const verses = [];
-    for (let i=0;i<ids.length;i+=batchSize){
-      const chunk = ids.slice(i, i+batchSize);
-      const got = await Promise.all(chunk.map(async (it) => {
-        const rV = await fetchJson(`${base}/bibles/${BIBLE_ID}/verses/${it.id}?contentType=text`, headers);
-        const raw = CLEAN(rV.json?.data?.content || rV.json?.data?.text || rV.json?.data?.reference || '');
-        let v = undefined;
-        const m = raw.match(/^\s*(\d{1,3})\s*(.*)$/);
-        let text = '';
-        if (m) { v = parseInt(m[1],10); text = (m[2]||'').trim(); }
-        else {
-          const m2 = (it.ref||'').match(/:(\d{1,3})$/);
-          v = m2 ? parseInt(m2[1],10) : undefined;
-          text = raw;
+        let text = "";
+        try{
+          const rr = await fetch(vUrl.toString(), { headers });
+          const jj = await rr.json();
+          const d = jj?.data || {};
+          text = (typeof d.text === "string" && d.text.trim())
+            ? d.text.trim()
+            : CLEAN(d.content || d.reference || "");
+        }catch{}
+
+        // extraire n°
+        let vNum;
+        const m1 = (it.reference||"").match(/:(\d{1,3})$/);
+        if (m1) vNum = parseInt(m1[1],10);
+        if (!Number.isFinite(vNum)) {
+          const m2 = (text||"").match(/^\s*(\d{1,3})\s+(.*)$/);
+          if (m2) { vNum = parseInt(m2[1],10); text = m2[2].trim(); }
         }
-        if (!Number.isFinite(v)) return null;
-        return { v, text };
-      }));
-      verses.push(...got.filter(Boolean));
+
+        const v = Number.isFinite(vNum) ? vNum : undefined;
+        return { v, text, noteHTML: mkNoteHTML(book, chapter, v||0, text) };
+      });
+
+      const clean = verses
+        .filter(x => Number.isFinite(x.v))
+        .sort((a,b)=>a.v-b.v)
+        .map(x => ({ v:x.v, text:x.text, noteHTML:x.noteHTML }));
+
+      return send(res, 200, {
+        ok:true, source:"api.bible.verses", book, chapter,
+        version:"API", verses: clean.slice(0, count)
+      });
     }
 
-    const clean = verses
-      .sort((a,b)=>a.v-b.v)
-      .map(({v,text}) => ({ v, text, noteHTML: mkNoteHTML(text, `${book} ${chapter}:${v}`) }));
+    // C) plan B : récupérer le chapitre entier en texte, puis découper
+    const chapUrl = new URL(`${API_BASE}/bibles/${bibleId}/chapters/${chapterId}`);
+    chapUrl.searchParams.set("content-type","text");
+    chapUrl.searchParams.set("include-notes","false");
+    chapUrl.searchParams.set("include-titles","false");
+    chapUrl.searchParams.set("include-verse-numbers","true"); // aide à repérer les n°
 
-    return json(res, 200, { ok:true, source:'api.bible.verses', book, chapter, version:'DARBY', verses: clean });
+    const rChap = await fetch(chapUrl.toString(), { headers });
+    const jChap = await rChap.json().catch(()=> ({}));
+    const content = CLEAN(jChap?.data?.content || "");
+
+    let verses = [];
+    if (content) {
+      // découpage générique (1. … 2. … ou " 1 " …)
+      const arr = [];
+      const re = /(?:^|\s)(\d{1,3})[.)]?\s+([^]+?)(?=(?:\s\d{1,3}[.)]?\s)|$)/g;
+      let m; while((m=re.exec(content))){ arr.push({ v:+m[1], text:CLEAN(m[2]) }); }
+      verses = arr.map(x => ({ v:x.v, text:x.text, noteHTML: mkNoteHTML(book, chapter, x.v, x.text) }));
+    }
+
+    return send(res, 200, {
+      ok:true, source:"api.bible.chapter", book, chapter,
+      version:"API", verses: verses.slice(0, count)
+    });
 
   } catch (e){
-    // Ne JAMAIS renvoyer 500 HTML: toujours JSON + fallback minimal
-    const msg = String(e?.message || e);
-    const pay = { ok:false, emergency:true, error: msg };
-    try {
-      return json(res, 200, pay);
-    } catch {
-      // dernier filet
-      res.setHeader('Content-Type','application/json; charset=utf-8');
-      res.status(200).end(JSON.stringify(pay));
-    }
+    return send(res, 200, { ok:false, emergency:true, error:String(e?.message||e) });
   }
 }
