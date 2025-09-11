@@ -1,6 +1,6 @@
 // /api/verses.js
-// GET /api/verses?book=Luc&chapter=1
-// -> { ok:true, source:'api.bible.verses|chapter|fallback', book, chapter, version:'DARBY|LSG',
+// GET /api/verses?book=Luc&chapter=1[&count=31]
+// -> { ok:true, source:'api.bible.verses|chapter|fallback|fallback-generated', book, chapter, version:'DARBY|LSG',
 //      verses:[{v:1,text:'…', noteHTML:'…'}, …] }
 
 const USFM = {
@@ -23,7 +23,9 @@ const CLEAN = s => String(s||'')
   .replace(/\s([;:,.!?…])/g, '$1')
   .trim();
 
-// Générateur d'explication (style cohérent avec tes rubriques : labels en <strong>, axes, échos, etc.)
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// Générateur d'explication (style cohérent avec tes rubriques)
 function makeNoteHTML(text, ref){
   const t = String(text || '').toLowerCase();
   const motifs = [];
@@ -57,7 +59,7 @@ async function batched(list, size, worker){
 }
 
 export default async function handler(req, res){
-  // Cache doux : 60s pour soulager l’API externe (en cas d’erreur → no-store)
+  // Cache doux : 60s (en cas d’erreur → no-store)
   res.setHeader('Content-Type','application/json; charset=utf-8');
   res.setHeader('Cache-Control','public, max-age=60, s-maxage=60');
 
@@ -69,6 +71,8 @@ export default async function handler(req, res){
   try{
     const book = String(req.query.book||'');
     const chapter = parseInt(req.query.chapter,10);
+    const fallbackCount = clamp(parseInt(req.query.count,10) || 31, 1, 200);
+
     if (!book || !Number.isFinite(chapter)) {
       res.setHeader('Cache-Control','no-store');
       return res.status(400).json({ ok:false, error:'Missing book/chapter' });
@@ -78,13 +82,20 @@ export default async function handler(req, res){
     const bibleId = process.env.API_BIBLE_ID || ''; // DARBY
     const code = USFM[book];
 
-    // Fallback "lien only"
+    // Fallback "lien + génération placeholder" si pas d'API/config
     if (!apiKey || !bibleId || !code){
       const yv = YV[book] || 'GEN';
+      const verses = Array.from({ length: fallbackCount }, (_, i) => {
+        const v = i + 1;
+        return { v, text: '', noteHTML: makeNoteHTML('', `${book} ${chapter}:${v}`) };
+      });
       return res.status(200).json({
-        ok:true, source:'fallback', book, chapter, version:'LSG',
+        ok:true,
+        source:'fallback-generated',
+        book, chapter,
+        version:'LSG',
         youversionBase:`https://www.bible.com/fr/bible/93/${yv}.${chapter}.LSG`,
-        verses:[]
+        verses
       });
     }
 
@@ -92,7 +103,7 @@ export default async function handler(req, res){
     const headers = { 'api-key': apiKey };
     const chapterId = `${code}.${chapter}`;
 
-    // A) Liste des versets
+    // A) Liste des versets du chapitre
     const rList = await fetch(`${base}/bibles/${bibleId}/chapters/${chapterId}/verses`, { headers });
     const jList = await rList.json();
     const items = Array.isArray(jList?.data) ? jList.data : [];
@@ -113,12 +124,14 @@ export default async function handler(req, res){
           txt = raw;
         }
         const ref = `${book} ${chapter}:${vnum ?? '?'}`;
-        return { v: vnum, text: txt, noteHTML: makeNoteHTML(txt, ref) };
+        return { v:vnum, text:txt, noteHTML: makeNoteHTML(txt, ref) };
       });
+
       const clean = verses
         .filter(x=>Number.isFinite(x.v))
         .sort((a,b)=>a.v-b.v)
         .map(x=>({ v:x.v, text:x.text, noteHTML:x.noteHTML }));
+
       return res.status(200).json({ ok:true, source:'api.bible.verses', book, chapter, version:'DARBY', verses: clean });
     }
 
@@ -139,6 +152,7 @@ export default async function handler(req, res){
       let m; while((m=re.exec(content))){ arr.push({ v:+m[1], text:CLEAN(m[2]) }); }
       if (arr.length) verses = arr;
     }
+
     const enriched = verses.map(({v,text}) => ({
       v, text, noteHTML: makeNoteHTML(text, `${book} ${chapter}:${v}`)
     }));
