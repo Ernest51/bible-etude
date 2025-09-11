@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Test — /api/generate-study</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Inter,Arial,sans-serif;padding:16px}
+    code,pre{background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;padding:10px;display:block;white-space:pre-wrap}
+    .ok{color:#16a34a}.warn{color:#ca8a04}.bad{color:#dc2626}
+    label{display:block;margin:.5rem 0}
+  </style>
+</head>
+<body>
+  <h1>Test — /api/generate-study</h1>
+  <label>Livre <input id="book" value="Genèse"/></label>
+  <label>Chapitre <input id="chap" type="number" value="1" min="1"/></label>
+  <label>Densité
+    <select id="len"><option>500</option><option selected>1500</option><option>2500</option></select>
+  </label>
+  <button id="run">Lancer</button>
+  <div id="out"></div>
+
+  <script>
+    const $ = s=>document.querySelector(s);
+    $('#run').onclick = async ()=>{
+      const passage = `${$('#book').value} ${$('#chap').value}`;
+      const length = Number($('#len').value);
+      const out = $('#out'); out.innerHTML='…';
+      const r = await fetch('/api/generate-study', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ passage, options:{ length } }) });
+      const j = await r.json().catch(()=>null);
+      if(!j){ out.innerHTML = '<p class="bad">Réponse non-JSON</p>'; return; }
+      out.innerHTML = '<pre>'+JSON.stringify({ mode:j.mode, emergency:j.emergency, error:j.error, first:j.study?.sections?.[3]?.content?.slice(0,120)+'…' }, null, 2)+'</pre>';
+      const p = document.createElement('p');
+      p.className = j.mode==='dynamic' ? 'ok' : 'warn';
+      p.textContent = j.mode==='dynamic' ? 'Mode: DYNAMIQUE ✅' : 'Mode: FALLBACK ⚠️';
+      out.prepend(p);
+    };
+  </script>
+</body>
+</html>
