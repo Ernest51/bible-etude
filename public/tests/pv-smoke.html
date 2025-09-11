@@ -27,6 +27,7 @@
   <div class="row">
     <label>Livre : <input id="book" value="Genèse" style="width:140px"/></label>
     <label>Chapitre : <input id="chapter" value="1" type="number" min="1" style="width:80px"/></label>
+    <label>Nombre de versets : <input id="count" value="31" type="number" min="1" max="200" style="width:90px"/></label>
     <button id="run">Lancer le test</button>
   </div>
 
@@ -59,8 +60,9 @@
     async function run(){
       const book = $('#book').value.trim() || 'Genèse';
       const chapter = parseInt($('#chapter').value,10) || 1;
+      const count = Math.max(1, Math.min(parseInt($('#count').value,10) || 31, 200));
 
-      const url = `/api/verses?book=${encodeURIComponent(book)}&chapter=${encodeURIComponent(chapter)}`;
+      const url = `/api/verses?book=${encodeURIComponent(book)}&chapter=${encodeURIComponent(chapter)}&count=${encodeURIComponent(count)}`;
       $('#status').className='muted';
       $('#status').textContent = 'Requête : ' + url;
 
@@ -80,7 +82,7 @@
         }
 
         const report = $('#report'); report.innerHTML = '';
-        verses.slice(0,5).forEach(v=>{
+        verses.slice(0, Math.min(count, 5)).forEach(v=>{
           const card = document.createElement('div'); card.className = 'card';
           card.innerHTML = `
             <div class="vtitle">${book} ${chapter}:${v.v} — <a class="yv" href="${yvHref(book, chapter, v.v)}" target="_blank" rel="noopener">YouVersion</a></div>
