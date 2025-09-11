@@ -1,91 +1,10 @@
-/* app.js — Rubrique 0 (verset par verset) + liens bleus soulignés + YouVersion + palette + typographies */
+/* app.js — Une seule zone (preview) + mise en forme “belle” + liens YouVersion + Rubrique 0 conservée */
 (function () {
-  /* ====== Livres & YouVersion ====== */
-  const CHAPTERS_66 = {
-    "Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,
-    "1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,
-    "Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,
-    "Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,
-    "Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22
-  };
-  const YV_BOOK = {
-    "Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT",
-    "1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST",
-    "Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des Cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN",
-    "Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL",
-    "Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"
-  };
+  /* ====== Livres / YouVersion / Alias (identiques) ====== */
+  const CHAPTERS_66 = {"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
+  const YV_BOOK = {"Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des Cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN","Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL","Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"};
   const YV_VERSION_ID = { LSG:'93' };
-
-  /* ====== Alias Recherche ====== */
-  const ALIASES = {
-    "gen":"Genèse","genese":"Genèse","ge":"Genèse",
-    "exo":"Exode","exode":"Exode","ex":"Exode",
-    "lev":"Lévitique","levitique":"Lévitique","lv":"Lévitique",
-    "nbr":"Nombres","nombres":"Nombres","nb":"Nombres",
-    "deu":"Deutéronome","deuteronome":"Deutéronome","dt":"Deutéronome",
-    "josue":"Josué","jos":"Josué",
-    "juges":"Juges","jg":"Juges",
-    "ruth":"Ruth","rut":"Ruth",
-    "1samuel":"1 Samuel","1sa":"1 Samuel","1sam":"1 Samuel",
-    "2samuel":"2 Samuel","2sa":"2 Samuel","2sam":"2 Samuel",
-    "1rois":"1 Rois","1r":"1 Rois",
-    "2rois":"2 Rois","2r":"2 Rois",
-    "1chroniques":"1 Chroniques","1ch":"1 Chroniques",
-    "2chroniques":"2 Chroniques","2ch":"2 Chroniques",
-    "esdras":"Esdras","esd":"Esdras",
-    "nehemie":"Néhémie","neh":"Néhémie",
-    "esther":"Esther","est":"Esther",
-    "job":"Job","jb":"Job",
-    "psaumes":"Psaumes","psaume":"Psaumes","ps":"Psaumes",
-    "proverbes":"Proverbes","prov":"Proverbes","pr":"Proverbes",
-    "ecclesiaste":"Ecclésiaste","qohelet":"Ecclésiaste","ecc":"Ecclésiaste",
-    "cantique":"Cantique des Cantiques","cantiquedescantiques":"Cantique des Cantiques","ct":"Cantique des Cantiques",
-    "esaie":"Ésaïe","esaïe":"Ésaïe","esa":"Ésaïe",
-    "jeremie":"Jérémie","jer":"Jérémie",
-    "lamentations":"Lamentations","lam":"Lamentations",
-    "ezekiel":"Ézéchiel","ezechiel":"Ézéchiel","ez":"Ézéchiel",
-    "daniel":"Daniel","dan":"Daniel",
-    "osee":"Osée","hos":"Osée",
-    "joel":"Joël","joe":"Joël",
-    "amos":"Amos","amo":"Amos",
-    "abdias":"Abdias","abd":"Abdias",
-    "jonas":"Jonas","jon":"Jonas",
-    "michee":"Michée","mic":"Michée",
-    "nahum":"Nahum","nah":"Nahum",
-    "habacuc":"Habacuc","hab":"Habacuc",
-    "sophonie":"Sophonie","sop":"Sophonie","zep":"Sophonie",
-    "aggee":"Aggée","agg":"Aggée",
-    "zacharie":"Zacharie","zac":"Zacharie","zec":"Zacharie",
-    "malachie":"Malachie","mal":"Malachie",
-    "matthieu":"Matthieu","mt":"Matthieu",
-    "marc":"Marc","mc":"Marc",
-    "luc":"Luc","lc":"Luc",
-    "jean":"Jean","jn":"Jean",
-    "actes":"Actes","ac":"Actes",
-    "romains":"Romains","rom":"Romains","ro":"Romains",
-    "1corinthiens":"1 Corinthiens","1co":"1 Corinthiens",
-    "2corinthiens":"2 Corinthiens","2co":"2 Corinthiens",
-    "galates":"Galates","ga":"Galates",
-    "ephesiens":"Éphésiens","eph":"Éphésiens",
-    "philippiens":"Philippiens","php":"Philippiens","ph":"Philippiens",
-    "colossiens":"Colossiens","col":"Colossiens",
-    "1thessaloniciens":"1 Thessaloniciens","1th":"1 Thessaloniciens",
-    "2thessaloniciens":"2 Thessaloniciens","2th":"2 Thessaloniciens",
-    "1timothee":"1 Timothée","1ti":"1 Timothée",
-    "2timothee":"2 Timothée","2ti":"2 Timothée",
-    "tite":"Tite","tit":"Tite",
-    "philemon":"Philémon","phm":"Philémon",
-    "hebreux":"Hébreux","heb":"Hébreux",
-    "jacques":"Jacques","jac":"Jacques","ja":"Jacques",
-    "1pierre":"1 Pierre","1pi":"1 Pierre","1pe":"1 Pierre",
-    "2pierre":"2 Pierre","2pi":"2 Pierre","2pe":"2 Pierre",
-    "1jean":"1 Jean","1jn":"1 Jean",
-    "2jean":"2 Jean","2jn":"2 Jean",
-    "3jean":"3 Jean","3jn":"3 Jean",
-    "jude":"Jude","jud":"Jude",
-    "apocalypse":"Apocalypse","apo":"Apocalypse","apoc":"Apocalypse","ap":"Apocalypse"
-  };
+  const ALIASES = {"gen":"Genèse","genese":"Genèse","ge":"Genèse","exo":"Exode","exode":"Exode","ex":"Exode","lev":"Lévitique","levitique":"Lévitique","lv":"Lévitique","nbr":"Nombres","nombres":"Nombres","nb":"Nombres","deu":"Deutéronome","deuteronome":"Deutéronome","dt":"Deutéronome","josue":"Josué","jos":"Josué","juges":"Juges","jg":"Juges","ruth":"Ruth","rut":"Ruth","1samuel":"1 Samuel","1sa":"1 Samuel","1sam":"1 Samuel","2samuel":"2 Samuel","2sa":"2 Samuel","2sam":"2 Samuel","1rois":"1 Rois","1r":"1 Rois","2rois":"2 Rois","2r":"2 Rois","1chroniques":"1 Chroniques","1ch":"1 Chroniques","2chroniques":"2 Chroniques","2ch":"2 Chroniques","esdras":"Esdras","esd":"Esdras","nehemie":"Néhémie","neh":"Néhémie","esther":"Esther","est":"Esther","job":"Job","jb":"Job","psaumes":"Psaumes","psaume":"Psaumes","ps":"Psaumes","proverbes":"Proverbes","prov":"Proverbes","pr":"Proverbes","ecclesiaste":"Ecclésiaste","qohelet":"Ecclésiaste","ecc":"Ecclésiaste","cantique":"Cantique des Cantiques","cantiquedescantiques":"Cantique des Cantiques","ct":"Cantique des Cantiques","esaie":"Ésaïe","esaïe":"Ésaïe","esa":"Ésaïe","jeremie":"Jérémie","jer":"Jérémie","lamentations":"Lamentations","lam":"Lamentations","ezekiel":"Ézéchiel","ezechiel":"Ézéchiel","ez":"Ézéchiel","daniel":"Daniel","dan":"Daniel","osee":"Osée","hos":"Osée","joel":"Joël","joe":"Joël","amos":"Amos","amo":"Amos","abdias":"Abdias","abd":"Abdias","jonas":"Jonas","jon":"Jonas","michee":"Michée","mic":"Michée","nahum":"Nahum","nah":"Nahum","habacuc":"Habacuc","hab":"Habacuc","sophonie":"Sophonie","sop":"Sophonie","zep":"Sophonie","aggee":"Aggée","agg":"Aggée","zacharie":"Zacharie","zac":"Zacharie","zec":"Zacharie","malachie":"Malachie","mal":"Malachie","matthieu":"Matthieu","mt":"Matthieu","marc":"Marc","mc":"Marc","luc":"Luc","lc":"Luc","jean":"Jean","jn":"Jean","actes":"Actes","ac":"Actes","romains":"Romains","rom":"Romains","ro":"Romains","1corinthiens":"1 Corinthiens","1co":"1 Corinthiens","2corinthiens":"2 Corinthiens","2co":"2 Corinthiens","galates":"Galates","ga":"Galates","ephesiens":"Éphésiens","eph":"Éphésiens","philippiens":"Philippiens","php":"Philippiens","ph":"Philippiens","colossiens":"Colossiens","col":"Colossiens","1thessaloniciens":"1 Thessaloniciens","1th":"1 Thessaloniciens","2thessaloniciens":"2 Thessaloniciens","2th":"2 Thessaloniciens","1timothee":"1 Timothée","1ti":"1 Timothée","2timothee":"2 Timothée","2ti":"2 Timothée","tite":"Tite","tit":"Tite","philemon":"Philémon","phm":"Philémon","hebreux":"Hébreux","heb":"Hébreux","jacques":"Jacques","jac":"Jacques","ja":"Jacques","1pierre":"1 Pierre","1pi":"1 Pierre","1pe":"1 Pierre","2pierre":"2 Pierre","2pi":"2 Pierre","2pe":"2 Pierre","1jean":"1 Jean","1jn":"1 Jean","2jean":"2 Jean","2jn":"2 Jean","3jean":"3 Jean","3jn":"3 Jean","jude":"Jude","jud":"Jude","apocalypse":"Apocalypse","apo":"Apocalypse","apoc":"Apocalypse","ap":"Apocalypse"};
 
   /* ====== Utils ====== */
   const $ = (s) => document.querySelector(s);
@@ -96,7 +15,6 @@
   const store = { get:k=>{ try{return JSON.parse(localStorage.getItem(k)||'null');}catch{return null;} }, set:(k,v)=>{ try{localStorage.setItem(k,JSON.stringify(v));}catch{} } };
 
   /* ====== State ====== */
-  // id=0 : rubrique spéciale (étude verset par verset)
   const state = {
     book: 'Genèse',
     chapter: 1,
@@ -104,17 +22,17 @@
     density: 1500,
     sections: [{ id:0, title:'Rubrique 0', description:'étude verset par verset', content:'' }]
       .concat(Array.from({ length: 28 }, (_, i) => ({ id:i+1, title:`Rubrique ${i+1}`, description:'', content:'' }))),
-    current: 0
+    current: 1
   };
 
   /* ====== DOM ====== */
-  let listEl, edTitle, edMeta, editor, bookEl, chapEl, verseEl, densEl, genBtn, resetBtn, searchEl, validateBtn, bibleLink, paletteEl, sectionTitleEl, sectionDescEl, previewEl, pvWrap, pvCountEl, pvGrid, pvBtn;
+  let listEl, edTitle, edMeta, bookEl, chapEl, verseEl, densEl, genBtn, resetBtn, searchEl, validateBtn, bibleLink, paletteEl, sectionTitleEl, sectionDescEl, previewEl, pvWrap, pvCountEl, pvGrid, pvBtn;
 
   document.addEventListener('DOMContentLoaded', init);
 
   function init(){
     listEl = $('#list'); edTitle=$('#edTitle'); edMeta=$('#edMeta');
-    editor=$('#editor'); sectionTitleEl=$('#sectionTitle'); sectionDescEl=$('#sectionDesc'); previewEl=$('#preview');
+    sectionTitleEl=$('#sectionTitle'); sectionDescEl=$('#sectionDesc'); previewEl=$('#preview');
     bookEl=$('#book'); chapEl=$('#chapter'); verseEl=$('#verse'); densEl=$('#density');
     genBtn=$('#btn-generate'); resetBtn=$('#btn-reset'); searchEl=$('#search');
     validateBtn=$('#btn-validate'); bibleLink=$('#btn-bible'); paletteEl=$('#palette');
@@ -122,7 +40,7 @@
 
     fillBooks(); fillChapters();
 
-    // Palette: restaurer/initialiser
+    // Palette: restaurer / init
     const saved = store.get('palette');
     if (saved && typeof saved.h==='number') {
       applyTheme(saved.h, saved.s||'84%', saved.l||'46%');
@@ -137,29 +55,22 @@
     /* ---- Listeners ---- */
     searchEl.addEventListener('keydown', (e)=>{ if (e.key==='Enter') { e.preventDefault(); onValidate(); } });
     validateBtn.addEventListener('click', onValidate);
-
     bibleLink.addEventListener('click', ()=> updateBibleHref());
 
     bookEl.addEventListener('change', ()=>{
       state.book = bookEl.value; state.chapter = 1; state.verse = '';
       fillChapters(); verseEl.value = ''; renderEditorMeta(); updateBibleHref();
     });
-
     chapEl.addEventListener('change', ()=>{
       const max = CHAPTERS_66[state.book] || 1;
       const n = parseInt(chapEl.value,10);
       state.chapter = Number.isFinite(n) ? clamp(n,1,max) : 1; renderEditorMeta(); updateBibleHref();
     });
-
     verseEl.addEventListener('input', ()=>{ state.verse = digits(verseEl.value); renderEditorMeta(); updateBibleHref(); });
     densEl.addEventListener('change', ()=>{ const v=parseInt(densEl.value,10); if([500,1500,2500].includes(v)) state.density=v; });
 
     genBtn.addEventListener('click', onGenerate);
     resetBtn.addEventListener('click', onReset);
-    editor.addEventListener('input', ()=>{
-      const s = sectionById(state.current); if (!s) return;
-      s.content = editor.value; updateDot(state.current); renderPreview();
-    });
 
     // Palette
     paletteEl.querySelectorAll('.swatch').forEach(sw=>{
@@ -210,7 +121,7 @@
     renderEditorMeta(); updateBibleHref();
   }
 
-  /* ====== YouVersion (lien) ====== */
+  /* ====== YouVersion ====== */
   function buildYouVersionHref(b=state.book, c=state.chapter, v=state.verse){
     const code = YV_BOOK[b] || 'GEN';
     const verId = YV_VERSION_ID['LSG'] || '93';
@@ -222,7 +133,7 @@
     if (a) a.href = buildYouVersionHref();
   }
 
-  /* ====== Sélecteurs Livre/Chapitre ====== */
+  /* ====== Sélecteurs ====== */
   function fillBooks(){
     bookEl.innerHTML = '';
     for (const name of Object.keys(CHAPTERS_66)) {
@@ -241,7 +152,7 @@
     chapEl.value = String(clamp(state.chapter,1,max));
   }
 
-  /* ====== Liste & éditeur ====== */
+  /* ====== Liste & affichage ====== */
   function sectionById(id){ return state.sections.find(s=>s.id===id); }
   function renderList(){
     listEl.innerHTML = '';
@@ -266,32 +177,29 @@
     const s = sectionById(state.current);
     $('#edTitle').textContent = s ? (s.id===0 ? 'Rubrique 0 — Étude verset par verset' : (s.title || `Rubrique ${state.current}`)) : '—';
 
-    // Mode rubrique 0 (affiche le bloc per-verse et masque l’éditeur classique)
     if (s && s.id===0) {
       sectionTitleEl.style.display='none';
       sectionDescEl.style.display='none';
-      editor.style.display='none';
       previewEl.style.display='none';
       pvWrap.style.display='flex';
-      // propose par défaut un nombre de versets plausible si vide
       if (!pvCountEl.value) pvCountEl.value = 31;
-      // si déjà généré, on laisse intact ; sinon on peut auto-générer
       if (!pvGrid.children.length) generatePerVerse();
       renderEditorMeta();
       return;
     }
 
-    // Mode 1..28
+    // 1..28 — affiche UNE zone preview
     pvWrap.style.display='none';
     sectionTitleEl.style.display='block';
     sectionDescEl.style.display='block';
-    editor.style.display='block';
     previewEl.style.display='block';
 
     sectionTitleEl.textContent = s ? (s.title || `Rubrique ${state.current}`) : '—';
     sectionDescEl.textContent  = s ? (s.description || '') : '';
-    editor.value = s ? (s.content || '') : '';
-    renderPreview();
+
+    // Rendu “beau” : Markdown léger + liens versets YouVersion + mise en gras des libellés usuels
+    previewEl.innerHTML = beautifyContent(s?.content || '');
+
     renderEditorMeta();
   }
   function renderEditorMeta(){
@@ -305,18 +213,41 @@
     if (s && s.content && s.content.trim()) dot.classList.add('ok'); else dot.classList.remove('ok');
   }
 
-  /* ====== Preview (liens bleus soulignés) ====== */
-  // Transforme [Texte](https://...) en lien cliquable
-  function linkifyMarkdown(md){
-    if (!md) return '';
-    const safe = (md+'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    return safe.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_m, txt, href) =>
-      `<a href="${href}" target="_blank" rel="noopener" class="verse-link">${txt}</a>`
-    ).replace(/\n/g,'<br/>');
-  }
-  function renderPreview(){
-    const s = sectionById(state.current);
-    previewEl.innerHTML = linkifyMarkdown(s?.content || '');
+  /* ====== Rendu riche (beau + gras où il faut) ====== */
+  function beautifyContent(raw){
+    // échappe HTML, gère titres ###, listes, blockquotes, gras ** **, italique * *, séparateurs ---
+    let s = (raw||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    // titres markdown
+    s = s.replace(/^###\s+(.*)$/gm, '<h3>$1</h3>').replace(/^##\s+(.*)$/gm, '<h2>$1</h2>').replace(/^#\s+(.*)$/gm, '<h1>$1</h1>');
+    // gras / italique
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    // blockquote
+    s = s.replace(/^\>\s?(.*)$/gm, '<blockquote>$1</blockquote>');
+    // séparateur
+    s = s.replace(/^\s*---\s*$/gm, '<hr/>');
+    // listes simples
+    s = s.replace(/^\s*-\s+(.*)$/gm, '<li>$1</li>').replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>');
+    // labels usuels → gras automatique
+    s = s.replace(/(^|\n)\*?Référence\s*:\*/gi, '$1<span class="label">Référence :</span>');
+
+    // Liens markdown [Texte](http...) → ancre
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_m, txt, href) => `<a href="${href}" target="_blank" rel="noopener" class="verse-link">${txt}</a>`);
+
+    // Références bibliques en clair → lien YouVersion (ex: Genèse 1:2–5 ou Jean 3:16)
+    s = s.replace(/\b(Genèse|Exode|Lévitique|Nombres|Deutéronome|Josué|Juges|Ruth|1 Samuel|2 Samuel|1 Rois|2 Rois|1 Chroniques|2 Chroniques|Esdras|Néhémie|Esther|Job|Psaumes|Proverbes|Ecclésiaste|Cantique des Cantiques|Ésaïe|Jérémie|Lamentations|Ézéchiel|Daniel|Osée|Joël|Amos|Abdias|Jonas|Michée|Nahum|Habacuc|Sophonie|Aggée|Zacharie|Malachie|Matthieu|Marc|Luc|Jean|Actes|Romains|1 Corinthiens|2 Corinthiens|Galates|Éphésiens|Philippiens|Colossiens|1 Thessaloniciens|2 Thessaloniciens|1 Timothée|2 Timothée|Tite|Philémon|Hébreux|Jacques|1 Pierre|2 Pierre|1 Jean|2 Jean|3 Jean|Jude|Apocalypse)\s+(\d+)(?::(\d+(?:[–-]\d+)?))?/g,
+      (_m, book, chap, vv) => {
+        const code = YV_BOOK[book] || 'GEN';
+        const verId = YV_VERSION_ID['LSG'] || '93';
+        const anchor = vv ? ('#v'+vv.replace(/[–-].*/,'') ) : '';
+        const url = `https://www.bible.com/fr/bible/${verId}/${code}.${chap}.LSG${anchor}`;
+        return `<a href="${url}" target="_blank" rel="noopener" class="verse-link">${book} ${chap}${vv?':'+vv:''}</a>`;
+      });
+
+    // paragraphes
+    s = s.split(/\n{2,}/).map(p => /<(h\d|ul|blockquote|hr)/.test(p.trim()) ? p : `<p>${p.replace(/\n/g,'<br/>')}</p>`).join('\n');
+
+    return s;
   }
 
   /* ====== API ====== */
@@ -333,7 +264,6 @@
       const data = await r.json();
       const sections = data?.study?.sections;
       if (!Array.isArray(sections) || sections.length !== 28) throw new Error('sections.length != 28');
-      // On préserve la rubrique 0 en tête
       const head = state.sections[0];
       state.sections = [head].concat(sections.map((s,i)=>({
         id:Number(s.id)||i+1,
@@ -342,8 +272,7 @@
         content:String(s.content||'')
       })));
       renderList();
-      // si on n’est pas sur la 0, afficher la rubrique 1
-      if (state.current!==0) state.current = 1;
+      if (state.current===0) state.current = 1;
       renderEditor();
       try { localStorage.setItem('Dernière étude', JSON.stringify({ passage, density, ts: new Date().toISOString() })); } catch {}
     } catch (e){
@@ -354,27 +283,24 @@
   }
 
   function onReset(){
-    // diodes → orange, champs remis, “Dernière étude” conservée
     const head = state.sections[0];
     state.sections = [head].concat(state.sections.slice(1).map(s=>({ ...s, content:'' })));
     document.querySelectorAll('.dot').forEach(d=>d.classList.remove('ok'));
 
-    // Champs
     $('#search').value = '';
     bookEl.value = 'Genèse'; state.book='Genèse';
     fillChapters(); chapEl.value='1'; state.chapter=1;
     verseEl.value=''; state.verse='';
     densEl.value='1500'; state.density=1500;
 
-    // Rubrique 0 nettoyée
     pvGrid.innerHTML = '';
     pvCountEl.value = 31;
 
-    state.current=0;
+    state.current=1;
     renderList(); renderEditor(); updateBibleHref();
   }
 
-  /* ====== Rubrique 0 — Étude verset par verset ====== */
+  /* ====== Rubrique 0 ====== */
   function generatePerVerse(){
     const n = clamp(parseInt(pvCountEl.value,10)||1, 1, 200);
     pvCountEl.value = String(n);
@@ -387,7 +313,6 @@
       const link = document.createElement('a'); link.href=url; link.target='_blank'; link.rel='noopener'; link.className='verse-link'; link.textContent='Ouvrir sur YouVersion';
       head.appendChild(title); head.appendChild(link);
       const body = document.createElement('div'); body.className='vbody';
-      // Explication systématique (modèle simple)
       body.innerHTML = [
         `<strong>Observation</strong> — Note le mouvement du texte et les mots-clés.`,
         `<strong>Contexte</strong> — Situe ce verset dans ${state.book} ${state.chapter}.`,
@@ -412,6 +337,5 @@
     root.setProperty('--border', `hsl(${h} 30% 86%)`);
     root.setProperty('--active', `hsl(${h} 100% 90%)`);
     root.setProperty('--hover', `hsl(${h} 90% 95%)`);
-    // liens héritent de --link (bleu constant pour cohérence lisibilité)
   }
 })();
