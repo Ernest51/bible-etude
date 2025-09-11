@@ -25,12 +25,12 @@
       --link: #2563eb;
     }
     *{box-sizing:border-box}
-    html,body{
-      margin:0;background:var(--bg);color:var(--text);
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-    }
+    html,body{ margin:0;background:var(--bg);color:var(--text);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;}
     header{position:sticky;top:0;z-index:10;background:#fff;padding:14px 18px;border-bottom:1px solid var(--border)}
     h1{margin:0;font-size:22px;font-weight:800;text-align:center}
+    .topnav{display:flex;gap:10px;justify-content:center;margin-top:8px}
+    .topnav a{color:var(--link);text-decoration:underline}
     main{max-width:1100px;margin:18px auto;padding:0 12px}
     .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;align-items:center}
     label{display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 10px}
@@ -43,7 +43,6 @@
     .btn:active{transform:translateY(1px)}
     .hint{color:var(--muted);font-size:13px;margin:6px 0}
 
-    /* Palette (couleur du site) */
     .palette{display:flex;gap:8px;align-items:center;margin:8px 0 12px 0}
     .swatch{width:22px;height:22px;border-radius:50%;border:1px solid #e2e8f0;cursor:pointer;box-shadow:0 0 0 2px #fff inset}
     .swatch[data-active="1"]{outline:2px solid var(--primary)}
@@ -66,11 +65,10 @@
 
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center}
-    .ed-title{display:none} /* masque le titre doublon dans la barre */
+    .ed-title{display:none}
     .ed-meta{color:var(--muted);font-size:12px;margin-left:auto}
     .ed-body{padding:12px}
 
-    /* Zone de réponse – UNE SEULE, belle et lisible */
     .section-title{
       font-family: "Playfair Display", Georgia, "Times New Roman", serif;
       font-weight:700; text-align:center; margin:4px 0 6px 0; font-size:22px;
@@ -94,20 +92,17 @@
     .preview hr{border:none;border-top:1px solid var(--border);margin:14px 0}
     .preview ul{margin:10px 0 10px 22px}
     .preview a, .verse-link{color:var(--link) !important; text-decoration: underline !important;}
-    .preview .label{font-weight:700} /* ex: Référence : */
-
-    /* Rubrique 0 (étude verset par verset) */
-    .per-verse{display:flex;flex-direction:column;gap:12px}
-    .pv-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .pv-grid{display:grid;grid-template-columns:1fr;gap:10px}
-    .pv-item{padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--panel-2)}
-    .pv-item .vhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-    .pv-item .vtitle{font-weight:700}
-    .pv-item .vbody{font-family:"Source Serif 4", Georgia, serif;line-height:1.7}
+    .preview .label{font-weight:700}
   </style>
 </head>
 <body>
-  <header><h1>Bible Étude — Générateur 28 rubriques</h1></header>
+  <header>
+    <h1>Bible Étude — Générateur 28 rubriques</h1>
+    <div class="topnav">
+      <a href="/verse.html">→ Étude verset par verset (Rubrique 0)</a>
+    </div>
+  </header>
+
   <main>
     <div class="controls">
       <label>Recherche
@@ -135,13 +130,12 @@
       <button id="btn-reset" class="btn secondary" type="button">Reset</button>
     </div>
 
-    <!-- Palette 12 couleurs -->
     <div class="palette" id="palette" aria-label="Palette de couleurs (12 choix)">
       <div class="swatch" data-h="0"   data-s="80%" data-l="45%" style="background:hsl(0 80% 45%)"   title="Rouge"></div>
       <div class="swatch" data-h="20"  data-s="85%" data-l="45%" style="background:hsl(20 85% 45%)"  title="Orange"></div>
       <div class="swatch" data-h="35"  data-s="90%" data-l="45%" style="background:hsl(35 90% 45%)"  title="Or"></div>
       <div class="swatch" data-h="50"  data-s="90%" data-l="40%" style="background:hsl(50 90% 40%)"  title="Jaune"></div>
-      <div class="swatch" data-h="90"  data-s="55%" data-l="40%" style="background:hsl(90 55% 40%)"  title="Vert"></div>
+      <div class="swatch" data-h="90"  data-s="55%" data-l="40%" style="background:hsl(90 55% 40%)" title="Vert"></div>
       <div class="swatch" data-h="150" data-s="60%" data-l="40%" style="background:hsl(150 60% 40%)" title="Turquoise"></div>
       <div class="swatch" data-h="190" data-s="70%" data-l="45%" style="background:hsl(190 70% 45%)" title="Cyan"></div>
       <div class="swatch" data-h="221" data-s="84%" data-l="46%" style="background:hsl(221 84% 46%)" title="Bleu (défaut)" data-active="1"></div>
@@ -158,7 +152,7 @@
 
     <div class="layout">
       <aside class="sidebar">
-        <div class="side-head">Rubriques (0–28)</div>
+        <div class="side-head">Rubriques (1–28)</div>
         <div id="list" class="list"></div>
       </aside>
 
@@ -170,24 +164,12 @@
         <div class="ed-body">
           <h2 id="sectionTitle" class="section-title">—</h2>
           <p id="sectionDesc" class="section-desc"></p>
-          <!-- UNE SEULE zone de lecture/affichage -->
           <div id="preview" class="preview" aria-live="polite"></div>
-
-          <!-- Rubrique 0 (verset par verset) -->
-          <div id="pv" class="per-verse" style="display:none">
-            <div class="pv-controls">
-              <strong>Étude verset par verset</strong>
-              <span>|</span>
-              <label>Nombre de versets <input id="pv-count" type="number" min="1" max="200" value="31" style="width:90px" /></label>
-              <button id="pv-generate" class="btn secondary" type="button">Générer</button>
-            </div>
-            <div id="pv-grid" class="pv-grid"></div>
-          </div>
         </div>
       </section>
     </div>
   </main>
 
-  <script src="/app.js" defer></script>
+  <script src="/js/app-study.js" defer></script>
 </body>
 </html>
