@@ -8,7 +8,8 @@
   <!-- Polices -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Playfair+Display:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet" />
+  <!-- + Poppins pour des titres/boutons plus élégants -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Playfair+Display:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Poppins:wght@500;700&display=swap" rel="stylesheet" />
   <style>
     :root{
       --primary-h: 221; --primary-s: 84%; --primary-l: 46%;
@@ -29,22 +30,17 @@
       margin:0;background:var(--bg);color:var(--text);
       font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
-    header{
-      position:sticky;top:0;z-index:10;background:#fff;
-      padding:14px 18px;border-bottom:1px solid var(--border);
-      display:flex;align-items:center;justify-content:space-between;gap:10px;
-    }
-    h1{margin:0;font-size:22px;font-weight:800;text-align:center;flex:1}
-    header nav a{color:var(--link);font-size:14px;text-decoration:underline;white-space:nowrap}
+    header{position:sticky;top:0;z-index:10;background:#fff;padding:14px 18px;border-bottom:1px solid var(--border)}
+    h1{margin:0;font-size:22px;font-weight:800;text-align:center}
     main{max-width:1100px;margin:18px auto;padding:0 12px}
     .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;align-items:center}
     label{display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 10px}
-    select,input,button,.btn{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--panel-2);color:var(--text);text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+    select,input,button,.btn{border:1px solid var(--border);border-radius:999px;padding:10px 14px;background:var(--panel-2);color:var(--text);text-decoration:none;display:inline-flex;align-items:center;gap:6px;font-family:Poppins, Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif}
     input,select{min-width:120px}
     input#search{min-width:260px}
     .btn{cursor:pointer;transition:transform .04s ease}
-    .btn.primary{background:var(--primary);color:#fff;border:1px solid var(--primary)}
-    .btn.secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--border)}
+    .btn.primary{background:var(--primary);color:#fff;border:1px solid var(--primary); font-weight:700}
+    .btn.secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--border); font-weight:600}
     .btn:active{transform:translateY(1px)}
     .hint{color:var(--muted);font-size:13px;margin:6px 0}
 
@@ -59,11 +55,11 @@
     .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
     .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700}
     .list{max-height:70vh;overflow:auto}
-    .item{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
+    .item{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:16px;margin:4px 8px}
     .item:last-child{border-bottom:0}
     .item:hover{background:var(--hover)}
     .item.active{background:var(--active)}
-    .idx{min-width:26px;height:26px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:var(--panel-2)}
+    .idx{min-width:26px;height:26px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:var(--panel-2);font-family:Poppins, Inter, sans-serif; font-weight:700; color:hsl(var(--primary-h) var(--primary-s) 35%)}
     .title{flex:1;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
     .subtitle{font-size:12px;color:var(--muted)}
     .dot{width:9px;height:9px;border-radius:999px;background:var(--warn);margin-left:auto;box-shadow:0 0 0 2px #fff inset}
@@ -71,14 +67,20 @@
 
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
     .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center}
-    .ed-title{display:none} /* masque le titre doublon dans la barre */
+    .ed-title{display:none}
     .ed-meta{color:var(--muted);font-size:12px;margin-left:auto}
     .ed-body{padding:12px}
 
     /* Zone de réponse – UNE SEULE, belle et lisible */
     .section-title{
-      font-family: "Playfair Display", Georgia, "Times New Roman", serif;
-      font-weight:700; text-align:center; margin:4px 0 6px 0; font-size:22px;
+      font-family: "Poppins", "Playfair Display", Georgia, "Times New Roman", serif;
+      font-weight:700; text-align:center;
+      margin:6px auto 8px; font-size:22px;
+      background: var(--panel-2);
+      border:1px solid var(--border);
+      padding:10px 18px;
+      border-radius:999px; /* bel arrondi */
+      max-width: 720px;
     }
     .section-desc{
       text-align:center; color:var(--muted); margin:0 0 14px 0; font-size:14px;
@@ -90,7 +92,7 @@
       font-family:"Source Serif 4", Georgia, "Times New Roman", serif;
       box-shadow: 0 6px 14px rgba(0,0,0,.04);
     }
-    .preview h1,.preview h2,.preview h3{font-family:"Playfair Display", Georgia, serif; font-weight:700; margin:0 0 10px}
+    .preview h1,.preview h2,.preview h3{font-family:"Poppins","Playfair Display", Georgia, serif; font-weight:700; margin:0 0 10px; text-align:center}
     .preview h1{font-size:24px} .preview h2{font-size:21px} .preview h3{font-size:18px}
     .preview p{margin:10px 0}
     .preview strong{font-weight:700}
@@ -99,26 +101,20 @@
     .preview hr{border:none;border-top:1px solid var(--border);margin:14px 0}
     .preview ul{margin:10px 0 10px 22px}
     .preview a, .verse-link{color:var(--link) !important; text-decoration: underline !important;}
-    .preview .label{font-weight:700} /* ex: Référence : */
+    .preview .label{font-weight:700}
 
     /* Rubrique 0 (étude verset par verset) */
     .per-verse{display:flex;flex-direction:column;gap:12px}
     .pv-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .pv-grid{display:grid;grid-template-columns:1fr;gap:10px}
-    .pv-item{padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--panel-2)}
+    .pv-item{padding:10px;border:1px solid var(--border);border-radius:20px;background:var(--panel-2)}
     .pv-item .vhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-    .pv-item .vtitle{font-weight:700}
+    .pv-item .vtitle{font-weight:700;font-family:Poppins, Inter, sans-serif}
     .pv-item .vbody{font-family:"Source Serif 4", Georgia, serif;line-height:1.7}
   </style>
 </head>
 <body>
-  <header>
-    <h1>Bible Étude — Générateur 28 rubriques</h1>
-    <nav>
-      <!-- lien pratique, n’influence pas l’UI -->
-      <a href="/verse.html">→ Étude verset par verset (Rubrique 0)</a>
-    </nav>
-  </header>
+  <header><h1>Bible Étude — Générateur 28 rubriques</h1></header>
   <main>
     <div class="controls">
       <label>Recherche
@@ -142,8 +138,13 @@
           <option value="2500">2500</option>
         </select>
       </label>
+
       <button id="btn-generate" class="btn primary" type="button">Générer</button>
       <button id="btn-reset" class="btn secondary" type="button">Reset</button>
+
+      <!-- Nouveaux boutons -->
+      <button id="btn-last" class="btn secondary" type="button" title="Revenir à la dernière étude">Dernière étude</button>
+      <a id="btn-chatgpt" class="btn secondary" href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a>
     </div>
 
     <!-- Palette 12 couleurs -->
@@ -199,7 +200,6 @@
     </div>
   </main>
 
-  <!-- IMPORTANT: on garde ton app.js historique -->
   <script src="/app.js" defer></script>
 </body>
 </html>
