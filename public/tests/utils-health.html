@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Test — /api/utils?action=health</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:20px;line-height:1.5}
+    button{padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;cursor:pointer}
+    .ok{color:#16a34a;font-weight:700}
+    .ko{color:#b91c1c;font-weight:700}
+    pre{white-space:pre-wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px}
+    .muted{color:#64748b}
+  </style>
+</head>
+<body>
+  <h1>Test — /api/utils?action=health</h1>
+  <p class="muted">Vérifie que l’endpoint répond et que les variables d’environnement api.bible sont bien détectées.</p>
+  <button id="run">Lancer le test</button>
+
+  <div id="out" style="margin-top:16px"></div>
+
+  <script>
+    async function test(){
+      const out = document.getElementById('out');
+      out.innerHTML = 'Requête…';
+      try{
+        const r = await fetch('/api/utils?action=health');
+        const ct = (r.headers.get('content-type')||'').toLowerCase();
+        if (!ct.includes('application/json')) {
+          const text = await r.text();
+          out.innerHTML = `<p class="ko">❌ Réponse non-JSON (${r.status})</p><pre>${text.slice(0,600)}</pre>`;
+          return;
+        }
+        const data = await r.json();
+        const ok = data?.ok === true;
+        const hasKey = !!data?.env?.hasApiBibleKey;
+        const hasId  = !!data?.env?.hasApiBibleId;
+
+        out.innerHTML = `
+          <p class="${ok?'ok':'ko'}">${ok?'✅':'❌'} Endpoint OK</p>
+          <p>${hasKey ? '🔑 API_BIBLE_KEY détectée' : '🔒 API_BIBLE_KEY absente → fallback'}</p>
+          <p>${hasId  ? '📖 API_BIBLE_ID détecté'   : '📕 API_BIBLE_ID absent → fallback'}</p>
+          <details><summary>Détails</summary><pre>${JSON.stringify(data,null,2)}</pre></details>
+        `;
+      }catch(e){
+        document.getElementById('out').innerHTML = `<p class="ko">❌ Erreur: ${e.message}</p>`;
+      }
+    }
+    document.getElementById('run').addEventListener('click', test);
+  </script>
+</body>
+</html>
