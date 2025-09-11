@@ -7,21 +7,21 @@
   <meta name="description" content="Étude biblique — 28 rubriques, diodes vertes si contenu, Reset remet à orange." />
   <style>
     :root{
-      --bg:#0b0c10; --panel:#121318; --panel-2:#15171c; --text:#e6e6e6; --muted:#9aa3b2; --border:#262a31;
-      --ok:#18c37e; --warn:#ffb020; --primary:#2e6ef7;
+      --bg:#f8fafc; --panel:#ffffff; --panel-2:#f1f5f9; --text:#0f172a; --muted:#475569;
+      --border:#e2e8f0; --ok:#16a34a; --warn:#eab308; --primary:#2563eb;
     }
     *{box-sizing:border-box}
     html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    header{position:sticky;top:0;z-index:10;background:linear-gradient(180deg,#0b0c10,#0b0c1000);padding:14px 18px;border-bottom:1px solid var(--border)}
+    header{position:sticky;top:0;z-index:10;background:#fff;padding:14px 18px;border-bottom:1px solid var(--border)}
     h1{margin:0;font-size:22px;font-weight:800;text-align:center}
     main{max-width:1100px;margin:18px auto;padding:0 12px}
     .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
     label{display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 10px}
     select,input,button{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--panel-2);color:var(--text)}
     input,select{min-width:120px}
-    button{cursor:pointer;border:1px solid #234dc4}
-    .btn{background:var(--primary)}
-    .btn.secondary{background:var(--panel-2);border:1px solid var(--border)}
+    button{cursor:pointer}
+    .btn{background:var(--primary);color:#fff;border:1px solid var(--primary)}
+    .btn.secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--border)}
     .hint{color:var(--muted);font-size:13px;margin:6px 0}
 
     .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
@@ -32,11 +32,11 @@
     .list{max-height:70vh;overflow:auto}
     .item{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
     .item:last-child{border-bottom:0}
-    .item:hover{background:#151923}
-    .item.active{background:#162034}
+    .item:hover{background:#f1f5f9}
+    .item.active{background:#e0f2fe}
     .idx{min-width:26px;height:26px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:var(--panel-2)}
     .title{flex:1;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
-    .dot{width:9px;height:9px;border-radius:999px;background:var(--warn);margin-left:auto;box-shadow:0 0 0 2px #1b1f27 inset}
+    .dot{width:9px;height:9px;border-radius:999px;background:var(--warn);margin-left:auto;box-shadow:0 0 0 2px #fff inset}
     .dot.ok{background:var(--ok)}
 
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
@@ -44,8 +44,8 @@
     .ed-title{font-weight:800;flex:1}
     .ed-meta{color:var(--muted);font-size:12px}
     .ed-body{padding:12px}
-    textarea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;line-height:1.6;white-space:pre-wrap;background:#0f1116;color:var(--text)}
-    code{background:#0f1116;border:1px solid var(--border);padding:2px 6px;border-radius:6px}
+    textarea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;line-height:1.6;white-space:pre-wrap;background:var(--panel-2);color:var(--text)}
+    code{background:var(--panel-2);border:1px solid var(--border);padding:2px 6px;border-radius:6px}
   </style>
 </head>
 <body>
@@ -70,7 +70,8 @@
     </div>
 
     <div class="hint">
-      Règles: appel POST <code>/api/generate-study</code>, <code>options.length</code> ∈ 500 / 1500 / 2500. Diodes vertes si contenu, Reset → toutes orange. Aucune CORS (même origine).
+      Règles: appel POST <code>/api/generate-study</code>, <code>options.length</code> ∈ 500 / 1500 / 2500. 
+      Diodes vertes si contenu, Reset → toutes orange. Aucune CORS (même origine).
     </div>
 
     <div class="layout">
