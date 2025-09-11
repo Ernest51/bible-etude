@@ -19,6 +19,7 @@
     label{display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 10px}
     select,input,button{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--panel-2);color:var(--text)}
     input,select{min-width:120px}
+    input#search{min-width:260px}
     button{cursor:pointer}
     .btn{background:var(--primary);color:#fff;border:1px solid var(--primary)}
     .btn.secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--border)}
@@ -52,11 +53,17 @@
   <header><h1>Bible Étude — Générateur 28 rubriques</h1></header>
   <main>
     <div class="controls">
+      <label>Recherche
+        <input id="search" placeholder="ex: luc  |  marc 3:2  |  1 jean 4" />
+      </label>
       <label>Livre
-        <input id="book" placeholder="Genèse" value="Genèse" />
+        <select id="book"></select>
       </label>
       <label>Chapitre
-        <input id="chapter" placeholder="1" value="1" />
+        <select id="chapter"></select>
+      </label>
+      <label>Verset
+        <input id="verse" placeholder="(optionnel)" />
       </label>
       <label>Densité
         <select id="density">
@@ -70,7 +77,7 @@
     </div>
 
     <div class="hint">
-      Règles: appel POST <code>/api/generate-study</code>, <code>options.length</code> ∈ 500 / 1500 / 2500. 
+      Règles: appel POST <code>/api/generate-study</code>, <code>options.length</code> ∈ 500 / 1500 / 2500.
       Diodes vertes si contenu, Reset → toutes orange. Aucune CORS (même origine).
     </div>
 
