@@ -1,52 +1,194 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Étude verset par verset</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet"/>
-  <style>
-    :root{ --border:#e5e7eb; --link:#2563eb; }
-    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#f6f8fb;color:#0f172a}
-    header{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);padding:14px}
-    h1{margin:0;font-size:20px;font-weight:800;text-align:center}
-    .topnav{display:flex;gap:10px;justify-content:center;margin-top:8px}
-    .topnav a{color:var(--link);text-decoration:underline}
-    main{max-width:900px;margin:20px auto;padding:0 12px}
-    .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-    label{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--border);border-radius:12px;padding:8px 10px}
-    input,button,a.btn{padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#fff}
-    button{cursor:pointer}
-    a.btn{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:#0f172a}
-    .pv-grid{display:grid;grid-template-columns:1fr;gap:10px}
-    .pv-item{padding:10px;border:1px solid var(--border);border-radius:10px;background:#fff}
-    .vhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-    .vtitle{font-weight:700}
-    .verse-link{color:var(--link);text-decoration:underline}
-  </style>
-</head>
-<body>
-  <header>
-    <h1>Étude verset par verset (Rubrique 0)</h1>
-    <div class="topnav">
-      <a href="/index.html">← Revenir à l’étude 1–28</a>
-    </div>
-  </header>
+// /api/verse.js — robuste JSON-only + fallback généré avec noteHTML (même contrat que /api/verses)
+// GET /api/verse?book=Genèse&chapter=1&count=31
+// -> { ok:true, source:'api.bible.verses|api.bible.chapter|fallback-generated|fallback',
+//      book, chapter, version:'DARBY|LSG', verses:[{v:1,text:'…',noteHTML:'…'},…] }
 
-  <main>
-    <div class="controls">
-      <label>Livre <input id="book" value="Genèse" style="width:160px"/></label>
-      <label>Chapitre <input id="chapter" value="1" type="number" min="1" style="width:90px"/></label>
-      <label>Nombre de versets <input id="count" value="31" type="number" min="1" max="200" style="width:100px"/></label>
-      <button id="go">Charger</button>
-      <a id="open-yv" class="btn" target="_blank" rel="noopener">YouVersion</a>
-    </div>
+export const config = { runtime: "nodejs" };
 
-    <div id="pv-grid" class="pv-grid"></div>
-  </main>
+const USFM = {
+  "Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT",
+  "1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH",
+  "Esdras":"EZR","Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC",
+  "Cantique des Cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN",
+  "Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahum":"NAM","Habacuc":"HAB",
+  "Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL","Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN",
+  "Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH",
+  "Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI",
+  "2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE",
+  "1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"
+};
 
-  <script src="/js/app-verse.js" defer></script>
-</body>
-</html>
+const CLEAN = (s) => String(s||'')
+  .replace(/<[^>]+>/g, ' ')
+  .replace(/\s+/g, ' ')
+  .replace(/\s([;:,.!?…])/g, '$1')
+  .trim();
+
+const KEY  = process.env.API_BIBLE_KEY || '';
+const BIBLE_ID = process.env.API_BIBLE_ID || process.env.API_BIBLE_BIBLE_ID || '';
+
+// ---------- helpers ----------
+function json(res, status, payload) {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(status).end(JSON.stringify(payload));
+}
+
+function mkNoteHTML(text, ref){
+  const t = String(text||'').toLowerCase();
+  const motifs = [];
+  if (/\blumi[eè]re?\b/.test(t)) motifs.push(`théologie de la <strong>lumière</strong> (création, révélation, 2 Co 4:6)`);
+  if (/\besprit\b/.test(t)) motifs.push(`œuvre de l’<strong>Esprit</strong> (création, inspiration, nouvelle création)`);
+  if (/\bparole\b/.test(t)) motifs.push(`primat de la <strong>Parole</strong> efficace de Dieu (Hé 11:3; Jn 1)`);
+  if (/\bhomme\b|\bhumain\b|adam/.test(t)) motifs.push(`<strong>anthropologie</strong> biblique (image de Dieu, vocation)`);
+  if (/\bterre\b|\bciel\b/.test(t)) motifs.push(`<strong>cosmologie</strong> ordonnée par Dieu`);
+  if (/\bp[ée]ch[ée]\b/.test(t)) motifs.push(`réalité du <strong>péché</strong> et besoin de rédemption`);
+  const axes = motifs.length ? motifs.join('; ') : `théologie de la création, providence et finalité en Dieu`;
+
+  return [
+    `<strong>Analyse littéraire</strong> — repérer termes clés, parallélismes et rythmes. Le verset ${ref} s’insère dans l’argument et porte l’accent théologique.`,
+    `<strong>Axes théologiques</strong> — ${axes}.`,
+    `<strong>Échos canoniques</strong> — lire “Écriture par l’Écriture” (Torah, Sagesse, Prophètes; puis Évangiles et Épîtres).`,
+    `<strong>Christologie</strong> — comment ${ref} est récapitulé en <strong>Christ</strong> (Col 1:16-17; Lc 24:27) ?`,
+    `<strong>Ecclésial & pastoral</strong> — implications pour l’<strong>Église</strong> (adoration, mission, éthique).`,
+    `<strong>Application personnelle</strong> — prier le texte et formuler une décision concrète aujourd’hui.`
+  ].join('<br/>');
+}
+
+function fallbackGenerated(book, chapter, count){
+  const code = USFM[book] || 'GEN';
+  const youversionBase = `https://www.bible.com/fr/bible/93/${code}.${chapter}.LSG`;
+  const verses = Array.from({length: count}, (_,i) => {
+    const v = i+1;
+    const ref = `${book} ${chapter}:${v}`;
+    return {
+      v,
+      text: '',
+      noteHTML: mkNoteHTML('', ref)
+    };
+  });
+  return {
+    ok: true,
+    source: 'fallback-generated',
+    book, chapter, version: 'LSG',
+    youversionBase,
+    verses
+  };
+}
+
+// Fetch helper with timeout + tolerant JSON
+async function fetchJson(url, headers, timeout = 10000){
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), timeout);
+  try{
+    const r = await fetch(url, { headers, signal: ctrl.signal });
+    const text = await r.text();
+    let j;
+    try { j = text ? JSON.parse(text) : {}; } catch { j = { raw: text }; }
+    return { ok: r.ok, status: r.status, json: j };
+  } finally {
+    clearTimeout(to);
+  }
+}
+
+// ---------- main ----------
+export default async function handler(req, res){
+  try{
+    if (req.method === 'OPTIONS') {
+      res.setHeader('Access-Control-Allow-Origin','*');
+      res.setHeader('Access-Control-Allow-Methods','GET,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers','content-type,accept');
+      res.status(204).end();
+      return;
+    }
+    if (req.method !== 'GET') {
+      return json(res, 405, { ok:false, error: 'Method Not Allowed' });
+    }
+
+    const book = String(req.query.book || 'Genèse');
+    const chapter = Math.max(1, parseInt(req.query.chapter,10) || 1);
+    const count = Math.max(1, Math.min(parseInt(req.query.count,10) || 200, 200));
+
+    // fallback si ENV manquantes ou livre inconnu
+    if (!KEY || !BIBLE_ID || !USFM[book]) {
+      return json(res, 200, fallbackGenerated(book, chapter, count));
+    }
+
+    const base = 'https://api.scripture.api.bible/v1';
+    const headers = { 'api-key': KEY, 'accept': 'application/json' };
+    const chapterId = `${USFM[book]}.${chapter}`;
+
+    // A) liste des versets
+    const rList = await fetchJson(`${base}/bibles/${BIBLE_ID}/chapters/${chapterId}/verses`, headers);
+    if (!rList.ok) {
+      // B) chapitre complet en texte
+      const rChap = await fetchJson(`${base}/bibles/${BIBLE_ID}/chapters/${chapterId}?contentType=text`, headers);
+      if (!rChap.ok) {
+        const pay = fallbackGenerated(book, chapter, count);
+        pay.source = 'fallback-generated';
+        return json(res, 200, pay);
+      }
+      const content = CLEAN(rChap.json?.data?.content || '');
+      if (!content) {
+        const pay = fallbackGenerated(book, chapter, count);
+        pay.source = 'fallback';
+        return json(res, 200, pay);
+      }
+      let verses = content.split(/\s(?=\d{1,3}\s)/g)
+        .map(s=>s.trim())
+        .map(s=>{ const m=s.match(/^(\d{1,3})\s+(.*)$/); return m?{v:+m[1],text:CLEAN(m[2])}:null; })
+        .filter(Boolean);
+      if (verses.length < 2){
+        const arr = [];
+        const re = /(?:^|\s)(\d{1,3})[.)]?\s+([^]+?)(?=(?:\s\d{1,3}[.)]?\s)|$)/g;
+        let m; while((m=re.exec(content))){ arr.push({ v:+m[1], text:CLEAN(m[2]) }); }
+        if (arr.length) verses = arr;
+      }
+      const withNotes = verses.slice(0, count).map(({v, text}) => ({
+        v, text, noteHTML: mkNoteHTML(text, `${book} ${chapter}:${v}`)
+      }));
+      return json(res, 200, { ok:true, source:'api.bible.chapter', book, chapter, version:'DARBY', verses: withNotes });
+    }
+
+    // C) on a les ids → on récupère les versets (batch)
+    const items = Array.isArray(rList.json?.data) ? rList.json.data : [];
+    const ids = items.map(it => ({ id: it.id, ref: it.reference || '' })).slice(0, count);
+
+    const batchSize = 10;
+    const verses = [];
+    for (let i=0;i<ids.length;i+=batchSize){
+      const chunk = ids.slice(i, i+batchSize);
+      const got = await Promise.all(chunk.map(async (it) => {
+        const rV = await fetchJson(`${base}/bibles/${BIBLE_ID}/verses/${it.id}?contentType=text`, headers);
+        const raw = CLEAN(rV.json?.data?.content || rV.json?.data?.text || rV.json?.data?.reference || '');
+        let v = undefined;
+        let text = '';
+        const m = raw.match(/^\s*(\d{1,3})\s*(.*)$/);
+        if (m) { v = parseInt(m[1],10); text = (m[2]||'').trim(); }
+        else {
+          const m2 = (it.ref||'').match(/:(\d{1,3})$/);
+          v = m2 ? parseInt(m2[1],10) : undefined;
+          text = raw;
+        }
+        if (!Number.isFinite(v)) return null;
+        return { v, text };
+      }));
+      verses.push(...got.filter(Boolean));
+    }
+
+    const clean = verses
+      .sort((a,b)=>a.v-b.v)
+      .map(({v,text}) => ({ v, text, noteHTML: mkNoteHTML(text, `${book} ${chapter}:${v}`) }));
+
+    return json(res, 200, { ok:true, source:'api.bible.verses', book, chapter, version:'DARBY', verses: clean });
+
+  } catch (e){
+    const msg = String(e?.message || e);
+    const pay = { ok:false, emergency:true, error: msg };
+    try { return json(res, 200, pay); }
+    catch {
+      res.setHeader('Content-Type','application/json; charset=utf-8');
+      res.status(200).end(JSON.stringify(pay));
+    }
+  }
+}
