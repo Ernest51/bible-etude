@@ -1,135 +1,71 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Bible Étude — Générateur (28 rubriques)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bible Étude — Générateur 28 rubriques</title>
+  <meta name="description" content="Étude biblique — 28 rubriques, diodes vertes si contenu, Reset remet à orange." />
   <style>
-    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-    body { margin: 0; padding: 24px; background: #0b0c10; color: #e6e6e6; }
-    .app { max-width: 1100px; margin: 0 auto; }
-    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-    input, select, button { padding: 10px 12px; border-radius: 10px; border: 1px solid #2b2e34; background: #15171c; color: #e6e6e6; }
-    button { cursor: pointer; }
-    button.primary { background: #2e6ef7; border-color: #2e6ef7; }
-    button.secondary { background: #20232b; }
-    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 18px; }
-    @media (max-width: 900px){ .grid{ grid-template-columns: 1fr; } }
-    .card { background: #121318; border: 1px solid #262a31; border-radius: 14px; padding: 12px; }
-    .title { display: flex; align-items: center; gap: 8px; font-weight: 600; }
-    .diode { width: 10px; height: 10px; border-radius: 999px; background: #ffb020; /* orange par défaut */ box-shadow: 0 0 0 2px #1b1f27 inset; }
-    .diode.green { background: #18c37e; }
-    .muted { color: #9aa3b2; font-size: 12px; }
-    textarea { width: 100%; min-height: 120px; background: #0f1116; color: #e6e6e6; border: 1px solid #262a31; border-radius: 10px; padding: 8px; }
-    .footer { margin-top: 16px; font-size: 12px; color: #8a93a7; }
+    :root{ --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --ok:#16a34a; --warn:#f59e0b; }
+    *{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    header{background:#fff;border-bottom:1px solid var(--border);padding:14px 18px;position:sticky;top:0;z-index:10}
+    h1{margin:0;font-size:24px;font-weight:800;text-align:center}
+    main{max-width:1100px;margin:16px auto;padding:0 12px}
+    .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+    input,select,button{border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+    button{cursor:pointer} .btn{background:#111827;color:#fff;border:0} .btn.secondary{background:#fff;color:#111827;border:1px solid var(--border)}
+    .layout{display:grid;grid-template-columns:320px 1fr;gap:12px} @media (max-width:1000px){.layout{grid-template-columns:1fr}}
+    .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700}
+    .list{max-height:70vh;overflow:auto}
+    .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
+    .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:#eef6ff}
+    .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
+    .dot{width:8px;height:8px;border-radius:999px;background:var(--warn);margin-left:auto}.dot.ok{background:var(--ok)}
+    .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
+    .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center}
+    .ed-title{font-weight:800;flex:1}.ed-body{padding:12px}
+    textarea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;line-height:1.6;white-space:pre-wrap}
+    .muted{color:var(--muted);font-size:13px;margin:8px 0}
   </style>
 </head>
 <body>
-  <div class="app">
-    <h1>Bible Étude — Générateur 28 rubriques</h1>
-    <div class="row" style="margin-bottom: 12px;">
-      <label>Livre <input id="book" placeholder="Genèse" /></label>
-      <label>Chapitre <input id="chapter" placeholder="1" /></label>
+  <header><h1>Bible Étude — Générateur 28 rubriques</h1></header>
+  <main>
+    <div class="controls">
+      <label>Livre <select id="bookSelect"></select></label>
+      <label>Chapitre <select id="chapterSelect"></select></label>
       <label>Densité
-        <select id="density">
+        <select id="densitySelect">
           <option value="500">500</option>
           <option value="1500" selected>1500</option>
           <option value="2500">2500</option>
         </select>
       </label>
-      <button class="primary" id="btn-generate">Générer</button>
-      <button class="secondary" id="btn-reset">Reset</button>
+      <button id="generateBtn" class="btn" type="button">Générer</button>
+      <button id="resetBtn" class="btn secondary" type="button">Reset</button>
     </div>
-    <div class="muted">Règles: appel POST /api/generate-study, options.length ∈ 500/1500/2500. Diodes vertes si contenu, Reset → toutes orange. Aucune CORS, même origine.</div>
 
-    <div id="cards" class="grid"></div>
+    <div class="muted">Règles: appel POST <code>/api/generate-study</code>, <code>options.length</code> ∈ 500 / 1500 / 2500. Diodes vertes si contenu, Reset → toutes orange. Aucune CORS (même origine).</div>
 
-    <div class="footer">“Dernière étude” est mémorisée localement après génération et n’est pas effacée par Reset.</div>
-  </div>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="side-head">Rubriques (28)</div>
+        <div id="pointsList" class="list"></div>
+      </aside>
 
-  <script>
-    const cardsEl = document.getElementById('cards');
-    const state = {
-      book: '',
-      chapter: '',
-      density: 1500,
-      sections: Array.from({ length: 28 }, (_, i) => ({ id: i + 1, title: `Rubrique ${i + 1}`, content: '' })),
-    };
+      <section class="editor">
+        <div class="ed-head">
+          <div class="ed-title" id="edTitle">—</div>
+          <span id="metaInfo">Point — / 28</span>
+        </div>
+        <div class="ed-body">
+          <textarea id="noteArea" placeholder="Contenu de la rubrique…"></textarea>
+        </div>
+      </section>
+    </div>
+  </main>
 
-    const bookEl = document.getElementById('book');
-    const chapterEl = document.getElementById('chapter');
-    const densityEl = document.getElementById('density');
-    const btnGen = document.getElementById('btn-generate');
-    const btnReset = document.getElementById('btn-reset');
-
-    function render() {
-      cardsEl.innerHTML = '';
-      state.sections.forEach((s) => {
-        const card = document.createElement('div');
-        card.className = 'card';
-        const title = document.createElement('div');
-        title.className = 'title';
-        const diode = document.createElement('div');
-        diode.className = 'diode' + (s.content && s.content.trim() ? ' green' : '');
-        const tspan = document.createElement('span');
-        tspan.textContent = `${s.id}. ${s.title}`;
-        title.appendChild(diode);
-        title.appendChild(tspan);
-        const ta = document.createElement('textarea');
-        ta.value = s.content || '';
-        ta.addEventListener('input', (e) => {
-          s.content = e.target.value;
-          diode.className = 'diode' + (s.content && s.content.trim() ? ' green' : '');
-        });
-        card.appendChild(title);
-        card.appendChild(ta);
-        cardsEl.appendChild(card);
-      });
-    }
-
-    function resetUI() {
-      state.sections = state.sections.map(s => ({ ...s, content: '' }));
-      render(); // diodes reviennent à orange
-      bookEl.value = '';
-      chapterEl.value = '';
-      densityEl.value = '1500';
-    }
-
-    async function onGenerate() {
-      const book = (bookEl.value || 'Genèse').trim();
-      const chapter = (chapterEl.value || '1').trim();
-      const density = Number(densityEl.value);
-      const passage = `${book} ${chapter}`;
-
-      try {
-        const r = await fetch('/api/generate-study', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ passage, options: { length: density } })
-        });
-        const data = await r.json();
-        const sections = (data && data.study && Array.isArray(data.study.sections)) ? data.study.sections : [];
-        if (sections.length === 28) {
-          state.sections = sections.map(s => ({ id: s.id, title: s.title || `Rubrique ${s.id}`, content: s.content || '' }));
-          render();
-          // Mémorise la dernière étude (non effacée par Reset)
-          localStorage.setItem('Dernière étude', JSON.stringify({ passage, density, ts: new Date().toISOString() }));
-        } else {
-          alert('Réponse invalide: sections.length != 28');
-        }
-      } catch (e) {
-        alert('Erreur de génération: ' + e.message);
-      }
-    }
-
-    bookEl.addEventListener('input', () => (state.book = bookEl.value));
-    chapterEl.addEventListener('input', () => (state.chapter = chapterEl.value));
-    densityEl.addEventListener('change', () => (state.density = Number(densityEl.value)));
-    btnGen.addEventListener('click', onGenerate);
-    btnReset.addEventListener('click', resetUI);
-
-    // Initial render
-    render();
-  </script>
+  <script src="/app.js" defer></script>
 </body>
 </html>
