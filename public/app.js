@@ -1,9 +1,24 @@
-/* app.js — Une seule zone (preview) + titres centrés + suppression du 1er titre (rubriques 2–28) + liens YouVersion + Rubrique 0 + palette */
+/* app.js — UI complète
+   - Recherche + Valider (aliases FR)
+   - Sélecteurs Livre/Chapitre/Verset (66 livres, chapitres bloqués)
+   - Palette 12 couleurs (thème global, persisté)
+   - Bouton Bible (YouVersion LSG)
+   - Rubriques 1..28 : affichage “beau”, liens versets bleus + soulignés, suppression des doublons de titre
+   - Rubrique 0 : ÉTUDE VERSET PAR VERSET (dynamique)
+       * suit toujours state.book/state.chapter
+       * par verset : TEXTE du verset (via /api/verses si dispo) puis EXPLICATION en dessous
+       * aucun lien avec la génération 1..28
+*/
+
 (function () {
-  /* ====== Livres / YouVersion / Alias ====== */
+  /* ====== Livres / Codes / Alias ====== */
   const CHAPTERS_66 = {"Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,"Job":42,"Psaumes":150,"Proverbes":31,"Ecclésiaste":12,"Cantique des Cantiques":8,"Ésaïe":66,"Jérémie":52,"Lamentations":5,"Ézéchiel":48,"Daniel":12,"Osée":14,"Joël":3,"Amos":9,"Abdias":1,"Jonas":4,"Michée":7,"Nahum":3,"Habacuc":3,"Sophonie":3,"Aggée":2,"Zacharie":14,"Malachie":4,"Matthieu":28,"Marc":16,"Luc":24,"Jean":21,"Actes":28,"Romains":16,"1 Corinthiens":16,"2 Corinthiens":13,"Galates":6,"Éphésiens":6,"Philippiens":4,"Colossiens":4,"1 Thessaloniciens":5,"2 Thessaloniciens":3,"1 Timothée":6,"2 Timothée":4,"Tite":3,"Philémon":1,"Hébreux":13,"Jacques":5,"1 Pierre":5,"2 Pierre":3,"1 Jean":5,"2 Jean":1,"3 Jean":1,"Jude":1,"Apocalypse":22};
+
+  // Codes YouVersion (LSG) / USFM
   const YV_BOOK = {"Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des Cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN","Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL","Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"};
   const YV_VERSION_ID = { LSG:'93' };
+
+  // Alias de recherche (FR, sans accents, variantes)
   const ALIASES = {"gen":"Genèse","genese":"Genèse","ge":"Genèse","exo":"Exode","exode":"Exode","ex":"Exode","lev":"Lévitique","levitique":"Lévitique","lv":"Lévitique","nbr":"Nombres","nombres":"Nombres","nb":"Nombres","deu":"Deutéronome","deuteronome":"Deutéronome","dt":"Deutéronome","josue":"Josué","jos":"Josué","juges":"Juges","jg":"Juges","ruth":"Ruth","rut":"Ruth","1samuel":"1 Samuel","1sa":"1 Samuel","1sam":"1 Samuel","2samuel":"2 Samuel","2sa":"2 Samuel","2sam":"2 Samuel","1rois":"1 Rois","1r":"1 Rois","2rois":"2 Rois","2r":"2 Rois","1chroniques":"1 Chroniques","1ch":"1 Chroniques","2chroniques":"2 Chroniques","2ch":"2 Chroniques","esdras":"Esdras","esd":"Esdras","nehemie":"Néhémie","neh":"Néhémie","esther":"Esther","est":"Esther","job":"Job","jb":"Job","psaumes":"Psaumes","psaume":"Psaumes","ps":"Psaumes","proverbes":"Proverbes","prov":"Proverbes","pr":"Proverbes","ecclesiaste":"Ecclésiaste","qohelet":"Ecclésiaste","ecc":"Ecclésiaste","cantique":"Cantique des Cantiques","cantiquedescantiques":"Cantique des Cantiques","ct":"Cantique des Cantiques","esaie":"Ésaïe","esaïe":"Ésaïe","esa":"Ésaïe","jeremie":"Jérémie","jer":"Jérémie","lamentations":"Lamentations","lam":"Lamentations","ezekiel":"Ézéchiel","ezechiel":"Ézéchiel","ez":"Ézéchiel","daniel":"Daniel","dan":"Daniel","osee":"Osée","hos":"Osée","joel":"Joël","joe":"Joël","amos":"Amos","amo":"Amos","abdias":"Abdias","abd":"Abdias","jonas":"Jonas","jon":"Jonas","michee":"Michée","mic":"Michée","nahum":"Nahum","nah":"Nahum","habacuc":"Habacuc","hab":"Habacuc","sophonie":"Sophonie","sop":"Sophonie","zep":"Sophonie","aggee":"Aggée","agg":"Aggée","zacharie":"Zacharie","zac":"Zacharie","zec":"Zacharie","malachie":"Malachie","mal":"Malachie","matthieu":"Matthieu","mt":"Matthieu","marc":"Marc","mc":"Marc","luc":"Luc","lc":"Luc","jean":"Jean","jn":"Jean","actes":"Actes","ac":"Actes","romains":"Romains","rom":"Romains","ro":"Romains","1corinthiens":"1 Corinthiens","1co":"1 Corinthiens","2corinthiens":"2 Corinthiens","2co":"2 Corinthiens","galates":"Galates","ga":"Galates","ephesiens":"Éphésiens","eph":"Éphésiens","philippiens":"Philippiens","php":"Philippiens","ph":"Philippiens","colossiens":"Colossiens","col":"Colossiens","1thessaloniciens":"1 Thessaloniciens","1th":"1 Thessaloniciens","2thessaloniciens":"2 Thessaloniciens","2th":"2 Thessaloniciens","1timothee":"1 Timothée","1ti":"1 Timothée","2timothee":"2 Timothée","2ti":"2 Timothée","tite":"Tite","tit":"Tite","philemon":"Philémon","phm":"Philémon","hebreux":"Hébreux","heb":"Hébreux","jacques":"Jacques","jac":"Jacques","ja":"Jacques","1pierre":"1 Pierre","1pi":"1 Pierre","1pe":"1 Pierre","2pierre":"2 Pierre","2pi":"2 Pierre","2pe":"2 Pierre","1jean":"1 Jean","1jn":"1 Jean","2jean":"2 Jean","2jn":"2 Jean","3jean":"3 Jean","3jn":"3 Jean","jude":"Jude","jud":"Jude","apocalypse":"Apocalypse","apo":"Apocalypse","apoc":"Apocalypse","ap":"Apocalypse"};
 
   /* ====== Utils ====== */
@@ -60,11 +75,13 @@
     bookEl.addEventListener('change', ()=>{
       state.book = bookEl.value; state.chapter = 1; state.verse = '';
       fillChapters(); verseEl.value = ''; renderEditorMeta(); updateBibleHref();
+      if (state.current===0) generatePerVerse(); // Rubrique 0 reste liée
     });
     chapEl.addEventListener('change', ()=>{
       const max = CHAPTERS_66[state.book] || 1;
       const n = parseInt(chapEl.value,10);
       state.chapter = Number.isFinite(n) ? clamp(n,1,max) : 1; renderEditorMeta(); updateBibleHref();
+      if (state.current===0) generatePerVerse(); // Rubrique 0 reste liée
     });
     verseEl.addEventListener('input', ()=>{ state.verse = digits(verseEl.value); renderEditorMeta(); updateBibleHref(); });
     densEl.addEventListener('change', ()=>{ const v=parseInt(densEl.value,10); if([500,1500,2500].includes(v)) state.density=v; });
@@ -107,6 +124,7 @@
     const verse = rawVerse ? String(parseInt(rawVerse,10)||'') : '';
 
     autoSet(book, chap, verse);
+    if (state.current===0) generatePerVerse(); // Rubrique 0 se met à jour
   }
   function resolveBook(key){
     if (ALIASES[key]) return ALIASES[key];
@@ -121,7 +139,7 @@
     renderEditorMeta(); updateBibleHref();
   }
 
-  /* ====== YouVersion ====== */
+  /* ====== YouVersion (LSG) ====== */
   function buildYouVersionHref(b=state.book, c=state.chapter, v=state.verse){
     const code = YV_BOOK[b] || 'GEN';
     const verId = YV_VERSION_ID['LSG'] || '93';
@@ -152,7 +170,7 @@
     chapEl.value = String(clamp(state.chapter,1,max));
   }
 
-  /* ====== Liste & affichage ====== */
+  /* ====== Liste rubriques & affichage ====== */
   function sectionById(id){ return state.sections.find(s=>s.id===id); }
   function renderList(){
     listEl.innerHTML = '';
@@ -175,7 +193,6 @@
   }
   function renderEditor(){
     const s = sectionById(state.current);
-    // barre de tête : .ed-title est masqué en CSS ; on garde la méta
     $('#edTitle').textContent = s ? (s.id===0 ? 'Rubrique 0 — Étude verset par verset' : (s.title || `Rubrique ${state.current}`)) : '—';
 
     if (s && s.id===0) {
@@ -184,12 +201,12 @@
       previewEl.style.display='none';
       pvWrap.style.display='flex';
       if (!pvCountEl.value) pvCountEl.value = 31;
-      if (!pvGrid.children.length) generatePerVerse();
+      generatePerVerse(); // toujours dynamique à l’ouverture
       renderEditorMeta();
       return;
     }
 
-    // 1..28 — affiche UNE zone preview
+    // 1..28 — UNE zone preview
     pvWrap.style.display='none';
     sectionTitleEl.style.display='block';
     sectionDescEl.style.display='block';
@@ -198,10 +215,8 @@
     sectionTitleEl.textContent = s ? (s.title || `Rubrique ${state.current}`) : '—';
     sectionDescEl.textContent  = s ? (s.description || '') : '';
 
-    // Supprimer systématiquement la 1ère ligne de titre pour rubriques 2..28
+    // Supprime le 1er titre pour rubriques 2..28, sinon dédoublonne s’il est identique
     const stripHeading = (state.current>=2 && state.current<=28);
-
-    // Rendu “beau” + dédoublonnage titre
     previewEl.innerHTML = beautifyContent(s?.content || '', (s?.title || `Rubrique ${state.current}`), { stripFirstHeading: stripHeading });
 
     renderEditorMeta();
@@ -217,7 +232,7 @@
     if (s && s.content && s.content.trim()) dot.classList.add('ok'); else dot.classList.remove('ok');
   }
 
-  /* ====== Rendu riche (beau + gras) + suppression du 1er titre ====== */
+  /* ====== Rendu riche (beau + liens versets) + dédoublonnage titre ====== */
   function beautifyContent(raw, sectionTitle, opts={}){
     const norm = (x)=> String(x||'').trim().toLowerCase()
                      .normalize('NFD').replace(/\p{Diacritic}/gu,'')
@@ -225,12 +240,10 @@
 
     let src = String(raw||'');
 
-    // A) Sur demande (rubriques 2..28) : on supprime la 1ère ligne si c'est un titre Markdown (#, ##, ###)
     if (opts.stripFirstHeading) {
       const mm = /^(#{1,6})\s*[^\n]+\s*\n?/m.exec(src);
       if (mm) src = src.slice(mm[0].length);
     } else {
-      // B) Sinon, on supprime seulement si le 1er titre == titre centré (dédoublonnage)
       const m = /^(#{1,6})\s*([^\n]+)\s*\n?/m.exec(src);
       if (m && norm(m[2]) === norm(sectionTitle)) {
         src = src.slice(m[0].length);
@@ -242,7 +255,7 @@
       }
     }
 
-    // Échappe HTML de base
+    // Échappe HTML
     let s = src.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
     // Markdown léger
@@ -257,7 +270,7 @@
          .replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>');
     s = s.replace(/(^|\n)\*?Référence\s*:\*/gi, '$1<span class="label">Référence :</span>');
 
-    // Liens markdown → <a>
+    // Liens markdown
     s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
         (_m, txt, href) => `<a href="${href}" target="_blank" rel="noopener" class="verse-link">${txt}</a>`);
 
@@ -278,7 +291,7 @@
     return s;
   }
 
-  /* ====== API ====== */
+  /* ====== API — génération 28 rubriques ====== */
   async function onGenerate(){
     const passage = `${state.book} ${state.chapter}`;
     const density = state.density;
@@ -328,27 +341,79 @@
     renderList(); renderEditor(); updateBibleHref();
   }
 
-  /* ====== Rubrique 0 ====== */
-  function generatePerVerse(){
-    const n = clamp(parseInt(pvCountEl.value,10)||1, 1, 200);
-    pvCountEl.value = String(n);
+  /* ====== Rubrique 0 — DYNAMIQUE : verset PUIS explication ====== */
+  async function generatePerVerse(){
+    const book = state.book;
+    const chapter = state.chapter;
+
+    // combien de versets afficher (contrôle utilisateur)
+    const nWant = clamp(parseInt(pvCountEl.value,10)||31, 1, 200);
+
     pvGrid.innerHTML = '';
-    for (let v=1; v<=n; v++){
-      const url = buildYouVersionHref(state.book, state.chapter, v);
-      const item = document.createElement('div'); item.className='pv-item';
-      const head = document.createElement('div'); head.className='vhead';
-      const title = document.createElement('div'); title.className='vtitle'; title.textContent = `${state.book} ${state.chapter}:${v}`;
-      const link = document.createElement('a'); link.href=url; link.target='_blank'; link.rel='noopener'; link.className='verse-link'; link.textContent='Ouvrir sur YouVersion';
-      head.appendChild(title); head.appendChild(link);
-      const body = document.createElement('div'); body.className='vbody';
+    const loading = document.createElement('div');
+    loading.textContent = 'Chargement des versets…';
+    loading.style.color = '#64748b';
+    pvGrid.appendChild(loading);
+
+    let verses = [];
+    try{
+      const url = `/api/verses?book=${encodeURIComponent(book)}&chapter=${encodeURIComponent(chapter)}`;
+      const r = await fetch(url);
+      const data = await r.json();
+      if (Array.isArray(data?.verses) && data.verses.length) {
+        verses = data.verses;
+      }
+      if (!verses.length) {
+        for (let v=1; v<=nWant; v++) verses.push({ v, text: '' });
+      }
+    } catch(e){
+      for (let v=1; v<=nWant; v++) verses.push({ v, text: '' });
+    }
+
+    pvGrid.innerHTML = '';
+    for (const { v, text } of verses.slice(0, nWant)) {
+      const url = buildYouVersionHref(book, chapter, v);
+
+      const item = document.createElement('div');
+      item.className = 'pv-item';
+
+      // En-tête : référence + lien YV
+      const head = document.createElement('div');
+      head.className = 'vhead';
+
+      const title = document.createElement('div');
+      title.className = 'vtitle';
+      title.textContent = `${book} ${chapter}:${v}`;
+      head.appendChild(title);
+
+      const link = document.createElement('a');
+      link.href = url; link.target = '_blank'; link.rel = 'noopener';
+      link.className = 'verse-link';
+      link.textContent = 'Ouvrir sur YouVersion';
+      head.appendChild(link);
+
+      // 1) TEXTE DU VERSET (en premier)
+      const vtext = document.createElement('div');
+      vtext.className = 'vbody';
+      vtext.style.marginTop = '6px';
+      vtext.style.fontWeight = '600';
+      vtext.textContent = (text && text.trim()) ? text.trim() : '— (texte indisponible ici, voir YouVersion)';
+
+      // 2) EXPLICATION (juste en dessous)
+      const body = document.createElement('div');
+      body.className = 'vbody';
+      body.style.marginTop = '6px';
       body.innerHTML = [
         `<strong>Observation</strong> — Note le mouvement du texte et les mots-clés.`,
-        `<strong>Contexte</strong> — Situe ce verset dans ${state.book} ${state.chapter}.`,
+        `<strong>Contexte</strong> — Situe ce verset dans ${book} ${chapter}.`,
         `<strong>Doctrine</strong> — Quelle vérité sur Dieu ou l’humain ressort ?`,
         `<strong>Lien canonique</strong> — Où retrouve-t-on ce thème ailleurs ?`,
         `<strong>Application</strong> — Une réponse concrète aujourd’hui.`
       ].join(' ');
-      item.appendChild(head); item.appendChild(body);
+
+      item.appendChild(head);
+      item.appendChild(vtext);
+      item.appendChild(body);
       pvGrid.appendChild(item);
     }
   }
