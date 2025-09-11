@@ -31,7 +31,7 @@ function linkRef(book, chapter, verseOrRange, version='LSG') {
   return `[${label}](${url})`;
 }
 
-/* ---------- Génération de contenu ---------- */
+/* ---------- Helpers contenu ---------- */
 function expandUnique(base, pool, targetLen) {
   const used = new Set(); let out = base.trim();
   for (const sRaw of pool) {
@@ -51,12 +51,52 @@ function expandUnique(base, pool, targetLen) {
   return out;
 }
 
+function qaBlockSpecific_Gen1(book, chap) {
+  return `### Questions du chapitre précédent
+
+*Référence :* ${book} ${chap}
+
+**Q1.** Qu’enseigne ${book} ${chap} sur Dieu comme Créateur ?  
+**R.** Il est l’initiateur absolu : il parle et tout vient à l’existence, révélant sa souveraineté et sa bonté.
+
+**Q2.** Pourquoi la formule « Dieu vit que cela était bon » est-elle répétée ?  
+**R.** Pour affirmer que la création est voulue bonne par Dieu ; le mal ne vient pas de la matière mais d’une rupture ultérieure (cf. Gen 3).
+
+**Q3.** Quelle dignité l’homme reçoit-il en ${book} ${chap}:26–27 ?  
+**R.** Il porte l’**image de Dieu** : vocation à représenter Dieu, cultiver et garder la création, dans une responsabilité éthique.
+
+**Q4.** En quoi ${book} ${chap} se distingue-t-il des mythes environnants ?  
+**R.** Un seul Dieu, transcendant, créant par sa **Parole** sans rival ; pas de combat divin : l’ordre procède de la volonté bienveillante de Dieu.
+
+**Q5.** Application : comment prier à partir de ${book} ${chap} ?  
+**R.** Louer le Créateur, recevoir le monde comme don, et décider d’un geste concret de gardiennage (écologie, justice, compassion).`;
+}
+
+function qaBlockGeneric(book, chap) {
+  const ref = `${book} ${chap}`;
+  return `### Questions du chapitre précédent
+
+*Référence :* ${ref}
+
+**Q1.** Quel attribut de Dieu ressort de ${ref} ?  
+**R.** Sa fidélité et sa souveraineté : il conduit l’histoire selon ses promesses.
+
+**Q2.** Quel est le fil littéraire de ${ref} (progression, mots-clés) ?  
+**R.** Une progression structurée avec des reprises stratégiques ; relever les verbes directeurs et les connecteurs.
+
+**Q3.** Quelles tensions ou questions le chapitre laisse-t-il ouvertes ?  
+**R.** Celles qui préparent le chapitre suivant (motifs récurrents, attente d’accomplissement, enjeux d’obéissance).
+
+**Q4.** Quels échos canoniques éclairent ${ref} ?  
+**R.** Passages parallèles dans la Loi/Prophètes/Sagesse et reprise christologique dans l’Évangile/Épîtres.
+
+**Q5.** Application : quelle décision concrète aujourd’hui ?  
+**R.** Une prière précise et un pas d’obéissance mesurable (relation, justice, service, espérance).`;
+}
+
+/* ---------- Génération de contenu par passage ---------- */
 function studyForGenesis1(version, perLen) {
   const b='Genèse', c=1;
-  const v11   = linkRef(b,c,'1',version);
-  const v12_5 = linkRef(b,c,'2–5',version);
-  const v126  = linkRef(b,c,'26–27',version);
-  const v131  = linkRef(b,c,'31',version);
   const jn1   = linkRef('Jean',1,'1–3',version);
   const ps33  = linkRef('Psaumes',33,'6',version);
   const he11  = linkRef('Hébreux',11,'3',version);
@@ -65,12 +105,13 @@ function studyForGenesis1(version, perLen) {
   const sections = [];
   const add = (id, title, base, pool=[]) => sections.push({ id, title, description: '', content: expandUnique(base, pool, perLen) });
 
+  // 1
   add(1,'Prière d’ouverture',
 `### Prière d’ouverture
 
 *Référence :* ${b} ${c}
 
-Père, nous venons écouter ta Parole. Comme au commencement, que ta lumière disperse nos ténèbres et que ton Esprit plane sur nos pensées (cf. ${v12_5}). Donne-nous une lecture humble et obéissante, pour que ta gloire nous conduise à l’adoration et au service.`,
+Père, nous venons écouter ta Parole. Comme au commencement, que ta lumière disperse nos ténèbres et que ton Esprit plane sur nos pensées. Donne-nous une lecture humble et obéissante, pour que ta gloire nous conduise à l’adoration et au service.`,
 [
   'Nous nous déposons devant toi pour recevoir ce que tu dis',
   'Éloigne de nous les lectures arbitraires et donne l’intelligence spirituelle',
@@ -78,6 +119,7 @@ Père, nous venons écouter ta Parole. Comme au commencement, que ta lumière di
   'Conduis-nous de la compréhension à l’obéissance'
 ]);
 
+  // 2
   add(2,'Canon et testament',
 `### Canon et testament
 
@@ -90,12 +132,17 @@ ${b} ${c} ouvre l’Écriture et révèle le même Dieu créateur que le Nouveau
   'L’autorité de l’Écriture vient de Dieu qui s’y fait connaître'
 ]);
 
-  // ... mêmes ajouts structurés que précédemment pour arriver à 28 rubriques
-  // (Pour concision ici, on garde la même matrice que ta version avancée.)
+  // 3 (Q/R spécifique demandée)
+  sections.push({
+    id: 3,
+    title: 'Questions du chapitre précédent',
+    description: 'Points concrets pour relire et intégrer la lecture.',
+    content: qaBlockSpecific_Gen1(b, c)
+  });
 
-  // Pour rester complet, on produit 28 titres "doctrinaux" stables :
+  // 4..28 (gabarit doctrinal stable)
   const doctrinalTitles = {
-    3:'Questions du chapitre précédent',4:'Titre du chapitre',5:'Contexte historique',6:'Structure littéraire',
+    4:'Titre du chapitre',5:'Contexte historique',6:'Structure littéraire',
     7:'Genre littéraire',8:'Auteur et généalogie',9:'Verset-clé doctrinal',10:'Analyse exégétique',11:'Analyse lexicale',
     12:'Références croisées',13:'Fondements théologiques',14:'Thème doctrinal',15:'Fruits spirituels',16:'Types bibliques',
     17:'Appui doctrinal',18:'Comparaison entre versets',19:'Parallèle avec Actes 2',20:'Verset à mémoriser',
@@ -111,16 +158,15 @@ ${b} ${c} ouvre l’Écriture et révèle le même Dieu créateur que le Nouveau
   ];
   const baseFor = (t)=>`### ${t}\n\n*Référence :* ${b} ${c}\n\nLecture de ${linkRef(b,c,'', 'LSG')} avec accent ${t.toLowerCase()}.`;
 
-  for (let i=3;i<=28;i++) if (!sections.find(s=>s.id===i)) {
-    const t = doctrinalTitles[i] || `Rubrique ${i}`;
-    sections.push({ id:i, title:t, description:'', content: expandUnique(baseFor(t), poolCommon, perLen) });
+  for (let i=4;i<=28;i++) {
+    sections.push({ id:i, title:doctrinalTitles[i] || `Rubrique ${i}`, description:'', content: expandUnique(baseFor(doctrinalTitles[i] || `Rubrique ${i}`), poolCommon, perLen) });
   }
 
-  // descriptions courtes colonne gauche
+  // descriptions colonne gauche
   const desc = {
     1:'Invocation du Saint-Esprit pour éclairer l’étude.',
     2:'Place dans le canon (AT/NT) et continuité biblique.',
-    3:'Points à reprendre et tensions ouvertes.',
+    3:'Points concrets et réponses pour relire la lecture.',
     4:'Formulation doctrinale synthétique.',
     5:'Cadre historique et culturel.',
     6:'Découpage et progression.',
@@ -147,8 +193,8 @@ ${b} ${c} ouvre l’Écriture et révèle le même Dieu créateur que le Nouveau
     27:'Sélection utile à retenir.',
     28:'Action de grâces et bénédiction.'
   };
-  for (const s of sections) s.description = desc[s.id] || '';
-  // Tri par id et retour
+  for (const s of sections) s.description = desc[s.id] || s.description || '';
+
   return sections.sort((a,b)=>a.id-b.id);
 }
 
@@ -172,13 +218,31 @@ function genericStudy(book, chap, version, perLen) {
   ];
   const linkChap = linkRef(book, chap, '', version);
   const sections = [];
-  for (let i=1;i<=28;i++) {
+
+  // 1–2 standard
+  const base1 = `### ${titles[1]}\n\n*Référence :* ${book} ${chap}\n\nPère, éclaire notre lecture : que ta Parole forme notre intelligence et notre obéissance.`;
+  const base2 = `### ${titles[2]}\n\n*Référence :* ${book} ${chap}\n\nLecture de ${linkChap} dans l’unité de l’AT et du NT : continuité de la révélation, accomplie en Christ.`;
+  sections.push({ id:1, title:titles[1], description:'', content: expandUnique(base1, poolCommon, perLen) });
+  sections.push({ id:2, title:titles[2], description:'', content: expandUnique(base2, poolCommon, perLen) });
+
+  // 3 = Q/R générique (demandé)
+  sections.push({
+    id:3,
+    title: titles[3],
+    description: 'Questions concrètes et réponses brèves pour intégrer la lecture.',
+    content: qaBlockGeneric(book, chap)
+  });
+
+  // 4–28 gabarit
+  for (let i=4;i<=28;i++) {
     const base = `### ${titles[i]}\n\n*Référence :* ${book} ${chap}\n\nLecture de ${linkChap} avec accent ${titles[i].toLowerCase()}.`;
     sections.push({ id:i, title:titles[i], description:'', content: expandUnique(base, poolCommon, perLen) });
   }
+
   return sections;
 }
 
+/* ---------- Build + handler ---------- */
 function buildStudy(passage, length, version='LSG') {
   const allowed = [500,1500,2500];
   const perLen = allowed.includes(Number(length)) ? Number(length) : 1500;
@@ -204,7 +268,6 @@ async function core(ctx) {
     const passage = String(body?.passage || '').trim();
     const length  = Number(body?.options?.length);
     const version = String((body?.options?.translation || 'LSG')).toUpperCase();
-    // contrat: tjrs 200 → si passage manquant, on met un défaut (Genèse 1)
     const safePassage = passage || 'Genèse 1';
     try { return send200(ctx, buildStudy(safePassage, length, version)); }
     catch (e) { return send200(ctx, { ok:false, emergency:true, error:String(e), study:{ sections:[] } }); }
