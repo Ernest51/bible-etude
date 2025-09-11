@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Test PV — Étude verset par verset</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:24px;line-height:1.6}
+    .ok{color:#16a34a;font-weight:700}
+    .ko{color:#dc2626;font-weight:700}
+    pre{background:#f8fafc;border:1px solid #e2e8f0;padding:12px;border-radius:10px;overflow:auto}
+    .grid{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px}
+    .item{border:1px solid #e2e8f0;border-radius:10px;padding:10px;background:#fff}
+    .muted{color:#64748b}
+  </style>
+</head>
+<body>
+  <h1>Test — Étude verset par verset (Rubrique 0)</h1>
+  <p>Ce test vérifie l’endpoint <code>/api/verses</code> et la présence d’explications par verset (<code>noteHTML</code>).</p>
+
+  <div>
+    Livre:
+    <input id="book" value="Genèse" style="width:140px"/>
+    Chapitre:
+    <input id="chapter" value="1" style="width:70px"/>
+    <button id="run">Lancer le test</button>
+  </div>
+
+  <p id="status" class="muted">En attente…</p>
+  <div id="report" class="grid"></div>
+
+  <script>
+    const $ = s => document.querySelector(s);
+
+    async function run(){
+      const book = $('#book').value.trim() || 'Genèse';
+      const chapter = parseInt($('#chapter').value,10) || 1;
+      const url = `/api/verses?book=${encodeURIComponent(book)}&chapter=${encodeURIComponent(chapter)}`;
+      $('#status').textContent = 'Requête en cours… ' + url;
+
+      try{
+        const r = await fetch(url);
+        const data = await r.json();
+
+        const arr = Array.isArray(data.verses) ? data.verses : [];
+        const okCount = arr.length >= 3;
+        const hasNotes = arr.slice(0,5).some(v => typeof v.noteHTML === 'string' && v.noteHTML.trim().length > 0);
+
+        const statusEl = $('#status');
+        if (okCount) {
+          statusEl.className = 'ok';
+          statusEl.textContent = `✅ OK — ${arr.length} versets retournés (source: ${data.source || 'n/a'}, version: ${data.version || 'n/a'})`
+        } else {
+          statusEl.className = 'ko';
+          statusEl.textContent = `❌ KO — Seulement ${arr.length} verset(s) (source: ${data.source || 'n/a'})`
+        }
+
+        const report = $('#report');
+        report.innerHTML = '';
+
+        // Affiche les 5 premiers versets + leur note
+        arr.slice(0,5).forEach(v=>{
+          const div = document.createElement('div');
+          div.className = 'item';
+          div.innerHTML = `
+            <div><strong>${book} ${chapter}:${v.v}</strong></div>
+            <div><em>${v.text || '— (texte indisponible)'}</em></div>
+            <div style="margin-top:6px">${v.noteHTML ? v.noteHTML : '<span class="muted">noteHTML manquante (fallback prévu côté front)</span>'}</div>
+          `;
+          report.appendChild(div);
+        });
+
+        // Résumé console pour CI local
+        console.log({
+          endpoint: '/api/verses',
+          book, chapter,
+          count: arr.length,
+          okCount,
+          hasNotes,
+          source: data.source,
+          version: data.version
+        });
+
+        if (!hasNotes) {
+          const warn = document.createElement('div');
+          warn.className = 'item';
+          warn.innerHTML = `<strong class="ko">⚠️ Avertissement:</strong> aucun <code>noteHTML</code> détecté dans les 5 premiers versets. Le front utilisera le fallback local.`;
+          report.prepend(warn);
+        }
+
+      } catch(e){
+        $('#status').className = 'ko';
+        $('#status').textContent = '❌ Erreur: ' + (e && e.message ? e.message : e);
+        console.error(e);
+      }
+    }
+
+    $('#run').addEventListener('click', run);
+  </script>
+</body>
+</html>
