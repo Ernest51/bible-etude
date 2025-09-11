@@ -7,23 +7,38 @@
   <meta name="description" content="Étude biblique — 28 rubriques, diodes vertes si contenu, Reset remet à orange." />
   <style>
     :root{
-      --bg:#f8fafc; --panel:#ffffff; --panel-2:#f1f5f9; --text:#0f172a; --muted:#475569;
-      --border:#e2e8f0; --ok:#16a34a; --warn:#eab308; --primary:#2563eb;
+      /* Thème clair par défaut (sera écrasé par la palette via JS) */
+      --primary-h: 221; --primary-s: 84%; --primary-l: 46%;
+      --bg: hsl(var(--primary-h) 60% 97%);
+      --panel:#ffffff; --panel-2:hsl(var(--primary-h) 55% 96%);
+      --text:#0f172a; --muted:#475569;
+      --border:hsl(var(--primary-h) 30% 86%);
+      --ok:#16a34a; --warn:#eab308;
+      --primary: hsl(var(--primary-h) var(--primary-s) var(--primary-l));
+      --active: hsl(var(--primary-h) 100% 90%);
+      --hover:  hsl(var(--primary-h) 90% 95%);
     }
     *{box-sizing:border-box}
     html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
     header{position:sticky;top:0;z-index:10;background:#fff;padding:14px 18px;border-bottom:1px solid var(--border)}
     h1{margin:0;font-size:22px;font-weight:800;text-align:center}
     main{max-width:1100px;margin:18px auto;padding:0 12px}
-    .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+    .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;align-items:center}
     label{display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 10px}
     select,input,button{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--panel-2);color:var(--text)}
     input,select{min-width:120px}
     input#search{min-width:260px}
-    button{cursor:pointer}
+    button{cursor:pointer;transition:transform .04s ease}
     .btn{background:var(--primary);color:#fff;border:1px solid var(--primary)}
     .btn.secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--border)}
+    .btn:active{transform:translateY(1px)}
     .hint{color:var(--muted);font-size:13px;margin:6px 0}
+
+    /* Palette de couleurs */
+    .palette{display:flex;gap:8px;align-items:center;margin:8px 0 12px 0}
+    .swatch{width:22px;height:22px;border-radius:50%;border:1px solid #e2e8f0;cursor:pointer;box-shadow:0 0 0 2px #fff inset}
+    .swatch:focus-visible{outline:2px solid var(--primary)}
+    .swatch[data-active="1"]{outline:2px solid var(--primary)}
 
     .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
     @media (max-width:1000px){.layout{grid-template-columns:1fr}}
@@ -33,8 +48,8 @@
     .list{max-height:70vh;overflow:auto}
     .item{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
     .item:last-child{border-bottom:0}
-    .item:hover{background:#f1f5f9}
-    .item.active{background:#e0f2fe}
+    .item:hover{background:var(--hover)}
+    .item.active{background:var(--active)}
     .idx{min-width:26px;height:26px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:var(--panel-2)}
     .title{flex:1;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
     .dot{width:9px;height:9px;border-radius:999px;background:var(--warn);margin-left:auto;box-shadow:0 0 0 2px #fff inset}
@@ -56,6 +71,8 @@
       <label>Recherche
         <input id="search" placeholder="ex: luc  |  marc 3:2  |  1 jean 4" />
       </label>
+      <button id="btn-validate" class="btn secondary" type="button" title="Appliquer la recherche">Valider</button>
+      <button id="btn-bible" class="btn secondary" type="button" title="Ouvrir dans YouVersion">Bible</button>
       <label>Livre
         <select id="book"></select>
       </label>
@@ -74,6 +91,22 @@
       </label>
       <button id="btn-generate" class="btn" type="button">Générer</button>
       <button id="btn-reset" class="btn secondary" type="button">Reset</button>
+    </div>
+
+    <div class="palette" id="palette" aria-label="Palette de couleurs (12 choix)">
+      <!-- Couleurs couvrant le cercle chromatique -->
+      <div class="swatch" data-h="0"   data-s="80%" data-l="45%" style="background:hsl(0 80% 45%)"   title="Rouge"></div>
+      <div class="swatch" data-h="20"  data-s="85%" data-l="45%" style="background:hsl(20 85% 45%)"  title="Orange"></div>
+      <div class="swatch" data-h="35"  data-s="90%" data-l="45%" style="background:hsl(35 90% 45%)"  title="Or"></div>
+      <div class="swatch" data-h="50"  data-s="90%" data-l="40%" style="background:hsl(50 90% 40%)"  title="Jaune"></div>
+      <div class="swatch" data-h="90"  data-s="55%" data-l="40%" style="background:hsl(90 55% 40%)"  title="Vert"></div>
+      <div class="swatch" data-h="150" data-s="60%" data-l="40%" style="background:hsl(150 60% 40%)" title="Turquoise"></div>
+      <div class="swatch" data-h="190" data-s="70%" data-l="45%" style="background:hsl(190 70% 45%)" title="Cyan"></div>
+      <div class="swatch" data-h="221" data-s="84%" data-l="46%" style="background:hsl(221 84% 46%)" title="Bleu (défaut)" data-active="1"></div>
+      <div class="swatch" data-h="260" data-s="70%" data-l="55%" style="background:hsl(260 70% 55%)" title="Indigo"></div>
+      <div class="swatch" data-h="280" data-s="70%" data-l="55%" style="background:hsl(280 70% 55%)" title="Violet"></div>
+      <div class="swatch" data-h="310" data-s="70%" data-l="50%" style="background:hsl(310 70% 50%)" title="Magenta"></div>
+      <div class="swatch" data-h="340" data-s="70%" data-l="50%" style="background:hsl(340 70% 50%)" title="Framboise"></div>
     </div>
 
     <div class="hint">
