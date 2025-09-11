@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Test PV — Étude verset par verset</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:24px;line-height:1.6;background:#f7fafc}
+    h1{margin-top:0}
+    .ok{color:#16a34a;font-weight:700}
+    .ko{color:#dc2626;font-weight:700}
+    .muted{color:#64748b}
+    .grid{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px}
+    .card{border:1px solid #e5e7eb;border-radius:12px;background:#fff;padding:12px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    input{padding:8px;border:1px solid #d1d5db;border-radius:8px}
+    button{padding:10px 14px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;cursor:pointer}
+    code{background:#f1f5f9;padding:2px 6px;border-radius:6px}
+    .vtitle{font-weight:700}
+    .yv{color:#2563eb;text-decoration:underline}
+  </style>
+</head>
+<body>
+  <h1>Test — Étude verset par verset (Rubrique 0)</h1>
+  <p>Ce test vérifie l’endpoint <code>/api/verses</code> et la présence d’explications par verset (<code>noteHTML</code>).</p>
+
+  <div class="row">
+    <label>Livre : <input id="book" value="Genèse" style="width:140px"/></label>
+    <label>Chapitre : <input id="chapter" value="1" type="number" min="1" style="width:80px"/></label>
+    <button id="run">Lancer le test</button>
+  </div>
+
+  <p id="status" class="muted">En attente…</p>
+  <div id="report" class="grid"></div>
+
+  <script>
+    const $ = s => document.querySelector(s);
+
+    async function fetchJsonSafe(url){
+      const r = await fetch(url);
+      const ct = (r.headers.get('content-type') || '').toLowerCase();
+      const text = await r.text();
+      if (!ct.includes('application/json')) {
+        const err = new Error(`Réponse non-JSON (${r.status})`);
+        err.nonJsonBody = text.slice(0, 300);
+        err.status = r.status;
+        throw err;
+      }
+      try { return JSON.parse(text); }
+      catch(e){ const err = new Error('JSON invalide: ' + e.message); err.nonJsonBody = text.slice(0,300); throw err; }
+    }
+
+    function yvHref(book, c, v){
+      const map={"Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT","1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST","Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des Cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN","Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL","Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"};
+      const code = map[book] || 'GEN';
+      return `https://www.bible.com/fr/bible/93/${code}.${c}.LSG${v?('#v'+v):''}`;
+    }
+
+    async function run(){
+      const book = $('#book').value.trim() || 'Genèse';
+      const chapter = parseInt($('#chapter').value,10) || 1;
+
+      const url = `/api/verses?book=${encodeURIComponent(book)}&chapter=${encodeURIComponent(chapter)}`;
+      $('#status').className='muted';
+      $('#status').textContent = 'Requête : ' + url;
+
+      try{
+        const data = await fetchJsonSafe(url);
+        const verses = Array.isArray(data.verses) ? data.verses : [];
+        const okCount = verses.length >= 3;
+        const hasNotes = verses.slice(0,5).some(v => typeof v.noteHTML === 'string' && v.noteHTML.trim());
+
+        const s = $('#status');
+        if (okCount) {
+          s.className = 'ok';
+          s.textContent = `✅ OK — ${verses.length} versets (source: ${data.source || 'n/a'}, version: ${data.version || 'n/a'})`;
+        } else {
+          s.className = 'ko';
+          s.textContent = `❌ KO — Seulement ${verses.length} verset(s) (source: ${data.source || 'n/a'})`;
+        }
+
+        const report = $('#report'); report.innerHTML = '';
+        verses.slice(0,5).forEach(v=>{
+          const card = document.createElement('div'); card.className = 'card';
+          card.innerHTML = `
+            <div class="vtitle">${book} ${chapter}:${v.v} — <a class="yv" href="${yvHref(book, chapter, v.v)}" target="_blank" rel="noopener">YouVersion</a></div>
+            <div><em>${v.text || '— (texte indisponible ici, voir YouVersion)'}</em></div>
+            <div style="margin-top:6px">${v.noteHTML ? v.noteHTML : '<span class="muted">noteHTML manquante (fallback prévu côté app principale)</span>'}</div>
+          `;
+          report.appendChild(card);
+        });
+
+        if (!hasNotes) {
+          const warn = document.createElement('div'); warn.className = 'card';
+          warn.innerHTML = `<strong class="ko">⚠️ Aucun <code>noteHTML</code> dans les 5 premiers versets.</strong> Le front utilisera le fallback local.`;
+          report.prepend(warn);
+        }
+
+      } catch (e){
+        const s = $('#status'); s.className = 'ko';
+        s.textContent = `❌ Erreur: ${e.message}`;
+        const report = $('#report'); report.innerHTML = '';
+        if (e.nonJsonBody) {
+          const pre = document.createElement('pre'); pre.className='card';
+          pre.textContent = e.nonJsonBody;
+          report.appendChild(pre);
+        }
+      }
+    }
+
+    $('#run').addEventListener('click', run);
+  </script>
+</body>
+</html>
