@@ -1,6 +1,6 @@
-/* app.js — recherche + Valider + Bible (YouVersion) + palette 12 couleurs + 66 livres */
+/* app.js — Palette réactive, lien YouVersion fiable, titres centrés+descriptions, polices OK */
 (function () {
-  /* ====== Config Livres & YV ====== */
+  /* ====== Livres & YouVersion ====== */
   const CHAPTERS_66 = {
     "Genèse":50,"Exode":40,"Lévitique":27,"Nombres":36,"Deutéronome":34,"Josué":24,"Juges":21,"Ruth":4,
     "1 Samuel":31,"2 Samuel":24,"1 Rois":22,"2 Rois":25,"1 Chroniques":29,"2 Chroniques":36,"Esdras":10,"Néhémie":13,"Esther":10,
@@ -101,44 +101,60 @@
     chapter: 1,
     verse: '',
     density: 1500,
-    sections: Array.from({ length: 28 }, (_, i) => ({ id:i+1, title:`Rubrique ${i+1}`, content:'' })),
+    sections: Array.from({ length: 28 }, (_, i) => ({ id:i+1, title:`Rubrique ${i+1}`, description:'', content:'' })),
     current: 1
   };
 
   /* ====== DOM ====== */
-  let listEl, edTitle, edMeta, editor, bookEl, chapEl, verseEl, densEl, genBtn, resetBtn, searchEl, validateBtn, bibleBtn, paletteEl;
+  let listEl, edTitle, edMeta, editor, bookEl, chapEl, verseEl, densEl, genBtn, resetBtn, searchEl, validateBtn, bibleLink, paletteEl, sectionTitleEl, sectionDescEl;
 
   document.addEventListener('DOMContentLoaded', init);
 
   function init(){
-    listEl = $('#list'); edTitle=$('#edTitle'); edMeta=$('#edMeta'); editor=$('#editor');
+    listEl = $('#list'); edTitle=$('#edTitle'); edMeta=$('#edMeta');
+    editor=$('#editor'); sectionTitleEl=$('#sectionTitle'); sectionDescEl=$('#sectionDesc');
     bookEl=$('#book'); chapEl=$('#chapter'); verseEl=$('#verse'); densEl=$('#density');
     genBtn=$('#btn-generate'); resetBtn=$('#btn-reset'); searchEl=$('#search');
-    validateBtn=$('#btn-validate'); bibleBtn=$('#btn-bible'); paletteEl=$('#palette');
+    validateBtn=$('#btn-validate'); bibleLink=$('#btn-bible'); paletteEl=$('#palette');
 
     fillBooks(); fillChapters();
 
-    // Restaure couleur
+    // Palette: restaurer et initialiser
     const saved = store.get('palette');
-    if (saved && typeof saved.h==='number') applyTheme(saved.h, saved.s||'84%', saved.l||'46%');
+    if (saved && typeof saved.h==='number') {
+      applyTheme(saved.h, saved.s||'84%', saved.l||'46%');
+      // marquer active
+      paletteEl.querySelectorAll('.swatch').forEach(sw=>{
+        if (Number(sw.dataset.h)===saved.h) sw.setAttribute('data-active','1'); else sw.removeAttribute('data-active');
+      });
+    } else {
+      // appliquer la swatch par défaut (data-active="1")
+      const def = paletteEl.querySelector('.swatch[data-active="1"]');
+      if (def) applyTheme(Number(def.dataset.h), def.dataset.s, def.dataset.l);
+    }
 
     /* ---- Listeners ---- */
     searchEl.addEventListener('keydown', (e)=>{ if (e.key==='Enter') { e.preventDefault(); onValidate(); } });
     validateBtn.addEventListener('click', onValidate);
-    bibleBtn.addEventListener('click', openYouVersion);
+
+    bibleLink.addEventListener('click', (e)=>{
+      // S'assure que le href est à jour
+      updateBibleHref();
+      // pas d'e.preventDefault → comportement lien normal (ouvre un onglet)
+    });
 
     bookEl.addEventListener('change', ()=>{
       state.book = bookEl.value; state.chapter = 1; state.verse = '';
-      fillChapters(); verseEl.value = ''; renderEditorMeta();
+      fillChapters(); verseEl.value = ''; renderEditorMeta(); updateBibleHref();
     });
 
     chapEl.addEventListener('change', ()=>{
       const max = CHAPTERS_66[state.book] || 1;
       const n = parseInt(chapEl.value,10);
-      state.chapter = Number.isFinite(n) ? clamp(n,1,max) : 1; renderEditorMeta();
+      state.chapter = Number.isFinite(n) ? clamp(n,1,max) : 1; renderEditorMeta(); updateBibleHref();
     });
 
-    verseEl.addEventListener('input', ()=>{ state.verse = digits(verseEl.value); renderEditorMeta(); });
+    verseEl.addEventListener('input', ()=>{ state.verse = digits(verseEl.value); renderEditorMeta(); updateBibleHref(); });
     densEl.addEventListener('change', ()=>{ const v=parseInt(densEl.value,10); if([500,1500,2500].includes(v)) state.density=v; });
 
     genBtn.addEventListener('click', onGenerate);
@@ -159,7 +175,7 @@
       });
     });
 
-    renderList(); renderEditor(); renderEditorMeta();
+    renderList(); renderEditor(); renderEditorMeta(); updateBibleHref();
   }
 
   /* ====== Recherche + Valider ====== */
@@ -182,7 +198,6 @@
 
     autoSet(book, chap, verse);
   }
-
   function resolveBook(key){
     if (ALIASES[key]) return ALIASES[key];
     for (const name of Object.keys(CHAPTERS_66)) {
@@ -190,28 +205,31 @@
     }
     return null;
   }
-
   function autoSet(book, chap, verse){
     state.book = book; state.chapter = chap; state.verse = verse || '';
     bookEl.value = book; fillChapters(); chapEl.value = String(chap); verseEl.value = state.verse;
-    renderEditorMeta();
+    renderEditorMeta(); updateBibleHref();
   }
 
-  /* ====== YouVersion ====== */
-  function openYouVersion(){
+  /* ====== YouVersion (lien fiable) ====== */
+  function buildYouVersionHref(){
     const code = YV_BOOK[state.book] || 'GEN';
     const verId = YV_VERSION_ID['LSG'] || '93';
     const chap = state.chapter || 1;
-    const url = `https://www.bible.com/fr/bible/${verId}/${code}.${chap}.LSG${state.verse? ('#v'+state.verse):''}`;
-    window.open(url, '_blank', 'noopener');
+    const anchor = state.verse ? ('#v'+state.verse) : '';
+    return `https://www.bible.com/fr/bible/${verId}/${code}.${chap}.LSG${anchor}`;
+  }
+  function updateBibleHref(){
+    const href = buildYouVersionHref();
+    const a = $('#btn-bible');
+    if (a) a.href = href;
   }
 
   /* ====== Sélecteurs Livre/Chapitre ====== */
   function fillBooks(){
     bookEl.innerHTML = '';
     for (const name of Object.keys(CHAPTERS_66)) {
-      const o = document.createElement('option');
-      o.value = name; o.textContent = name;
+      const o = document.createElement('option'); o.value = name; o.textContent = name;
       bookEl.appendChild(o);
     }
     bookEl.value = state.book;
@@ -220,8 +238,7 @@
     const max = CHAPTERS_66[state.book] || 1;
     chapEl.innerHTML = '';
     for (let i=1;i<=max;i++){
-      const o = document.createElement('option');
-      o.value = String(i); o.textContent = String(i);
+      const o = document.createElement('option'); o.value = String(i); o.textContent = String(i);
       chapEl.appendChild(o);
     }
     chapEl.value = String(clamp(state.chapter,1,max));
@@ -248,7 +265,10 @@
   function renderEditor(){
     const s = sectionById(state.current);
     $('#edTitle').textContent = s ? (s.title || `Rubrique ${state.current}`) : '—';
-    $('#editor').value = s ? (s.content || '') : '';
+    // Titre centré + description sous le titre
+    sectionTitleEl.textContent = s ? (s.title || `Rubrique ${state.current}`) : '—';
+    sectionDescEl.textContent  = s ? (s.description || '') : '';
+    editor.value = s ? (s.content || '') : '';
     renderEditorMeta();
   }
   function renderEditorMeta(){
@@ -276,7 +296,12 @@
       const data = await r.json();
       const sections = data?.study?.sections;
       if (!Array.isArray(sections) || sections.length !== 28) throw new Error('sections.length != 28');
-      state.sections = sections.map((s,i)=>({ id:Number(s.id)||i+1, title:s.title||`Rubrique ${i+1}`, content:String(s.content||'') }));
+      state.sections = sections.map((s,i)=>({
+        id:Number(s.id)||i+1,
+        title:s.title||`Rubrique ${i+1}`,
+        description: String(s.description||''),
+        content:String(s.content||'')
+      }));
       renderList(); renderEditor();
       try { localStorage.setItem('Dernière étude', JSON.stringify({ passage, density, ts: new Date().toISOString() })); } catch {}
     } catch (e){
@@ -291,14 +316,15 @@
     state.sections = state.sections.map(s=>({ ...s, content:'' }));
     document.querySelectorAll('.dot').forEach(d=>d.classList.remove('ok'));
 
-    searchEl.value = '';
+    // Champs
+    $('#search').value = '';
     bookEl.value = 'Genèse'; state.book='Genèse';
     fillChapters(); chapEl.value='1'; state.chapter=1;
     verseEl.value=''; state.verse='';
     densEl.value='1500'; state.density=1500;
 
     state.current=1;
-    renderList(); renderEditor();
+    renderList(); renderEditor(); updateBibleHref();
   }
 
   /* ====== Thème (palette) ====== */
@@ -307,11 +333,13 @@
     root.setProperty('--primary-h', String(h));
     root.setProperty('--primary-s', String(s));
     root.setProperty('--primary-l', String(l));
-    // Ajuste les surfaces et bordures selon la teinte
+    // Met à jour toutes les surfaces liées à la teinte
     root.setProperty('--bg', `hsl(${h} 60% 97%)`);
+    root.setProperty('--panel', `#ffffff`);
     root.setProperty('--panel-2', `hsl(${h} 55% 96%)`);
     root.setProperty('--border', `hsl(${h} 30% 86%)`);
     root.setProperty('--active', `hsl(${h} 100% 90%)`);
     root.setProperty('--hover', `hsl(${h} 90% 95%)`);
+    // le bouton .primary dépend de --primary (automatique car basé sur h/s/l)
   }
 })();
