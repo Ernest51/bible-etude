@@ -64,7 +64,7 @@
     .btn.secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--border); font-weight:600}
     .btn:active{transform:translateY(1px)}
 
-    /* Palette (couleur du site) */
+    /* Palette */
     .palette{display:flex;gap:8px;align-items:center;margin:8px 0 12px 0;flex-wrap:wrap}
     .swatch{width:22px;height:22px;border-radius:50%;border:1px solid #e2e8f0;cursor:pointer;box-shadow:0 0 0 2px #fff inset}
     .swatch[data-active="1"]{outline:2px solid var(--primary)}
@@ -79,7 +79,7 @@
       .controls .btn{justify-content:center}
     }
 
-    /* Colonne de gauche (rubriques) */
+    /* Colonne de gauche */
     .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
     .side-head{
       padding:12px 12px;border-bottom:1px solid var(--border);
@@ -103,7 +103,7 @@
     }
     .title{
       flex:1;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;
-      text-align:center; /* titres de rubriques centrés */
+      text-align:center;
       font-family:Poppins, Inter, sans-serif;
       font-weight:600;
     }
@@ -113,9 +113,28 @@
 
     /* Zone d’édition */
     .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
-    .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center}
+    .ed-head{
+      padding:12px 14px;border-bottom:1px solid var(--border);
+      display:flex;gap:10px;align-items:center;
+    }
     .ed-title{display:none}
     .ed-meta{color:var(--muted);font-size:12px;margin-left:auto}
+    /* Élément centrant “Dernière étude” */
+    .ed-lastmeta{
+      flex:1;
+      text-align:center;
+      font-family:Poppins, Inter, sans-serif;
+      font-weight:600;
+      color: var(--muted);
+    }
+    .ed-lastmeta .pill{
+      display:inline-block;
+      padding:6px 12px;
+      border:1px solid var(--border);
+      border-radius:999px;
+      background:var(--panel-2);
+    }
+
     .ed-body{padding:12px}
 
     /* Titre principal de chaque rubrique (au centre, arrondi) */
@@ -163,6 +182,33 @@
     .pv-item .vtitle{font-weight:700;font-family:Poppins, Inter, sans-serif}
     .pv-item .vbody{font-family:"Source Serif 4", Georgia, serif;line-height:1.7}
   </style>
+
+  <!-- Hook non intrusif : met à jour l'affichage quand "Dernière étude" est écrit par app.js -->
+  <script>
+    (function(){
+      function renderLastStudy(raw){
+        try{
+          const el = document.getElementById('lastMeta');
+          if(!el) return;
+          const obj = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          if (obj && obj.passage){
+            el.innerHTML = '<span class="pill">Dernière étude&nbsp;: <strong>'+obj.passage+'</strong></span>';
+          }
+        }catch{}
+      }
+      // Intercepte setItem pour la clé visée (sans toucher app.js)
+      const _setItem = localStorage.setItem.bind(localStorage);
+      localStorage.setItem = function(k,v){
+        _setItem(k,v);
+        if (k === 'Dernière étude') renderLastStudy(v);
+      };
+      // Au chargement, affiche si déjà présent
+      document.addEventListener('DOMContentLoaded', function(){
+        const v = localStorage.getItem('Dernière étude');
+        if (v) renderLastStudy(v);
+      });
+    })();
+  </script>
 </head>
 <body>
   <header><h1>MEDITATION</h1></header>
@@ -193,8 +239,7 @@
       <button id="btn-generate" class="btn primary" type="button">Générer</button>
       <button id="btn-reset" class="btn secondary" type="button">Reset</button>
 
-      <!-- Boutons ajoutés -->
-      <button id="btn-last" class="btn secondary" type="button" title="Revenir à la dernière étude">Dernière étude</button>
+      <!-- Lien ChatGPT conservé -->
       <a id="btn-chatgpt" class="btn secondary" href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a>
     </div>
 
@@ -223,6 +268,7 @@
       <section class="editor">
         <div class="ed-head">
           <div class="ed-title" id="edTitle">—</div>
+          <div class="ed-lastmeta" id="lastMeta" aria-live="polite"></div>
           <div class="ed-meta" id="edMeta">Point —</div>
         </div>
         <div class="ed-body">
