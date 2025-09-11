@@ -1,99 +1,94 @@
-// /api/verse.js
-// Renvoie un verset unique (texte brut) depuis un mini-cache local LSG.
-// Source = "local" si trouvé, sinon ok:true mais text:"" et warn.
+// api/verses.js
+// GET /api/verses?book=Luc&chapter=1
+// Réponse: { ok:true, book, chapter, version: 'LSG', verses:[{v:1, text:'...'}, ...] }
 
-export const config = { runtime: "nodejs" };
-
-/* --- Normalisation livre FR --- */
-const norm = (s) => String(s || "").trim()
-  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-  .toLowerCase();
-
-const ALIASES = {
-  "genese": "Genèse", "genèse": "Genèse",
-  "psaume": "Psaumes", "psaumes": "Psaumes",
-  "esaie": "Ésaïe", "esaïe": "Ésaïe", "isaie": "Ésaïe", "isaïe": "Ésaïe",
-  "ephesiens": "Éphésiens", "ephésiens": "Éphésiens",
-  "colossiens": "Colossiens", "hebreux": "Hébreux", "hébreux": "Hébreux",
-  "exode": "Exode", "josue": "Josué", "josué": "Josué",
-  "jean": "Jean", "romains": "Romains"
-};
-function normalizeBook(frName) {
-  const n = norm(frName);
-  return ALIASES[n] || frName;
-}
-
-/* --- Mini cache local Louis Segond 1910 --- */
-export const LSG = {
-  // Genèse 1
-  "Genèse/1/1": "Au commencement, Dieu créa les cieux et la terre.",
-  "Genèse/1/2": "La terre était informe et vide; il y avait des ténèbres à la surface de l’abîme, et l’Esprit de Dieu se mouvait au-dessus des eaux.",
-  "Genèse/1/3": "Dieu dit: Que la lumière soit! Et la lumière fut.",
-  "Genèse/1/9": "Dieu dit: Que les eaux qui sont au-dessous du ciel se rassemblent en un seul lieu, et que le sec paraisse. Et cela fut ainsi.",
-
-  // Psaumes 33
-  "Psaumes/33/6": "Les cieux ont été faits par la parole de l’Éternel, Et toute leur armée par le souffle de sa bouche.",
-
-  // Jean 1
-  "Jean/1/1": "Au commencement était la Parole, et la Parole était avec Dieu, et la Parole était Dieu.",
-  "Jean/1/2": "Elle était au commencement avec Dieu.",
-  "Jean/1/3": "Toutes choses ont été faites par elle, et rien de ce qui a été fait n’a été fait sans elle.",
-
-  // Hébreux 11
-  "Hébreux/11/3": "C’est par la foi que nous reconnaissons que le monde a été formé par la parole de Dieu, en sorte que ce qu’on voit n’a pas été fait de choses visibles.",
-
-  // Colossiens 1
-  "Colossiens/1/16": "Car en lui ont été créées toutes les choses qui sont dans les cieux et sur la terre, les visibles et les invisibles, trônes, dignités, dominations, autorités. Tout a été créé par lui et pour lui.",
-
-  // Psaumes 104
-  "Psaumes/104/24": "Que tes œuvres sont en grand nombre, ô Éternel! Tu les as toutes faites avec sagesse. La terre est remplie de tes biens.",
-
-  // Exode 34
-  "Exode/34/6": "Et l’Éternel passa devant lui, et s’écria: L’Éternel! l’Éternel! Dieu miséricordieux et compatissant, lent à la colère, riche en bonté et en fidélité,",
-  "Exode/34/7": "qui conserve son amour jusqu’à mille générations, qui pardonne l’iniquité, la rébellion et le péché, mais qui ne tient point le coupable pour innocent, et qui punit l’iniquité des pères sur les enfants et sur les enfants des enfants jusqu’à la troisième et la quatrième génération.",
-
-  // Josué 1
-  "Josué/1/8": "Que ce livre de la loi ne s’éloigne point de ta bouche; médite-le jour et nuit, pour agir fidèlement selon tout ce qui y est écrit; car c’est alors que tu auras du succès dans tes entreprises, c’est alors que tu réussiras.",
-  "Josué/1/9": "Ne t’ai-je pas donné cet ordre: Fortifie-toi et prends courage? Ne t’effraie point et ne t’épouvante point, car l’Éternel, ton Dieu, est avec toi dans tout ce que tu entreprendras."
+const YV_BOOK = {
+  "Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT",
+  "1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST",
+  "Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des Cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN",
+  "Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL",
+  "Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH","Philippiens":"PHP","Colossiens":"COL",
+  "1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM","Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"
 };
 
-/* --- Handler --- */
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ ok: false, error: "Method Not Allowed" });
-  }
-
   try {
-    const { book = "Genèse", chapter = 1, verse = 1, version = "LSG" } = req.body || {};
-    const B = normalizeBook(book);
-    const key = `${B}/${chapter}/${verse}`;
-    const text = LSG[key] || "";
+    res.setHeader('Content-Type','application/json; charset=utf-8');
+    res.setHeader('Cache-Control','no-store');
 
-    if (text) {
+    if (req.method !== 'GET') {
+      return res.status(405).json({ ok:false, error:'Method Not Allowed' });
+    }
+
+    const book = (req.query.book || '').toString();
+    const chapter = parseInt(req.query.chapter, 10);
+    if (!book || !Number.isFinite(chapter)) {
+      return res.status(400).json({ ok:false, error:'Missing book or chapter' });
+    }
+
+    const apiKey = process.env.API_BIBLE_KEY || '';
+    const bibleId = process.env.API_BIBLE_ID || ''; // ex: LSG id si tu en as un sur api.scripture.api.bible
+
+    // Si pas de clé → fallback: on renvoie des versets vides + URL YouVersion (au moins cliquable)
+    if (!apiKey || !bibleId) {
+      const code = YV_BOOK[book] || 'GEN';
+      // Nombre de versets inconnu ici → on enverra 1..N côté front, mais on mettra text: null
       return res.status(200).json({
-        ok: true,
-        source: "local",
-        book: B,
-        chapter: Number(chapter),
-        verse: Number(verse),
-        reference: `${B} ${chapter}:${verse}`,
-        version,
-        text
-      });
-    } else {
-      return res.status(200).json({
-        ok: true,
-        source: "none",
-        book: B,
-        chapter: Number(chapter),
-        verse: Number(verse),
-        reference: `${B} ${chapter}:${verse}`,
-        version,
-        text: "",
-        warn: "Verset non disponible (local)"
+        ok:true, source:'fallback', book, chapter, version:'LSG',
+        youversionBase: `https://www.bible.com/fr/bible/93/${code}.${chapter}.LSG`,
+        verses: [] // le front affichera le lien et "— ouvrir sur YouVersion" si vide
       });
     }
-  } catch (e) {
-    res.status(500).json({ ok: false, error: String(e?.message || e) });
+
+    // Avec clé API.Bible — on tente de récupérer le chapitre complet en texte
+    // Doc: https://scripture.api.bible/
+    // Endpoint (contentType=text): /v1/bibles/{bibleId}/chapters/{chapterId}?contentType=text
+    // Il faut un chapterId, pas "BOOK.CH".
+    // Simplification: on essaye via passages using osis "Book.Ch" → passages search:
+    const base = 'https://api.scripture.api.bible/v1';
+    const chapQuery = encodeURIComponent(`${book} ${chapter}`);
+    const headers = { 'api-key': apiKey };
+
+    // 1) Resolve passage to passageId(s)
+    const rs1 = await fetch(`${base}/bibles/${bibleId}/search?query=${chapQuery}&limit=1`, { headers });
+    const j1 = await rs1.json();
+    const passageId = j1?.data?.passages?.[0]?.id;
+    if (!passageId) {
+      return res.status(200).json({ ok:true, source:'api.bible', book, chapter, version:'LSG', verses: [] });
+    }
+
+    // 2) Fetch passage content plain text
+    const rs2 = await fetch(`${base}/bibles/${bibleId}/passages/${passageId}?content-type=text`, { headers });
+    const j2 = await rs2.json();
+    const content = j2?.data?.content || '';
+
+    // Parse très simple: sépare chaque verset par numéros (ex: ^1 , ^2 , etc.). Les formats varient selon version.
+    // On tente plusieurs motifs (1) <sup>1</sup>   (2) 1  (espace insécable)   (3) [1]
+    const lines = content.split(/\n+/).map(s => s.trim()).filter(Boolean);
+    const verses = [];
+    let currentV = null, buf = [];
+
+    const flush = () => {
+      if (currentV !== null) {
+        verses.push({ v: currentV, text: buf.join(' ').replace(/\s+/g,' ').trim() });
+      }
+      currentV = null; buf = [];
+    };
+
+    for (const ln of lines) {
+      const m = ln.match(/^(\d{1,3})\s+(.*)$/); // "1  Au commencement..."
+      if (m) {
+        flush();
+        currentV = parseInt(m[1],10);
+        buf.push(m[2] || '');
+      } else {
+        buf.push(ln);
+      }
+    }
+    flush();
+
+    return res.status(200).json({ ok:true, source:'api.bible', book, chapter, version:'LSG', verses });
+  } catch (err) {
+    return res.status(200).json({ ok:false, emergency:true, error: String(err && err.message || err) });
   }
 }
