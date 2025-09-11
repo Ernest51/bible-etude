@@ -1,133 +1,135 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Méditation</title>
-  <meta name="description" content="Étude biblique — 28 rubriques, zone de saisie, liens cliquables automatiques." />
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bible Étude — Générateur (28 rubriques)</title>
   <style>
-    :root{
-      --bg:#f4f6f8; --panel:#fff; --text:#0f172a; --muted:#64748b; --border:#e5e7eb; --dark:#111827; --ok:#16a34a; --warn:#f59e0b;
-      --accent:#0891b2; --accent-soft:#e0f2fe;
-    }
-    *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    .progress-wrap{position:sticky;top:0;z-index:20}
-    .progress{height:4px;background:#e5e7eb}
-    .progress>.bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#16a34a);transition:width .2s}
-    header{background:#fff;box-shadow:0 1px 0 rgba(0,0,0,.06);padding:14px 18px;position:sticky;top:4px;z-index:10}
-    h1{margin:0;font-size:28px;font-weight:800;letter-spacing:.2px;text-align:center}
-    main{max-width:1200px;margin:14px auto;padding:0 12px}
-    .theme-rail{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px 12px;max-width:1200px;margin:10px auto}
-    .theme-rail b{font-size:12px;color:#111;white-space:nowrap}
-    #themeBar{display:grid;grid-template-columns:repeat(12, 1fr);gap:8px;flex:1}
-    #themeBar button[data-role="swatch"]{width:100%;height:26px;border-radius:999px;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.08);cursor:pointer}
-    .controls{display:grid;grid-template-columns:1.3fr .9fr .6fr .6fr .8fr .8fr auto auto auto auto;gap:10px;margin:12px 0}
-    @media (max-width:1100px){
-      .controls{grid-template-columns:1fr 1fr 1fr 1fr 1fr;grid-auto-rows:auto}
-      .controls .wide{grid-column:1/-1}
-    }
-    input[type="text"],select{border:1px solid var(--border);border-radius:10px;padding:10px 12px;width:100%}
-    .btn{background:var(--dark);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
-    .btn.secondary{background:#fff;color:#111;border:1px solid var(--border)}
-    .btn.warn{background:var(--accent)}
-    .btn.link{background:#fff;color:#0f172a;border:1px solid var(--border)}
-    .layout{display:grid;grid-template-columns:320px 1fr;gap:12px}
-    @media (max-width:1000px){.layout{grid-template-columns:1fr}}
-    .sidebar{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-    .side-head{padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700}
-    .list{max-height:70vh;overflow:auto}
-    .item{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
-    .item:last-child{border-bottom:0}.item:hover{background:#f8fafc}.item.active{background:var(--accent-soft)}
-    .idx{min-width:24px;height:24px;border-radius:999px;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:#fff}
-    .desc{display:block;font-size:12px;color:#64748b;margin-top:2px}
-    .dot{width:8px;height:8px;border-radius:999px;background:#eab308;margin-left:auto}
-    .dot.ok{background:var(--ok)}
-    .editor{background:var(--panel);border:1px solid var(--border);border-radius:12px;min-height:60vh;display:flex;flex-direction:column}
-    .ed-head{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
-    .ed-title{font-weight:800;flex:1}.ed-body{padding:12px}
-    textarea{width:100%;min-height:460px;resize:vertical;border:1px solid var(--border);border-radius:10px;padding:14px;font-family:Spectral,Georgia,serif;line-height:1.6;white-space:pre-wrap}
-    .ed-foot{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
-    .mini{width:8px;height:8px;border-radius:999px;background:#d97706}.mini.ok{background:#16a34a}.mini.ko{background:#dc2626}
-    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 8px;font-size:12px;color:#111}
-    footer{max-width:1200px;margin:22px auto 26px;padding:0 14px;color:#64748b;font-size:14px}
-    #debugBtn{margin-left:6px;background:var(--dark);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
-    #debugPanel{display:none;margin-top:8px;background:#0b1020;color:#e2e8f0;border:1px solid #1f2a44;border-radius:8px;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;font-size:12px}
-    @media print{.progress-wrap,header,.controls,.sidebar,.ed-foot,footer .status-row,#debugPanel{display:none!important} textarea{min-height:unset}}
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    body { margin: 0; padding: 24px; background: #0b0c10; color: #e6e6e6; }
+    .app { max-width: 1100px; margin: 0 auto; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    input, select, button { padding: 10px 12px; border-radius: 10px; border: 1px solid #2b2e34; background: #15171c; color: #e6e6e6; }
+    button { cursor: pointer; }
+    button.primary { background: #2e6ef7; border-color: #2e6ef7; }
+    button.secondary { background: #20232b; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 18px; }
+    @media (max-width: 900px){ .grid{ grid-template-columns: 1fr; } }
+    .card { background: #121318; border: 1px solid #262a31; border-radius: 14px; padding: 12px; }
+    .title { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+    .diode { width: 10px; height: 10px; border-radius: 999px; background: #ffb020; /* orange par défaut */ box-shadow: 0 0 0 2px #1b1f27 inset; }
+    .diode.green { background: #18c37e; }
+    .muted { color: #9aa3b2; font-size: 12px; }
+    textarea { width: 100%; min-height: 120px; background: #0f1116; color: #e6e6e6; border: 1px solid #262a31; border-radius: 10px; padding: 8px; }
+    .footer { margin-top: 16px; font-size: 12px; color: #8a93a7; }
   </style>
 </head>
-<body data-theme="cyan">
-  <div class="progress-wrap"><div class="progress"><div id="progressBar" class="bar"></div></div></div>
-  <header><h1>Méditation</h1></header>
+<body>
+  <div class="app">
+    <h1>Bible Étude — Générateur 28 rubriques</h1>
+    <div class="row" style="margin-bottom: 12px;">
+      <label>Livre <input id="book" placeholder="Genèse" /></label>
+      <label>Chapitre <input id="chapter" placeholder="1" /></label>
+      <label>Densité
+        <select id="density">
+          <option value="500">500</option>
+          <option value="1500" selected>1500</option>
+          <option value="2500">2500</option>
+        </select>
+      </label>
+      <button class="primary" id="btn-generate">Générer</button>
+      <button class="secondary" id="btn-reset">Reset</button>
+    </div>
+    <div class="muted">Règles: appel POST /api/generate-study, options.length ∈ 500/1500/2500. Diodes vertes si contenu, Reset → toutes orange. Aucune CORS, même origine.</div>
 
-  <div class="theme-rail">
-    <b>Couleur :</b>
-    <div id="themeBar" aria-label="Palette de thèmes"></div>
+    <div id="cards" class="grid"></div>
+
+    <div class="footer">“Dernière étude” est mémorisée localement après génération et n’est pas effacée par Reset.</div>
   </div>
 
-  <main>
-    <div class="controls">
-      <input id="searchRef" class="wide" type="text" placeholder="Rechercher (ex : Marc 5:1, 1 Jean 2, Genèse 1:1-5)" />
-      <select id="bookSelect" title="Livre"></select>
-      <select id="chapterSelect" title="Chapitre"></select>
-      <select id="verseSelect" title="Verset"></select>
-      <select id="versionSelect" title="Version">
-        <option value="LSG" selected>Louis Segond 1910 (LSG)</option>
-        <option value="PDV">Parole de Vie (PDV)</option>
-        <option value="S21">Segond 21 (S21)</option>
-        <option value="BFC">Français Courant (BFC)</option>
-      </select>
-      <select id="densitySelect" title="Densité">
-        <option value="500">500 caractères</option>
-        <option value="1500" selected>1500 caractères</option>
-        <option value="2500">2500 caractères</option>
-      </select>
-      <button id="chatgptBtn" class="btn link" type="button">ChatGPT</button>
-      <button id="lastBtn" class="btn secondary" type="button">Dernière étude</button>
-      <button id="resetBtn" class="btn secondary" type="button">Reset</button>
-      <button id="readBtn" class="btn secondary" type="button">Lire la Bible</button>
-      <button id="validate" class="btn" type="button">Valider</button>
-      <button id="generateBtn" class="btn warn" type="button">Générer</button>
-      <a id="readLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none">Lire</a>
-    </div>
+  <script>
+    const cardsEl = document.getElementById('cards');
+    const state = {
+      book: '',
+      chapter: '',
+      density: 1500,
+      sections: Array.from({ length: 28 }, (_, i) => ({ id: i + 1, title: `Rubrique ${i + 1}`, content: '' })),
+    };
 
-    <div class="layout">
-      <aside class="sidebar">
-        <div class="side-head">Rubriques (28)</div>
-        <div id="pointsList" class="list"></div>
-      </aside>
+    const bookEl = document.getElementById('book');
+    const chapterEl = document.getElementById('chapter');
+    const densityEl = document.getElementById('density');
+    const btnGen = document.getElementById('btn-generate');
+    const btnReset = document.getElementById('btn-reset');
 
-      <section class="editor">
-        <div class="ed-head">
-          <div class="ed-title" id="edTitle">—</div>
-          <button id="prev" class="btn secondary" type="button">◀ Précédent</button>
-          <button id="next" class="btn secondary" type="button">Suivant ▶</button>
-        </div>
-        <div class="ed-body">
-          <textarea id="noteArea" placeholder="Écris ici…"></textarea>
-        </div>
-        <div class="ed-foot">
-          <span class="small" id="metaInfo">Point — / 28</span>
-          <span class="small">Sauvegarde auto (2s) après saisie.</span>
-        </div>
-      </section>
-    </div>
-  </main>
+    function render() {
+      cardsEl.innerHTML = '';
+      state.sections.forEach((s) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const title = document.createElement('div');
+        title.className = 'title';
+        const diode = document.createElement('div');
+        diode.className = 'diode' + (s.content && s.content.trim() ? ' green' : '');
+        const tspan = document.createElement('span');
+        tspan.textContent = `${s.id}. ${s.title}`;
+        title.appendChild(diode);
+        title.appendChild(tspan);
+        const ta = document.createElement('textarea');
+        ta.value = s.content || '';
+        ta.addEventListener('input', (e) => {
+          s.content = e.target.value;
+          diode.className = 'diode' + (s.content && s.content.trim() ? ' green' : '');
+        });
+        card.appendChild(title);
+        card.appendChild(ta);
+        cardsEl.appendChild(card);
+      });
+    }
 
-  <footer>
-    © <span id="y"></span> — Méditation
-    <div class="status-row" style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-      <span class="badge"><span id="dot-health" class="mini"></span> health</span>
-      <span class="badge"><span id="dot-chat" class="mini"></span> chat(POST)</span>
-      <span class="badge"><span id="dot-ping" class="mini"></span> ping</span>
-      <button id="debugBtn" type="button">Debug</button>
-    </div>
-    <div id="debugPanel">[init]</div>
-  </footer>
+    function resetUI() {
+      state.sections = state.sections.map(s => ({ ...s, content: '' }));
+      render(); // diodes reviennent à orange
+      bookEl.value = '';
+      chapterEl.value = '';
+      densityEl.value = '1500';
+    }
 
-  <script src="/app.js?v=stable" defer></script>
+    async function onGenerate() {
+      const book = (bookEl.value || 'Genèse').trim();
+      const chapter = (chapterEl.value || '1').trim();
+      const density = Number(densityEl.value);
+      const passage = `${book} ${chapter}`;
+
+      try {
+        const r = await fetch('/api/generate-study', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ passage, options: { length: density } })
+        });
+        const data = await r.json();
+        const sections = (data && data.study && Array.isArray(data.study.sections)) ? data.study.sections : [];
+        if (sections.length === 28) {
+          state.sections = sections.map(s => ({ id: s.id, title: s.title || `Rubrique ${s.id}`, content: s.content || '' }));
+          render();
+          // Mémorise la dernière étude (non effacée par Reset)
+          localStorage.setItem('Dernière étude', JSON.stringify({ passage, density, ts: new Date().toISOString() }));
+        } else {
+          alert('Réponse invalide: sections.length != 28');
+        }
+      } catch (e) {
+        alert('Erreur de génération: ' + e.message);
+      }
+    }
+
+    bookEl.addEventListener('input', () => (state.book = bookEl.value));
+    chapterEl.addEventListener('input', () => (state.chapter = chapterEl.value));
+    densityEl.addEventListener('change', () => (state.density = Number(densityEl.value)));
+    btnGen.addEventListener('click', onGenerate);
+    btnReset.addEventListener('click', resetUI);
+
+    // Initial render
+    render();
+  </script>
 </body>
 </html>
-
