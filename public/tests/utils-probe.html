@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Tests — API Utils Probe</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; background:#f9fafb; color:#111; }
+    h1 { font-size: 20px; margin-bottom: 12px; }
+    .section { margin: 20px 0; padding: 12px; border:1px solid #ddd; border-radius: 8px; background:#fff; }
+    label { display:block; margin-top: 6px; }
+    input { padding: 6px; margin-top: 2px; width: 300px; }
+    button { margin-top: 8px; padding: 6px 12px; cursor:pointer; border-radius:6px; border:1px solid #666; background:#eee; }
+    pre { white-space: pre-wrap; background:#f3f4f6; padding: 10px; border-radius: 6px; max-height: 400px; overflow:auto; font-size: 13px; }
+    .ok { color: green; }
+    .fail { color: red; }
+  </style>
+</head>
+<body>
+  <h1>Tests — API Probe (utils)</h1>
+
+  <div class="section">
+    <label for="bibleId">Bible ID :</label>
+    <input id="bibleId" placeholder="ex: 592420522e16049f-01 (LSG)"/>
+    <label for="bookId">Book ID (USFM) :</label>
+    <input id="bookId" placeholder="ex: GEN (Genèse)"/>
+    <button onclick="clickBibles()">1) Bibles FR</button>
+    <button onclick="clickBooks()">2) Livres (books)</button>
+    <button onclick="clickChapters()">3) Chapitres</button>
+  </div>
+
+  <div id="result-bibles" class="section">
+    <strong>Résultat Bibles FR :</strong>
+    <pre id="pre-bibles"></pre>
+  </div>
+
+  <div id="result-books" class="section">
+    <strong>Résultat Books :</strong>
+    <pre id="pre-books"></pre>
+  </div>
+
+  <div id="result-chapters" class="section">
+    <strong>Résultat Chapters :</strong>
+    <pre id="pre-chapters"></pre>
+  </div>
+
+<script>
+function showResult(which, status, txt) {
+  const pre = document.getElementById('pre-' + which);
+  pre.textContent = `HTTP ${status}\n\n` + txt;
+}
+
+async function getDefaultBibleId() {
+  try {
+    const r = await fetch('/api/utils?action=whoami', { cache: 'no-store' });
+    const j = await r.json().catch(()=> ({}));
+    return j?.defaultBibleId || '';
+  } catch {
+    return '';
+  }
+}
+
+async function clickBibles() {
+  const url = `/api/utils?action=bibles&lang=fra`;
+  const r = await fetch(url, { cache: 'no-store' });
+  const txt = await r.text();
+  showResult('bibles', r.status, txt);
+}
+
+async function clickBooks() {
+  let bibleId = document.getElementById('bibleId').value.trim();
+  if (!bibleId) bibleId = await getDefaultBibleId();
+  if (!bibleId) {
+    showResult('books', 400, 'Bible ID manquant (et aucun défaut trouvé)');
+    return;
+  }
+  const url = `/api/utils?action=books&bibleId=${encodeURIComponent(bibleId)}`;
+  const r = await fetch(url, { cache: 'no-store' });
+  const txt = await r.text();
+  showResult('books', r.status, txt);
+}
+
+async function clickChapters() {
+  let bibleId = document.getElementById('bibleId').value.trim();
+  if (!bibleId) bibleId = await getDefaultBibleId();
+  if (!bibleId) {
+    showResult('chapters', 400, 'Bible ID manquant (et aucun défaut trouvé)');
+    return;
+  }
+  const bookId = (document.getElementById('bookId').value || 'GEN').trim();
+  const url = `/api/utils?action=chapters&bibleId=${encodeURIComponent(bibleId)}&bookId=${encodeURIComponent(bookId)}`;
+  const r = await fetch(url, { cache: 'no-store' });
+  const txt = await r.text();
+  showResult('chapters', r.status, txt);
+}
+</script>
+</body>
+</html>
