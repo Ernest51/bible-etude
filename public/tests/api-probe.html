@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tests — API Probe (api.bible + endpoints locaux)</title>
+<style>
+  :root{
+    --bg:#f8fafc; --panel:#fff; --border:#e2e8f0; --text:#0f172a; --muted:#475569; --ok:#16a34a; --warn:#eab308; --err:#dc2626; --link:#2563eb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+  header{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);padding:12px 16px}
+  h1{margin:0;text-align:center;font-size:20px;font-weight:800}
+  main{max-width:1100px;margin:16px auto;padding:0 12px}
+  .grid{display:grid;grid-template-columns:1fr;gap:12px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .card header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border)}
+  .card h2{margin:0;font-size:16px}
+  .card .body{padding:12px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  label{display:flex;gap:6px;align-items:center}
+  input,select,button{border:1px solid var(--border);background:#f1f5f9;border-radius:10px;padding:8px 10px}
+  button{cursor:pointer}
+  .btn{background:#111827;color:#fff;border-color:#111827}
+  .muted{color:var(--muted);font-size:13px}
+  pre{background:#0b1220;color:#c9def1;padding:10px;border-radius:10px;overflow:auto;max-height:320px}
+  a{color:var(--link)}
+  .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:4px 8px;background:#f8fafc;font-size:12px}
+  .good{color:var(--ok);border-color:#bbf7d0;background:#f0fdf4}
+  .bad{color:var(--err);border-color:#fecaca;background:#fef2f2}
+  .warn{color:var(--warn);border-color:#fde68a;background:#fffbeb}
+  .kv{display:grid;grid-template-columns:180px 1fr;gap:6px 10px;margin:10px 0}
+  .kv div:nth-child(odd){color:var(--muted)}
+  .sep{height:1px;background:var(--border);margin:12px 0}
+</style>
+</head>
+<body>
+<header><h1>Tests — API Probe (api.bible + endpoints locaux)</h1></header>
+<main>
+  <div class="card">
+    <header>
+      <h2>Paramètres</h2>
+      <button id="btn-run-all" class="btn">Lancer tous les tests</button>
+    </header>
+    <div class="body">
+      <div class="row">
+        <label>Bible ID
+          <input id="bibleId" placeholder="ex: 592420522e16049f-01 (LSG)" />
+        </label>
+        <label>Book ID (USFM)
+          <input id="bookId" value="GEN" />
+        </label>
+        <label>Livre (nom)
+          <input id="bookName" value="Genèse" />
+        </label>
+        <label>Chapitre
+          <input id="chapter" type="number" min="1" value="1" />
+        </label>
+      </div>
+      <div class="muted">
+        Astuce : si vous ne connaissez pas le <strong>Bible ID</strong>, cliquez d’abord sur “Bibles FR” puis “Livres (books)” pour le récupérer.
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- Bibles -->
+    <div class="card">
+      <header>
+        <h2>1) /api/utils?action=bibles&lang=fra</h2>
+        <button id="btn-bibles">Bibles FR</button>
+      </header>
+      <div class="body">
+        <div class="row">
+          <span id="bibles-status" class="pill">En attente…</span>
+        </div>
+        <pre id="bibles-out">{}</pre>
+      </div>
+    </div>
+
+    <!-- Books -->
+    <div class="card">
+      <header>
+        <h2>2) /api/utils?action=books&bibleId=…</h2>
+        <button id="btn-books">Livres (books)</button>
+      </header>
+      <div class="body">
+        <div class="row">
+          <span id="books-status" class="pill">En attente…</span>
+        </div>
+        <pre id="books-out">{}</pre>
+      </div>
+    </div>
+
+    <!-- Chapters -->
+    <div class="card">
+      <header>
+        <h2>3) /api/utils?action=chapters&bibleId=…&bookId=…</h2>
+        <button id="btn-chapters">Chapitres</button>
+      </header>
+      <div class="body">
+        <div class="row">
+          <span id="chapters-status" class="pill">En attente…</span>
+        </div>
+        <pre id="chapters-out">{}</pre>
+      </div>
+    </div>
+
+    <!-- Verses local -->
+    <div class="card">
+      <header>
+        <h2>4) /api/verses?book=…&chapter=…</h2>
+        <button id="btn-verses">Versets (local)</button>
+      </header>
+      <div class="body">
+        <div class="row">
+          <span id="verses-status" class="pill">En attente…</span>
+        </div>
+        <div class="kv">
+          <div>source</div><div id="verses-source">—</div>
+          <div>version</div><div id="verses-version">—</div>
+          <div># versets</div><div id="verses-count">—</div>
+        </div>
+        <pre id="verses-out">{}</pre>
+      </div>
+    </div>
+
+    <!-- Generate-study -->
+    <div class="card">
+      <header>
+        <h2>5) /api/generate-study (POST)</h2>
+        <button id="btn-study">Générer l’étude 1–28</button>
+      </header>
+      <div class="body">
+        <div class="row">
+          <span id="study-status" class="pill">En attente…</span>
+        </div>
+        <div class="kv">
+          <div>usedApiBible</div><div id="kv-usedApiBible">—</div>
+          <div>usedLocalVerses</div><div id="kv-usedLocalVerses">—</div>
+          <div>verseCount</div><div id="kv-verseCount">—</div>
+          <div>sections</div><div id="kv-sections">—</div>
+          <div>diagnostics</div><div id="kv-diag">—</div>
+          <div>generatedAt</div><div id="kv-genAt">—</div>
+        </div>
+        <pre id="study-out">{}</pre>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+function setStatus(el, type, text){
+  el.classList.remove('good','bad','warn');
+  if (type==='good') el.classList.add('good');
+  if (type==='bad')  el.classList.add('bad');
+  if (type==='warn') el.classList.add('warn');
+  el.textContent = text;
+}
+function safeJson(text){
+  try { return JSON.stringify(text, null, 2); }
+  catch { return String(text); }
+}
+async function fetchJSON(url, opts){
+  const r = await fetch(url, opts);
+  const ct = (r.headers.get('content-type')||'').toLowerCase();
+  const t = await r.text();
+  if (ct.includes('application/json') || ct.includes('application/problem+json')){
+    try{ return { ok:r.ok, status:r.status, json: JSON.parse(t) }; }
+    catch{ return { ok:false, status:r.status, error: 'JSON parse error', raw:t }; }
+  }
+  return { ok:false, status:r.status, error:'non-JSON', raw:t };
+}
+
+const el = (id)=>document.getElementById(id);
+
+async function runBibles(){
+  const st = el('bibles-status'), out = el('bibles-out');
+  setStatus(st,'warn','…');
+  const res = await fetchJSON('/api/utils?action=bibles&lang=fra');
+  if (res.ok){
+    setStatus(st,'good','OK');
+    out.textContent = safeJson(res.json);
+  } else {
+    setStatus(st,'bad', `HTTP ${res.status}`);
+    out.textContent = safeJson(res.error || res.raw);
+  }
+}
+
+async function runBooks(){
+  const st = el('books-status'), out = el('books-out');
+  const bibleId = el('bibleId').value.trim();
+  if (!bibleId){ setStatus(st,'bad','Bible ID manquant'); return; }
+  setStatus(st,'warn','…');
+  const res = await fetchJSON(`/api/utils?action=books&bibleId=${encodeURIComponent(bibleId)}`);
+  if (res.ok){
+    setStatus(st,'good','OK');
+    out.textContent = safeJson(res.json);
+  } else {
+    setStatus(st,'bad', `HTTP ${res.status}`);
+    out.textContent = safeJson(res.error || res.raw);
+  }
+}
+
+async function runChapters(){
+  const st = el('chapters-status'), out = el('chapters-out');
+  const bibleId = el('bibleId').value.trim();
+  const bookId  = el('bookId').value.trim();
+  if (!bibleId || !bookId){ setStatus(st,'bad','Bible ID / Book ID manquants'); return; }
+  setStatus(st,'warn','…');
+  const res = await fetchJSON(`/api/utils?action=chapters&bibleId=${encodeURIComponent(bibleId)}&bookId=${encodeURIComponent(bookId)}`);
+  if (res.ok){
+    setStatus(st,'good','OK');
+    out.textContent = safeJson(res.json);
+  } else {
+    setStatus(st,'bad', `HTTP ${res.status}`);
+    out.textContent = safeJson(res.error || res.raw);
+  }
+}
+
+async function runVerses(){
+  const st = el('verses-status'), out = el('verses-out');
+  const book = el('bookName').value.trim() || 'Genèse';
+  const chapter = Number(el('chapter').value || '1');
+  setStatus(st,'warn','…');
+  const res = await fetchJSON(`/api/verses?book=${encodeURIComponent(book)}&chapter=${encodeURIComponent(chapter)}`);
+  if (res.ok){
+    setStatus(st,'good','OK');
+    el('verses-source').textContent = res.json.source || '—';
+    el('verses-version').textContent = res.json.version || '—';
+    el('verses-count').textContent = (res.json.verses||[]).length;
+    out.textContent = safeJson(res.json);
+  } else {
+    setStatus(st,'bad', `HTTP ${res.status}`);
+    out.textContent = safeJson(res.error || res.raw);
+  }
+}
+
+async function runStudy(){
+  const st = el('study-status'), out = el('study-out');
+  const book = el('bookName').value.trim() || 'Genèse';
+  const chapter = Number(el('chapter').value || '1');
+  setStatus(st,'warn','…');
+  const res = await fetchJSON('/api/generate-study', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ passage: `${book} ${chapter}`, options:{ length:1500, translation:'LSG' } })
+  });
+  if (res.ok){
+    setStatus(st,'good','OK');
+    const meta = res.json?.metadata || {};
+    el('kv-usedApiBible').textContent   = meta.usedApiBible === true ? 'true' : String(!!meta.usedApiBible);
+    el('kv-usedLocalVerses').textContent= meta.usedLocalVerses === true ? 'true' : String(!!meta.usedLocalVerses);
+    el('kv-verseCount').textContent     = meta.verseCount ?? '—';
+    el('kv-sections').textContent       = (res.json?.study?.sections||[]).length;
+    el('kv-diag').textContent           = Array.isArray(meta.diagnostics)? meta.diagnostics.join(' | ') : '—';
+    el('kv-genAt').textContent          = meta.generatedAt || '—';
+    out.textContent = safeJson(res.json);
+  } else {
+    setStatus(st,'bad', `HTTP ${res.status}`);
+    out.textContent = safeJson(res.error || res.raw);
+  }
+}
+
+document.getElementById('btn-bibles').addEventListener('click', runBibles);
+document.getElementById('btn-books').addEventListener('click', runBooks);
+document.getElementById('btn-chapters').addEventListener('click', runChapters);
+document.getElementById('btn-verses').addEventListener('click', runVerses);
+document.getElementById('btn-study').addEventListener('click', runStudy);
+
+document.getElementById('btn-run-all').addEventListener('click', async ()=>{
+  await runBibles();
+  await runBooks();
+  await runChapters();
+  await runVerses();
+  await runStudy();
+});
+</script>
+</body>
+</html>
