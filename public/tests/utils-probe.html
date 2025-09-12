@@ -4,54 +4,101 @@
   <meta charset="UTF-8"/>
   <title>Tests — API Utils Probe</title>
   <style>
-    body { font-family: sans-serif; margin: 20px; background:#f9fafb; color:#111; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif; margin: 20px; background:#f9fafb; color:#111; }
     h1 { font-size: 20px; margin-bottom: 12px; }
+    .row { display:flex; gap:10px; align-items:center; flex-wrap: wrap; }
     .section { margin: 20px 0; padding: 12px; border:1px solid #ddd; border-radius: 8px; background:#fff; }
     label { display:block; margin-top: 6px; }
-    input { padding: 6px; margin-top: 2px; width: 300px; }
+    input { padding: 6px; margin-top: 2px; width: 320px; max-width: 100%; }
     button { margin-top: 8px; padding: 6px 12px; cursor:pointer; border-radius:6px; border:1px solid #666; background:#eee; }
-    pre { white-space: pre-wrap; background:#f3f4f6; padding: 10px; border-radius: 6px; max-height: 400px; overflow:auto; font-size: 13px; }
-    .ok { color: green; }
-    .fail { color: red; }
+    pre { white-space: pre-wrap; background:#f3f4f6; padding: 10px; border-radius: 6px; max-height: 420px; overflow:auto; font-size: 13px; }
+    code { background:#eef; padding:2px 4px; border-radius:4px; }
+    .url { font-size:12px; color:#444; margin-top:6px; word-break: break-all; }
   </style>
 </head>
 <body>
   <h1>Tests — API Probe (utils)</h1>
 
   <div class="section">
+    <div class="row">
+      <button onclick="clickPing()">Ping</button>
+      <button onclick="clickWhoami()">WhoAmI</button>
+      <button onclick="clickHealth()">Health</button>
+    </div>
+    <div id="url-core" class="url"></div>
+    <pre id="pre-core"></pre>
+  </div>
+
+  <div class="section">
     <label for="bibleId">Bible ID :</label>
-    <input id="bibleId" placeholder="ex: 592420522e16049f-01 (LSG)"/>
+    <input id="bibleId" placeholder="ex: 592420522e16049f-01 (LSG) ou a93a92589195411f-01"/>
     <label for="bookId">Book ID (USFM) :</label>
     <input id="bookId" placeholder="ex: GEN (Genèse)"/>
-    <button onclick="clickBibles()">1) Bibles FR</button>
-    <button onclick="clickBooks()">2) Livres (books)</button>
-    <button onclick="clickChapters()">3) Chapitres</button>
+    <div class="row">
+      <button onclick="clickBibles()">1) Bibles FR</button>
+      <button onclick="clickBooks()">2) Livres (books)</button>
+      <button onclick="clickChapters()">3) Chapitres</button>
+    </div>
   </div>
 
   <div id="result-bibles" class="section">
     <strong>Résultat Bibles FR :</strong>
+    <div id="url-bibles" class="url"></div>
     <pre id="pre-bibles"></pre>
   </div>
 
   <div id="result-books" class="section">
     <strong>Résultat Books :</strong>
+    <div id="url-books" class="url"></div>
     <pre id="pre-books"></pre>
   </div>
 
   <div id="result-chapters" class="section">
     <strong>Résultat Chapters :</strong>
+    <div id="url-chapters" class="url"></div>
     <pre id="pre-chapters"></pre>
   </div>
 
 <script>
-function showResult(which, status, txt) {
+function abs(pathAndQuery) {
+  return location.origin.replace(/\/+$/,'') + pathAndQuery;
+}
+function show(which, status, txt, urlId, url) {
   const pre = document.getElementById('pre-' + which);
+  const u = document.getElementById('url-' + which);
+  if (u) u.textContent = url;
   pre.textContent = `HTTP ${status}\n\n` + txt;
 }
+function showCore(status, txt, url) {
+  document.getElementById('url-core').textContent = url;
+  document.getElementById('pre-core').textContent = `HTTP ${status}\n\n` + txt;
+}
+
+async function doFetch(url, showFn) {
+  try {
+    const r = await fetch(url, { cache: 'no-store' });
+    const ct = (r.headers.get('content-type')||'').toLowerCase();
+    const txt = await r.text();
+    if (ct.includes('application/json')) {
+      showFn(r.status, txt, url);
+    } else {
+      showFn(r.status, txt || '(réponse vide ou non-JSON)', url);
+    }
+  } catch(e) {
+    showFn(0, 'ERREUR FETCH: ' + (e && e.message || e), url);
+  }
+}
+
+function urlPing()    { return abs('/api/utils?action=ping'); }
+function urlWhoami()  { return abs('/api/utils?action=whoami'); }
+function urlHealth()  { return abs('/api/utils?action=health'); }
+function urlBibles()  { return abs('/api/utils?action=bibles&lang=fra'); }
+function urlBooks(id) { return abs('/api/utils?action=books&bibleId=' + encodeURIComponent(id)); }
+function urlChaps(id,bk){ return abs('/api/utils?action=chapters&bibleId=' + encodeURIComponent(id) + '&bookId=' + encodeURIComponent(bk)); }
 
 async function getDefaultBibleId() {
   try {
-    const r = await fetch('/api/utils?action=whoami', { cache: 'no-store' });
+    const r = await fetch(urlWhoami(), { cache: 'no-store' });
     const j = await r.json().catch(()=> ({}));
     return j?.defaultBibleId || '';
   } catch {
@@ -59,38 +106,36 @@ async function getDefaultBibleId() {
   }
 }
 
-async function clickBibles() {
-  const url = `/api/utils?action=bibles&lang=fra`;
-  const r = await fetch(url, { cache: 'no-store' });
-  const txt = await r.text();
-  showResult('bibles', r.status, txt);
-}
+/* --- Boutons cœur (vérifier que la route /api/utils existe) --- */
+async function clickPing()   { await doFetch(urlPing(),   (s,t,u)=>showCore(s,t,u)); }
+async function clickWhoami() { await doFetch(urlWhoami(), (s,t,u)=>showCore(s,t,u)); }
+async function clickHealth() { await doFetch(urlHealth(), (s,t,u)=>showCore(s,t,u)); }
 
+/* --- Bibles / Books / Chapters --- */
+async function clickBibles() {
+  const url = urlBibles();
+  await doFetch(url, (s,t,u)=>show('bibles', s, t, 'url-bibles', u));
+}
 async function clickBooks() {
   let bibleId = document.getElementById('bibleId').value.trim();
   if (!bibleId) bibleId = await getDefaultBibleId();
   if (!bibleId) {
-    showResult('books', 400, 'Bible ID manquant (et aucun défaut trouvé)');
+    show('books', 400, 'Bible ID manquant (aucun défaut trouvé)', 'url-books', '(local)');
     return;
   }
-  const url = `/api/utils?action=books&bibleId=${encodeURIComponent(bibleId)}`;
-  const r = await fetch(url, { cache: 'no-store' });
-  const txt = await r.text();
-  showResult('books', r.status, txt);
+  const url = urlBooks(bibleId);
+  await doFetch(url, (s,t,u)=>show('books', s, t, 'url-books', u));
 }
-
 async function clickChapters() {
   let bibleId = document.getElementById('bibleId').value.trim();
   if (!bibleId) bibleId = await getDefaultBibleId();
   if (!bibleId) {
-    showResult('chapters', 400, 'Bible ID manquant (et aucun défaut trouvé)');
+    show('chapters', 400, 'Bible ID manquant (aucun défaut trouvé)', 'url-chapters', '(local)');
     return;
   }
   const bookId = (document.getElementById('bookId').value || 'GEN').trim();
-  const url = `/api/utils?action=chapters&bibleId=${encodeURIComponent(bibleId)}&bookId=${encodeURIComponent(bookId)}`;
-  const r = await fetch(url, { cache: 'no-store' });
-  const txt = await r.text();
-  showResult('chapters', r.status, txt);
+  const url = urlChaps(bibleId, bookId);
+  await doFetch(url, (s,t,u)=>show('chapters', s, t, 'url-chapters', u));
 }
 </script>
 </body>
