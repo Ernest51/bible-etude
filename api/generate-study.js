@@ -56,7 +56,7 @@ const USFM = {
   "Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"
 };
 const YV_BOOK = { ...USFM };
-const YV_VERSION_ID = { LSG:'93', PDV:'201', S21:'377', BFC:'75' };
+const YV_VERSION_ID = { LSG:'93', PDV:'201', S21:'377', BFC:'75', JND:'64' }; // JND (Darby FR) = 64
 const API_ROOT = 'https://api.scripture.api.bible/v1';
 const KEY = process.env.API_BIBLE_KEY || '';
 const BIBLE_ID = process.env.API_BIBLE_ID || process.env.API_BIBLE_BIBLE_ID || '';
@@ -152,10 +152,11 @@ function linkRef(book, chap, vv, version='LSG'){
   return `[${label}](${url})`;
 }
 function youVersionUrl(book, chap, verse, version='LSG'){
-  const code = YV_BOOK[book] || 'GEN';
-  const verId = YV_VERSION_ID[(version||'LSG').toUpperCase()] || '93';
-  const anchor = verse ? `#v${verse}` : '';
-  return `https://www.bible.com/fr/bible/${verId}/${code}.${chap}.LSG${anchor}`;
+  const code  = YV_BOOK[book] || 'GEN';
+  const vcode = (version||'LSG').toUpperCase();       // ex: 'JND'
+  const verId = YV_VERSION_ID[vcode] || YV_VERSION_ID.LSG;
+  const anchor = verse ? `#v${verse}` : '';           // si des ancres sont instables, remplacer par ''
+  return `https://www.bible.com/fr/bible/${verId}/${code}.${chap}.${vcode}${anchor}`;
 }
 
 /* -------------------- api.bible : fetch du chapitre -------------------- */
@@ -195,7 +196,18 @@ async function fetchChapter(book, chap){
     }
   }
 
-  return { ok: !!content, content, verses, verseCount: (verseItems?.length || verses?.length || 0) };
+  // Fallback fiable basé sur verseItems (officiels) si le parsing heuristique est faible
+  if ((!verses.length || verses.length < Math.floor((verseItems?.length||0)/2)) && Array.isArray(verseItems) && verseItems.length) {
+    verses = verseItems.map(v => {
+      // v.reference ex: "GEN.1.3" → on prend le dernier nombre
+      const ref = String(v?.reference||'');
+      const m = ref.match(/(\d+)(?:\D+)?$/);
+      const num = m ? Number(m[1]) : null;
+      return { v: num, text: CLEAN(v?.text||'') };
+    }).filter(x => x.v && x.text);
+  }
+
+  return { ok: !!content || verses.length>0, content, verses, verseCount: (verseItems?.length || verses?.length || 0) };
 }
 
 /* -------------------- Familles & saveurs -------------------- */
@@ -240,7 +252,7 @@ function doctrinalLines(seed, book, chap, flav, fam, genre, keywords, key){
     `Repères du chapitre : ${k4 || 'termes à repérer dans le passage'}.`,
     `Point de gravité : ${vref}.`
   ];
-  // permute déterministiquement
+  // permutation déterministe
   const perm = [];
   for (let i=0;i<base.length;i++){
     const j = (i + (djb2(seed) % base.length)) % base.length;
@@ -509,7 +521,8 @@ async function buildDynamicStudy(book, chap, perLen, version='LSG'){
   const fam = bookFamily(book);
   const flav = flavorFromThemes(themes);
 
-  const target = Number(perLen)||1500;
+  // cible interne raisonnable pour éviter 28 blocs géants, sans casser l'API publique
+  const target = Math.max(400, Math.min(Number(perLen)||1500, 900));
   const u = new UniqueManager();
 
   const mk = (id, title, builder) => {
@@ -559,12 +572,12 @@ async function buildDynamicStudy(book, chap, perLen, version='LSG'){
 /* -------------------- Fallback intelligent (si API KO) -------------------- */
 function fallbackStudy(book, chap, perLen, version='LSG'){
   const u = new UniqueManager();
-  const target = Number(perLen)||1500;
   const fam = bookFamily(book);
   const genre = 'narratif/doctrinal';
   const flav = 'Parole';
   const keywords = [book.toLowerCase(),'parole','foi','grâce','vie','justice','peuple','alliance'];
   const key = { v: 1, text: '' };
+  const target = Math.max(400, Math.min(Number(perLen)||1500, 900));
 
   const mk = (id, title, builder) => {
     const seed = `${book}|${chap}|fallback|${id}`;
@@ -624,11 +637,12 @@ async function buildStudy(passage, length, version='LSG'){
   if (KEY && BIBLE_ID && USFM[book]) {
     try {
       return { study: await buildDynamicStudy(book, chap, perLen, version) };
-    } catch {
-      return { study: fallbackStudy(book, chap, perLen, version) };
+    } catch (e) {
+      console.error('[generate-study] buildDynamicStudy error:', e);
+      return { study: fallbackStudy(book, chap, perLen, version), emergency:true, error:'dynamic_failed' };
     }
   } else {
-    return { study: fallbackStudy(book, chap, perLen, version) };
+    return { study: fallbackStudy(book, chap, perLen, version), emergency:true, error:'missing_env_or_mapping' };
   }
 }
 
@@ -638,7 +652,7 @@ async function core(ctx){
   if (method === 'GET') {
     return send200(ctx, {
       ok:true, route:'/api/generate-study', method:'GET',
-      hint:'POST { "passage":"Genèse 1", "options":{ "length":500|1500|2500 } } → 28 rubriques enrichies, sans doublons.',
+      hint:'POST { "passage":"Genèse 1", "options":{ "length":500|1500|2500, "translation":"LSG|JND|..." } } → 28 rubriques enrichies, sans doublons.',
       requires: { API_BIBLE_KEY: !!KEY, API_BIBLE_ID: !!BIBLE_ID }
     });
   }
@@ -648,10 +662,14 @@ async function core(ctx){
     const length  = Number(body?.options?.length);
     const version = String((body?.options?.translation || 'LSG')).toUpperCase();
     try { return send200(ctx, await buildStudy(passage, length, version)); }
-    catch (e) { return send200(ctx, { study:{ sections:[] }, emergency:true, error:String(e) }); }
+    catch (e) {
+      console.error('[generate-study] buildStudy error:', e);
+      return send200(ctx, { study:{ sections:[] }, emergency:true, error:String(e) });
+    }
   }
   return send200(ctx, { ok:true, route:'/api/generate-study', hint:'GET pour smoke-test, POST pour générer.' });
 }
+
 export default async function handler(req, res){
   if (res && typeof res.status === 'function') return core({ req, res });
   return core({ req });
