@@ -1,52 +1,22 @@
-// /api/generate-study.js
-// Génération d’une étude 1–28, en priorisant le contenu réel via /api/verses,
-// puis fallback api.scripture.api.bible si besoin. Sortie sans "Contenu de base (fallback)".
+// api/generate-study.js
+// POST /api/generate-study
+// Body: { passage: "Genèse 1", options?: { length?: 1500|2200|3000, translation?: "LSG"|"JND"|... } }
+// Réponse: { study:{ sections:[{id,title,description,content}] }, metadata:{...} }
 
 export const config = { runtime: "nodejs" };
 
-/* -------------------- Constantes & ENV -------------------- */
-const API_ROOT = "https://api.scripture.api.bible/v1";
-const KEY = process.env.API_BIBLE_KEY || "";
-const BIBLE_ID =
-  process.env.API_BIBLE_ID || process.env.API_BIBLE_BIBLE_ID || process.env.DARBY_BIBLE_ID || "";
-
-const USFM = {
-  "Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT",
-  "1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST",
-  "Job":"JOB","Psaumes":"PSA","Proverbes":"PRO","Ecclésiaste":"ECC","Cantique des Cantiques":"SNG","Ésaïe":"ISA","Jérémie":"JER","Lamentations":"LAM","Ézéchiel":"EZK","Daniel":"DAN",
-  "Osée":"HOS","Joël":"JOL","Amos":"AMO","Abdias":"OBA","Jonas":"JON","Michée":"MIC","Nahum":"NAM","Habacuc":"HAB","Sophonie":"ZEP","Aggée":"HAG","Zacharie":"ZEC","Malachie":"MAL",
-  "Matthieu":"MAT","Marc":"MRK","Luc":"LUK","Jean":"JHN","Actes":"ACT","Romains":"ROM","1 Corinthiens":"1CO","2 Corinthiens":"2CO","Galates":"GAL","Éphésiens":"EPH",
-  "Philippiens":"PHP","Colossiens":"COL","1 Thessaloniciens":"1TH","2 Thessaloniciens":"2TH","1 Timothée":"1TI","2 Timothée":"2TI","Tite":"TIT","Philémon":"PHM",
-  "Hébreux":"HEB","Jacques":"JAS","1 Pierre":"1PE","2 Pierre":"2PE","1 Jean":"1JN","2 Jean":"2JN","3 Jean":"3JN","Jude":"JUD","Apocalypse":"REV"
-};
-
-/* -------------------- Utilitaires HTTP -------------------- */
-function json(res, status, body, { cache = "no-store" } = {}) {
+/* ------------------------- Utils HTTP ------------------------- */
+function setCommon(res) {
   res.setHeader("content-type", "application/json; charset=utf-8");
-  res.setHeader("cache-control", cache === "no-store" ? "no-store, max-age=0" : cache);
   res.setHeader("access-control-allow-origin", "*");
-  res.setHeader("access-control-allow-methods", "GET,POST,OPTIONS");
+  res.setHeader("access-control-allow-methods", "POST,OPTIONS");
   res.setHeader("access-control-allow-headers", "content-type,accept");
+  res.setHeader("cache-control", "no-store, max-age=0");
+}
+function send(res, status, payload) {
+  setCommon(res);
   res.statusCode = status;
-  res.end(JSON.stringify(body));
-}
-async function readBody(req) {
-  if (typeof req?.json === "function") try { return await req.json(); } catch {}
-  if (req?.body && typeof req.body === "object") return req.body;
-  const chunks = [];
-  await new Promise((res, rej) => {
-    req.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
-    req.on("end", res);
-    req.on("error", rej);
-  });
-  const raw = Buffer.concat(chunks).toString("utf8");
-  try { return raw ? JSON.parse(raw) : {}; } catch { return {}; }
-}
-function getOrigin(req) {
-  const host = req?.headers?.host;
-  if (!host) return "";
-  const proto = host.includes("localhost") ? "http" : "https";
-  return `${proto}://${host}`;
+  res.end(JSON.stringify(payload, null, 2));
 }
 const CLEAN = (s) =>
   String(s || "")
@@ -55,332 +25,474 @@ const CLEAN = (s) =>
     .replace(/\s([;:,.!?…])/g, "$1")
     .trim();
 
-/* -------------------- Fetch helpers -------------------- */
-async function fetchJson(url, { headers = {}, timeout = 10000 } = {}) {
-  const ctrl = new AbortController();
-  const tid = setTimeout(() => ctrl.abort(), timeout);
+/* ------------------------- Passage parsing ------------------------- */
+const BOOK_MAP = {
+  "genèse": "Genèse",
+  "gen": "Genèse",
+  "exo": "Exode",
+  "exode": "Exode",
+  // (si besoin: compléter la map — pas requis pour le flux actuel)
+};
+function parsePassage(raw = "") {
+  const t = String(raw).trim();
+  // Formats tolérés : "Genèse 1", "GEN 1", "Gen 1"
+  const m = t.match(/^([A-Za-zÉÈÊËÀÂÎÏÔÖÙÛÜÇéèêëàâîïôöùûüç' \.-]+)\s+(\d{1,3})\s*$/);
+  if (!m) return null;
+  const bookRaw = m[1].trim();
+  const chapter = parseInt(m[2], 10);
+  const key = bookRaw.toLowerCase().replace(/\./g, "").trim();
+  const book = BOOK_MAP[key] || bookRaw; // on garde tel quel si non mappé
+  return { book, chapter };
+}
+
+/* ------------------------- Récup versets (local d'abord) ------------------------- */
+async function getVersesLocal(req, { book, chapter, count = 200 }) {
   try {
-    const r = await fetch(url, { headers, signal: ctrl.signal });
-    const t = await r.text();
-    let j; try { j = t ? JSON.parse(t) : {}; } catch { j = { raw: t }; }
-    if (!r.ok) { const e = new Error(j?.error?.message || `HTTP ${r.status}`); e.status = r.status; e.details = j; throw e; }
-    return j;
-  } finally { clearTimeout(tid); }
+    const base = `http://${req.headers.host}`;
+    const url = new URL(`/api/verses`, base);
+    url.searchParams.set("book", book);
+    url.searchParams.set("chapter", String(chapter));
+    url.searchParams.set("count", String(count));
+
+    const r = await fetch(url.toString(), { headers: { accept: "application/json" } });
+    const j = await r.json();
+    if (j?.ok && Array.isArray(j.verses)) return j;
+  } catch (_) {}
+  return null;
 }
 
-/* -------------------- Plan A : /api/verses (local) -------------------- */
-async function fetchVersesLocal(req, book, chap, { count = 200, timeout = 10000 } = {}) {
-  const origin = getOrigin(req);
-  if (!origin) return { ok: false, verses: [], source: "no-origin" };
-  const url = new URL("/api/verses", origin);
-  url.searchParams.set("book", book);
-  url.searchParams.set("chapter", String(chap));
-  url.searchParams.set("count", String(count));
-
-  const ctrl = new AbortController();
-  const tid = setTimeout(() => ctrl.abort(), timeout);
-  try {
-    const r = await fetch(url.toString(), { signal: ctrl.signal });
-    const j = await r.json().catch(() => ({}));
-    if (j?.ok && Array.isArray(j?.verses) && j.verses.length) {
-      return {
-        ok: true,
-        verses: j.verses
-          .filter(x => Number.isFinite(x?.v) && typeof x?.text === "string")
-          .map(x => ({ v: x.v, text: CLEAN(x.text) })),
-        source: j?.source || "local"
-      };
-    }
-    return { ok: false, verses: [], source: "local-empty" };
-  } catch {
-    return { ok: false, verses: [], source: "local-error" };
-  } finally { clearTimeout(tid); }
-}
-
-/* -------------------- Plan B : api.bible (chapitre/verses) -------------------- */
-async function fetchChapterApiBible(book, chap) {
-  if (!KEY || !BIBLE_ID || !USFM[book]) throw new Error("API_BIBLE_KEY/ID manquants ou livre non mappé");
-  const headers = { accept: "application/json", "api-key": KEY };
-  const chapterId = `${USFM[book]}.${chap}`;
-
-  // Verses list
-  try {
-    const list = await fetchJson(`${API_ROOT}/bibles/${BIBLE_ID}/chapters/${chapterId}/verses`, { headers, timeout: 10000 });
-    const items = Array.isArray(list?.data) ? list.data : [];
-    if (items.length) {
-      const verses = [];
-      // récupérer chaque verset
-      for (const it of items) {
-        const url = new URL(`${API_ROOT}/bibles/${BIBLE_ID}/verses/${it.id}`);
-        url.searchParams.set("content-type", "text");
-        url.searchParams.set("include-verse-numbers", "false");
-        url.searchParams.set("include-notes", "false");
-        url.searchParams.set("include-titles", "false");
-        try {
-          const vj = await fetchJson(url.toString(), { headers, timeout: 10000 });
-          const d = vj?.data || {};
-          const text = CLEAN(d?.text || d?.content || "");
-          // numéro à partir de reference
-          let vNum;
-          const m = String(d?.reference || it?.reference || "").match(/:(\d{1,3})$/);
-          if (m) vNum = parseInt(m[1], 10);
-          if (text && Number.isFinite(vNum)) verses.push({ v: vNum, text });
-        } catch { /* continue */ }
-      }
-      verses.sort((a, b) => a.v - b.v);
-      if (verses.length) return { ok: true, verses, usedApiBible: true };
-    }
-  } catch { /* ignore list errors */ }
-
-  // Fallback: chapitre entier + découpe
-  const chUrl = new URL(`${API_ROOT}/bibles/${BIBLE_ID}/chapters/${USFM[book]}.${chap}`);
-  chUrl.searchParams.set("content-type", "text");
-  chUrl.searchParams.set("include-verse-numbers", "true");
-  chUrl.searchParams.set("include-notes", "false");
-  chUrl.searchParams.set("include-titles", "false");
-  try {
-    const ch = await fetchJson(chUrl.toString(), { headers, timeout: 12000 });
-    const content = CLEAN(ch?.data?.content || "");
-    const out = [];
-    if (content) {
-      const re = /(?:^|\s)(\d{1,3})[.)]?\s+([^]+?)(?=(?:\s\d{1,3}[.)]?\s)|$)/g;
-      let m; while ((m = re.exec(content))) out.push({ v: +m[1], text: CLEAN(m[2]) });
-    }
-    return { ok: !!out.length, verses: out, usedApiBible: true };
-  } catch (e) {
-    return { ok: false, verses: [], error: e?.message || "chapter_text_400", usedApiBible: false };
-  }
-}
-
-/* -------------------- Noyau: génération de rubriques -------------------- */
-function pickKeyVerse(verses) {
-  if (!Array.isArray(verses) || !verses.length) return null;
-  // pondération simple (mots doctrinaux + longueur lisible)
-  const PRIOR = ["dieu","seigneur","christ","jésus","parole","esprit","foi","grâce","salut","alliance","vérité","vie"];
-  let best = { v: null, text: "", score: -1 };
-  for (const { v, text } of verses) {
-    const t = text.toLowerCase();
-    let s = 0;
-    for (const w of PRIOR) if (t.includes(w)) s += 3;
-    const L = text.length; if (L >= 50 && L <= 200) s += 4; else if (L >= 30 && L <= 260) s += 2;
-    if (s > best.score) best = { v, text, score: s };
-  }
-  return best.v ? best : null;
-}
-function joinVersesRange(verses, maxChars = 400) {
-  const buf = [];
-  let len = 0;
-  for (const { v, text } of verses) {
-    const seg = `${v}. ${text}`;
-    if (len + seg.length > maxChars && buf.length) break;
-    buf.push(seg); len += seg.length + 1;
-  }
-  return buf.join(" ");
-}
-
-// Générateur concis, différent par rubrique, sans doublons “fallback”
-function buildSections(book, chap, verses) {
-  const key = pickKeyVerse(verses);
-  const opening = `*Référence :* ${book} ${chap}`;
-  const excerpt = key ? `> **Verset-clé** (${book} ${chap}:${key.v}) — ${key.text}` : "";
-  const firstLines = joinVersesRange(verses.slice(0, 4), 360);
-
-  const titles = [
-    "Prière d’ouverture","Canon et testament","Questions du chapitre précédent","Titre du chapitre","Contexte historique",
-    "Structure littéraire","Genre littéraire","Auteur et généalogie","Verset-clé doctrinal","Analyse exégétique",
-    "Analyse lexicale","Références croisées","Fondements théologiques","Thème doctrinal","Fruits spirituels",
-    "Types bibliques","Appui doctrinal","Comparaison interne","Parallèle ecclésial","Verset à mémoriser",
-    "Enseignement pour l’Église","Enseignement pour la famille","Enseignement pour enfants","Application missionnaire",
-    "Application pastorale","Application personnelle","Versets à retenir","Prière de fin"
-  ];
-
+/* ------------------------- Aides de rédaction ------------------------- */
+function pick(arr, n) {
+  const a = [...arr];
   const out = [];
-
-  titles.forEach((t, i) => {
-    let content = `### ${t}\n\n${opening}\n\n`;
-    switch (i + 1) {
-      case 1: // prière d’ouverture
-        content += `Père des lumières, nous recevons ta Parole avec foi. Par ton Esprit, rends-nous attentifs à ${book} ${chap}, pour que l’écoute devienne obéissance. ${excerpt ? "\n\n" + excerpt : ""}`;
-        break;
-      case 2: // canon
-        content += `L’Écriture interprète l’Écriture : ${book} ${chap} s’inscrit dans l’unité des deux Testaments, dont le centre est le Christ. ${excerpt}`;
-        break;
-      case 3: // questions (avec réponses courtes)
-        content += `1) **Fil doctrinal** : Dieu parle et ordonne, sa Parole crée et structure.\n2) **Tensions** : ce que le texte ne dit pas explicitement (chronologie fine, procédés) n’annule pas l’essentiel révélé.\n3) **Échos canoniques** : Jn 1, Col 1, Hé 11 éclairent ${book} ${chap}.\n4) **À reprendre** : prière et mise en pratique concrète cette semaine.`;
-        break;
-      case 4: // titre
-        content += `Proposition : **${book} ${chap} — Dieu parle et met en ordre**. Premières lignes : ${firstLines || "lecture attentive du texte."}`;
-        break;
-      case 5: // contexte
-        content += `Cadre : ouverture du livre, visée catéchétique et liturgique ; Dieu se révèle Créateur et Seigneur. ${excerpt}`;
-        break;
-      case 6: // structure
-        content += `Repérer les **enchaînements** (“et… puis…”) et les **séparations** (lumière/ténèbres, eaux/terre) qui rythment la progression.`;
-        break;
-      case 7: // genre
-        content += `Récit théologique fondateur, à lire avec méthode **grammatico-historique** et l’analogie de la foi.`;
-        break;
-      case 8: // auteur/généalogie
-        content += `Tradition mosaïque pour la Torah ; l’autorité vient de l’inspiration divine, non d’un nom d’auteur seulement.`;
-        break;
-      case 9: // verset-clé doctrinal
-        content += key ? `Sélection : ${book} ${chap}:${key.v}. Doctrine : Dieu parle, sa Parole est efficace et bonne.` : `Choisir un verset bref et mémorisable.`;
-        break;
-      case 10: // exégèse
-        content += `Observation → Interprétation → Application. Relever verbes divins (“dit”, “fit”, “vit”), noms, parallélismes, et déduire le propos central.`;
-        break;
-      case 11: // lexicale
-        content += `Mots porteurs : “Dieu”, “dit”, “lumière”, “sépara”, “appela”. Leur usage oriente le sens et l’application.`;
-        break;
-      case 12: // refs croisées
-        content += `Jn 1:1–3 ; Hé 11:3 ; Col 1:16–17 ; Ps 33:6. Lire l’Écriture par l’Écriture pour garder la cohérence.`;
-        break;
-      case 13: // fondements
-        content += `Création ex nihilo, bonté de l’ordre divin, Parole efficace, providence.`;
-        break;
-      case 14: // thème doctrinal
-        content += `**Parole et ordre** : Dieu parle, crée, nomme et sépare. La création manifeste sa gloire.`;
-        break;
-      case 15: // fruits
-        content += `Adoration (Dieu est bon), confiance (sa Parole tient), service (ordonner nos vies selon sa volonté).`;
-        break;
-      case 16: // types
-        content += `Lumière originelle → lumière du Christ (2 Co 4:6). Repos → sabbat/Christ, accomplissement.`;
-        break;
-      case 17: // appui doctrinal
-        content += `Confessions historiques : autorité, suffisance et clarté de l’Écriture ; Dieu Créateur et Providence.`;
-        break;
-      case 18: // comparaison interne
-        content += `Comparer les jours, les verbes répétés, les formules (“Dieu dit… il y eut soir et matin”).`;
-        break;
-      case 19: // ecclésial
-        content += `Culte : lecture publique, louange pour la création, prière de consécration du travail et du repos.`;
-        break;
-      case 20: // verset à mémoriser
-        content += key ? `${book} ${chap}:${key.v}` : `Choisir un verset court (≤ 20 mots).`;
-        break;
-      case 21: // Église
-        content += `Former à écouter la Parole, à travailler avec droiture, à sanctifier le temps (travail/repos).`;
-        break;
-      case 22: // famille
-        content += `Transmission : lire, prier, pratiquer la justice au quotidien ; bénir Dieu pour sa création.`;
-        break;
-      case 23: // enfants
-        content += `Dieu parle et le monde obéit : activité simple (nommer, classer, remercier Dieu).`;
-        break;
-      case 24: // mission
-        content += `Annoncer le Créateur bon et vivant, dénoncer les idoles du hasard et du chaos.`;
-        break;
-      case 25: // pastorale
-        content += `Accompagner dans l’ordre de vie : temps, travail, repos, parole vraie et promesse tenue.`;
-        break;
-      case 26: // personnelle
-        content += `Décision concrète aujourd’hui : une obéissance simple à la Parole entendue (temps de prière, service, repos sanctifié).`;
-        break;
-      case 27: // versets à retenir
-        content += key
-          ? `Commencer par ${book} ${chap}:${key.v}. Ajouter un second verset bref pour la semaine.`
-          : `Sélectionner 2–3 versets courts et clairs.`;
-        break;
-      case 28: // prière de fin
-        content += `Nous te rendons grâce : scelle ta Parole dans nos cœurs ; fais-nous vivre selon ton ordre et ta lumière. Amen.`;
-        break;
-      default:
-        content += excerpt;
-    }
-    out.push({ id: i + 1, title: t, description: "", content });
-  });
-
+  while (a.length && out.length < n) {
+    const i = Math.floor(Math.random() * a.length);
+    out.push(a.splice(i, 1)[0]);
+  }
   return out;
 }
-
-/* -------------------- Bâtisseur principal -------------------- */
-function parsePassage(p) {
-  const m = /^(.+?)\s+(\d+)(?:\s.*)?$/.exec(String(p || "").trim());
-  return { book: m ? m[1].trim() : "Genèse", chap: m ? parseInt(m[2], 10) : 1 };
+function countChainers(text) {
+  const t = text.toLowerCase();
+  const tokens = [" et ", " puis ", " alors ", " ensuite ", " et ", " et "];
+  return tokens.reduce((acc, w) => acc + (t.split(w).length - 1), 0);
 }
-function normalizeTotal(len) {
-  const n = Number(len);
-  if (n === 1500 || n === 500) return 1500;
-  if (n >= 1500 && n <= 3000) return n;
-  return 2200;
+function keyThemes(verses) {
+  const whole = CLEAN(verses.map(v => v.text).join(" "));
+  const themes = [];
+  if (/\b(lumi[eè]re|jour|nuit)\b/i.test(whole)) themes.push("Création et motif de la lumière/obscurité");
+  if (/\bcr[eé]a|fit|dit|b[eé]nit|vit\b/i.test(whole)) themes.push("Parole efficace et souveraineté de Dieu");
+  if (/\bhomme|image de dieu|m[aâ]le et femelle\b/i.test(whole)) themes.push("Anthropologie (imago Dei, vocation)");
+  if (/\bmer[s]?|terre|cieux?\b/i.test(whole)) themes.push("Ordre cosmique et séparation");
+  if (!themes.length) themes.push("Théologie de la création et providence");
+  return themes;
 }
-
-async function buildStudyWithRealVerses(req, passage, length, version = "LSG") {
-  const total = normalizeTotal(length);
-  const { book, chap } = parsePassage(passage || "Genèse 1");
-
-  const meta = { book, chapter: chap, version, diagnostics: [] };
-
-  // Plan A: local /api/verses
-  const local = await fetchVersesLocal(req, book, chap, { count: 220 });
-  let verses = [];
-  let usedLocal = false;
-  let usedApiBible = false;
-
-  if (local.ok && local.verses.length) {
-    verses = local.verses;
-    usedLocal = true;
-  } else {
-    meta.diagnostics.push(`local_${local.source || "fail"}`);
-    // Plan B: api.bible
-    const ab = await fetchChapterApiBible(book, chap);
-    if (ab.ok && ab.verses.length) {
-      verses = ab.verses;
-      usedApiBible = !!ab.usedApiBible;
-    } else {
-      meta.diagnostics.push(ab?.error || "chapter_text_400");
-    }
+function structureOutline(verses) {
+  // repère les récurrences "Dieu dit / fit / vit / appela ... soir et matin ..."
+  const lines = [];
+  verses.forEach(({ v, text }) => {
+    const t = text.toLowerCase();
+    let tag = null;
+    if (/\bdieu dit\b/.test(t)) tag = "Parole créatrice";
+    else if (/\bdieu fit\b/.test(t)) tag = "Action divine";
+    else if (/\bdieu vit\b/.test(t)) tag = "Évaluation divine (bon)";
+    else if (/\bappela\b/.test(t)) tag = "Nomination";
+    else if (/soir.*matin|jour\b/.test(t)) tag = "Cadence du jour";
+    if (tag) lines.push(`- v.${v} — ${tag}`);
+  });
+  if (!lines.length) lines.push("- Progression narrative simple (début → fin)");
+  return lines.join("\n");
+}
+function chooseMemoryVerse(verses) {
+  // heuristique simple : v.1 ou v.27 ou le plus “thématique”
+  const prefer = [1, 27, 31, 3];
+  for (const n of prefer) {
+    const hit = verses.find(v => v.v === n && CLEAN(v.text).length > 0);
+    if (hit) return `${hit.v}. ${hit.text}`;
   }
-
-  if (!verses.length) {
-    // Rien à afficher ? On garde le site fonctionnel: sections sobres mais non vides
-    const sections = buildSections(book, chap, []);
-    return {
-      study: { sections },
-      metadata: { ...meta, verseCount: 0, usedLocalVerses: usedLocal, usedApiBible, generatedAt: new Date().toISOString() }
-    };
-  }
-
-  const sections = buildSections(book, chap, verses);
-  return {
-    study: { sections },
-    metadata: {
-      ...meta,
-      verseCount: verses.length,
-      usedLocalVerses: usedLocal,
-      usedApiBible,
-      totalBudget: total,
-      generatedAt: new Date().toISOString()
-    }
-  };
+  const longest = [...verses].sort((a, b) => CLEAN(b.text).length - CLEAN(a.text).length)[0];
+  return longest ? `${longest.v}. ${longest.text}` : "—";
 }
 
-/* -------------------- Handler HTTP -------------------- */
+/* ------------------------- Génération de rubriques ------------------------- */
+function buildSections(book, chapter, verses, opts = {}) {
+  const version = opts.translation || "LSG";
+  const totalVerses = verses.length;
+  const plain = verses.map(v => `(${v.v}) ${v.text}`).join(" ");
+
+  const themes = keyThemes(verses);
+  const chainerScore = countChainers(plain);
+  const memVerse = chooseMemoryVerse(verses);
+
+  const ref = (title) => `### ${title}\n\n*Référence :* ${book} ${chapter}\n`;
+  const bullets = (arr) => arr.map((x) => `- ${x}`).join("\n");
+
+  const sections = [
+    {
+      id: 1,
+      title: "Prière d’ouverture",
+      description: "",
+      content:
+        ref("Prière d’ouverture") +
+        `Père, nous venons recevoir ta Parole. Ouvre nos yeux sur ${book} ${chapter}, ` +
+        `donne-nous l’intelligence spirituelle et conduis-nous à l’obéissance. Amen.`,
+    },
+    {
+      id: 2,
+      title: "Canon et testament",
+      description: "",
+      content:
+        ref("Canon et testament") +
+        `${book} appartient au **canon biblique** (${version}). Ici, ${book} ${chapter} ouvre la ` +
+        `trajectoire canonique qui trouvera son accomplissement en Christ (cf. Col 1:16–17 ; Lc 24:27).`,
+    },
+    {
+      id: 3,
+      title: "Questions du chapitre précédent",
+      description: "",
+      content:
+        ref("Questions du chapitre précédent") +
+        `1) Quel est le fil conducteur doctrinal dégagé ?\n` +
+        `2) Quelles tensions/interrogations le texte laisse-t-il ouvertes ?\n` +
+        `3) Quels échos canoniques appellent une vérification (${book} ${chapter} et parallèles) ?\n` +
+        `4) Quelle application est restée incomplète et doit être reprise cette semaine ?`,
+    },
+    {
+      id: 4,
+      title: "Titre du chapitre",
+      description: "",
+      content:
+        ref("Titre du chapitre") +
+        `**Proposition :** « Origine et ordre : Dieu parle et le monde advient ». ` +
+        `(${themes.join(" · ")})`,
+    },
+    {
+      id: 5,
+      title: "Contexte historique",
+      description: "",
+      content:
+        ref("Contexte historique") +
+        `Le texte se présente comme un prologue théologique : il confesse Dieu comme Créateur. ` +
+        `Il répond aux cosmologies environnantes par une catéchèse centrée sur la Parole de Dieu.`,
+    },
+    {
+      id: 6,
+      title: "Structure littéraire",
+      description: "",
+      content:
+        ref("Structure littéraire") +
+        `Indicateurs d’enchaînement (motifs « et / puis / alors » ≈ **${chainerScore}** occurrences) :\n` +
+        structureOutline(verses),
+    },
+    {
+      id: 7,
+      title: "Genre littéraire",
+      description: "",
+      content:
+        ref("Genre littéraire") +
+        `Narration théologique à forte **structure répétitive** (formules : « Dieu dit / fit / vit »), ` +
+        `portant un propos doctrinal et cultuel.`,
+    },
+    {
+      id: 8,
+      title: "Auteur et généalogie",
+      description: "",
+      content:
+        ref("Auteur et généalogie") +
+        `Tradition mosaïque reçue par Israël ; ${book} ouvre la généalogie de la foi et des promesses.`,
+    },
+    {
+      id: 9,
+      title: "Verset-clé doctrinal",
+      description: "",
+      content:
+        ref("Verset-clé doctrinal") +
+        `**À mettre en avant :** ${memVerse}`,
+    },
+    {
+      id: 10,
+      title: "Analyse exégétique",
+      description: "",
+      content:
+        ref("Analyse exégétique") +
+        bullets(
+          pick(
+            verses.map(({ v, text }) => `v.${v} : ${CLEAN(text)}`),
+            Math.min(6, totalVerses)
+          )
+        ),
+    },
+    {
+      id: 11,
+      title: "Analyse lexicale",
+      description: "",
+      content:
+        ref("Analyse lexicale") +
+        bullets([
+          "Motifs clés : « Dieu dit », « Dieu vit », « Dieu appela »",
+          "Champs sémantiques : lumière/obscurité, séparation/ordre, bénédiction",
+          "Formules refrain : « Et il y eut soir, et il y eut matin »",
+        ]),
+    },
+    {
+      id: 12,
+      title: "Références croisées",
+      description: "",
+      content:
+        ref("Références croisées") +
+        bullets([
+          "Jean 1:1–5 (Parole / Lumière)",
+          "Colossiens 1:15–17 (Christ et création)",
+          "Psaume 33:6–9 (Parole créatrice)",
+          "Hébreux 11:3 (Comprendre par la foi)",
+        ]),
+    },
+    {
+      id: 13,
+      title: "Fondements théologiques",
+      description: "",
+      content:
+        ref("Fondements théologiques") +
+        bullets(themes),
+    },
+    {
+      id: 14,
+      title: "Thème doctrinal",
+      description: "",
+      content:
+        ref("Thème doctrinal") +
+        `**Souveraineté créatrice** : Dieu parle, fait, voit, bénit, nomme — il ordonne le chaos et établit des vocations.`,
+    },
+    {
+      id: 15,
+      title: "Fruits spirituels",
+      description: "",
+      content:
+        ref("Fruits spirituels") +
+        bullets([
+          "Adoration du Créateur",
+          "Confiance en la Parole efficace de Dieu",
+          "Respect de l’ordre et de la vocation reçus",
+        ]),
+    },
+    {
+      id: 16,
+      title: "Types bibliques",
+      description: "",
+      content:
+        ref("Types bibliques") +
+        bullets([
+          "Lumière initiale → anticipation de la lumière messianique",
+          "Repos du cycle → prémices du sabbat et du repos en Christ",
+        ]),
+    },
+    {
+      id: 17,
+      title: "Appui doctrinal",
+      description: "",
+      content:
+        ref("Appui doctrinal") +
+        bullets([
+          "Création ex nihilo par la Parole",
+          "Providence et bonté de la création",
+          "Imago Dei et mandat (vocation humaine)",
+        ]),
+    },
+    {
+      id: 18,
+      title: "Comparaison interne",
+      description: "",
+      content:
+        ref("Comparaison interne") +
+        `Comparer les refrains (dit/fit/vit/appela) et les jours — progression du **formé** → **rempli**.`,
+    },
+    {
+      id: 19,
+      title: "Parallèle ecclésial",
+      description: "",
+      content:
+        ref("Parallèle ecclésial") +
+        `La communauté est appelée à refléter l’ordre et la bonté de Dieu (culte, mission, éthique de la création).`,
+    },
+    {
+      id: 20,
+      title: "Verset à mémoriser",
+      description: "",
+      content:
+        ref("Verset à mémoriser") +
+        memVerse,
+    },
+    {
+      id: 21,
+      title: "Enseignement pour l’Église",
+      description: "",
+      content:
+        ref("Enseignement pour l’Église") +
+        bullets([
+          "Adorer Dieu comme Créateur",
+          "Prêcher la Parole qui crée et recrée",
+          "Former aux vocations (travail, soin de la création)",
+        ]),
+    },
+    {
+      id: 22,
+      title: "Enseignement pour la famille",
+      description: "",
+      content:
+        ref("Enseignement pour la famille") +
+        bullets([
+          "Rythmer la semaine (travail/repos) selon Dieu",
+          "Nommer le bien et s’en réjouir (« Dieu vit que c’était bon »)",
+        ]),
+    },
+    {
+      id: 23,
+      title: "Enseignement pour enfants",
+      description: "",
+      content:
+        ref("Enseignement pour enfants") +
+        bullets([
+          "Dieu a tout créé par sa parole",
+          "La lumière/obscurité : Dieu sépare et protège",
+          "Nous sommes à l’image de Dieu (précieux/présents pour Dieu)",
+        ]),
+    },
+    {
+      id: 24,
+      title: "Application missionnaire",
+      description: "",
+      content:
+        ref("Application missionnaire") +
+        bullets([
+          "Annoncer le Dieu Créateur dans une culture plurielle",
+          "Relier création, rédemption et espérance nouvelle",
+        ]),
+    },
+    {
+      id: 25,
+      title: "Application pastorale",
+      description: "",
+      content:
+        ref("Application pastorale") +
+        bullets([
+          "Accompagner sur le sens du travail et du repos",
+          "Guider vers une écologie de la bonté (soin de la création)",
+        ]),
+    },
+    {
+      id: 26,
+      title: "Application personnelle",
+      description: "",
+      content:
+        ref("Application personnelle") +
+        bullets([
+          "Prendre un temps d’adoration/lecture chaque jour",
+          "Nommer une décision concrète pour refléter l’ordre/bonté de Dieu",
+        ]),
+    },
+    {
+      id: 27,
+      title: "Versets à retenir",
+      description: "",
+      content:
+        ref("Versets à retenir") +
+        bullets(
+          pick(
+            verses.map(({ v, text }) => `${book} ${chapter}:${v} — ${CLEAN(text)}`),
+            Math.min(4, totalVerses)
+          )
+        ),
+    },
+    {
+      id: 28,
+      title: "Prière de fin",
+      description: "",
+      content:
+        ref("Prière de fin") +
+        `Dieu Créateur, merci pour ta Parole qui met l’ordre et donne la vie. ` +
+        `Affermis en nous l’obéissance et la louange. Amen.`,
+    },
+  ];
+
+  return sections;
+}
+
+/* ------------------------- Handler ------------------------- */
 export default async function handler(req, res) {
-  if (req.method === "OPTIONS") return json(res, 204, {});
-  if (req.method === "GET") {
-    return json(res, 200, {
-      ok: true,
-      route: "/api/generate-study",
-      hint:
-        'POST { "passage":"Genèse 1", "options":{ "length":1500|2200|3000, "translation":"LSG|JND|..." } }'
-    });
-  }
-  if (req.method !== "POST") return json(res, 405, { ok: false, error: "Method Not Allowed" });
+  if (req.method === "OPTIONS") return send(res, 204, {});
+  if (req.method !== "POST") return send(res, 405, { ok: false, error: "Method Not Allowed" });
 
   try {
-    const body = await readBody(req);
-    const passage = String(body?.passage || "").trim() || "Genèse 1";
-    const length = Number(body?.options?.length);
-    const version = String((body?.options?.translation || "LSG")).toUpperCase();
+    const body = await readBodyJSON(req);
+    const passage = body?.passage || "";
+    const options = body?.options || {};
+    const parsed = parsePassage(passage);
+    if (!parsed) {
+      return send(res, 400, {
+        ok: false,
+        error: "Passage invalide. Exemple: \"Genèse 1\"",
+      });
+    }
+    const { book, chapter } = parsed;
 
-    const out = await buildStudyWithRealVerses(req, passage, length, version);
-    return json(res, 200, out);
-  } catch (e) {
-    return json(res, 200, {
-      study: { sections: [] },
-      metadata: { emergency: true, error: String(e?.message || e) }
+    // 1) Priorité: endpoint local /api/verses
+    const local = await getVersesLocal(req, { book, chapter, count: 200 });
+
+    let verses = [];
+    let source = "fallback-generated";
+    let usedLocalVerses = false;
+    let usedApiBible = false;
+    const diagnostics = [];
+
+    if (local?.ok && Array.isArray(local.verses) && local.verses.length) {
+      verses = local.verses.map(({ v, text }) => ({ v, text: CLEAN(text || "") }));
+      source = String(local.source || "api.local");
+      usedLocalVerses = true;
+      usedApiBible = /api\.bible/i.test(source); // si notre /api/verses a tiré depuis api.bible
+    } else {
+      diagnostics.push("local_verses_empty");
+      // Fallback propre: sections générées sans texte brut
+      verses = Array.from({ length: 8 }, (_, i) => ({ v: i + 1, text: "" }));
+    }
+
+    const sections = buildSections(book, chapter, verses, options);
+
+    return send(res, 200, {
+      ok: true,
+      study: { sections },
+      metadata: {
+        book,
+        chapter,
+        version: options.translation || (local?.version || "LSG"),
+        generatedAt: new Date().toISOString(),
+        source,
+        usedLocalVerses,
+        usedApiBible,
+        verseCount: verses.filter((x) => CLEAN(x.text).length > 0).length,
+        diagnostics,
+      },
     });
+  } catch (e) {
+    return send(res, 500, {
+      ok: false,
+      error: String(e?.message || e),
+    });
+  }
+}
+
+/* ------------------------- Body reader ------------------------- */
+async function readBodyJSON(req) {
+  const chunks = [];
+  for await (const ch of req) chunks.push(ch);
+  const raw = Buffer.concat(chunks).toString("utf8");
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    // Autorise `application/x-www-form-urlencoded` minimal
+    const m = raw.match(/passage=([^&]+)/);
+    if (m) {
+      return { passage: decodeURIComponent(m[1].replace(/\+/g, " ")) };
+    }
+    throw new Error('Payload JSON invalide (attendu: { "passage": "Genèse 1" })');
   }
 }
