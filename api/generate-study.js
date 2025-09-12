@@ -8,9 +8,18 @@ async function fetchJson(url, { headers = {}, timeout = 10000, retries = 1 } = {
     const tid = setTimeout(() => ctrl.abort(), timeout);
     try {
       const r = await fetch(url, { headers, signal: ctrl.signal });
+      const ct = (r.headers.get('content-type') || '').toLowerCase();
       const txt = await r.text();
-      let json = {};
-      try { json = txt ? JSON.parse(txt) : {}; } catch { json = { raw: txt }; }
+
+      // Ne JSON.parse que si le content-type est JSON
+      let json;
+      if (ct.includes('application/json') || ct.includes('application/problem+json')) {
+        try { json = txt ? JSON.parse(txt) : {}; }
+        catch { json = { raw: txt }; }
+      } else {
+        json = { raw: txt };
+      }
+
       if (!r.ok) {
         const msg = json?.error?.message || `HTTP ${r.status}`;
         const e = new Error(msg); e.status = r.status; e.details = json; throw e;
@@ -126,8 +135,7 @@ class UniqueManager{
   }
   _norm(s){
     return String(s||'')
-      // retire un éventuel suffixe ancien du type " — ab12." ou " — ab12"
-      .replace(/\s+—\s*[a-z0-9]{3,6}\.?$/i,'')
+      .replace(/\s+—\s*[a-z0-9]{3,6}\.?$/i,'') // retire anciens suffixes pseudo-uniques
       .trim()
       .toLowerCase();
   }
@@ -140,18 +148,17 @@ class UniqueManager{
       if (!this.stems.has(stem) && !this.used.has(exact.toLowerCase())){
         this.stems.add(stem);
         this.used.add(exact.toLowerCase());
-        return exact; // retourne tel quel, SANS suffixe inventé
+        return exact; // pas de suffixe ajouté
       }
     }
-    // plus rien d’unique → on n’ajoute pas de bruit
-    return '';
+    return ''; // plus rien d’unique → on n’ajoute pas de bruit
   }
   ensureLengthUnique(base, target, generator){
     let out = String(base||'').trim();
     let guard = 0;
     while (out.length < target && guard < 100){
       const next = this.take(generator());
-      if (!next) break;              // rien d’unique à ajouter → on s’arrête proprement
+      if (!next) break;
       out += (out ? '\n' : '') + next;
       guard++;
       if (out.length > target + 120) break;
@@ -172,7 +179,7 @@ function youVersionUrl(book, chap, verse, version='LSG'){
   const code  = YV_BOOK[book] || 'GEN';
   const vcode = (version||'LSG').toUpperCase();       // ex: 'JND'
   const verId = YV_VERSION_ID[vcode] || YV_VERSION_ID.LSG;
-  const anchor = verse ? `#v${verse}` : '';           // si des ancres sont instables, remplacer par ''
+  const anchor = verse ? `#v${verse}` : '';           // si instable, mettre ''
   return `https://www.bible.com/fr/bible/${verId}/${code}.${chap}.${vcode}${anchor}`;
 }
 
@@ -213,10 +220,9 @@ async function fetchChapter(book, chap){
     }
   }
 
-  // Fallback fiable basé sur verseItems (officiels) si le parsing heuristique est faible
+  // Fallback fiable basé sur verseItems officiels si heuristique faible
   if ((!verses.length || verses.length < Math.floor((verseItems?.length||0)/2)) && Array.isArray(verseItems) && verseItems.length) {
     verses = verseItems.map(v => {
-      // v.reference ex: "GEN.1.3" → on prend le dernier nombre
       const ref = String(v?.reference||'');
       const m = ref.match(/(\d+)(?:\D+)?$/);
       const num = m ? Number(m[1]) : null;
@@ -269,7 +275,6 @@ function doctrinalLines(seed, book, chap, flav, fam, genre, keywords, key){
     `Repères du chapitre : ${k4 || 'termes à repérer dans le passage'}.`,
     `Point de gravité : ${vref}.`
   ];
-  // permutation déterministe
   const perm = [];
   for (let i=0;i<base.length;i++){
     const j = (i + (djb2(seed) % base.length)) % base.length;
@@ -545,7 +550,6 @@ async function buildDynamicStudy(book, chap, perLen, version='LSG'){
   const mk = (id, title, builder) => {
     const seed = `${book}|${chap}|${id}`;
     let base = builder(seed, u);
-    // Complément doctrinal unique si trop court
     if (base.length < target){
       base = u.ensureLengthUnique(base, target, () => doctrinalLines(seed, book, chap, flav, fam, genre, keywords, key));
     }
@@ -558,4 +562,151 @@ async function buildDynamicStudy(book, chap, perLen, version='LSG'){
     mk(3,  'Questions du chapitre précédent',(s)=>sec3_questions(s,u,book,chap,flav,genre,key,keywords)),
     mk(4,  'Titre du chapitre',            (s)=>sec4_title(s,u,book,chap,keywords)),
     mk(5,  'Contexte historique',          (s)=>sec5_context(s,u,book,chap,fam,genre)),
-    mk(6,  'Structure li
+    mk(6,  'Structure littéraire',         (s)=>sec6_structure(s,u,book,chap,outline,verseCount)),
+    mk(7,  'Genre littéraire',             (s)=>sec7_genre(s,u,book,chap,genre)),
+    mk(8,  'Auteur et généalogie',         (s)=>sec8_author(s,u,book,chap)),
+    mk(9,  'Verset-clé doctrinal',         (s)=>sec9_key(s,u,book,chap,key,version)),
+    mk(10, 'Analyse exégétique',           (s)=>sec10_exeg(s,u,book,chap,key)),
+    mk(11, 'Analyse lexicale',             (s)=>sec11_lex(s,u,book,chap,keywords)),
+    mk(12, 'Références croisées',          (s)=>sec12_xrefs(s,u,themes)),
+    mk(13, 'Fondements théologiques',      (s)=>sec13_found(s,u)),
+    mk(14, 'Thème doctrinal',              (s)=>sec14_theme(s,u,book,chap,flav)),
+    mk(15,  'Fruits spirituels',           (s)=>sec15_fruits(s,u)),
+    mk(16,  'Types bibliques',             (s)=>sec16_types(s,u)),
+    mk(17,  'Appui doctrinal',             (s)=>sec17_support(s,u)),
+    mk(18,  'Comparaison interne',         (s)=>sec18_internal(s,u)),
+    mk(19,  'Parallèle ecclésial',         (s)=>sec19_ecclesial(s,u)),
+    mk(20,  'Verset à mémoriser',          (s)=>sec20_memory(s,u,book,chap,key)),
+    mk(21,  'Enseignement pour l’Église',  (s)=>sec21_church(s,u,book,chap,themes)),
+    mk(22,  'Enseignement pour la famille',(s)=>sec22_family(s,u,book,chap,themes,keywords)),
+    mk(23,  'Enseignement pour enfants',   (s)=>sec23_children(s,u,book,chap,key)),
+    mk(24,  'Application missionnaire',    (s)=>sec24_mission(s,u,book,chap)),
+    mk(25,  'Application pastorale',       (s)=>sec25_pastoral(s,u)),
+    mk(26,  'Application personnelle',     (s)=>sec26_personal(s,u,book,chap,themes,key)),
+    mk(27,  'Versets à retenir',           (s)=>sec27_keep(s,u,book,chap,key)),
+    mk(28,  'Prière de fin',               (s)=>sec28_end(s,u))
+  ];
+
+  return { sections };
+}
+
+/* -------------------- Fallback intelligent (si API KO) -------------------- */
+function fallbackStudy(book, chap, perLen, version='LSG'){
+  const u = new UniqueManager();
+  const fam = bookFamily(book);
+  const genre = 'narratif/doctrinal';
+  const flav = 'Parole';
+  const keywords = [book.toLowerCase(),'parole','foi','grâce','vie','justice','peuple','alliance'];
+  const key = { v: 1, text: '' };
+  const target = Math.max(400, Math.min(Number(perLen)||1500, 900));
+
+  const mk = (id, title, builder) => {
+    const seed = `${book}|${chap}|fallback|${id}`;
+    let base = builder(seed, u);
+    if (base.length < target){
+      base = u.ensureLengthUnique(base, target, () => doctrinalLines(seed, book, chap, flav, fam, genre, keywords, key));
+    }
+    return { id, title, description:'', content: base };
+  };
+
+  const outline = buildOutline(20);
+
+  const sections = [
+    mk(1,'Prière d’ouverture',(s)=>sec1_prayer(s,u,book,chap,fam,genre,flav,keywords)),
+    mk(2,'Canon et testament',(s)=>sec2_canon(s,u,book,chap,version)),
+    mk(3,'Questions du chapitre précédent',(s)=>sec3_questions(s,u,book,chap,flav,genre,key,keywords)),
+    mk(4,'Titre du chapitre',(s)=>sec4_title(s,u,book,chap,keywords)),
+    mk(5,'Contexte historique',(s)=>sec5_context(s,u,book,chap,fam,genre)),
+    mk(6,'Structure littéraire',(s)=>sec6_structure(s,u,book,chap,outline,20)),
+    mk(7,'Genre littéraire',(s)=>sec7_genre(s,u,book,chap,genre)),
+    mk(8,'Auteur et généalogie',(s)=>sec8_author(s,u,book,chap)),
+    mk(9,'Verset-clé doctrinal',(s)=>sec9_key(s,u,book,chap,key,version)),
+    mk(10,'Analyse exégétique',(s)=>sec10_exeg(s,u,book,chap,key)),
+    mk(11,'Analyse lexicale',(s)=>sec11_lex(s,u,book,chap,keywords)),
+    mk(12,'Références croisées',(s)=>sec12_xrefs(s,u,[])),
+    mk(13,'Fondements théologiques',(s)=>sec13_found(s,u)),
+    mk(14,'Thème doctrinal',(s)=>sec14_theme(s,u,book,chap,flav)),
+    mk(15,'Fruits spirituels',(s)=>sec15_fruits(s,u)),
+    mk(16,'Types bibliques',(s)=>sec16_types(s,u)),
+    mk(17,'Appui doctrinal',(s)=>sec17_support(s,u)),
+    mk(18,'Comparaison interne',(s)=>sec18_internal(s,u)),
+    mk(19,'Parallèle ecclésial',(s)=>sec19_ecclesial(s,u)),
+    mk(20,'Verset à mémoriser',(s)=>sec20_memory(s,u,book,chap,key)),
+    mk(21,'Enseignement pour l’Église',(s)=>sec21_church(s,u,book,chap,[])),
+    mk(22,'Enseignement pour la famille',(s)=>sec22_family(s,u,book,chap,[],keywords)),
+    mk(23,'Enseignement pour enfants',(s)=>sec23_children(s,u,book,chap,key)),
+    mk(24,'Application missionnaire',(s)=>sec24_mission(s,u,book,chap)),
+    mk(25,'Application pastorale',(s)=>sec25_pastoral(s,u)),
+    mk(26,'Application personnelle',(s)=>sec26_personal(s,u,book,chap,[],key)),
+    mk(27,'Versets à retenir',(s)=>sec27_keep(s,u,book,chap,key)),
+    mk(28,'Prière de fin',(s)=>sec28_end(s,u))
+  ];
+
+  return { sections };
+}
+
+/* -------------------- Build orchestrateur -------------------- */
+function parsePassage(p){
+  const m = /^(.+?)\s+(\d+)(?:\s*.*)?$/.exec(String(p||'').trim());
+  return { book: m ? m[1].trim() : 'Genèse', chap: m ? parseInt(m[2],10) : 1 };
+}
+async function buildStudy(passage, length, version='LSG'){
+  const allowed = [500,1500,2500];
+  const perLen = allowed.includes(Number(length)) ? Number(length) : 1500;
+  const { book, chap } = parsePassage(passage||'Genèse 1');
+
+  if (KEY && BIBLE_ID && USFM[book]) {
+    try {
+      return { study: await buildDynamicStudy(book, chap, perLen, version) };
+    } catch (e) {
+      console.error('[generate-study] buildDynamicStudy error:', e);
+      return { study: fallbackStudy(book, chap, perLen, version), emergency:true, error:'dynamic_failed' };
+    }
+  } else {
+    return { study: fallbackStudy(book, chap, perLen, version), emergency:true, error:'missing_env_or_mapping' };
+  }
+}
+
+/* -------------------- Handler -------------------- */
+async function core(ctx){
+  const method = ctx.req?.method || 'GET';
+  if (method === 'GET') {
+    return send200(ctx, {
+      ok:true, route:'/api/generate-study', method:'GET',
+      hint:'POST { "passage":"Genèse 1", "options":{ "length":500|1500|2500, "translation":"LSG|JND|..." } } → 28 rubriques enrichies, sans doublons.',
+      requires: { API_BIBLE_KEY: !!KEY, API_BIBLE_ID: !!BIBLE_ID }
+    });
+  }
+  if (method === 'POST') {
+    const body = await readBody(ctx);
+    const passage = String(body?.passage || '').trim() || 'Genèse 1';
+    const length  = Number(body?.options?.length);
+    const version = String((body?.options?.translation || 'LSG')).toUpperCase();
+    try { return send200(ctx, await buildStudy(passage, length, version)); }
+    catch (e) {
+      console.error('[generate-study] buildStudy error:', e);
+      return send200(ctx, { study:{ sections:[] }, emergency:true, error:String(e) });
+    }
+  }
+  return send200(ctx, { ok:true, route:'/api/generate-study', hint:'GET pour smoke-test, POST pour générer.' });
+}
+
+export default async function handler(req, res){
+  try {
+    if (res && typeof res.status === 'function') return core({ req, res });
+    return core({ req });
+  } catch (e) {
+    // Dernière ligne de défense : toujours renvoyer du JSON
+    const payload = { study:{ sections:[] }, emergency:true, fatal:true, error: String(e && e.message || e) };
+    if (res && typeof res.status === 'function') {
+      res.status(200);
+      res.setHeader('Content-Type','application/json; charset=utf-8');
+      res.setHeader('Cache-Control','no-store');
+      return res.end(JSON.stringify(payload));
+    }
+    return new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'no-store' }
+    });
+  }
+}
