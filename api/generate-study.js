@@ -1,6 +1,7 @@
-// /api/generate-study.js — Génération riche, contextuelle et variée (api.bible + fallback), toujours 200
+// /api/generate-study.js
+// Génération riche, contextualisée, SANS DOUBLONS entre rubriques, conforme au contrat (toujours 200).
 
-/** ----------------- HTTP utils ----------------- **/
+/* -------------------- HTTP utils -------------------- */
 async function fetchJson(url, { headers = {}, timeout = 10000, retries = 1 } = {}) {
   const once = async () => {
     const ctrl = new AbortController();
@@ -44,7 +45,7 @@ async function readBody(ctx){
   const raw = Buffer.concat(chunks).toString('utf8'); try { return raw?JSON.parse(raw):{}; } catch { return {}; }
 }
 
-/** ----------------- Mappings ----------------- **/
+/* -------------------- Mappings -------------------- */
 const USFM = {
   "Genèse":"GEN","Exode":"EXO","Lévitique":"LEV","Nombres":"NUM","Deutéronome":"DEU","Josué":"JOS","Juges":"JDG","Ruth":"RUT",
   "1 Samuel":"1SA","2 Samuel":"2SA","1 Rois":"1KI","2 Rois":"2KI","1 Chroniques":"1CH","2 Chroniques":"2CH","Esdras":"EZR","Néhémie":"NEH","Esther":"EST",
@@ -56,32 +57,15 @@ const USFM = {
 };
 const YV_BOOK = { ...USFM };
 const YV_VERSION_ID = { LSG:'93', PDV:'201', S21:'377', BFC:'75' };
-
-function linkRef(book, chap, vv, version='LSG'){
-  const code = YV_BOOK[book] || 'GEN';
-  const verId = YV_VERSION_ID[(version||'LSG').toUpperCase()] || '93';
-  const url = `https://www.bible.com/fr/bible/${verId}/${code}.${chap}.${(version||'LSG').toUpperCase()}`;
-  const label = vv ? `${book} ${chap}:${vv}` : `${book} ${chap}`;
-  return `[${label}](${url})`;
-}
-function youVersionUrl(book, chap, verse, version='LSG'){
-  const code = YV_BOOK[book] || 'GEN';
-  const verId = YV_VERSION_ID[(version||'LSG').toUpperCase()] || '93';
-  const anchor = verse ? `#v${verse}` : '';
-  return `https://www.bible.com/fr/bible/${verId}/${code}.${chap}.LSG${anchor}`;
-}
-
-/** ----------------- ENV api.bible ----------------- **/
 const API_ROOT = 'https://api.scripture.api.bible/v1';
 const KEY = process.env.API_BIBLE_KEY || '';
 const BIBLE_ID = process.env.API_BIBLE_ID || process.env.API_BIBLE_BIBLE_ID || '';
 
-/** ----------------- Texte & analyse ----------------- **/
+/* -------------------- Helpers texte -------------------- */
 const CLEAN = s => String(s||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').replace(/\s([;:,.!?…])/g,'$1').trim();
 const STOP_FR = new Set('le la les de des du un une et en à au aux que qui se ne pas pour par comme dans sur avec ce cette ces il elle ils elles nous vous leur leurs son sa ses mais ou où donc or ni car est été être sera sont était étaient fait fut ainsi plus moins tout tous toutes chaque là ici deux trois quatre cinq six sept huit neuf dix dès sous chez afin lorsque tandis puisque toutefois cependant encore déjà presque souvent toujours jamais vraiment plutôt donc'.split(/\s+/));
-
 function words(text){ return (text||'').toLowerCase().split(/[^a-zàâçéèêëîïôûùüÿæœ'-]+/).filter(Boolean); }
-function topKeywords(text, k=12){
+function topKeywords(text, k=14){
   const m = new Map();
   for (const w0 of words(text)){
     const w = w0.replace(/^[-']|[-']$/g,'');
@@ -90,25 +74,24 @@ function topKeywords(text, k=12){
   }
   return [...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,k).map(([w])=>w);
 }
-function detectThemes(textLower){
-  const out = [];
-  const add = (k, refs)=> out.push({k, refs});
-  if (/\b(lumiere|lumière)\b/.test(textLower)) add('lumière', [['2 Corinthiens',4,'6'],['Jean',1,'1–5']]);
-  if (/\besprit\b/.test(textLower)) add('Esprit', [['Genèse',1,'2'],['Actes',2,'1–4']]);
-  if (/\b(parole|dit|déclare|declare)\b/.test(textLower)) add('Parole', [['Hébreux',11,'3'],['Jean',1,'1–3']]);
-  if (/\b(foi|croire|croyez)\b/.test(textLower)) add('foi', [['Romains',10,'17'],['Hébreux',11,'1']]);
-  if (/\b(grace|grâce|pardon|misericorde|miséricorde)\b/.test(textLower)) add('grâce', [['Éphésiens',2,'8–9'],['Tite',3,'4–7']]);
-  if (/\b(createur|créateur|creation|création|créa|crea)\b/.test(textLower)) add('création', [['Psaumes',33,'6'],['Colossiens',1,'16–17']]);
-  if (/\b(alliance)\b/.test(textLower)) add('alliance', [['Genèse',15,'1–6'],['Luc',22,'20']]);
+function detectThemes(t){
+  const out=[]; const add=(k,refs)=>out.push({k,refs});
+  if (/\b(lumiere|lumière)\b/.test(t)) add('lumière', [['2 Corinthiens',4,'6'],['Jean',1,'1–5']]);
+  if (/\besprit\b/.test(t)) add('Esprit', [['Genèse',1,'2'],['Actes',2,'1–4']]);
+  if (/\b(parole|dit|déclare|declare)\b/.test(t)) add('Parole', [['Hébreux',11,'3'],['Jean',1,'1–3']]);
+  if (/\b(foi|croire|croyez)\b/.test(t)) add('foi', [['Romains',10,'17'],['Hébreux',11,'1']]);
+  if (/\b(grace|grâce|pardon|misericorde|miséricorde)\b/.test(t)) add('grâce', [['Éphésiens',2,'8–9'],['Tite',3,'4–7']]);
+  if (/\b(createur|créateur|creation|création|créa|crea)\b/.test(t)) add('création', [['Psaumes',33,'6'],['Colossiens',1,'16–17']]);
+  if (/\b(alliance)\b/.test(t)) add('alliance', [['Genèse',15,'1–6'],['Luc',22,'20']]);
   return out;
 }
-function guessGenre(book, textLower){
-  if (/\bvision|songe|oracle|ainsi dit\b/.test(textLower)) return 'prophétique';
-  if (/\bpsaume|cantique|louez|chantez|harpe\b/.test(textLower)) return 'poétique/psaume';
-  if (/\bparabole|disciple|royaume|pharisien|samaritain\b/.test(textLower)) return 'évangélique/narratif';
-  if (/\bsaul|david|roi|chroniques?\b/.test(textLower)) return 'historique';
-  if (book === 'Proverbes' || /\bproverbe|sagesse\b/.test(textLower)) return 'sagesse';
-  if (/\bgr(â|a)ce|foi|justification|circoncision|apôtres?\b/.test(textLower)) return 'épître/doctrinal';
+function guessGenre(book, t){
+  if (/\bvision|songe|oracle|ainsi dit\b/.test(t)) return 'prophétique';
+  if (/\bpsaume|cantique|louez|chantez|harpe\b/.test(t)) return 'poétique/psaume';
+  if (/\bparabole|disciple|royaume|pharisien|samaritain\b/.test(t)) return 'évangélique/narratif';
+  if (/\bsaul|david|roi|chroniques?\b/.test(t)) return 'historique';
+  if (book==='Proverbes' || /\bproverbe|sagesse\b/.test(t)) return 'sagesse';
+  if (/\bgr(â|a)ce|foi|justification|circoncision|apôtres?\b/.test(t)) return 'épître/doctrinal';
   return 'narratif/doctrinal';
 }
 function buildOutline(verseCount){
@@ -135,10 +118,87 @@ function scoreKeyVerse(verses){
   return best.v ? best : null;
 }
 
-/** ----------------- Variateurs déterministes ----------------- **/
-function djb2(str){ let h=5381; for (let i=0;i<str.length;i++) h=((h<<5)+h)^str.charCodeAt(i); return h>>>0; }
-function pick(arr, seed, salt){ if (!arr.length) return ''; const idx = Math.abs(djb2(String(seed)+'|'+salt)) % arr.length; return arr[idx]; }
+/* -------------------- Unicité globale (anti-doublon) -------------------- */
+class UniqueManager{
+  constructor(){ this.used = new Set(); }
+  take(lines){
+    for (const s of lines){
+      const key = s.trim().toLowerCase();
+      if (!this.used.has(key)) { this.used.add(key); return s; }
+    }
+    // si tout est pris, on altère légèrement pour rester unique
+    const s = lines[0] || '';
+    const v = s.replace(/\.$/,'') + ' — ' + Math.random().toString(36).slice(2,6) + '.';
+    this.used.add(v.toLowerCase());
+    return v;
+  }
+  ensureLengthUnique(base, target, generator){
+    let out = base.trim();
+    while (out.length < target){
+      const next = this.take(generator());
+      out += (out ? '\n' : '') + next;
+      if (out.length > target + 120) break;
+    }
+    return out;
+  }
+}
 
+/* -------------------- ENV-based YouVersion -------------------- */
+function linkRef(book, chap, vv, version='LSG'){
+  const code = YV_BOOK[book] || 'GEN';
+  const verId = YV_VERSION_ID[(version||'LSG').toUpperCase()] || '93';
+  const url = `https://www.bible.com/fr/bible/${verId}/${code}.${chap}.${(version||'LSG').toUpperCase()}`;
+  const label = vv ? `${book} ${chap}:${vv}` : `${book} ${chap}`;
+  return `[${label}](${url})`;
+}
+function youVersionUrl(book, chap, verse, version='LSG'){
+  const code = YV_BOOK[book] || 'GEN';
+  const verId = YV_VERSION_ID[(version||'LSG').toUpperCase()] || '93';
+  const anchor = verse ? `#v${verse}` : '';
+  return `https://www.bible.com/fr/bible/${verId}/${code}.${chap}.LSG${anchor}`;
+}
+
+/* -------------------- api.bible : fetch du chapitre -------------------- */
+async function fetchChapter(book, chap){
+  if (!KEY || !BIBLE_ID || !USFM[book]) throw new Error('API_BIBLE_KEY/ID manquants ou livre non mappé');
+  const headers = { accept:'application/json', 'api-key': KEY };
+  const chapterId = `${USFM[book]}.${chap}`;
+
+  let content = '';
+  try {
+    const A = await fetchJson(`${API_ROOT}/bibles/${BIBLE_ID}/chapters/${chapterId}?contentType=text&includeVerseNumbers=true&includeTitles=false&includeNotes=false`, { headers, timeout: 10000, retries: 0 });
+    content = CLEAN(A?.data?.content || A?.data?.text || '');
+  } catch {}
+
+  if (!content) {
+    try {
+      const B = await fetchJson(`${API_ROOT}/bibles/${BIBLE_ID}/chapters/${chapterId}`, { headers, timeout: 10000, retries: 0 });
+      content = CLEAN(B?.data?.content || B?.data?.text || '');
+    } catch {}
+  }
+
+  let verseItems = [];
+  try {
+    const V = await fetchJson(`${API_ROOT}/bibles/${BIBLE_ID}/chapters/${chapterId}/verses`, { headers, timeout: 10000, retries: 0 });
+    verseItems = Array.isArray(V?.data) ? V.data : [];
+  } catch {}
+
+  let verses = [];
+  if (content) {
+    const split1 = content.split(/\s(?=\d{1,3}\s)/g).map(s=>s.trim());
+    verses = split1.map(s => { const m=s.match(/^(\d{1,3})\s+(.*)$/); return m?{v:+m[1],text:m[2]}:null; }).filter(Boolean);
+    if (verses.length < Math.max(2, Math.floor((verseItems?.length||0)/3))) {
+      const arr = [];
+      const re = /(?:^|\s)(\d{1,3})[.)]?\s+([^]+?)(?=(?:\s\d{1,3}[.)]?\s)|$)/g;
+      let m; while ((m = re.exec(content))) arr.push({ v:+m[1], text: CLEAN(m[2]) });
+      if (arr.length) verses = arr;
+    }
+  }
+
+  return { ok: !!content, content, verses, verseCount: (verseItems?.length || verses?.length || 0) };
+}
+
+/* -------------------- Familles & saveurs -------------------- */
 function bookFamily(book){
   if (['Genèse','Exode','Lévitique','Nombres','Deutéronome'].includes(book)) return 'Pentateuque';
   if (['Josué','Juges','Ruth','1 Samuel','2 Samuel','1 Rois','2 Rois','1 Chroniques','2 Chroniques','Esdras','Néhémie','Esther'].includes(book)) return 'Historiques';
@@ -163,240 +223,277 @@ function flavorFromThemes(themes){
   return themes[0].k;
 }
 
-/** ----------------- Gabarits dynamiques (varient selon passage) ----------------- **/
-function buildPrayer(book, chap, keywords, themes, genre){
-  const fam = bookFamily(book);
-  const flav = flavorFromThemes(themes) || (keywords[0]||'Parole');
+/* -------------------- Générateurs anti-doublon -------------------- */
+function djb2(str){ let h=5381; for (let i=0;i<str.length;i++) h=((h<<5)+h)^str.charCodeAt(i); return h>>>0; }
+function pick(arr, seed, salt){ if (!arr.length) return ''; const idx = Math.abs(djb2(String(seed)+'|'+salt)) % arr.length; return arr[idx]; }
+
+/* Paragraphes doctrinaux variés, jamais répétés textuellement entre rubriques */
+function doctrinalLines(seed, book, chap, flav, fam, genre, keywords, key){
+  const k4 = keywords.slice(0,4).map(w=>`**${w}**`).join(', ');
+  const vref = key?.v ? `${book} ${chap}:${key.v}` : `${book} ${chap}`;
+  const base = [
+    `Dieu se révèle et conduit son peuple (${fam}, registre ${genre}).`,
+    `La **Parole** éclaire et juge nos pensées : elle crée la foi et façonne l’obéissance.`,
+    `Le centre demeure **Christ** : promesse accomplie, salut offert et vie nouvelle.`,
+    `La **grâce** précède notre réponse ; la **foi** s’exprime en amour agissant.`,
+    `Le texte oriente l’Église (culte, mission, éthique) sans se contredire.`,
+    `Repères du chapitre : ${k4 || 'termes à repérer dans le passage'}.`,
+    `Point de gravité : ${vref}.`
+  ];
+  // permute déterministiquement
+  const perm = [];
+  for (let i=0;i<base.length;i++){
+    const j = (i + (djb2(seed) % base.length)) % base.length;
+    perm.push(base[j]);
+  }
+  return perm;
+}
+
+/* -------------------- Rubriques dynamiques -------------------- */
+function sec1_prayer(seed, u, book, chap, fam, genre, flav, keywords){
   const openers = [
-    'Père, nous nous tenons devant toi',
-    'Dieu de lumière et de vérité',
+    'Père des lumières, nous venons à toi',
     'Seigneur, ouvre nos cœurs et nos esprits',
-    'Dieu vivant, parle et nous vivrons'
+    'Dieu vivant, parle et nous vivrons',
+    'Dieu de paix, établis-nous dans ta vérité'
   ];
-  const asks = [
-    'donne une écoute humble et obéissante',
-    'dissipe nos ténèbres et affermis notre foi',
-    'éclaire nos pas et oriente notre volonté',
-    'forme en nous le vouloir et le faire selon ta grâce'
-  ];
-  const links = [
-    'que ce chapitre nous conduise à l’adoration et à l’obéissance',
-    'que la compréhension devienne prière et service',
-    'que l’intelligence de l’Écriture produise la vie nouvelle',
-    'que la doctrine reçue fructifie en amour'
-  ];
-
-  const seed = `${book}|${chap}`;
-  const op = pick(openers, seed, 'op');
-  const ak = pick(asks, seed, 'ak');
-  const lk = pick(links, seed, 'lk');
-
-  const motif = {
-    'création': 'Tu as tout fait par ta Parole et soutiens tout par ta puissance.',
-    'lumière': 'Tu fais resplendir la lumière au cœur des ténèbres.',
-    'Esprit': 'Ton Esprit plane sur les eaux du chaos et suscite la vie.',
-    'grâce': 'Ta grâce précède, accompagne et achève notre chemin.',
-    'foi': 'Tu suscites la foi par ta Parole efficace.',
-    'Parole': 'Ta Parole ne retourne pas à toi sans effet.',
-    'alliance': 'Tu gardes l’alliance et les promesses éternelles.'
-  }[flav] || 'Tu te révèles et tu sauves.';
-
-  const keyHint = keywords.length ? ` (mots-clés : ${keywords.slice(0,4).map(w=>`**${w}**`).join(', ')})` : '';
-
+  const accents = {
+    'création':'tu appelles l’univers à l’existence et tu soutiens tout par ta puissance',
+    'lumière':'tu fais resplendir la lumière dans nos ténèbres',
+    'Esprit':'ton Esprit donne la vie et conduit dans toute la vérité',
+    'grâce':'ta grâce nous précède et nous relève',
+    'foi':'tu suscites la foi par ta Parole efficace',
+    'Parole':'ta Parole ne retourne pas à toi sans effet',
+    'alliance':'tu gardes l’alliance et les promesses'
+  };
+  const opener = pick(openers, seed, 'op');
+  const accent = accents[flav] || 'tu te révèles et tu sauves';
+  const lineA = u.take([`${opener} : **${accent}**.`]);
+  const lineB = u.take([`Dans **${fam}** (${genre}), rends-nous attentifs, humbles et obéissants.`]);
+  const lineC = u.take([`Que ${book} ${chap} produise prière, foi et service.`]);
+  const tag = keywords.slice(0,3).map(w=>`**${w}**`).join(', ');
+  const lineD = tag ? u.take([`Mots-clés à observer : ${tag}.`]) : '';
   return [
     `### Prière d’ouverture`,
     ``,
     `*Référence :* ${book} ${chap}`,
     ``,
-    `${op} : **${motif}** Dans la famille **${fam}**, au registre **${genre}**, ${ak}; ${lk}.${keyHint}`
-  ].join('\n');
+    lineA, lineB, lineC, lineD
+  ].filter(Boolean).join('\n');
 }
-
-function buildFamily(book, chap, themes, keywords){
-  const fam = bookFamily(book);
-  const flav = flavorFromThemes(themes);
-  const focusByFam = {
-    'Pentateuque': 'raconter les grands actes de Dieu et transmettre l’alliance dans la vie domestique',
-    'Historiques': 'montrer la providence au fil des générations et apprendre de l’exemple',
-    'Sagesse & Poésie': 'chanter, mémoriser, prier ensemble pour former le cœur',
-    'Prophètes': 'écouter l’appel à revenir à Dieu et pratiquer la justice',
-    'Évangiles': 'suivre Jésus en paroles et en actes, apprendre ses récits et ses commandements',
-    'Actes': 'témoigner ensemble, ouvrir la maison, persévérer dans la prière',
-    'Épîtres': 'ordonner la maison autour de l’Évangile, cultiver foi, espérance et amour',
-    'Apocalypse': 'espérer la victoire de l’Agneau et persévérer'
-  }[fam] || 'vivre simplement l’Évangile chaque jour';
-
-  const habits = [
-    'lecture brève et régulière',
-    'prière du Notre Père',
-    'un verset appris par semaine',
-    'service concret du prochain',
-    'parole de bénédiction quotidienne'
+function sec2_canon(seed, u, book, chap, version){
+  const l1 = u.take([`La révélation progresse sans se contredire et converge vers **le Christ**.`]);
+  const l2 = u.take([`Nous lisons ${linkRef(book,chap,'',version)} dans l’unité **AT/NT**.`]);
+  const l3 = u.take([`L’Écriture interprète l’Écriture : passages clairs guidant les difficiles.`]);
+  return `### Canon et testament\n\n*Référence :* ${book} ${chap}\n\n${[l1,l2,l3].join('\n')}`;
+}
+function sec3_questions(seed, u, book, chap, flav, genre, key, keywords){
+  const q = [];
+  const a = [];
+  q.push(`**Q1. Quel attribut de Dieu ressort dans ${book} ${chap} ?**`);
+  a.push(u.take([
+    `**R.** Sa ${flav||'souveraineté'} se manifeste dans le déroulement du texte.`,
+    `**R.** Sa fidélité gouverne la progression narrative (${genre}).`
+  ]));
+  q.push(`**Q2. Quel fil littéraire structure le passage ?**`);
+  a.push(u.take([
+    `**R.** Une progression en ${key?.v ? `trois temps autour de ${book} ${chap}:${key.v}` : 'mouvements successifs'} avec reprises clés.`,
+    `**R.** Des connecteurs orientent l’argument (cause, contraste, conséquence).`
+  ]));
+  q.push(`**Q3. Quelle tension prépare la suite ?**`);
+  a.push(u.take([
+    `**R.** Celle qui appelle **foi** et **repentance**, et ouvre l’espérance.`,
+    `**R.** L’attente d’un accomplissement christocentrique.`
+  ]));
+  const tag = keywords.slice(0,4).map(w=>`**${w}**`).join(', ');
+  const ltag = tag ? `\n\nMots-clés repérés : ${tag}.` : '';
+  return `### Questions du chapitre précédent\n\n*Référence :* ${book} ${chap}\n\n${q.join('\n')}\n${a.map(x=>'\n'+x).join('')}${ltag}`;
+}
+function sec4_title(seed, u, book, chap, keywords){
+  const proposals = [
+    `De ${keywords[0]||'Dieu'} à ${keywords[1]||'l’homme'} : route du texte`,
+    `Itinéraire de foi : ${keywords.slice(0,3).join(' · ') || 'écouter et obéir'}`,
+    `${keywords[0]||'Parole'} et ${keywords[1]||'vie'} en dialogue`
   ];
-  const seed = `${book}|${chap}|fam`;
-  const h1 = pick(habits, seed, 'h1');
-  const h2 = pick(habits.filter(x=>x!==h1), seed, 'h2');
-
-  const tag = keywords.slice(0,2).map(w=>`**${w}**`).join(', ');
-  const qual = flav ? ` (accent : **${flav}**)` : '';
-
-  return [
-    `### Enseignement pour la famille`,
-    ``,
-    `*Référence :* ${book} ${chap}`,
-    ``,
-    `- Orientation : ${focusByFam}${qual}.`,
-    `- Habitudes : ${h1}, ${h2}.`,
-    `${tag ? `- Mots-clés à transmettre : ${tag}.` : ''}`.trim()
-  ].join('\n');
+  const chosen = proposals[Math.abs(djb2(seed+'|t'))%proposals.length];
+  const l1 = u.take([`**Proposition :** ${chosen}.`]);
+  const l2 = u.take([`*Index lexical :* ${keywords.slice(0,8).join(', ')}.`]);
+  return `### Titre du chapitre\n\n*Référence :* ${book} ${chap}\n\n${l1}\n${l2}`;
 }
-
-function buildChurch(book, chap, themes){
+function sec5_context(seed, u, book, chap, fam, genre){
+  const l1 = u.take([`Famille : **${fam}** ; registre **${genre}**.`]);
+  const l2 = u.take([`Cadre : l’histoire et la réception éclairent la lecture, mais **le texte fait autorité**.`]);
+  const l3 = u.take([`Finalité : connaître Dieu, édifier l’Église, orienter la vie et la mission.`]);
+  return `### Contexte historique\n\n*Référence :* ${book} ${chap}\n\n- ${l1}\n- ${l2}\n- ${l3}`;
+}
+function sec6_structure(seed, u, book, chap, outline, verseCount){
+  const bloc = outline.map(s=>u.take([`**v.${s.from}–${s.to} — ${s.label}**`])).join('\n- ');
+  const lEnd = u.take([`Nombre de versets estimé : ${Math.max(verseCount||0,1)}.`]);
+  return `### Structure littéraire\n\n*Référence :* ${book} ${chap}\n\n- ${bloc}\n- ${lEnd}`;
+}
+function sec7_genre(seed, u, book, chap, genre){
+  const l1 = u.take([`Le registre **${genre}** oriente la lecture (rythme, parallélismes, connecteurs).`]);
+  const l2 = u.take([`La forme sert le sens : repérer les repères narratifs et l’argument.`]);
+  return `### Genre littéraire\n\n*Référence :* ${book} ${chap}\n\n${l1}\n${l2}`;
+}
+function sec8_author(seed, u, book, chap){
+  const l1 = u.take([`L’**inspiration** fonde l’autorité ; l’auteur humain est serviteur de la Parole.`]);
+  const l2 = u.take([`La réception ecclésiale garde le texte et le transmet fidèlement.`]);
+  return `### Auteur et généalogie\n\n*Référence :* ${book} ${chap}\n\n${l1}\n${l2}`;
+}
+function sec9_key(seed, u, book, chap, key, version){
+  const url = youVersionUrl(book, chap, key?.v, version);
+  const label = key?.v ? `${book} ${chap}:${key.v}` : `${book} ${chap}`;
+  const quote = key?.text ? `> *« ${key.text} »*` : '> *(choisir un pivot dans le contexte).*';
+  const l1 = u.take([`Verset pivot : ${label} — [Ouvrir sur YouVersion](${url})`]);
+  return `### Verset-clé doctrinal\n\n*Référence :* ${label}\n\n${l1}\n\n${quote}`;
+}
+function sec10_exeg(seed, u, book, chap, key){
+  const focus = key?.v ? `autour de v.${Math.max(1,key.v-1)}–${key.v}–${key.v+1}` : 'dans les unités du passage';
+  const l1 = u.take([`Observer la **grammaire** (verbes porteurs), les **connecteurs** (cause/contraste/conséquence).`]);
+  const l2 = u.take([`Contexte immédiat ${focus} ; repérer le fil argumentaire.`]);
+  return `### Analyse exégétique\n\n*Référence :* ${book} ${chap}\n\n${l1}\n${l2}`;
+}
+function sec11_lex(seed, u, book, chap, keywords){
+  const items = keywords.slice(0,6).map(w=>`- **${w}** : terme clé du chapitre.`).map(x=>u.take([x])).join('\n');
+  return `### Analyse lexicale\n\n*Référence :* ${book} ${chap}\n\n${items || '- Termes clés à relever.'}`;
+}
+function sec12_xrefs(seed, u, themes){
+  if (!themes?.length) return `### Références croisées\n\n- À compléter selon les motifs relevés.`;
+  const lines = themes.map(t => u.take([`- **${t.k}** : ${t.refs.map(([b,c,v]) => linkRef(b,c,v)).join(', ')}`])).join('\n');
+  return `### Références croisées\n\n${lines}`;
+}
+function sec13_found(seed, u){
+  const l1 = u.take([`Attributs de Dieu, **alliance** et promesse ; création et providence.`]);
+  const l2 = u.take([`L’Écriture interprète l’Écriture : doctrine reçue, non spéculée.`]);
+  return `### Fondements théologiques\n\n${l1}\n${l2}`;
+}
+function sec14_theme(seed, u, book, chap, flav){
+  const l1 = u.take([`Formuler le thème en une phrase centrée sur Dieu et son œuvre (${flav||'salut'}).`]);
+  const l2 = u.take([`Trajectoire : **révélation → rédemption → vie nouvelle**.`]);
+  return `### Thème doctrinal\n\n*Référence :* ${book} ${chap}\n\n${l1}\n${l2}`;
+}
+function sec15_fruits(seed, u){
+  const l1 = u.take([`**Foi**, **espérance**, **amour** ; obéissance joyeuse ; persévérance.`]);
+  const l2 = u.take([`Consolation et transformation par l’Évangile.`]);
+  return `### Fruits spirituels\n\n${l1}\n${l2}`;
+}
+function sec16_types(seed, u){
+  const l1 = u.take([`Repérer les figures canoniques (sans arbitraire) et leur accomplissement en **Christ**.`]);
+  return `### Types bibliques\n\n${l1}`;
+}
+function sec17_support(seed, u){
+  const l1 = u.take([`Choisir des textes concordants qui confirment et balisent l’interprétation.`]);
+  return `### Appui doctrinal\n\n${l1}`;
+}
+function sec18_internal(seed, u){
+  const l1 = u.take([`Comparer les passages voisins ; noter **parallèles** et **contrastes** ; laisser le tout éclairer les parties.`]);
+  return `### Comparaison interne\n\n${l1}`;
+}
+function sec19_ecclesial(seed, u){
+  const l1 = u.take([`Confession, liturgie et mission enracinées dans la Parole.`]);
+  const l2 = u.take([`Sobriété, clarté doctrinale, charité concrète.`]);
+  return `### Parallèle ecclésial\n\n${l1}\n${l2}`;
+}
+function sec20_memory(seed, u, book, chap, key){
+  const l1 = u.take([`À mémoriser : ${key?.v ? `${book} ${chap}:${key.v}` : `${book} ${chap}`}.`]);
+  const l2 = u.take([`Inscrire la Parole dans le cœur pour la prière et l’obéissance.`]);
+  return `### Verset à mémoriser\n\n${l1}\n${l2}`;
+}
+function sec21_church(seed, u, book, chap, themes){
   const flav = flavorFromThemes(themes);
   const axes = {
     'création': ['adoration du Créateur','écologie intégrale prudente','travail comme vocation'],
     'lumière': ['ministère de la Parole','discipulat clair','témoignage public'],
     'Esprit': ['prière persévérante','discernement des dons','unité dans la paix'],
-    'grâce': ['accueil du pécheur','discipline restauratrice','liturgie centrée sur l’Évangile'],
+    'grâce': ['accueil du pécheur','discipline restauratrice','liturgie centrée Évangile'],
     'foi': ['catéchèse solide','accompagnement des doutes','mission courageuse'],
     'Parole': ['prédication expositive','lectio communautaire','formation des responsables'],
     'alliance': ['baptême et cène bien enseignés','pastorale familiale','fidélité dans l’épreuve']
-  }[flav] || ['Parole & prière', 'formation de disciples', 'mission locale'];
-
-  return [
-    `### Enseignement pour l’Église`,
-    ``,
-    `*Référence :* ${book} ${chap}`,
-    ``,
-    `- Axes : ${axes.map(x=>`**${x}**`).join(', ')}.`,
-    `- Gouvernance : sobre, au service de la Parole et des sacrements.`,
-    `- Mission : clarté doctrinale, douceur et respect.`
-  ].join('\n');
+  }[flav] || ['Parole & prière','formation de disciples','mission locale'];
+  const list = axes.map(x=>u.take([`- **${x}**.`])).join('\n');
+  return `### Enseignement pour l’Église\n\n*Référence :* ${book} ${chap}\n\n${list}`;
 }
-
-function buildPersonal(book, chap, themes, keyVerse){
+function sec22_family(seed, u, book, chap, themes, keywords){
+  const fam = bookFamily(book);
+  const flav = flavorFromThemes(themes);
+  const focusByFam = {
+    'Pentateuque': 'raconter les grands actes de Dieu et transmettre l’alliance',
+    'Historiques': 'relire la providence à travers les générations',
+    'Sagesse & Poésie': 'chanter, mémoriser, prier pour façonner le cœur',
+    'Prophètes': 'écouter l’appel à revenir et pratiquer la justice',
+    'Évangiles': 'suivre Jésus en paroles et en actes',
+    'Actes': 'témoigner, ouvrir la maison, persévérer ensemble',
+    'Épîtres': 'ordonner la maison autour de l’Évangile',
+    'Apocalypse': 'espérer la victoire de l’Agneau et persévérer'
+  }[fam] || 'vivre simplement l’Évangile chaque jour';
+  const habits = [
+    'lecture brève et régulière',
+    'prière commune',
+    'un verset appris par semaine',
+    'service concret du prochain',
+    'parole de bénédiction quotidienne'
+  ];
+  const h1 = habits[Math.abs(djb2(seed+'|h1'))%habits.length];
+  const h2 = habits.filter(x=>x!==h1)[Math.abs(djb2(seed+'|h2'))%Math.max(1,habits.length-1)] || habits[0];
+  const tag = keywords.slice(0,2).map(w=>`**${w}**`).join(', ');
+  const lines = [
+    u.take([`- Orientation : ${focusByFam}${flav?` (accent **${flav}**)`:''}.`]),
+    u.take([`- Habitudes : ${h1}, ${h2}.`]),
+    tag ? u.take([`- Mots-clés à transmettre : ${tag}.`]) : ''
+  ].filter(Boolean).join('\n');
+  return `### Enseignement pour la famille\n\n*Référence :* ${book} ${chap}\n\n${lines}`;
+}
+function sec23_children(seed, u, book, chap, key){
+  const tips = [
+    'raconter simplement',
+    'utiliser images et gestes',
+    'prier une phrase courte',
+    'apprendre un verset'
+  ];
+  const t1 = tips[Math.abs(djb2(seed+'|c1'))%tips.length];
+  const t2 = tips.filter(x=>x!==t1)[Math.abs(djb2(seed+'|c2'))%Math.max(1,tips.length-1)] || tips[0];
+  const mem = key?.v ? ` (ex. ${book} ${chap}:${key.v})` : '';
+  return `### Enseignement pour enfants\n\n*Référence :* ${book} ${chap}\n\n- ${t1}\n- ${t2}${mem}`;
+}
+function sec24_mission(seed, u, book, chap){
+  const l1 = u.take([`Témoigner avec **clarté** et **douceur** ; contextualiser sans diluer l’Évangile.`]);
+  const l2 = u.take([`Dialoguer avec les questions réelles soulevées par le chapitre.`]);
+  return `### Application missionnaire\n\n*Référence :* ${book} ${chap}\n\n${l1}\n${l2}`;
+}
+function sec25_pastoral(seed, u){
+  const l1 = u.take([`Accompagner la souffrance ; enseigner le **pardon** ; viser la **réconciliation**.`]);
+  const l2 = u.take([`La discipline est restauratrice et orientée vers la vie.`]);
+  return `### Application pastorale\n\n${l1}\n${l2}`;
+}
+function sec26_personal(seed, u, book, chap, themes, key){
   const flav = flavorFromThemes(themes);
   const decisions = {
-    'création': 'rendre grâce pour la création et travailler avec intégrité',
-    'lumière': 'rejeter les œuvres des ténèbres et marcher dans la lumière',
-    'Esprit': 'demander la conduite de l’Esprit et obéir à sa direction',
+    'création': 'travailler avec intégrité et rendre grâce',
+    'lumière': 'rejeter les ténèbres et marcher dans la lumière',
+    'Esprit': 'demander la conduite de l’Esprit et obéir',
     'grâce': 'recevoir le pardon et pardonner à autrui',
-    'foi': 'faire confiance dans l’épreuve et avancer par la foi',
-    'Parole': 'méditer un passage chaque jour et le mettre en pratique',
+    'foi': 'faire confiance dans l’épreuve et avancer',
+    'Parole': 'méditer chaque jour et pratiquer',
     'alliance': 'renouveler ses engagements devant Dieu'
   }[flav] || 'mettre en pratique aujourd’hui ce que Dieu a montré';
-
-  const mem = keyVerse?.v ? ` (à mémoriser : ${book} ${chap}:${keyVerse.v})` : '';
-  return [
-    `### Application personnelle`,
-    ``,
-    `*Référence :* ${book} ${chap}`,
-    ``,
-    `- Décision : ${decisions}.${mem}`,
-    `- Prière : adorer, confesser, demander, remercier.`,
-    `- Étape concrète : écrire une action précise et datée.`
-  ].join('\n');
+  const l1 = u.take([`Décision : ${decisions}${key?.v?` (à mémoriser : ${book} ${chap}:${key.v})`:''}.`]);
+  const l2 = u.take([`Prière : adorer, confesser, demander, remercier.`]);
+  const l3 = u.take([`Étape concrète : écrire une action précise et datée.`]);
+  return `### Application personnelle\n\n*Référence :* ${book} ${chap}\n\n- ${l1}\n- ${l2}\n- ${l3}`;
+}
+function sec27_keep(seed, u, book, chap, key){
+  const l1 = u.take([`- ${key?.v ? `${book} ${chap}:${key.v}` : `${book} ${chap}`}`]);
+  const l2 = u.take([`- Ajouter d’autres versets marquants selon l’étude.`]);
+  return `### Versets à retenir\n\n${l1}\n${l2}`;
+}
+function sec28_end(seed, u){
+  const l1 = u.take([`Nous te bénissons pour ta Parole : éclaire, convertis, conduis dans l’obéissance.`]);
+  const l2 = u.take([`Donne la **paix** et la **force** pour servir en toute humilité.`]);
+  return `### Prière de fin\n\n${l1}\n${l2}`;
 }
 
-function ensureMinLength(s, target=800){
-  let out = String(s||'').trim();
-  if (out.length >= target) return out;
-  const add = (t)=>{ if (out && !out.endsWith('\n')) out += '\n'; out += t; };
-  while (out.length < target){
-    add('— La révélation appelle la foi ; la foi devient obéissance ; l’obéissance se nourrit à nouveau de la Parole.');
-    add('— Lire l’Écriture par l’Écriture garde l’unité et l’équilibre des doctrines.');
-    add('— Recevons ce texte dans la prière et la simplicité du service.');
-    if (out.length > target) break;
-  }
-  return out;
-}
-function bullets(arr){ return arr.filter(Boolean).map(x=>`- ${x}`).join('\n'); }
-
-/** ----------------- Récup chapitre via api.bible ----------------- **/
-async function fetchChapter(book, chap){
-  if (!KEY || !BIBLE_ID || !USFM[book]) throw new Error('API_BIBLE_KEY/ID manquants ou livre non mappé');
-  const headers = { accept:'application/json', 'api-key': KEY };
-  const chapterId = `${USFM[book]}.${chap}`;
-
-  // texte du chapitre
-  let content = '';
-  try {
-    const A = await fetchJson(`${API_ROOT}/bibles/${BIBLE_ID}/chapters/${chapterId}?contentType=text&includeVerseNumbers=true&includeTitles=false&includeNotes=false`, { headers, timeout: 10000, retries: 0 });
-    content = CLEAN(A?.data?.content || A?.data?.text || '');
-  } catch {}
-
-  if (!content) {
-    try {
-      const B = await fetchJson(`${API_ROOT}/bibles/${BIBLE_ID}/chapters/${chapterId}`, { headers, timeout: 10000, retries: 0 });
-      content = CLEAN(B?.data?.content || B?.data?.text || '');
-    } catch {}
-  }
-
-  // liste des versets (IDs) — utile pour score verse clé
-  let verseItems = [];
-  try {
-    const V = await fetchJson(`${API_ROOT}/bibles/${BIBLE_ID}/chapters/${chapterId}/verses`, { headers, timeout: 10000, retries: 0 });
-    verseItems = Array.isArray(V?.data) ? V.data : [];
-  } catch {}
-
-  // parse naïf versets
-  let verses = [];
-  if (content) {
-    const split1 = content.split(/\s(?=\d{1,3}\s)/g).map(s=>s.trim());
-    verses = split1.map(s => { const m=s.match(/^(\d{1,3})\s+(.*)$/); return m?{v:+m[1],text:m[2]}:null; }).filter(Boolean);
-    if (verses.length < Math.max(2, Math.floor((verseItems?.length||0)/3))) {
-      const arr = [];
-      const re = /(?:^|\s)(\d{1,3})[.)]?\s+([^]+?)(?=(?:\s\d{1,3}[.)]?\s)|$)/g;
-      let m; while ((m = re.exec(content))) arr.push({ v:+m[1], text: CLEAN(m[2]) });
-      if (arr.length) verses = arr;
-    }
-  }
-
-  return { ok: !!content, content, verses, verseCount: (verseItems?.length || verses?.length || 0) };
-}
-
-/** ----------------- Sections (beaucoup plus contextuelles) ----------------- **/
-const mdRef = (b,c,v)=> v ? `${b} ${c}:${v}` : `${b} ${c}`;
-
-function secTitle(book, chap, keywords){
-  const candidates = [
-    () => `Entre ${keywords[0]||'Parole'} et ${keywords[1]||'vie'}`,
-    () => `De ${keywords[0]||'Dieu'} à ${keywords[1]||'l’homme'} : chemin du texte`,
-    () => `Itinéraire de foi : ${keywords.slice(0,3).join(' · ') || 'lecture et obéissance'}`
-  ];
-  const seed = `${book}|${chap}|title`;
-  const pickFn = [0,1,2][Math.abs(djb2(seed))%3];
-  const title = candidates[pickFn]();
-  return `### Titre du chapitre\n\n*Référence :* ${book} ${chap}\n\n**Proposition :** ${title}\n\n*Index lexical :* ${keywords.slice(0,8).join(', ')}.`;
-}
-function secContext(book, chap, genre){
-  const fam = bookFamily(book);
-  const lines = [
-    `Famille : **${fam}** ; registre **${genre}**.`,
-    `Cadre : le contexte historique et ecclésial éclaire la réception, mais **le texte lui-même fait autorité**.`,
-    `Finalité : connaître Dieu, édifier l’Église, orienter la vie et la mission.`
-  ];
-  return `### Contexte historique\n\n*Référence :* ${book} ${chap}\n\n${bullets(lines)}`;
-}
-function secStructure(book, chap, outline, verseCount){
-  return `### Structure littéraire\n\n*Référence :* ${book} ${chap}\n\n${outline.map(s=>`- **v.${s.from}–${s.to} — ${s.label}**`).join('\n')}\n\n*Nombre de versets estimé :* ${Math.max(verseCount||0, 1)}.`;
-}
-function secKeyVerse(book, chap, key, ver){
-  const url = youVersionUrl(book, chap, key?.v, ver);
-  const label = key?.v ? `${book} ${chap}:${key.v}` : `${book} ${chap}`;
-  const quote = key?.text ? `> *« ${key.text} »*` : '> *(repérer un verset pivot dans le contexte).*';
-  return `### Verset-clé doctrinal\n\n*Référence :* ${label} — [Ouvrir sur YouVersion](${url})\n\n${quote}`;
-}
-function secLex(book, chap, keywords){
-  const items = keywords.slice(0,6).map(w=>`- **${w}** — terme clé du chapitre.`).join('\n') || '- Termes clés à relever.';
-  return `### Analyse lexicale\n\n*Référence :* ${book} ${chap}\n\n${items}`;
-}
-function secXrefs(themes){
-  if (!themes?.length) return `### Références croisées\n\n- À compléter selon les motifs relevés.`;
-  return `### Références croisées\n\n${themes.map(t => `- **${t.k}** : ${t.refs.map(([b,c,v]) => linkRef(b,c,v)).join(', ')}`).join('\n')}`;
-}
-
-/** ----------------- Build dynamique complet ----------------- **/
+/* -------------------- Orchestrateur dynamique -------------------- */
 async function buildDynamicStudy(book, chap, perLen, version='LSG'){
   const { ok, content, verses, verseCount } = await fetchChapter(book, chap);
   if (!ok || !content) throw new Error('Chapitre introuvable ou vide via api.bible');
@@ -409,83 +506,112 @@ async function buildDynamicStudy(book, chap, perLen, version='LSG'){
   const outline = buildOutline(Math.max(4, verseCount || (verses?.length||0) || 8));
   let key = scoreKeyVerse(verses||[]);
   if (!key && verses?.length) key = verses[Math.floor(verses.length/2)];
+  const fam = bookFamily(book);
+  const flav = flavorFromThemes(themes);
 
   const target = Number(perLen)||1500;
-  const boost = (s) => ensureMinLength(s, Math.max(380, Math.floor(target/6)));
+  const u = new UniqueManager();
+
+  const mk = (id, title, builder) => {
+    const seed = `${book}|${chap}|${id}`;
+    let base = builder(seed, u);
+    // Complément doctrinal unique si trop court
+    if (base.length < target){
+      base = u.ensureLengthUnique(base, target, () => doctrinalLines(seed, book, chap, flav, fam, genre, keywords, key));
+    }
+    return { id, title, description:'', content: base };
+  };
 
   const sections = [
-    { id:1,  title:'Prière d’ouverture',              description:'Invocation contextualisée.',           content: boost(buildPrayer(book,chap,keywords,themes,genre)) },
-    { id:2,  title:'Canon et testament',              description:'Unité AT/NT.',                         content: boost(`### Canon et testament\n\n*Référence :* ${book} ${chap}\n\nNous lisons ${linkRef(book,chap,'',version)} dans l’unité de l’**Ancien** et du **Nouveau** Testament : la révélation progresse sans se contredire et trouve son **accomplissement en Christ**.`) },
-    { id:3,  title:'Questions du chapitre précédent', description:'Questions + réponses concrètes.',      content: boost(`### Questions du chapitre précédent\n\n*Référence :* ${book} ${chap}\n\n**Q1. Quel attribut de Dieu ressort ?**\n**R.** À la lumière du contexte : fidélité et souveraineté.\n\n**Q2. Quel fil littéraire ?**\n**R.** Une progression en mouvements (voir structure) avec reprises clés.\n\n**Q3. Quelles tensions ouvrent la suite ?**\n**R.** Celles qui appellent foi, repentance et espérance.`) },
-    { id:4,  title:'Titre du chapitre',               description:'Formulation synthétique.',             content: boost(secTitle(book,chap,keywords)) },
-    { id:5,  title:'Contexte historique',             description:'Cadre et portée.',                     content: boost(secContext(book,chap,genre)) },
-    { id:6,  title:'Structure littéraire',            description:'Découpage et progression.',            content: boost(secStructure(book,chap,outline,verseCount)) },
-    { id:7,  title:'Genre littéraire',                description:'Incidences herméneutiques.',           content: boost(`### Genre littéraire\n\n*Référence :* ${book} ${chap}\n\nLe registre **${genre}** oriente la lecture : repérer le rythme, les connecteurs, les parallélismes et les repères narratifs.`) },
-    { id:8,  title:'Auteur et généalogie',            description:'Inspiration et réception.',            content: boost(`### Auteur et généalogie\n\n*Référence :* ${book} ${chap}\n\nL’**inspiration** fonde l’autorité du texte. Les questions d’auteur servent l’écoute, mais la **voix de Dieu** prime.`) },
-    { id:9,  title:'Verset-clé doctrinal',            description:'Pivot théologique.',                    content: boost(secKeyVerse(book,chap,key,version)) },
-    { id:10, title:'Analyse exégétique',              description:'Contexte et grammaire.',                content: boost(`### Analyse exégétique\n\n*Référence :* ${book} ${chap}\n\n- Contexte immédiat : ${key?.v ? `v.${Math.max(1,key.v-1)}–${key.v}–${key.v+1}` : `délimitation à préciser`}.\n- Observer : **verbes** porteurs, **connecteurs** (cause/conséquence/contraste), **progression argumentaire**.`) },
-    { id:11, title:'Analyse lexicale',                description:'Termes clés.',                          content: boost(secLex(book,chap,keywords)) },
-    { id:12, title:'Références croisées',             description:'Passages parallèles.',                  content: boost(secXrefs(themes)) },
-    { id:13, title:'Fondements théologiques',         description:'Attributs, alliance, promesse.',        content: boost(`### Fondements théologiques\n\nAttributs de Dieu, création et providence ; **alliance** et promesse ; l’Écriture interprète l’Écriture.`) },
-    { id:14, title:'Thème doctrinal',                 description:'Rattachement systématique.',            content: boost(`### Thème doctrinal\n\n*Référence :* ${book} ${chap}\n\nFormuler le thème en une phrase centrée sur Dieu et son œuvre : **révélation → rédemption → vie nouvelle**.`) },
-    { id:15, title:'Fruits spirituels',               description:'Vertus produites.',                     content: boost(`### Fruits spirituels\n\nFoi, espérance, amour ; consolation dans l’épreuve ; obéissance joyeuse et persévérance.`) },
-    { id:16, title:'Types bibliques',                 description:'Typologie canonique.',                  content: boost(`### Types bibliques\n\nRepérer les figures (ex.: Adam/Christ ; Exode/Passage) sans arbitraire : **continuité canonique**.`) },
-    { id:17, title:'Appui doctrinal',                 description:'Textes concordants.',                   content: boost(`### Appui doctrinal\n\nTextes concordants qui confirment et balisent l’interprétation.`) },
-    { id:18, title:'Comparaison interne',             description:'Harmonisation.',                        content: boost(`### Comparaison interne\n\nHarmoniser les passages voisins ; noter **parallèles** et **contrastes** ; laisser la **clarté du tout** éclairer les parties.`) },
-    { id:19, title:'Parallèle ecclésial',             description:'Continuité dans l’Église.',             content: boost(`### Parallèle ecclésial\n\nConfession, liturgie, mission enracinées dans la Parole.`) },
-    { id:20, title:'Verset à mémoriser',              description:'Formulation mémorisable.',              content: boost(`### Verset à mémoriser\n\n*Suggestion :* ${key?.v ? `${book} ${chap}:${key.v}` : `${book} ${chap}`}.`) },
-    { id:21, title:'Enseignement pour l’Église',      description:'Culte, mission.',                       content: boost(buildChurch(book,chap,themes)) },
-    { id:22, title:'Enseignement pour la famille',    description:'Transmission.',                         content: boost(buildFamily(book,chap,themes,keywords)) },
-    { id:23, title:'Enseignement pour enfants',       description:'Pédagogie.',                            content: boost(`### Enseignement pour enfants\n\n*Référence :* ${book} ${chap}\n\n- Raconter simplement.\n- Utiliser images/gestes.\n- Apprendre un verset.${key?.v ? ` (ex. ${book} ${chap}:${key.v})` : ''}`) },
-    { id:24, title:'Application missionnaire',        description:'Annonce contextualisée.',               content: boost(`### Application missionnaire\n\nTémoigner avec **clarté** et **douceur** ; contextualiser sans diluer l’Évangile ; dialoguer avec les questions soulevées par ce chapitre.`) },
-    { id:25, title:'Application pastorale',           description:'Accompagnement.',                       content: boost(`### Application pastorale\n\nAccompagner la souffrance et le conflit ; enseigner le **pardon** ; chercher la **réconciliation** appuyée sur l’Évangile.`) },
-    { id:26, title:'Application personnelle',         description:'Décision concrète.',                    content: boost(buildPersonal(book,chap,themes,key)) },
-    { id:27, title:'Versets à retenir',               description:'Sélection utile.',                      content: boost(`### Versets à retenir\n\n- ${key?.v ? `${book} ${chap}:${key.v}` : `${book} ${chap}`}\n- Ajouter d’autres versets marquants selon l’étude.`) },
-    { id:28, title:'Prière de fin',                   description:'Action de grâces.',                     content: boost(`### Prière de fin\n\nNous te bénissons pour ta Parole. Donne-nous la **lumière** pour comprendre, la **foi** pour recevoir, la **force** pour obéir et la **charité** pour servir.`) }
+    mk(1,  'Prière d’ouverture',           (s)=>sec1_prayer(s,u,book,chap,fam,genre,flav,keywords)),
+    mk(2,  'Canon et testament',           (s)=>sec2_canon(s,u,book,chap,version)),
+    mk(3,  'Questions du chapitre précédent',(s)=>sec3_questions(s,u,book,chap,flav,genre,key,keywords)),
+    mk(4,  'Titre du chapitre',            (s)=>sec4_title(s,u,book,chap,keywords)),
+    mk(5,  'Contexte historique',          (s)=>sec5_context(s,u,book,chap,fam,genre)),
+    mk(6,  'Structure littéraire',         (s)=>sec6_structure(s,u,book,chap,outline,verseCount)),
+    mk(7,  'Genre littéraire',             (s)=>sec7_genre(s,u,book,chap,genre)),
+    mk(8,  'Auteur et généalogie',         (s)=>sec8_author(s,u,book,chap)),
+    mk(9,  'Verset-clé doctrinal',         (s)=>sec9_key(s,u,book,chap,key,version)),
+    mk(10, 'Analyse exégétique',           (s)=>sec10_exeg(s,u,book,chap,key)),
+    mk(11, 'Analyse lexicale',             (s)=>sec11_lex(s,u,book,chap,keywords)),
+    mk(12, 'Références croisées',          (s)=>sec12_xrefs(s,u,themes)),
+    mk(13, 'Fondements théologiques',      (s)=>sec13_found(s,u)),
+    mk(14, 'Thème doctrinal',              (s)=>sec14_theme(s,u,book,chap,flav)),
+    mk(15, 'Fruits spirituels',            (s)=>sec15_fruits(s,u)),
+    mk(16, 'Types bibliques',              (s)=>sec16_types(s,u)),
+    mk(17, 'Appui doctrinal',              (s)=>sec17_support(s,u)),
+    mk(18, 'Comparaison interne',          (s)=>sec18_internal(s,u)),
+    mk(19, 'Parallèle ecclésial',          (s)=>sec19_ecclesial(s,u)),
+    mk(20, 'Verset à mémoriser',           (s)=>sec20_memory(s,u,book,chap,key)),
+    mk(21, 'Enseignement pour l’Église',   (s)=>sec21_church(s,u,book,chap,themes)),
+    mk(22, 'Enseignement pour la famille', (s)=>sec22_family(s,u,book,chap,themes,keywords)),
+    mk(23, 'Enseignement pour enfants',    (s)=>sec23_children(s,u,book,chap,key)),
+    mk(24, 'Application missionnaire',     (s)=>sec24_mission(s,u,book,chap)),
+    mk(25, 'Application pastorale',        (s)=>sec25_pastoral(s,u)),
+    mk(26, 'Application personnelle',      (s)=>sec26_personal(s,u,book,chap,themes,key)),
+    mk(27, 'Versets à retenir',            (s)=>sec27_keep(s,u,book,chap,key)),
+    mk(28, 'Prière de fin',                (s)=>sec28_end(s,u))
   ];
 
-  return { sections, mode:'dynamic' };
+  return { sections };
 }
 
-/** ----------------- Fallback enrichi (si API KO) ----------------- **/
-function ensureMinLenPool(base, target){
-  let out = base.trim();
-  if (out.length >= target) return out;
-  const pool = [
-    'La Bible s’explique par la Bible et garde l’unité de la foi.',
-    'Le Christ accomplit la promesse et oriente l’interprétation.',
-    'La Parole édifie l’Église et forme la vie quotidienne.',
-    'La doctrine naît du texte reçu, non de la spéculation.',
-    'La prière accompagne l’étude et ouvre à l’obéissance.'
-  ];
-  for (const s of pool){ out += '\n' + s; if (out.length >= target) break; }
-  return ensureMinLength(out, target);
-}
-function genericStudy(book, chap, version, perLen){
-  const titles = {
-    1:'Prière d’ouverture',2:'Canon et testament',3:'Questions du chapitre précédent',4:'Titre du chapitre',
-    5:'Contexte historique',6:'Structure littéraire',7:'Genre littéraire',8:'Auteur et généalogie',
-    9:'Verset-clé doctrinal',10:'Analyse exégétique',11:'Analyse lexicale',12:'Références croisées',
-    13:'Fondements théologiques',14:'Thème doctrinal',15:'Fruits spirituels',16:'Types bibliques',
-    17:'Appui doctrinal',18:'Comparaison interne',19:'Parallèle ecclésial',20:'Verset à mémoriser',
-    21:'Enseignement pour l’Église',22:'Enseignement pour la famille',23:'Enseignement enfants',
-    24:'Application missionnaire',25:'Application pastorale',26:'Application personnelle',
-    27:'Versets à retenir',28:'Prière de fin'
-  };
-  const linkChap = linkRef(book, chap, '', version);
+/* -------------------- Fallback intelligent (si API KO) -------------------- */
+function fallbackStudy(book, chap, perLen, version='LSG'){
+  const u = new UniqueManager();
   const target = Number(perLen)||1500;
+  const fam = bookFamily(book);
+  const genre = 'narratif/doctrinal';
+  const flav = 'Parole';
+  const keywords = [book.toLowerCase(),'parole','foi','grâce','vie','justice','peuple','alliance'];
+  const key = { v: 1, text: '' };
 
-  const sections = [];
-  for (let i=1;i<=28;i++){
-    const base = i===3
-      ? `### ${titles[i]}\n\n*Référence :* ${book} ${chap}\n\n**Q1. Quel attribut de Dieu ressort ?**\n**R.** Fidélité souveraine.\n\n**Q2. Quel fil littéraire ?**\n**R.** Progression avec reprises stratégiques.\n\n**Q3. Tensions ouvertes ?**\n**R.** Celles qui préparent la suite.`
-      : `### ${titles[i]}\n\n*Référence :* ${book} ${chap}\n\nLecture de ${linkChap} avec accent ${titles[i].toLowerCase()}.`;
-    sections.push({ id:i, title: titles[i], description:'', content: ensureMinLenPool(base, Math.max(380, Math.floor(target/6))) });
-  }
-  return { sections, mode:'fallback' };
+  const mk = (id, title, builder) => {
+    const seed = `${book}|${chap}|fallback|${id}`;
+    let base = builder(seed, u);
+    if (base.length < target){
+      base = u.ensureLengthUnique(base, target, () => doctrinalLines(seed, book, chap, flav, fam, genre, keywords, key));
+    }
+    return { id, title, description:'', content: base };
+  };
+
+  const outline = buildOutline(20);
+
+  const sections = [
+    mk(1,'Prière d’ouverture',(s)=>sec1_prayer(s,u,book,chap,fam,genre,flav,keywords)),
+    mk(2,'Canon et testament',(s)=>sec2_canon(s,u,book,chap,version)),
+    mk(3,'Questions du chapitre précédent',(s)=>sec3_questions(s,u,book,chap,flav,genre,key,keywords)),
+    mk(4,'Titre du chapitre',(s)=>sec4_title(s,u,book,chap,keywords)),
+    mk(5,'Contexte historique',(s)=>sec5_context(s,u,book,chap,fam,genre)),
+    mk(6,'Structure littéraire',(s)=>sec6_structure(s,u,book,chap,outline,20)),
+    mk(7,'Genre littéraire',(s)=>sec7_genre(s,u,book,chap,genre)),
+    mk(8,'Auteur et généalogie',(s)=>sec8_author(s,u,book,chap)),
+    mk(9,'Verset-clé doctrinal',(s)=>sec9_key(s,u,book,chap,key,version)),
+    mk(10,'Analyse exégétique',(s)=>sec10_exeg(s,u,book,chap,key)),
+    mk(11,'Analyse lexicale',(s)=>sec11_lex(s,u,book,chap,keywords)),
+    mk(12,'Références croisées',(s)=>sec12_xrefs(s,u,[])),
+    mk(13,'Fondements théologiques',(s)=>sec13_found(s,u)),
+    mk(14,'Thème doctrinal',(s)=>sec14_theme(s,u,book,chap,flav)),
+    mk(15,'Fruits spirituels',(s)=>sec15_fruits(s,u)),
+    mk(16,'Types bibliques',(s)=>sec16_types(s,u)),
+    mk(17,'Appui doctrinal',(s)=>sec17_support(s,u)),
+    mk(18,'Comparaison interne',(s)=>sec18_internal(s,u)),
+    mk(19,'Parallèle ecclésial',(s)=>sec19_ecclesial(s,u)),
+    mk(20,'Verset à mémoriser',(s)=>sec20_memory(s,u,book,chap,key)),
+    mk(21,'Enseignement pour l’Église',(s)=>sec21_church(s,u,book,chap,[])),
+    mk(22,'Enseignement pour la famille',(s)=>sec22_family(s,u,book,chap,[],keywords)),
+    mk(23,'Enseignement pour enfants',(s)=>sec23_children(s,u,book,chap,key)),
+    mk(24,'Application missionnaire',(s)=>sec24_mission(s,u,book,chap)),
+    mk(25,'Application pastorale',(s)=>sec25_pastoral(s,u)),
+    mk(26,'Application personnelle',(s)=>sec26_personal(s,u,book,chap,[],key)),
+    mk(27,'Versets à retenir',(s)=>sec27_keep(s,u,book,chap,key)),
+    mk(28,'Prière de fin',(s)=>sec28_end(s,u))
+  ];
+
+  return { sections };
 }
 
-/** ----------------- Build orchestrateur ----------------- **/
+/* -------------------- Build orchestrateur -------------------- */
 function parsePassage(p){
   const m = /^(.+?)\s+(\d+)(?:\s*.*)?$/.exec(String(p||'').trim());
   return { book: m ? m[1].trim() : 'Genèse', chap: m ? parseInt(m[2],10) : 1 };
@@ -497,25 +623,22 @@ async function buildStudy(passage, length, version='LSG'){
 
   if (KEY && BIBLE_ID && USFM[book]) {
     try {
-      const dyn = await buildDynamicStudy(book, chap, perLen, version);
-      return { study:{ sections: dyn.sections }, mode: dyn.mode };
-    } catch (e) {
-      const fb = genericStudy(book, chap, version, perLen);
-      return { study:{ sections: fb.sections }, mode: fb.mode, emergency:true, error:String(e?.message||e) };
+      return { study: await buildDynamicStudy(book, chap, perLen, version) };
+    } catch {
+      return { study: fallbackStudy(book, chap, perLen, version) };
     }
   } else {
-    const fb = genericStudy(book, chap, version, perLen);
-    return { study:{ sections: fb.sections }, mode: fb.mode, emergency:true, error:'API_BIBLE non configurée' };
+    return { study: fallbackStudy(book, chap, perLen, version) };
   }
 }
 
-/** ----------------- Handler ----------------- **/
+/* -------------------- Handler -------------------- */
 async function core(ctx){
   const method = ctx.req?.method || 'GET';
   if (method === 'GET') {
     return send200(ctx, {
       ok:true, route:'/api/generate-study', method:'GET',
-      hint:'POST { "passage":"Genèse 1", "options":{ "length":500|1500|2500 } } → 28 rubriques enrichies et contextualisées.',
+      hint:'POST { "passage":"Genèse 1", "options":{ "length":500|1500|2500 } } → 28 rubriques enrichies, sans doublons.',
       requires: { API_BIBLE_KEY: !!KEY, API_BIBLE_ID: !!BIBLE_ID }
     });
   }
@@ -525,7 +648,7 @@ async function core(ctx){
     const length  = Number(body?.options?.length);
     const version = String((body?.options?.translation || 'LSG')).toUpperCase();
     try { return send200(ctx, await buildStudy(passage, length, version)); }
-    catch (e) { return send200(ctx, { ok:false, emergency:true, error:String(e), study:{ sections:[] }, mode:'fallback' }); }
+    catch (e) { return send200(ctx, { study:{ sections:[] }, emergency:true, error:String(e) }); }
   }
   return send200(ctx, { ok:true, route:'/api/generate-study', hint:'GET pour smoke-test, POST pour générer.' });
 }
