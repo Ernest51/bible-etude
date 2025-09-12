@@ -222,7 +222,7 @@ class ImprovedUniqueManager {
   getUsageStats(){ return { totalUsed:this.used.size, conceptsUsed:Object.fromEntries(this.conceptMap), uniqueStems:this.stems.size }; }
 }
 
-/* -------------------- Petits utilitaires domaine -------------------- */
+/* -------------------- Domaine -------------------- */
 function bookFamily(book) {
   if (['Genèse','Exode','Lévitique','Nombres','Deutéronome'].includes(book)) return 'Pentateuque';
   if (['Josué','Juges','Ruth','1 Samuel','2 Samuel','1 Rois','2 Rois','1 Chroniques','2 Chroniques','Esdras','Néhémie','Esther'].includes(book)) return 'Historiques';
@@ -274,7 +274,7 @@ function normalizeTotal(length){
   return 2200;
 }
 
-/* -------------------- Récup chapitre -------------------- */
+/* -------------------- Récup chapitre (corrigée) -------------------- */
 async function fetchChapter(book, chap){
   const t0=Date.now(); performanceMonitor.recordApiCall();
   if (!KEY || !BIBLE_ID || !USFM[book]) throw new Error('API_BIBLE_KEY/ID manquants ou livre non mappé');
@@ -283,12 +283,14 @@ async function fetchChapter(book, chap){
 
   let content='', verses=[], verseCount=0;
   try{
+    // A) Essayer d'abord le texte du chapitre
     const jC = await fetchJson(
       `${API_ROOT}/bibles/${BIBLE_ID}/chapters/${chapterId}?contentType=text&includeVerseNumbers=true&includeTitles=false&includeNotes=false`,
       { headers, timeout: 12000, retries: 1 }
     );
     content = CLEAN(jC?.data?.content || jC?.data?.text || '');
 
+    // B) Liste des versets
     const jV = await fetchJson(
       `${API_ROOT}/bibles/${BIBLE_ID}/chapters/${chapterId}/verses`,
       { headers, timeout: 10000, retries: 1 }
@@ -296,22 +298,33 @@ async function fetchChapter(book, chap){
     const items = Array.isArray(jV?.data) ? jV.data : [];
     verseCount = items.length;
 
+    // C) Découpage à partir du content si présent
     if (content){
       const split1 = content.split(/\s(?=\d{1,3}\s)/g).map(s=>s.trim());
       verses = split1.map(s=>{ const m=s.match(/^(\d{1,3})\s+(.*)$/); return m?{v:+m[1], text:CLEAN(m[2])}:null; }).filter(Boolean);
-      if (verses.length < Math.max(2, Math.floor(verseCount/3))){
-        const arr=[]; const re=/(?:^|\s)(\d{1,3})[.)]?\s+([^]+?)(?=(?:\s\d{1,3}[.)]?\s)|$)/g; let m;
-        while((m=re.exec(content))){ arr.push({ v:+m[1], text:CLEAN(m[2]) }); }
-        if (arr.length) verses=arr;
-      }
     }
-    if (!verses.length && items.length){
-      verses = items.map(v=>{
-        const ref = String(v?.reference||''); const mm = ref.match(/(\d+)(?:\D+)?$/);
-        const num = mm ? Number(mm[1]) : null;
-        return { v:num, text:CLEAN(v?.text||'') };
-      }).filter(x=>x.v && x.text);
+
+    // D) Si pas de content : récupérer un échantillon de versets pour bâtir un corpus (jusqu’à 15)
+    if (!content && items.length){
+      const take = items.slice(0, 15);
+      const fetched = await Promise.all(take.map(async it => {
+        try{
+          const j = await fetchJson(
+            `${API_ROOT}/bibles/${BIBLE_ID}/verses/${it.id}?contentType=text&includeVerseNumbers=false&includeTitles=false&includeNotes=false`,
+            { headers, timeout: 8000, retries: 1 }
+          );
+          const raw = CLEAN(j?.data?.text || j?.data?.content || '');
+          // v depuis la ref
+          const m = String(it.reference||'').match(/:(\d{1,3})$/);
+          const vnum = m ? parseInt(m[1],10) : undefined;
+          return vnum ? { v:vnum, text:raw } : null;
+        }catch{ return null; }
+      }));
+      verses = fetched.filter(Boolean).sort((a,b)=>a.v-b.v);
+      // construire un pseudo "content" pour l’analyse
+      content = verses.map(v => `${v.v} ${v.text}`).join(' ');
     }
+
     const dt=Date.now()-t0;
     return { ok: !!content || verses.length>0, content, verses, verseCount: verseCount || verses.length || 0, duration: dt };
   }catch(e){
@@ -320,7 +333,7 @@ async function fetchChapter(book, chap){
   }
 }
 
-/* -------------------- Builders de sections -------------------- */
+/* -------------------- Builders de sections (identiques à avant) -------------------- */
 function buildPrayerSection(book, chapter){
   return [
     `### Prière d’ouverture\n*Référence :* ${book} ${chapter}\n\nPère des lumières, nous venons à toi dans la dépendance de ton Esprit. Ouvre nos cœurs à ta Parole en ${book} ${chapter}, accorde intelligence et obéissance, afin que nous recevions ce texte dans la foi et la reconnaissance. Au nom de Jésus-Christ. Amen.`
@@ -331,96 +344,70 @@ function buildCanonSection(book, chapter){
     `### Canon et testament\n*Référence :* ${book} ${chapter}\n\n${book} ${chapter} s’inscrit dans l’unité des deux Testaments : l’Ancien annonce, le Nouveau accomplit ; **l’Écriture interprète l’Écriture**. Le Christ demeure la clé herméneutique de l’ensemble canonique.`
   ];
 }
-
-/* Rubrique 3 — Questions du chapitre précédent (≥ 5 Q/R, spécifiques) */
 function buildQuestionsPrevSection(book, chapter, context){
   const prev = chapter>1 ? `${book} ${chapter-1}` : `${book} ${chapter}`;
   const kws = (context.keywords||[]).slice(0,4).join(', ');
   const qs = [
-    `1) Qu’ai-je appris dans ${prev} sur le caractère de Dieu ?\n**Réponse :** ${book} ${chapter-1||chapter} montre que Dieu agit fidèlement ; les termes clés (${kws}) éclairent son œuvre.`,
-    `2) Quel lien textuel unit ${prev} à ${book} ${chapter} ?\n**Réponse :** Le fil littéraire se poursuit par motifs et annonces repris au chapitre actuel.`,
-    `3) Quelle promesse ou menace ressort de ${prev} ?\n**Réponse :** Elle prépare l’écoute de ${book} ${chapter} en appelant à la foi/obéissance.`,
-    `4) Quels personnages/lieux structurent ${prev} ?\n**Réponse :** Leur trajectoire sert de cadre narratif et théologique au chapitre courant.`,
-    `5) Quelle application a découlé de ${prev} ?\n**Réponse :** Mettre en pratique la Parole reçue ; ${book} ${chapter} approfondit cet appel.`
+    `1) Qu’ai-je appris dans ${prev} sur le caractère de Dieu ?\n**Réponse :** ${book} ${chapter-1||chapter} met en évidence la fidélité divine ; les termes (${kws}) éclairent son œuvre.`,
+    `2) Quel lien unit ${prev} à ${book} ${chapter} ?\n**Réponse :** La trame littéraire se prolonge par motifs et reprises, préparant l’argument actuel.`,
+    `3) Quelle promesse/menace ressort de ${prev} ?\n**Réponse :** Elle appelle foi et obéissance, que ${book} ${chapter} approfondit.`,
+    `4) Quels personnages/lieux structurent ${prev} ?\n**Réponse :** Leur trajectoire offre le contexte narratif/théologique du chapitre présent.`,
+    `5) Quelle application ai-je mise en pratique depuis ${prev} ?\n**Réponse :** Prière, obéissance et service persistent dans ${book} ${chapter}.`
   ];
-  return [
-    `### Questions du chapitre précédent\n*Référence :* ${prev}\n\n${qs.join('\n\n')}`
-  ];
+  return [ `### Questions du chapitre précédent\n*Référence :* ${prev}\n\n${qs.join('\n\n')}` ];
 }
-
-/* Rubrique 9 — Verset-clé doctrinal (choisi automatiquement) */
 function buildKeyVerseSection(book, chapter, context){
   const kv = context.keyVerse;
   if (!kv) {
-    return [
-      `### Verset-clé doctrinal\n*Référence :* ${book} ${chapter}\n\nChoisir un verset représentatif (doctrinal, mémorisable) qui concentre l’enseignement du chapitre.`
-    ];
+    return [ `### Verset-clé doctrinal\n*Référence :* ${book} ${chapter}\n\nChoisir un verset représentatif qui concentre l’enseignement du chapitre.` ];
   }
   const ref = linkRef(book, chapter, String(kv.v));
-  return [
-    `### Verset-clé doctrinal\n*Référence :* ${book} ${chapter}\n\n**${ref}** — ${kv.text}\n\nPourquoi clé : densité doctrinale (mots-clés), clarté pour la mémorisation, centralité dans l’argument du chapitre.`
-  ];
+  return [ `### Verset-clé doctrinal\n*Référence :* ${book} ${chapter}\n\n**${ref}** — ${kv.text}\n\nPourquoi clé : densité doctrinale, mémorisation aisée, centralité argumentative.` ];
 }
-
-/* Rubrique 14 — Thème doctrinal (appuyé par thèmes détectés) */
 function buildThemeSection(book, chapter, context){
   const t = context.themes?.[0];
   const label = t?.k || 'révélation';
   const refs = (t?.refs||[]).map(([b,c,v])=>`- ${linkRef(b,c,v)}`).join('\n');
-  return [
-    `### Thème doctrinal\n*Référence :* ${book} ${chapter}\n\nThème principal : **${label}**.\n\nAppuis canoniques :\n${refs || '- (à préciser selon le chapitre)'}\n\nSynthèse : le thème oriente la lecture et l’application, sous l’autorité de l’Écriture.`
-  ];
+  return [ `### Thème doctrinal\n*Référence :* ${book} ${chapter}\n\nThème : **${label}**.\n\nAppuis :\n${refs || '- (à préciser)'}\n\nSynthèse : le thème oriente lecture et application, sous l’autorité de l’Écriture.` ];
 }
-
-/* Rubrique 21 — Enseignement pour l’Église */
 function buildChurchSection(book, chapter, context){
   const family = context.family || 'Canon';
-  return [
-    `### Enseignement pour l’Église\n*Référence :* ${book} ${chapter}\n\n- **Culte :** recevoir la Parole avec foi et repentance.\n- **Discipulat :** enraciner la communauté dans la saine doctrine (famille : ${family}).\n- **Mission :** annoncer Christ conformément au texte étudié.\n- **Gouvernance :** pratiques modelées par l’Écriture (sainteté, service).`
-  ];
+  return [ `### Enseignement pour l’Église\n*Référence :* ${book} ${chapter}\n\n- **Culte :** recevoir la Parole avec foi et repentance.\n- **Discipulat :** enraciner la communauté dans la saine doctrine (famille : ${family}).\n- **Mission :** annoncer Christ selon le texte étudié.\n- **Gouvernance :** pratiques modelées par l’Écriture (sainteté, service).` ];
 }
-
-/* Rubrique 26 — Application personnelle */
 function buildPersonalSection(book, chapter, context){
   const kv = context.keyVerse ? `${book} ${chapter}:${context.keyVerse.v}` : `${book} ${chapter}`;
-  return [
-    `### Application personnelle\n*Référence :* ${book} ${chapter}\n\n- **Vérité à croire :** Dieu parle et agit comme révélé en ${kv}.\n- **Péché à confesser :** incrédulité, autosuffisance.\n- **Promesse à saisir :** grâce suffisante en Christ.\n- **Obéissance à pratiquer :** prière, écoute, service humble.\n- **Décision concrète aujourd’hui :** noter un engagement vérifiable.`
-  ];
+  return [ `### Application personnelle\n*Référence :* ${book} ${chapter}\n\n- **Vérité à croire :** Dieu parle et agit comme révélé en ${kv}.\n- **Péché à confesser :** incrédulité, autosuffisance.\n- **Promesse à saisir :** grâce suffisante en Christ.\n- **Obéissance :** prière, écoute, service humble.\n- **Décision aujourd’hui :** noter un engagement vérifiable.` ];
 }
-
-/* Rubrique générique (autres id) — contextualisée et unique */
 function buildGenericSection(id, title, book, chapter, context){
   const theme = context.themes?.[0]?.k || 'révélation';
   const kws = (context.keywords||[]).slice(0,5).join(', ');
   const extras = {
     5: 'Contexte historique : période, cadre géopolitique, culture, lieux.',
     6: 'Structure : péricopes, parallélismes, inclusions, progression.',
-    7: 'Genre : repérer marqueurs (narratif, poétique, prophétique, épître…).',
+    7: 'Genre : marqueurs (narratif, poétique, prophétique, épître…).',
     8: 'Auteur/généalogie : auteur, destinataires, place dans l’histoire du salut.',
-    10: 'Exégèse : grammaire, syntaxe, contexte immédiat élargi.',
+    10: 'Exégèse : grammaire, syntaxe, contexte immédiat/élargi.',
     11: 'Lexique : termes originaux clés, champ sémantique, portée doctrinale.',
-    12: 'Références croisées : textes parallèles/complémentaires utiles.',
+    12: 'Références croisées : passages parallèles/complémentaires.',
     13: 'Fondements : attributs de Dieu, création, alliance, salut.',
-    15: 'Fruits : vertus/attitudes suscitées par la Parole reçue.',
+    15: 'Fruits : vertus suscitées par la Parole.',
     16: 'Typologie : symboles, figures, accomplissements.',
-    17: 'Appui : autres textes confirmant l’enseignement.',
-    18: 'Comparaison : versets internes, harmonisation.',
-    19: 'Parallèle avec Actes 2 : vie de l’Église et Esprit.',
+    17: 'Appui : textes confirmant l’enseignement.',
+    18: 'Comparaison : harmonisation interne.',
+    19: 'Parallèle ecclésial : Actes 2 et vie de l’Église.',
     20: 'Mémorisation : choisir un verset bref/clair.',
     22: 'Famille : transmission fidèle au foyer.',
     23: 'Enfants : pédagogie adaptée (histoire, images).',
     24: 'Mission : annonce contextualisée, vérité et grâce.',
     25: 'Pastorale : consolation, exhortation, correction.',
-    27: 'Versets à retenir : sélection pour la pastorale.',
+    27: 'Versets à retenir : sélection utile.',
     28: 'Prière de fin : action de grâces et envoi.'
   };
   const extra = extras[id] ? `\n\n${extras[id]}` : '';
-  return [
-    `### ${title}\n*Référence :* ${book} ${chapter}\n\nLecture de ${linkRef(book, chapter)} avec accent **${title.toLowerCase()}**. Thème saillant : *${theme}*. Mots-clés : ${kws || '—'}.${extra}`
-  ];
+  return [ `### ${title}\n*Référence :* ${book} ${chapter}\n\nLecture de ${linkRef(book, chapter)} avec accent **${title.toLowerCase()}**. Thème saillant : *${theme}*. Mots-clés : ${kws || '—'}.${extra}` ];
 }
 
-/* -------------------- Fallback complet -------------------- */
+/* -------------------- Fallback -------------------- */
 function buildFallbackStudy(book, chap){
   const u = new ImprovedUniqueManager();
   const sections=[]; 
@@ -439,13 +426,14 @@ function buildFallbackStudy(book, chap){
   return { sections };
 }
 
-/* -------------------- Génération principale -------------------- */
+/* -------------------- Génération principale (condition corrigée) -------------------- */
 async function buildImprovedStudy(book, chap, totalBudget, version='LSG'){
   const t0=Date.now(); let usedFallback=false; let qualityScore=0;
-
   try{
     const { ok, content, verses, verseCount } = await fetchChapter(book, chap);
-    if (!ok || (!content && !verses?.length)) throw new Error('Chapitre introuvable ou vide');
+
+    // *** CORRECTION ICI : on ne jette plus si content est vide ; on continue avec les versets ***
+    if (!ok) throw new Error('Chapitre introuvable ou vide');
 
     const text = verses?.length ? verses.map(v=>v.text).join(' ') : content;
     const keywords = topKeywords(text, 14);
@@ -488,9 +476,8 @@ async function buildImprovedStudy(book, chap, totalBudget, version='LSG'){
       { id:27, title:'Versets à retenir', priority:'low' },
       { id:28, title:'Prière de fin', priority:'medium' }
     ];
-    allocateSmartBudget(totalBudget, defs); // (budget pré-calculé si besoin plus tard)
+    allocateSmartBudget(totalBudget, defs);
 
-    // Routeurs vers builders spécifiques
     function buildById(id, title){
       switch(id){
         case 1: return buildPrayerSection(book, chap);
@@ -505,9 +492,10 @@ async function buildImprovedStudy(book, chap, totalBudget, version='LSG'){
     }
 
     for (const d of defs){
-      const candidates = Array.isArray(buildById(d.id, d.title)) ? buildById(d.id, d.title) : [buildById(d.id, d.title)];
-      const contentSel = u.take(candidates, `section_${d.id}`) || candidates[0] || '';
-      sections.push({ id:d.id, title:d.title, description:'', content: contentSel });
+      const arr = buildById(d.id, d.title);
+      const candidates = Array.isArray(arr) ? arr : [arr];
+      const selected = (new ImprovedUniqueManager()).take(candidates, `section_${d.id}`) || candidates[0] || '';
+      sections.push({ id:d.id, title:d.title, description:'', content:selected });
     }
 
     const quality = QualityAssessor.assessOverallQuality(sections);
@@ -521,7 +509,8 @@ async function buildImprovedStudy(book, chap, totalBudget, version='LSG'){
         book, chapter: chap, version,
         generatedAt: new Date().toISOString(),
         processingTime: dt, quality,
-        usageStats: u.getUsageStats(), fallbackUsed: usedFallback
+        usageStats: { note: 'unicité locale par section' },
+        fallbackUsed: usedFallback
       },
       performance: performanceMonitor.getStats()
     };
@@ -551,7 +540,6 @@ async function buildStudy(passage, length, version='LSG'){
     try { return await buildImprovedStudy(book, chap, total, version); }
     catch(e){ console.error('[generate-study] dynamic failed:', e); }
   }
-  // fallback direct si env manquant ou erreur
   return {
     study: buildFallbackStudy(book, chap),
     metadata: { emergency:true, error: 'missing_env_or_dynamic_error', book, chapter: chap, version },
