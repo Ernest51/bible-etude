@@ -1,66 +1,124 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Test Étude Biblique</title>
+
+  <!-- Police sympa (optionnelle) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;700&display=swap" rel="stylesheet">
+
   <style>
-    body {
-      font-family: "Georgia", "Times New Roman", serif;
-      margin: 20px;
-      background: #f9f9f9;
-      color: #222;
+    :root {
+      --bg: #f7f7f8;
+      --card: #fff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --ring: rgba(15, 23, 42, 0.08);
+      --accent: #0f766e;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Merriweather", Georgia, "Times New Roman", serif;
+      line-height: 1.55;
+    }
+    header {
+      text-align: center;
+      padding: 28px 16px 8px;
     }
     h1 {
-      text-align: center;
-      font-family: "Palatino Linotype", "Book Antiqua", Palatino, serif;
-      font-size: 2.2em;
-      margin-bottom: 20px;
+      margin: 0 0 6px;
+      font-size: clamp(1.8rem, 2.4vw + 1rem, 2.6rem);
+      letter-spacing: 0.3px;
     }
     .meta {
-      text-align: center;
-      margin-bottom: 30px;
-      font-size: 1em;
-      color: #555;
+      color: var(--muted);
+      font-size: 0.98rem;
     }
+    main { padding: 18px 16px 40px; }
     .section {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-      margin: 20px auto;
-      padding: 20px;
-      max-width: 800px;
+      background: var(--card);
+      border-radius: 14px;
+      box-shadow: 0 6px 18px var(--ring);
+      margin: 16px auto;
+      padding: 20px 22px;
+      max-width: 880px;
     }
     .section h2 {
       text-align: center;
-      font-size: 1.5em;
-      margin-bottom: 10px;
-      color: #2a2a2a;
+      margin: 0 0 10px;
+      font-size: 1.4rem;
+      letter-spacing: .2px;
     }
-    .section p, .section ul {
-      line-height: 1.6;
-      margin: 10px 0;
+    .section h3 { margin-top: 1.1em; }
+    .section p, .section ul, .section ol { margin: 10px 0; }
+    .section ul { padding-left: 1.2rem; }
+    .loading, .error {
+      max-width: 880px;
+      margin: 18px auto;
+      text-align: center;
+      color: var(--muted);
     }
-    .section pre {
-      background: #f4f4f4;
-      padding: 10px;
-      border-radius: 6px;
-      overflow-x: auto;
+    .spinner {
+      width: 22px; height: 22px;
+      border: 3px solid #ddd; border-top-color: var(--accent);
+      border-radius: 50%; display: inline-block;
+      animation: spin 0.9s linear infinite; vertical-align: -5px;
+      margin-right: 8px;
     }
-    @media (max-width: 600px) {
-      body { margin: 10px; }
-      .section { padding: 15px; }
-      h1 { font-size: 1.8em; }
-      .section h2 { font-size: 1.2em; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toolbar {
+      max-width: 880px; margin: 0 auto 6px; display: flex; gap: 8px; justify-content: flex-end;
+      padding: 0 4px;
+    }
+    .btn {
+      border: 1px solid #d1d5db; background: #fff; color: #111827;
+      padding: 8px 12px; border-radius: 10px; cursor: pointer; font-size: 0.95rem;
+    }
+    .btn:hover { background: #f3f4f6; }
+    .hint { font-size: .9rem; color: var(--muted); text-align: center; margin-top: 8px; }
+    @media (max-width: 640px) {
+      .section { padding: 18px; }
     }
   </style>
 </head>
 <body>
-  <h1>Test Étude Biblique</h1>
-  <div class="meta" id="meta">Chargement...</div>
-  <div id="content"></div>
+  <header>
+    <h1>Test Étude Biblique</h1>
+    <div class="meta" id="meta">Chargement…</div>
+  </header>
 
+  <div class="toolbar">
+    <button class="btn" id="refreshBtn" type="button">⟲ Actualiser</button>
+  </div>
+
+  <main id="content">
+    <div class="loading"><span class="spinner"></span>Récupération de l’étude…</div>
+  </main>
+
+  <div class="hint">Cette page appelle <code>/api/generate-study</code> (POST) et affiche les sections en HTML.</div>
+
+  <!-- Markdown → HTML -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script>
+    // Options de rendu Markdown (petites améliorations typographiques)
+    marked.setOptions({
+      breaks: false,
+      smartypants: true,
+      mangle: false,          // évite d’altérer les @ dans le texte
+      headerIds: false        // pas d’ancrage auto pour garder un HTML propre
+    });
+
     async function loadStudy() {
+      const metaEl = document.getElementById("meta");
+      const container = document.getElementById("content");
+      container.innerHTML = '<div class="loading"><span class="spinner"></span>Récupération de l’étude…</div>';
+
       const payload = {
         passage: "Genèse 1",
         options: { length: 1500, translation: "LSG" }
@@ -72,34 +130,43 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
-        const data = await res.json();
 
-        if (!data.ok) {
-          document.getElementById("meta").textContent = "Erreur : " + (data.error || "inconnue");
-          return;
+        // Si la route n’existe pas (404 HTML), essaie quand même de parser JSON
+        let data;
+        try { data = await res.json(); }
+        catch { throw new Error(`Réponse non-JSON (${res.status} ${res.statusText})`); }
+
+        if (!data || !data.ok) {
+          throw new Error(data?.error || "Réponse invalide de l’API");
         }
 
         const meta = data.metadata || {};
-        document.getElementById("meta").textContent =
+        metaEl.textContent =
           `Référence : ${meta.book} ${meta.chapter} | Version : ${meta.version} | Versets : ${meta.verseCount}`;
 
-        const container = document.getElementById("content");
         container.innerHTML = "";
-
-        data.study.sections.forEach(sec => {
+        (data.study?.sections || []).forEach((sec) => {
           const div = document.createElement("div");
           div.className = "section";
+          const md = sec.content || "";
           div.innerHTML = `
-            <h2>${sec.title}</h2>
-            <div>${sec.content}</div>
+            <h2>${sec.title ?? "Section"}</h2>
+            <div class="md">${marked.parse(md)}</div>
           `;
           container.appendChild(div);
         });
+
+        if (!data.study?.sections?.length) {
+          container.innerHTML = '<div class="error">Aucune section retournée par l’API.</div>';
+        }
       } catch (e) {
-        document.getElementById("meta").textContent = "Erreur de chargement : " + e.message;
+        metaEl.textContent = "Erreur";
+        document.getElementById("content").innerHTML =
+          `<div class="error">❌ ${e.message}</div>`;
       }
     }
 
+    document.getElementById("refreshBtn").addEventListener("click", loadStudy);
     loadStudy();
   </script>
 </body>
