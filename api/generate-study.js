@@ -1,91 +1,109 @@
-async function fetchChapter(book, chap){
-  if (!KEY || !BIBLE_ID || !USFM[book]) throw new Error('API_BIBLE_KEY/ID manquants ou livre non mappé');
-  const headers = { accept:'application/json', 'api-key': KEY };
-  const chapterId = `${USFM[book]}.${chap}`;
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Test — Étude verset par verset (Rubrique 0)</title>
+  <style>
+    body{font-family:Inter,system-ui,Arial,sans-serif;margin:18px}
+    h1{font-size:20px;margin:0 0 10px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+    label{display:flex;gap:6px;align-items:center}
+    input,select,button{padding:8px 10px;border:1px solid #d1d5db;border-radius:8px}
+    button{cursor:pointer;background:#111827;color:#fff;border-color:#111827}
+    pre{white-space:pre-wrap;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:10px}
+    .ok{color:#16a34a;font-weight:700}
+    .ko{color:#dc2626;font-weight:700}
+    .warn{color:#ca8a04;font-weight:700}
+    .card{border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin:10px 0}
+    a{color:#2563eb}
+  </style>
+</head>
+<body>
+  <h1>Test — Étude verset par verset (Rubrique 0)</h1>
+  <p>Ce test vérifie l’endpoint <code>/api/verses</code> et la présence d’explications par verset (<code>noteHTML</code>).</p>
 
-  // utilitaire pour temporiser un peu
-  const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
+  <div class="row">
+    <label>Livre :
+      <input id="book" value="Genèse"/>
+    </label>
+    <label>Chapitre :
+      <input id="chapter" type="number" min="1" value="1" style="width:90px"/>
+    </label>
+    <label>Nombre de versets :
+      <input id="limit" type="number" min="1" max="200" value="31" style="width:90px"/>
+    </label>
+    <button id="go">Lancer le test</button>
+  </div>
 
-  // A) essayer d’obtenir le chapitre au format texte (rapide)
-  let content = '';
-  try {
-    const jChap = await fetchJson(
-      `${API_ROOT}/bibles/${BIBLE_ID}/chapters/${chapterId}?contentType=text&includeVerseNumbers=true&includeTitles=false&includeNotes=false`,
-      { headers, timeout: 14000, retries: 1 }
-    );
-    content = CLEAN(jChap?.data?.content || jChap?.data?.text || '');
-  } catch {}
+  <div id="out"></div>
 
-  // B) récupérer la liste des versets (ids + refs)
-  let items = [];
-  try {
-    const jVerses = await fetchJson(
-      `${API_ROOT}/bibles/${BIBLE_ID}/chapters/${chapterId}/verses`,
-      { headers, timeout: 12000, retries: 1 }
-    );
-    items = Array.isArray(jVerses?.data) ? jVerses.data : [];
-  } catch {}
+  <script>
+    const out = document.getElementById('out');
 
-  // C) extraction rapide depuis content si possible
-  let verses = [];
-  if (content){
-    const split1 = content.split(/\s(?=\d{1,3}\s)/g).map(s=>s.trim());
-    verses = split1.map(s => { 
-      const m=s.match(/^(\d{1,3})\s+(.*)$/); 
-      return m?{v:+m[1], text:CLEAN(m[2])}:null; 
-    }).filter(Boolean);
+    function render(html){ out.innerHTML = html; }
+    function esc(s){ return String(s||'').replace(/[&<>]/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m])); }
 
-    if (verses.length < Math.max(2, Math.floor((items.length||0)/3))) {
-      const arr = [];
-      const re = /(?:^|\s)(\d{1,3})[.)]?\s+([^]+?)(?=(?:\s\d{1,3}[.)]?\s)|$)/g;
-      let m; while ((m = re.exec(content))) arr.push({ v:+m[1], text:CLEAN(m[2]) });
-      if (arr.length) verses = arr;
+    async function safeFetchJson(url){
+      const r = await fetch(url);
+      const ct = (r.headers.get('content-type')||'').toLowerCase();
+      const text = await r.text();
+      if (!ct.includes('application/json')) {
+        // On renvoie un objet “non-json” pour diagnostic
+        return { __nonjson: true, status: r.status, body: text };
+      }
+      try { return JSON.parse(text); }
+      catch(e){ return { __parseerr: true, status: r.status, body: text, error: String(e) }; }
     }
-  }
 
-  // D) **Plan B robuste** : si on n'a pas de texte exploitable, on va chercher chaque verset
-  if ((!content || verses.length === 0) && items.length) {
-    // batch simple (limite la pression réseau)
-    const batchSize = 12;
-    const collected = [];
-    for (let i=0; i<items.length; i+=batchSize){
-      const chunk = items.slice(i, i+batchSize);
-      const part = await Promise.all(chunk.map(async (it) => {
-        try {
-          const jv = await fetchJson(
-            `${API_ROOT}/bibles/${BIBLE_ID}/verses/${it.id}?contentType=text&includeTitles=false&includeNotes=false&includeVerseNumbers=false`,
-            { headers, timeout: 9000, retries: 1 }
-          );
-          const raw = CLEAN(jv?.data?.text || jv?.data?.content || it?.reference || '');
-          // déduit le numéro de verset
-          const m1 = raw.match(/^\s*(\d{1,3})\s+(.*)$/);
-          if (m1) return { v: +m1[1], text: (m1[2]||'').trim() };
-          const m2 = String(it?.reference||'').match(/:(\d{1,3})$/);
-          return { v: m2 ? +m2[1] : undefined, text: raw };
-        } catch {
-          // verset indisponible : on garde au moins le numéro
-          const m2 = String(it?.reference||'').match(/:(\d{1,3})$/);
-          return { v: m2 ? +m2[1] : undefined, text: '' };
-        }
-      }));
-      collected.push(...part);
-      // micro pause pour éviter un éventuel rate limit strict
-      await sleep(60);
-    }
-    const clean = collected.filter(x=>Number.isFinite(x.v)).sort((a,b)=>a.v-b.v);
-    verses = clean;
-    // reconstitue un "content" minimal pour l’analyse sémantique
-    content = clean.map(v => `${v.v} ${v.text}`).join(' ');
-  }
+    document.getElementById('go').addEventListener('click', async ()=>{
+      const book = document.getElementById('book').value.trim();
+      const chapter = parseInt(document.getElementById('chapter').value, 10);
+      const limit = parseInt(document.getElementById('limit').value, 10);
 
-  // E) Dernier fallback : au moins des numéros
-  if (!verses.length && items.length){
-    verses = items.map(v => {
-      const ref = String(v?.reference||'');
-      const m = ref.match(/:(\d+)(?:\D+)?$/);
-      return { v: m ? +m[1] : null, text: '' };
-    }).filter(x=>x.v);
-  }
+      render('<p>⏳ Test en cours…</p>');
 
-  return { ok: !!content || verses.length>0, content, verses, verseCount: items.length || verses.length || 0 };
-}
+      const url = `/api/verses?book=${encodeURIComponent(book)}&chapter=${encodeURIComponent(chapter)}`;
+      const data = await safeFetchJson(url);
+
+      if (data.__nonjson || data.__parseerr) {
+        render(`
+          <p class="ko">❌ Réponse non-JSON (${esc(data.status)})</p>
+          <div class="card"><strong>Corps renvoyé :</strong><pre>${esc(data.body.slice(0,4000))}</pre></div>
+          <p>Cause probable : fonction serveur en erreur (page HTML Vercel). Vérifie les logs et/ou l’ID de Bible / la clé API.</p>
+        `);
+        return;
+      }
+
+      if (!data || data.ok === false) {
+        render(`<p class="ko">❌ KO — ${esc(data?.error || 'Réponse invalide')}</p><pre>${esc(JSON.stringify(data,null,2))}</pre>`);
+        return;
+      }
+
+      const verses = Array.isArray(data.verses) ? data.verses : [];
+      const src = data.source || '—';
+      const ver = data.version || '—';
+
+      let html = '';
+      html += `<p class="${verses.length? 'ok':'warn'}">${verses.length? '✅ OK':'⚠️'} — ${esc(verses.length)} verset(s) (source: ${esc(src)}, version: ${esc(ver)})</p>`;
+
+      const slice = verses.slice(0, limit);
+      if (!slice.length) {
+        html += `<p class="warn">⚠️ Aucun verset. Le front affichera un fallback local (lien YouVersion).</p>`;
+      }
+
+      for (const v of slice) {
+        html += `
+          <div class="card">
+            <div><strong>${esc(book)} ${esc(chapter)}:${esc(v.v)}</strong></div>
+            <div>${esc(v.text || '—')}</div>
+            ${v.noteHTML ? `<div style="margin-top:6px">${v.noteHTML}</div>` : `<div style="margin-top:6px" class="warn">⚠️ noteHTML absente</div>`}
+          </div>
+        `;
+      }
+
+      render(html);
+    });
+  </script>
+</body>
+</html>
