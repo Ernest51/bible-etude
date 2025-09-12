@@ -2,171 +2,183 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Test Étude Biblique</title>
-
-  <!-- Police sympa (optionnelle) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;700&display=swap" rel="stylesheet">
-
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    :root {
-      --bg: #f7f7f8;
-      --card: #fff;
-      --text: #1f2937;
-      --muted: #6b7280;
-      --ring: rgba(15, 23, 42, 0.08);
-      --accent: #0f766e;
-    }
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: "Merriweather", Georgia, "Times New Roman", serif;
-      line-height: 1.55;
-    }
-    header {
-      text-align: center;
-      padding: 28px 16px 8px;
-    }
-    h1 {
-      margin: 0 0 6px;
-      font-size: clamp(1.8rem, 2.4vw + 1rem, 2.6rem);
-      letter-spacing: 0.3px;
-    }
-    .meta {
-      color: var(--muted);
-      font-size: 0.98rem;
-    }
-    main { padding: 18px 16px 40px; }
-    .section {
-      background: var(--card);
-      border-radius: 14px;
-      box-shadow: 0 6px 18px var(--ring);
-      margin: 16px auto;
-      padding: 20px 22px;
-      max-width: 880px;
-    }
-    .section h2 {
-      text-align: center;
-      margin: 0 0 10px;
-      font-size: 1.4rem;
-      letter-spacing: .2px;
-    }
-    .section h3 { margin-top: 1.1em; }
-    .section p, .section ul, .section ol { margin: 10px 0; }
-    .section ul { padding-left: 1.2rem; }
-    .loading, .error {
-      max-width: 880px;
-      margin: 18px auto;
-      text-align: center;
-      color: var(--muted);
-    }
-    .spinner {
-      width: 22px; height: 22px;
-      border: 3px solid #ddd; border-top-color: var(--accent);
-      border-radius: 50%; display: inline-block;
-      animation: spin 0.9s linear infinite; vertical-align: -5px;
-      margin-right: 8px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .toolbar {
-      max-width: 880px; margin: 0 auto 6px; display: flex; gap: 8px; justify-content: flex-end;
-      padding: 0 4px;
-    }
-    .btn {
-      border: 1px solid #d1d5db; background: #fff; color: #111827;
-      padding: 8px 12px; border-radius: 10px; cursor: pointer; font-size: 0.95rem;
-    }
-    .btn:hover { background: #f3f4f6; }
-    .hint { font-size: .9rem; color: var(--muted); text-align: center; margin-top: 8px; }
-    @media (max-width: 640px) {
-      .section { padding: 18px; }
-    }
+    body { font-family: "Georgia","Times New Roman",serif; margin:20px; background:#f9f9f9; color:#222; }
+    h1 { text-align:center; font-family:"Palatino Linotype","Book Antiqua",Palatino,serif; font-size:2.2em; margin-bottom:20px; }
+    .meta { text-align:center; margin-bottom:30px; font-size:1em; color:#555; }
+    .section { background:#fff; border-radius:12px; box-shadow:0 2px 6px rgba(0,0,0,.15); margin:20px auto; padding:20px; max-width:980px; }
+    .section h2 { text-align:center; font-size:1.5em; margin-bottom:10px; color:#2a2a2a; }
+    .section p,.section ul { line-height:1.6; margin:10px 0; }
+    .section a { text-decoration: underline; }
+    @media (max-width:600px){ body{margin:10px} .section{padding:15px} h1{font-size:1.8em} .section h2{font-size:1.2em} }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Test Étude Biblique</h1>
-    <div class="meta" id="meta">Chargement…</div>
-  </header>
+  <h1>Test Étude Biblique</h1>
+  <div class="meta" id="meta">Chargement…</div>
+  <div id="content"></div>
 
-  <div class="toolbar">
-    <button class="btn" id="refreshBtn" type="button">⟲ Actualiser</button>
-  </div>
-
-  <main id="content">
-    <div class="loading"><span class="spinner"></span>Récupération de l’étude…</div>
-  </main>
-
-  <div class="hint">Cette page appelle <code>/api/generate-study</code> (POST) et affiche les sections en HTML.</div>
-
-  <!-- Markdown → HTML -->
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script>
-    // Options de rendu Markdown (petites améliorations typographiques)
-    marked.setOptions({
-      breaks: false,
-      smartypants: true,
-      mangle: false,          // évite d’altérer les @ dans le texte
-      headerIds: false        // pas d’ancrage auto pour garder un HTML propre
-    });
+    /* ======================== Auto-link → YouVersion (LSG) ======================== */
+    const YV = { versionId: "93", versionCode: "LSG" }; // LSG
+    // Registre FR → code YouVersion (sans accents/espaces/points)
+    const MAP = {
+      // AT
+      "gen|gn": "GEN","exo|ex": "EXO","lev|levitique|levit|lv|lév|lévitique": "LEV","nb|nombres|nom": "NUM","deut|deuteronome|dt|deutéronome": "DEU",
+      "jos|josue|josué": "JOS","jdg|juges|jug": "JDG","ruth|rt": "RUT",
+      "1s|1sa|1sam|1 samuel|1samuel": "1SA","2s|2sa|2sam|2 samuel|2samuel": "2SA",
+      "1r|1rois|1 ki": "1KI","2r|2rois|2 ki": "2KI",
+      "1ch|1chroniques": "1CH","2ch|2chroniques": "2CH",
+      "esd|ezr|esdras": "EZR","neh|nehemie|néhémie|néhemie": "NEH","est|esther": "EST","job": "JOB",
+      "ps|psa|psaume|psaumes": "PSA","pr|prov|proverbes": "PRO","ec|eccl|ecclesiaste|ecclésiaste": "ECC","ct|cant|cantique(?:des)?cantiques?": "SNG",
+      "esaie|esaïe|esa|isaie|isaïe|is": "ISA","jeremie|jérémie|jer|jr": "JER","lm|lamentations": "LAM","ezechiel|ézéchiel|ezek|ez": "EZK",
+      "daniel|dn": "DAN","osee|osée|os": "HOS","joel|joël|jl": "JOL","amos|am": "AMO","abdias|ab": "OBA",
+      "jonas|jon": "JON","michee|michée|mi": "MIC","nahum|na": "NAM","habacuc|habakuk|hab|hc": "HAB",
+      "sophonie|zephanie|zéphanie|so|zéph": "ZEP","aggee|aggée|ag": "HAG","zacharie|za": "ZEC","malachie|ml": "MAL",
+      // NT
+      "matthieu|mt|mat": "MAT","marc|mc": "MRK","luc|lc": "LUK","jean|jn": "JHN","actes|ac": "ACT",
+      "romains|rom|rm": "ROM","1co|1 cor|1cor|1 corinthiens": "1CO","2co|2 cor|2cor|2 corinthiens": "2CO",
+      "galates|ga": "GAL","ephesiens|éphésiens|ephes|eph|éph": "EPH","philippiens|php|ph": "PHP","colossiens|col": "COL",
+      "1th|1 th|1 thess|1 thessaloniciens": "1TH","2th|2 th|2 thess|2 thessaloniciens": "2TH",
+      "1tm|1 tim|1 timothee|1 timothée": "1TI","2tm|2 tim|2 timothee|2 timothée": "2TI","tite|tt": "TIT","phm|phlm|philemon|philémon": "PHM",
+      "hebreux|hébreux|heb|hé": "HEB","jacques|jc": "JAS","1p|1 pi|1 pierre": "1PE","2p|2 pi|2 pierre": "2PE",
+      "1jn|1 jean": "1JN","2jn|2 jean": "2JN","3jn|3 jean": "3JN","jude|jud": "JUD","apocalypse|ap|apo|rev": "REV"
+    };
 
+    // Helpers
+    const norm = s => s.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // retire accents
+      .replace(/\./g,'').replace(/\s+/g,' ').trim();
+
+    // Build URLs
+    const urlVerses  = (b,c,v) => `https://www.bible.com/fr/bible/${YV.versionId}/${b}.${c}.${v.replace(/–/g,'-')}.${YV.versionCode}`;
+    const urlChapter = (b,c)   => `https://www.bible.com/fr/bible/${YV.versionId}/${b}.${c}.${YV.versionCode}`;
+    const urlBook    = (b)     => `https://www.bible.com/fr/bible/${YV.versionId}/${b}.1.${YV.versionCode}`; // défaut chapitre 1
+
+    // Construit regex dynamiques à partir des clés MAP
+    const bookAlt = Object.keys(MAP).join("|");
+
+    // a) Livre + chapitre + versets  ex: "Col 1:16–17" | "1 Co 13:4-7" | "Lc 24:27"
+    const RE_VERSES = new RegExp(
+      "\\b(" + bookAlt + ")\\.?\\s*(\\d+)\\s*[:\\.]\\s*(\\d+(?:[–-]\\d+)?(?:,\\d+(?:[–-]\\d+)?)*)",
+      "gi"
+    );
+
+    // b) Livre + chapitre (entier)   ex: "Jean 3" | "Psaume 23" | "Gn 1" (pas suivi de : ou .)
+    const RE_CHAPTER = new RegExp(
+      "\\b(" + bookAlt + ")\\.?\\s*(\\d+)(?!\\s*[:\\.\\d])",
+      "gi"
+    );
+
+    // c) Livre seul (optionnel)
+    const RE_BOOK = new RegExp("\\b(" + bookAlt + ")\\b\\.?","gi");
+
+    function bookCodeFromKey(k){
+      const code = MAP[norm(k)];
+      if (code) return code;
+      // Cherche une clé alternative qui matche (pour groupes avec (?:...)?)
+      const entry = Object.entries(MAP).find(([pat]) => new RegExp("^(" + pat + ")$","i").test(k));
+      return entry ? entry[1] : null;
+    }
+
+    function linkifyTextNode(textNode){
+      const original = textNode.nodeValue;
+      let html = original;
+      let changed = false;
+
+      // 1) versets
+      html = html.replace(RE_VERSES, (m,book,chap,verses)=>{
+        const code = bookCodeFromKey(book);
+        if(!code) return m;
+        changed = true;
+        return `<a href="${urlVerses(code,chap,verses)}" target="_blank" rel="noopener">${m}</a>`;
+      });
+
+      // 2) chapitres entiers (éviter de relinker ce qui est déjà dans une balise <a>)
+      html = html.replace(RE_CHAPTER, (m,book,chap)=>{
+        // si déjà linké par l'étape 1 (contient ':') on ne passera pas ici
+        const code = bookCodeFromKey(book);
+        if(!code) return m;
+        changed = true;
+        return `<a href="${urlChapter(code,chap)}" target="_blank" rel="noopener">${m}</a>`;
+      });
+
+      // 3) livre seul → chapitre 1 (évite si déjà un lien inséré)
+      if (!changed) {
+        html = html.replace(RE_BOOK, (m,book)=>{
+          const code = bookCodeFromKey(book);
+          if(!code) return m;
+          // pour ne pas transformer un mot isolé non biblique, on impose majuscule initiale ou abréviation connue
+          const looksBib = /^[A-ZÉÈÊÂÎÔÛÀÄÏÖÜ][a-zéèêàâîôûäëïöüç]+/.test(book) || /\b(?:gn|ex|lv|nb|dt|mt|mc|lc|jn|rm|col|ga|ep|php|heb|jc|jud|ap)\b/i.test(book);
+          if(!looksBib) return m;
+          changed = true;
+          return `<a href="${urlBook(code)}" target="_blank" rel="noopener">${m}</a>`;
+        });
+      }
+
+      if (!changed) return;
+
+      const span = document.createElement("span");
+      span.innerHTML = html;
+      textNode.replaceWith(span);
+    }
+
+    function autolinkScripture(root=document.body){
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode(n){
+          if (!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+          const p = n.parentElement && n.parentElement.tagName;
+          if (p === "A" || p === "SCRIPT" || p === "STYLE" || p === "TEXTAREA") return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      });
+      const nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach(linkifyTextNode);
+    }
+
+    document.addEventListener("DOMContentLoaded", ()=>autolinkScripture());
+    window.autolinkScripture = autolinkScripture; // pour relancer après rendu dynamique
+
+    /* ======================== Chargement de l'étude ======================== */
     async function loadStudy() {
-      const metaEl = document.getElementById("meta");
-      const container = document.getElementById("content");
-      container.innerHTML = '<div class="loading"><span class="spinner"></span>Récupération de l’étude…</div>';
-
-      const payload = {
-        passage: "Genèse 1",
-        options: { length: 1500, translation: "LSG" }
-      };
-
+      const payload = { passage: "Genèse 1", options: { length: 1500, translation: "LSG" } };
       try {
         const res = await fetch("/api/generate-study", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
+        const data = await res.json();
 
-        // Si la route n’existe pas (404 HTML), essaie quand même de parser JSON
-        let data;
-        try { data = await res.json(); }
-        catch { throw new Error(`Réponse non-JSON (${res.status} ${res.statusText})`); }
-
-        if (!data || !data.ok) {
-          throw new Error(data?.error || "Réponse invalide de l’API");
+        if (!data.ok) {
+          document.getElementById("meta").textContent = "Erreur : " + (data.error || "inconnue");
+          return;
         }
 
         const meta = data.metadata || {};
-        metaEl.textContent =
+        document.getElementById("meta").textContent =
           `Référence : ${meta.book} ${meta.chapter} | Version : ${meta.version} | Versets : ${meta.verseCount}`;
 
+        const container = document.getElementById("content");
         container.innerHTML = "";
-        (data.study?.sections || []).forEach((sec) => {
+
+        (data.study?.sections || []).forEach(sec => {
           const div = document.createElement("div");
           div.className = "section";
-          const md = sec.content || "";
-          div.innerHTML = `
-            <h2>${sec.title ?? "Section"}</h2>
-            <div class="md">${marked.parse(md)}</div>
-          `;
+          div.innerHTML = `<h2>${sec.title}</h2><div class="content-fr">${sec.content}</div>`;
           container.appendChild(div);
         });
 
-        if (!data.study?.sections?.length) {
-          container.innerHTML = '<div class="error">Aucune section retournée par l’API.</div>';
-        }
+        // Active l’auto-link sur le contenu injecté
+        window.autolinkScripture(container);
+
       } catch (e) {
-        metaEl.textContent = "Erreur";
-        document.getElementById("content").innerHTML =
-          `<div class="error">❌ ${e.message}</div>`;
+        document.getElementById("meta").textContent = "Erreur de chargement : " + e.message;
       }
     }
-
-    document.getElementById("refreshBtn").addEventListener("click", loadStudy);
     loadStudy();
   </script>
 </body>
