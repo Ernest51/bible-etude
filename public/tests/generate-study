@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Test — /api/generate-study</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f4; }
+    h1 { text-align: center; }
+    label { display: block; margin-top: 10px; }
+    textarea { width: 100%; height: 180px; margin-top: 10px; font-family: monospace; }
+    button { margin-top: 15px; padding: 10px 20px; cursor: pointer; }
+    .ok { color: green; font-weight: bold; }
+    .err { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Test — /api/generate-study</h1>
+
+  <label for="passage">Passage (ex: Genèse 1):</label>
+  <input id="passage" type="text" value="Genèse 1" style="width: 300px">
+
+  <label for="length">Longueur (caractères):</label>
+  <select id="length">
+    <option value="1500">1500</option>
+    <option value="2200">2200</option>
+    <option value="3000">3000</option>
+  </select>
+
+  <button onclick="runTest()">Lancer le test</button>
+
+  <div id="status"></div>
+  <textarea id="output" readonly></textarea>
+
+  <script>
+    async function runTest(){
+      const passage = document.getElementById('passage').value;
+      const length = parseInt(document.getElementById('length').value, 10);
+      const status = document.getElementById('status');
+      const output = document.getElementById('output');
+      status.innerHTML = "⏳ Requête en cours...";
+      output.value = "";
+
+      try {
+        const res = await fetch('/api/generate-study', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ passage, options: { length } })
+        });
+        const json = await res.json();
+        if (json.ok) {
+          status.innerHTML = "✅ OK — Étude générée";
+          status.className = "ok";
+          output.value = JSON.stringify(json, null, 2);
+        } else {
+          status.innerHTML = "⚠️ Erreur: " + (json.error || "inconnue");
+          status.className = "err";
+          output.value = JSON.stringify(json, null, 2);
+        }
+      } catch(e){
+        status.innerHTML = "❌ Exception: " + e.message;
+        status.className = "err";
+        output.value = "";
+      }
+    }
+  </script>
+</body>
+</html>
