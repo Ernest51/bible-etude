@@ -1,5 +1,5 @@
-// api/utils.js
-// Endpoint multi-actions pour limiter le nombre de fonctions côté Vercel.
+// /api/utils.js
+// Endpoint multi-actions (ping, health, whoami, bibles, books, chapters)
 // Exemples :
 //   /api/utils?action=ping
 //   /api/utils?action=health
@@ -8,7 +8,7 @@
 //   /api/utils?action=books&bibleId=...
 //   /api/utils?action=chapters&bibleId=...&bookId=GEN
 
-export const config = { runtime: "nodejs" };
+export const config = { runtime: "nodejs" }; // OK en pages/api sur Vercel
 
 // ------------------------- Constantes & ENV -------------------------
 const API_ROOT = "https://api.scripture.api.bible/v1";
@@ -16,12 +16,13 @@ const KEY = process.env.API_BIBLE_KEY || "";
 const DEFAULT_BIBLE_ID =
   process.env.API_BIBLE_ID ||
   process.env.API_BIBLE_BIBLE_ID ||
+  process.env.DARBY_BIBLE_ID ||
   "";
 
 // ------------------------- Utilitaires HTTP -------------------------
 function setCommonHeaders(res, { cache = "no-store" } = {}) {
   res.setHeader("content-type", "application/json; charset=utf-8");
-  // CORS permissif : utile pour pages statiques dans /public
+  // CORS permissif : utile pour pages statiques dans /public/tests
   res.setHeader("access-control-allow-origin", "*");
   res.setHeader("access-control-allow-methods", "GET,OPTIONS");
   res.setHeader("access-control-allow-headers", "content-type,accept");
@@ -67,7 +68,12 @@ async function delay(ms) {
   await new Promise((r) => setTimeout(r, ms));
 }
 
-async function fetchJson(url, { headers = {}, timeout = 10000, retries = 2, trace = null } = {}) {
+function truncate(s, n = 120, tail = "…") {
+  const t = String(s || "");
+  return t.length <= n ? t : t.slice(0, n - tail.length) + tail;
+}
+
+async function fetchJson(url, { headers = {}, timeout = 12000, retries = 2, trace = null } = {}) {
   const exec = async () => {
     trace && trace.push({ step: "fetch", url });
     const ctrl = new AbortController();
@@ -111,11 +117,6 @@ async function fetchJson(url, { headers = {}, timeout = 10000, retries = 2, trac
   throw lastErr;
 }
 
-function truncate(s, n = 120, tail = "…") {
-  const t = String(s || "");
-  return t.length <= n ? t : t.slice(0, n - tail.length) + tail;
-}
-
 async function apiBible(path, params = {}, { trace = null, timeout = 10000, retries = 1 } = {}) {
   if (!KEY) {
     const e = new Error("API_BIBLE_KEY manquante");
@@ -146,6 +147,7 @@ export default async function handler(req, res) {
     return methodNotAllowed(res, req.method);
   }
 
+  // Construction d'URL sûre (évite les 404 “NOT_FOUND” si querystring exotique)
   const base = `http://${req.headers.host || "local.test"}`;
   let url;
   try {
@@ -200,48 +202,36 @@ export default async function handler(req, res) {
 
     // 3) bibles
     if (action === "bibles") {
-      const lang = sp.get("lang") || undefined; // ex: 'fra'
-      const data = await apiBible("/bibles", lang ? { language: lang } : {}, { trace });
-      // Cache doux 10 minutes côté CDN
-      return ok(res, { ok: true, ...data, trace }, { cache: 600 });
+      if (!KEY) return send(res, 500, { ok: false, error: "API_BIBLE_KEY manquante" });
+      const lang = sp.get("lang") || "fra"; // défaut FR
+      const data = await apiBible("/bibles", { language: lang }, { trace });
+      // Cache doux 10 minutes côté CDN (suffit pour un catalogue)
+      return ok(res, { ok: true, data: data?.data || [], meta: data?.meta || null, trace }, { cache: 600 });
     }
 
     // 4) books
     if (action === "books") {
+      if (!KEY) return send(res, 500, { ok: false, error: "API_BIBLE_KEY manquante" });
       const bibleId = sp.get("bibleId") || DEFAULT_BIBLE_ID;
       if (!bibleId) return badRequest(res, "bibleId requis (ou configure API_BIBLE_ID)");
-
       const data = await apiBible(`/bibles/${bibleId}/books`, {}, { trace });
       return ok(
         res,
-        {
-          ok: true,
-          bibleId,
-          data: data?.data || [],
-          meta: data?.meta || null,
-          trace,
-        },
+        { ok: true, bibleId, data: data?.data || [], meta: data?.meta || null, trace },
         { cache: 600 }
       );
     }
 
     // 5) chapters
     if (action === "chapters") {
+      if (!KEY) return send(res, 500, { ok: false, error: "API_BIBLE_KEY manquante" });
       const bibleId = sp.get("bibleId") || DEFAULT_BIBLE_ID;
       const bookId = sp.get("bookId") || "";
       if (!bibleId || !bookId) return badRequest(res, "bibleId et bookId requis");
-
       const data = await apiBible(`/bibles/${bibleId}/books/${bookId}/chapters`, {}, { trace });
       return ok(
         res,
-        {
-          ok: true,
-          bibleId,
-          bookId,
-          data: data?.data || [],
-          meta: data?.meta || null,
-          trace,
-        },
+        { ok: true, bibleId, bookId, data: data?.data || [], meta: data?.meta || null, trace },
         { cache: 600 }
       );
     }
